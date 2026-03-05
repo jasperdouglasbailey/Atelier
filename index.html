@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instagram Strategy — Shelley Horan</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Mono:wght@300;400&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5F0E8;
+    --ink: #1A1714;
+    --warm-grey: #9E9590;
+    --dusty-rose: #C9A99A;
+    --ochre: #B8963E;
+    --deep: #2C2420;
+    --ad: #1A1714;
+    --editorial: #4A3F35;
+    --personal: #7A6A5E;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'Manrope', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 80px 60px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-right {
+    background: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-right::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -20%;
+    width: 70%;
+    height: 70%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(184,150,62,0.15) 0%, transparent 70%);
+  }
+
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    margin-bottom: 32px;
+  }
+
+  .hero-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(52px, 7vw, 96px);
+    font-weight: 300;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    margin-bottom: 48px;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--ochre);
+  }
+
+  .hero-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    border-top: 1px solid rgba(26,23,20,0.15);
+    padding-top: 32px;
+  }
+
+  .meta-item label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .meta-item span {
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  /* Right side — grid preview */
+  .grid-preview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    width: 280px;
+    opacity: 0.9;
+  }
+
+  .grid-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .grid-cell.ad {
+    background: #2A2522;
+    color: #B8963E;
+    border: 1px solid rgba(184,150,62,0.3);
+  }
+
+  .grid-cell.editorial {
+    background: #3A312B;
+    color: #C9A99A;
+    border: 1px solid rgba(201,169,154,0.3);
+  }
+
+  .grid-cell.personal {
+    background: #322B26;
+    color: #9E9590;
+    border: 1px solid rgba(158,149,144,0.2);
+  }
+
+  .grid-cell-label {
+    writing-mode: horizontal-tb;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  /* NAV DOTS */
+  .section-nav {
+    position: fixed;
+    right: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+  }
+
+  .nav-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(26,23,20,0.2);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .nav-dot.active { background: var(--ochre); transform: scale(1.5); }
+
+  /* SECTIONS */
+  section {
+    padding: 120px 10vw;
+    position: relative;
+  }
+
+  .section-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--warm-grey);
+    text-transform: uppercase;
+    margin-bottom: 60px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .section-number::after {
+    content: '';
+    flex: 1;
+    max-width: 60px;
+    height: 1px;
+    background: rgba(26,23,20,0.2);
+  }
+
+  .section-heading {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(36px, 5vw, 64px);
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 60px;
+  }
+
+  .section-heading em { font-style: italic; color: var(--ochre); }
+
+  /* PHILOSOPHY */
+  .philosophy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+  }
+
+  .philosophy-text {
+    font-size: 16px;
+    line-height: 1.9;
+    color: var(--editorial);
+  }
+
+  .philosophy-text p + p { margin-top: 20px; }
+
+  .principles {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .principle {
+    padding: 28px 0;
+    border-bottom: 1px solid rgba(26,23,20,0.1);
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .principle-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--ochre);
+    opacity: 0.6;
+    line-height: 1;
+    padding-top: 4px;
+  }
+
+  .principle-title {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+
+  .principle-body {
+    font-size: 13px;
+    color: var(--warm-grey);
+    line-height: 1.6;
+  }
+
+  /* CONTENT PILLARS */
+  .pillars-section { background: var(--ink); color: var(--cream); }
+
+  .pillars-section .section-number { color: rgba(245,240,232,0.35); }
+  .pillars-section .section-number::after { background: rgba(245,240,232,0.15); }
+  .pillars-section .section-heading em { color: var(--dusty-rose); }
+
+  .pillars-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+  }
+
+  .pillar {
+    padding: 48px 36px;
+    position: relative;
+    overflow: hidden;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .pillar-ad { background: #222018; }
+  .pillar-editorial { background: #1E1C1A; }
+  .pillar-personal { background: #201E1C; }
+
+  .pillar-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tag-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .pillar-ad .tag-dot { background: var(--ochre); }
+  .pillar-editorial .tag-dot { background: var(--dusty-rose); }
+  .pillar-personal .tag-dot { background: var(--warm-grey); }
+
+  .pillar-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 40px;
+    font-weight: 300;
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+
+  .pillar-ad .pillar-name { color: var(--ochre); }
+  .pillar-editorial .pillar-name { color: var(--dusty-rose); }
+  .pillar-personal .pillar-name { color: #B0A89E; }
+
+  .pillar-desc {
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(245,240,232,0.5);
+    margin-bottom: 32px;
+    flex: 1;
+  }
+
+  .pillar-examples {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pillar-example {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(245,240,232,0.3);
+    padding: 8px 12px;
+    border: 1px solid rgba(245,240,232,0.08);
+    border-radius: 2px;
+  }
+
+  /* WEEKLY RHYTHM */
+  .weekly-section { background: #F0EAE0; }
+
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+  }
+
+  .day-card {
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 360px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .day-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+
+  .day-card.ad { background: #1A1714; color: var(--cream); }
+  .day-card.ad::before { background: var(--ochre); }
+  .day-card.editorial { background: #2C2420; color: var(--cream); }
+  .day-card.editorial::before { background: var(--dusty-rose); }
+  .day-card.personal { background: #3A3330; color: var(--cream); }
+  .day-card.personal::before { background: var(--warm-grey); }
+
+  .day-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.4;
+  }
+
+  .day-type {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 300;
+    line-height: 1.1;
+  }
+
+  .day-card.ad .day-type { color: var(--ochre); }
+  .day-card.editorial .day-type { color: var(--dusty-rose); }
+  .day-card.personal .day-type { color: #B0A89E; }
+
+  .day-content {
+    font-size: 12px;
+    line-height: 1.6;
+    opacity: 0.55;
+    flex: 1;
+  }
+
+  .day-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .day-time .time-label { opacity: 0.4; font-size: 9px; letter-spacing: 0.15em; }
+
+  /* POST TIMING */
+  .timing-section { background: var(--ink); color: var(--cream); }
+  .timing-section .section-heading em { color: var(--ochre); }
+  .timing-section .section-number { color: rgba(245,240,232,0.3); }
+  .timing-section .section-number::after { background: rgba(245,240,232,0.1); }
+
+  .timing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+    margin-top: 60px;
+  }
+
+  .time-slot {
+    padding: 32px 0;
+    border-bottom: 1px solid rgba(245,240,232,0.08);
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .time-slot:first-child { border-top: 1px solid rgba(245,240,232,0.08); }
+
+  .time-slot-time {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px;
+    font-weight: 300;
+    color: var(--ochre);
+    line-height: 1;
+  }
+
+  .time-slot-ampm {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: rgba(245,240,232,0.3);
+    display: block;
+    margin-top: 4px;
+  }
+
+  .time-slot-info-title {
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: var(--cream);
+  }
+
+  .time-slot-info-body {
+    font-size: 12px;
+    color: rgba(245,240,232,0.45);
+    line-height: 1.6;
+  }
+
+  .timing-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .timing-note {
+    padding: 24px;
+    background: rgba(245,240,232,0.04);
+    border-left: 2px solid var(--ochre);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .timing-note-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ochre);
+    margin-bottom: 8px;
+  }
+
+  .timing-note-body {
+    font-size: 12px;
+    color: rgba(245,240,232,0.5);
+    line-height: 1.6;
+  }
+
+  /* CAPTION VOICE */
+  .caption-section { background: var(--cream); }
+
+  .caption-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+  }
+
+  .caption-card {
+    background: white;
+    padding: 40px 32px;
+    position: relative;
+  }
+
+  .caption-card::after {
+    content: attr(data-type);
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    opacity: 0.5;
+  }
+
+  .caption-type {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .caption-type-ad { color: #8A7030; }
+  .caption-type-ed { color: #9A7060; }
+  .caption-type-per { color: var(--warm-grey); }
+
+  .caption-example {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-weight: 300;
+    font-style: italic;
+    line-height: 1.6;
+    color: var(--ink);
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(26,23,20,0.08);
+  }
+
+  .caption-note {
+    font-size: 11px;
+    color: var(--warm-grey);
+    line-height: 1.6;
+  }
+
+  /* HASHTAGS */
+  .hashtag-section { background: #EDE8DE; }
+
+  .hashtag-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-top: 60px;
+  }
+
+  .hashtag-group-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(26,23,20,0.12);
+  }
+
+  .hashtag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hashtag-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 6px 12px;
+    background: rgba(26,23,20,0.05);
+    border-radius: 2px;
+    color: var(--editorial);
+    letter-spacing: 0.03em;
+  }
+
+  /* SAMPLE WEEK */
+  .sample-section { background: white; }
+
+  .sample-posts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 60px;
+  }
+
+  .sample-post {
+    display: grid;
+    grid-template-columns: 60px 160px 1fr 220px;
+    gap: 0;
+    align-items: stretch;
+    background: var(--cream);
+  }
+
+  .sample-post:nth-child(even) { background: #EDE8DE; }
+
+  .post-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 300;
+    color: rgba(26,23,20,0.2);
+    padding: 32px 16px;
+  }
+
+  .post-day-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 32px 24px;
+    border-right: 1px solid rgba(26,23,20,0.08);
+  }
+
+  .post-day-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    margin-bottom: 4px;
+  }
+
+  .post-day-type {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 300;
+  }
+
+  .post-day-type.ad { color: var(--ochre); }
+  .post-day-type.editorial { color: var(--dusty-rose); }
+  .post-day-type.personal { color: var(--warm-grey); }
+
+  .post-content {
+    padding: 32px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .post-title {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+
+  .post-desc {
+    font-size: 12px;
+    color: var(--warm-grey);
+    line-height: 1.6;
+    max-width: 480px;
+  }
+
+  .post-meta-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 32px 32px;
+    border-left: 1px solid rgba(26,23,20,0.08);
+    gap: 8px;
+  }
+
+  .post-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+  }
+
+  .post-format {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--warm-grey);
+    text-transform: uppercase;
+  }
+
+  /* GROWTH TACTICS */
+  .growth-section { background: var(--ink); color: var(--cream); }
+  .growth-section .section-heading em { color: var(--dusty-rose); }
+  .growth-section .section-number { color: rgba(245,240,232,0.3); }
+  .growth-section .section-number::after { background: rgba(245,240,232,0.1); }
+
+  .growth-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+  }
+
+  .growth-card {
+    background: rgba(245,240,232,0.04);
+    padding: 48px 40px;
+  }
+
+  .growth-card:hover { background: rgba(245,240,232,0.06); }
+
+  .growth-icon {
+    font-size: 28px;
+    margin-bottom: 20px;
+    display: block;
+  }
+
+  .growth-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-weight: 300;
+    margin-bottom: 16px;
+    color: var(--cream);
+  }
+
+  .growth-body {
+    font-size: 13px;
+    color: rgba(245,240,232,0.45);
+    line-height: 1.7;
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 80px 10vw;
+    background: var(--cream);
+    border-top: 1px solid rgba(26,23,20,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .footer-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 48px;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .footer-meta {
+    text-align: right;
+  }
+
+  .footer-meta p {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--warm-grey);
+    line-height: 1.8;
+  }
+
+  /* Divider */
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(26,23,20,0.15), transparent);
+    margin: 0 10vw;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-left > * {
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .hero-left > *:nth-child(1) { animation-delay: 0.1s; }
+  .hero-left > *:nth-child(2) { animation-delay: 0.3s; }
+  .hero-left > *:nth-child(3) { animation-delay: 0.5s; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-right { display: none; }
+    .pillars-grid, .week-grid, .timing-grid, .caption-grid, .hashtag-columns { grid-template-columns: 1fr; }
+    .philosophy-grid { grid-template-columns: 1fr; }
+    .sample-post { grid-template-columns: 1fr; }
+    .growth-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="section-nav">
+  <div class="nav-dot active" onclick="document.querySelector('.hero').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#philosophy').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#pillars').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#rhythm').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#timing').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#captions').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#sample').scrollIntoView({behavior:'smooth'})"></div>
+  <div class="nav-dot" onclick="document.querySelector('#growth').scrollIntoView({behavior:'smooth'})"></div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <p class="eyebrow">@shelley_horan · Instagram Strategy · 2026</p>
+    <h1 class="hero-title">A grid<br>built like<br><em>a body</em><br>of work.</h1>
+    <div class="hero-meta">
+      <div class="meta-item">
+        <label>Approach</label>
+        <span>Commissioned · Editorial · Personal</span>
+      </div>
+      <div class="meta-item">
+        <label>Cadence</label>
+        <span>5 posts per week, weekdays</span>
+      </div>
+      <div class="meta-item">
+        <label>Current following</label>
+        <span>6,225 followers</span>
+      </div>
+      <div class="meta-item">
+        <label>Aesthetic direction</label>
+        <span>Quiet tension · Tactile luxury</span>
+      </div>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="grid-preview">
+      <div class="grid-cell ad"><div class="grid-cell-label">Ad<br>Mon</div></div>
+      <div class="grid-cell editorial"><div class="grid-cell-label">Edit<br>Tue</div></div>
+      <div class="grid-cell personal"><div class="grid-cell-label">Personal<br>Wed</div></div>
+      <div class="grid-cell editorial"><div class="grid-cell-label">Edit<br>Thu</div></div>
+      <div class="grid-cell ad"><div class="grid-cell-label">Ad<br>Fri</div></div>
+      <div class="grid-cell personal"><div class="grid-cell-label">Personal<br>Mon</div></div>
+      <div class="grid-cell ad"><div class="grid-cell-label">Ad<br>Tue</div></div>
+      <div class="grid-cell editorial"><div class="grid-cell-label">Edit<br>Wed</div></div>
+      <div class="grid-cell personal"><div class="grid-cell-label">Personal<br>Thu</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PHILOSOPHY -->
+<section id="philosophy">
+  <p class="section-number">01 — Philosophy</p>
+  <h2 class="section-heading">Your grid is a<br><em>curated exhibition,</em><br>not a feed.</h2>
+  <div class="philosophy-grid">
+    <div class="philosophy-text">
+      <p>Shelley, your work already speaks in a distinct visual language — close, tactile, graphic, restrained. It spans luxury beauty campaigns (Armani, Smells), editorial still-life, and a personal practice that moves between the witty and the quietly profound.</p>
+      <p>The problem with most photographer feeds is incoherence: commission drops next to a personal project with no connective tissue. Clients see a portfolio in chaos. Peers see inconsistency. Followers disengage.</p>
+      <p>The strategy below treats your grid as a single, sustained argument for your vision. Each post is a sentence. Each week is a paragraph. The alternation between commissioned, editorial, and personal work is the rhythm — and rhythm is what creates desire.</p>
+      <p>Reference points: Nadège Meriau's obsessive materiality, Corinne Day's intimacy, the anti-heroism of Wolfgang Tillmans, the colour decisions of Viviane Sassen. But always Shelley first.</p>
+    </div>
+    <div class="principles">
+      <div class="principle">
+        <div class="principle-num">I</div>
+        <div>
+          <div class="principle-title">Coherence over frequency</div>
+          <div class="principle-body">Five considered posts beats seven rushed ones. Quality of selection is the entire strategy.</div>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-num">II</div>
+        <div>
+          <div class="principle-title">Contrast creates dialogue</div>
+          <div class="principle-body">Alternating pillars creates visual conversations across the grid. An Armani bottle next to a smiley-face biscuit is unexpectedly brilliant.</div>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-num">III</div>
+        <div>
+          <div class="principle-title">Captions as whispers</div>
+          <div class="principle-body">Short, oblique, sometimes silent. Never explanatory. Let the work lead.</div>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-num">IV</div>
+        <div>
+          <div class="principle-title">The grid is a gallery hang</div>
+          <div class="principle-body">Before posting, preview the 3×3. Tonal balance — dark/light, tight/wide — matters as much as the individual image.</div>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="principle-num">V</div>
+        <div>
+          <div class="principle-title">Stories are the studio</div>
+          <div class="principle-body">The feed is finished work. Stories are process, personality, behind the frame. Keep them distinct.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+<!-- PILLARS -->
+<section id="pillars" class="pillars-section">
+  <p class="section-number">02 — Content Pillars</p>
+  <h2 class="section-heading">Three voices.<br><em>One vision.</em></h2>
+  <div class="pillars-grid">
+    <div class="pillar pillar-ad">
+      <div>
+        <div class="pillar-tag"><span class="tag-dot"></span>Monday / Friday</div>
+        <div class="pillar-name">Commissioned<br>& Advertising</div>
+        <div class="pillar-desc">Your commercial work, presented with intention. Luxury beauty, product, campaign imagery. This pillar signals your professional range to art directors and brand clients. Don't caption it like an ad — frame it like a choice.</div>
+      </div>
+      <div class="pillar-examples">
+        <div class="pillar-example">Beauty close-up · skin, eye, lip</div>
+        <div class="pillar-example">Product still-life · Armani, fragrance</div>
+        <div class="pillar-example">Campaign multi-image carousel</div>
+        <div class="pillar-example">Behind-the-commercial detail shot</div>
+      </div>
+    </div>
+    <div class="pillar pillar-editorial">
+      <div>
+        <div class="pillar-tag"><span class="tag-dot"></span>Tuesday / Thursday</div>
+        <div class="pillar-name">Editorial<br>& Magazine</div>
+        <div class="pillar-desc">Fashion editorial, magazine commissions, art-directed story work. This is where your graphic sensibility and colour intelligence live. Flat-lay, portraiture, concept. Twice a week — this pillar is the backbone of the feed.</div>
+      </div>
+      <div class="pillar-examples">
+        <div class="pillar-example">Still-life compositions · colour-blocked</div>
+        <div class="pillar-example">Portrait editorial · natural & studio</div>
+        <div class="pillar-example">Magazine spreads (as carousel)</div>
+        <div class="pillar-example">Art-directed flat-lay detail</div>
+      </div>
+    </div>
+    <div class="pillar pillar-personal">
+      <div>
+        <div class="pillar-tag"><span class="tag-dot"></span>Wednesday</div>
+        <div class="pillar-name">Personal<br>& Artistic</div>
+        <div class="pillar-desc">The work that explains why everything else exists. Your eye untethered — objects, light, obsessions, experiments. This midweek post is the soul of the feed. It's what makes people follow you rather than just admire you.</div>
+      </div>
+      <div class="pillar-examples">
+        <div class="pillar-example">Ongoing series / personal projects</div>
+        <div class="pillar-example">Found objects · texture studies</div>
+        <div class="pillar-example">Experimental / process imagery</div>
+        <div class="pillar-example">Images that defy easy category</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WEEKLY RHYTHM -->
+<section id="rhythm" class="weekly-section">
+  <p class="section-number">03 — Weekly Rhythm</p>
+  <h2 class="section-heading">The week as<br><em>a composition.</em></h2>
+  <div class="week-grid">
+    <div class="day-card ad">
+      <div>
+        <div class="day-name">Monday</div>
+        <div class="day-type">Commissioned</div>
+      </div>
+      <div class="day-content">Open the week with authority. A single, strong commercial image. Signals professionalism and sets a high aesthetic bar for the week.</div>
+      <div class="day-time">
+        <span>7:30 AM</span>
+        <span class="time-label">AEDT / AEST</span>
+      </div>
+    </div>
+    <div class="day-card editorial">
+      <div>
+        <div class="day-name">Tuesday</div>
+        <div class="day-type">Editorial</div>
+      </div>
+      <div class="day-content">Shift registers. A flat-lay, portrait, or colour study. Creates contrast with Monday while maintaining intensity. Often a good day for carousels.</div>
+      <div class="day-time">
+        <span>12:00 PM</span>
+        <span class="time-label">AEDT / AEST</span>
+      </div>
+    </div>
+    <div class="day-card personal">
+      <div>
+        <div class="day-name">Wednesday</div>
+        <div class="day-type">Personal</div>
+      </div>
+      <div class="day-content">The midweek breath. Your most personal, strange, or experimental work. Midweek audiences are scrolling slowly — reward them. Minimal caption or none.</div>
+      <div class="day-time">
+        <span>8:00 AM</span>
+        <span class="time-label">AEDT / AEST</span>
+      </div>
+    </div>
+    <div class="day-card editorial">
+      <div>
+        <div class="day-name">Thursday</div>
+        <div class="day-type">Editorial</div>
+      </div>
+      <div class="day-content">Second editorial of the week — ideally different in format or tone to Tuesday. Portrait where Tuesday was object; colour where Tuesday was neutral.</div>
+      <div class="day-time">
+        <span>6:30 PM</span>
+        <span class="time-label">AEDT / AEST</span>
+      </div>
+    </div>
+    <div class="day-card ad">
+      <div>
+        <div class="day-name">Friday</div>
+        <div class="day-type">Commissioned</div>
+      </div>
+      <div class="day-content">Close the week commercially. Engagement on Fridays from international markets (UK, US) peaks in the evening. Use this slot for your most polished commissioned work.</div>
+      <div class="day-time">
+        <span>6:00 PM</span>
+        <span class="time-label">AEDT / AEST</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TIMING -->
+<section id="timing" class="timing-section">
+  <p class="section-number">04 — Optimal Posting Times</p>
+  <h2 class="section-heading">When Melbourne<br>meets <em>the world.</em></h2>
+  <div class="timing-grid">
+    <div>
+      <div class="time-slot">
+        <div>
+          <div class="time-slot-time">7:30</div>
+          <span class="time-slot-ampm">AM AEDT</span>
+        </div>
+        <div>
+          <div class="time-slot-info-title">Monday Morning</div>
+          <div class="time-slot-info-body">Catches Australian commuters before the workday. Also hits UK Sunday evening (9:30 PM GMT) — a strong browsing window for European creatives and art directors.</div>
+        </div>
+      </div>
+      <div class="time-slot">
+        <div>
+          <div class="time-slot-time">12:00</div>
+          <span class="time-slot-ampm">PM AEDT</span>
+        </div>
+        <div>
+          <div class="time-slot-info-title">Tuesday Midday</div>
+          <div class="time-slot-info-body">Australian lunch hour. Also reaches Tokyo morning (10 AM JST) and Singapore (9 AM). Strong for editorial and fashion content where Asian market engagement is high.</div>
+        </div>
+      </div>
+      <div class="time-slot">
+        <div>
+          <div class="time-slot-time">8:00</div>
+          <span class="time-slot-ampm">AM AEDT</span>
+        </div>
+        <div>
+          <div class="time-slot-info-title">Wednesday Morning</div>
+          <div class="time-slot-info-body">Personal work performs better in quiet morning moments when people are more contemplative. Domestic Australian audience prime slot.</div>
+        </div>
+      </div>
+      <div class="time-slot">
+        <div>
+          <div class="time-slot-time">6:30</div>
+          <span class="time-slot-ampm">PM AEDT</span>
+        </div>
+        <div>
+          <div class="time-slot-info-title">Thursday Evening</div>
+          <div class="time-slot-info-body">Post-work scroll window in Australia. Simultaneously reaches NYC morning (7:30 AM ET) — key for US editorial and fashion industry engagement.</div>
+        </div>
+      </div>
+      <div class="time-slot">
+        <div>
+          <div class="time-slot-time">6:00</div>
+          <span class="time-slot-ampm">PM AEDT</span>
+        </div>
+        <div>
+          <div class="time-slot-info-title">Friday Evening</div>
+          <div class="time-slot-info-body">Weekend anticipation browsing. Catches London lunch (8 AM GMT) and New York early morning (3 AM ET — but the algorithm carries it to their morning). Highest potential reach window of the week.</div>
+        </div>
+      </div>
+    </div>
+    <div class="timing-notes">
+      <div class="timing-note">
+        <div class="timing-note-title">On Timezone Strategy</div>
+        <div class="timing-note-body">Melbourne sits in an unusual position for international reach. The Thursday and Friday evening slots are your best bridge to US and UK markets simultaneously — lean into these for your most commercially relevant work.</div>
+      </div>
+      <div class="timing-note">
+        <div class="timing-note-title">Instagram's Algorithm</div>
+        <div class="timing-note-body">Instagram now weights early engagement heavily. The first 30 minutes matter most — post, then engage with comments and Stories immediately to signal activity and boost distribution.</div>
+      </div>
+      <div class="timing-note">
+        <div class="timing-note-title">Carousel Advantage</div>
+        <div class="timing-note-body">Carousels receive up to 3× more reach than single images because Instagram re-serves them to users who didn't swipe. Use carousels for campaign work and series — 3 to 8 images maximum.</div>
+      </div>
+      <div class="timing-note">
+        <div class="timing-note-title">Reels as Amplification</div>
+        <div class="timing-note-body">One Reel per fortnight — a 15–30 second atmospheric clip from a shoot, no sound or ambient sound only. Reels are distributed beyond your follower base. Think of them as discovery content, not portfolio content.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CAPTIONS -->
+<section id="captions" class="caption-section">
+  <p class="section-number">05 — Caption Voice</p>
+  <h2 class="section-heading">The image speaks.<br>The caption <em>breathes.</em></h2>
+  <div class="caption-grid">
+    <div class="caption-card" data-type="Ad">
+      <div class="caption-type caption-type-ad">⬤ &nbsp;Commissioned</div>
+      <div class="caption-example">"Shot for @armanibeauty. More soon."</div>
+      <div class="caption-note">Credit the client first. No gushing. Let the work be the persuasion. Optional: name the product, name a collaborator. Never describe what the audience can see. 1–2 lines maximum. Always tag the brand.</div>
+    </div>
+    <div class="caption-card" data-type="Editorial">
+      <div class="caption-type caption-type-ed">⬤ &nbsp;Editorial</div>
+      <div class="caption-example">"Tape measure. Blue. 2025."<br><br>— or —<br><br>"Something about admitting you're lost."</div>
+      <div class="caption-note">Oblique, spare, curious. Could be the title of the work. Could be the thought that produced it. Never a full explanation. Reference the publication only if it adds something; otherwise omit it. Let the ambiguity work.</div>
+    </div>
+    <div class="caption-card" data-type="Personal">
+      <div class="caption-type caption-type-per">⬤ &nbsp;Personal</div>
+      <div class="caption-example">"Smiley faces are the most honest form of punctuation."<br><br>— or —<br><br>[no caption]</div>
+      <div class="caption-note">Complete latitude. Can be a fragment, a note-to-self, a found line, a date. Or nothing at all — silence is valid for personal work. These posts are about relationship, not description. Occasionally longer (3–4 lines) if there's a real thought.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HASHTAGS -->
+<section id="hashtags" class="hashtag-section">
+  <p class="section-number">06 — Hashtag Architecture</p>
+  <h2 class="section-heading">Hashtags that<br><em>belong</em> to your work.</h2>
+  <div class="hashtag-columns">
+    <div>
+      <div class="hashtag-group-title">Always-on · Core identity</div>
+      <div class="hashtag-list">
+        <span class="hashtag-tag">#shelleyhoran</span>
+        <span class="hashtag-tag">#melbournephotographer</span>
+        <span class="hashtag-tag">#australianphotography</span>
+        <span class="hashtag-tag">#stilllife</span>
+        <span class="hashtag-tag">#commercialphotography</span>
+        <span class="hashtag-tag">#beautyphotography</span>
+      </div>
+    </div>
+    <div>
+      <div class="hashtag-group-title">Editorial posts</div>
+      <div class="hashtag-list">
+        <span class="hashtag-tag">#editorialphotography</span>
+        <span class="hashtag-tag">#fashionstilllife</span>
+        <span class="hashtag-tag">#magazinephotography</span>
+        <span class="hashtag-tag">#productphotography</span>
+        <span class="hashtag-tag">#colorphotography</span>
+        <span class="hashtag-tag">#studioshot</span>
+        <span class="hashtag-tag">#flatlay</span>
+        <span class="hashtag-tag">#conceptualphotography</span>
+      </div>
+    </div>
+    <div>
+      <div class="hashtag-group-title">Personal / artistic posts</div>
+      <div class="hashtag-list">
+        <span class="hashtag-tag">#photographersofinstagram</span>
+        <span class="hashtag-tag">#contemporaryphotography</span>
+        <span class="hashtag-tag">#artphotography</span>
+        <span class="hashtag-tag">#objectphotography</span>
+        <span class="hashtag-tag">#photographerlife</span>
+        <span class="hashtag-tag">#visualculture</span>
+        <span class="hashtag-tag">#minimalistphotography</span>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top: 40px; font-size: 12px; color: var(--warm-grey); font-family: 'DM Mono', monospace; letter-spacing: 0.05em;">Use 8–12 hashtags per post. Place in caption (not comment) for algorithmic benefit. Rotate — never use the identical set twice in a row.</p>
+</section>
+
+<!-- SAMPLE WEEK -->
+<section id="sample" class="sample-section">
+  <p class="section-number">07 — Sample Two-Week Plan</p>
+  <h2 class="section-heading">What this looks like<br><em>in practice.</em></h2>
+  <p style="max-width: 560px; color: var(--warm-grey); font-size: 14px; line-height: 1.7; margin-bottom: 0;">Once you share your Dropbox, these slots will be populated with your actual images. Below is the framework — select images from your archive that fit each brief. When you connect Dropbox, I can review and match specific images to each slot.</p>
+
+  <div class="sample-posts">
+    <div class="sample-post">
+      <div class="post-num">1</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 1 · Mon</div>
+        <div class="post-day-type ad">Commissioned</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Beauty / Skin Close-Up</div>
+        <div class="post-desc">Select your strongest recent beauty commission — ideally a tight crop that holds its own as an abstract image. Armani skin, a dewy close-up, a beauty portrait. Caption: client tag + 1–2 words.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">7:30 AM</div>
+        <div class="post-format">Single · Portrait</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">2</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 1 · Tue</div>
+        <div class="post-day-type editorial">Editorial</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Colour-Blocked Still-Life</div>
+        <div class="post-desc">A graphic flat-lay with strong colour relationships — your "admit one" pink spread, the blue tape measure, the smiley cookies. Pick the one with strongest colour tension. 3-image carousel option.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">12:00 PM</div>
+        <div class="post-format">Carousel · Square</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">3</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 1 · Wed</div>
+        <div class="post-day-type personal">Personal</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Study / Experiment</div>
+        <div class="post-desc">Something quieter. The zebra print reflection, the olive oil pour over the lip, the torch on the dark plinth — something strange and true to your personal eye. No caption, or a single noun.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">8:00 AM</div>
+        <div class="post-format">Single · Square</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">4</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 1 · Thu</div>
+        <div class="post-day-type editorial">Editorial</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Portrait Editorial</div>
+        <div class="post-desc">A portrait from editorial work — the model with graphic liner, the gloved hand with newspaper, the eye-shadow application. Should contrast Tuesday's object-based post. Human-centred this time.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">6:30 PM</div>
+        <div class="post-format">Single · Portrait</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">5</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 1 · Fri</div>
+        <div class="post-day-type ad">Commissioned</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Product · Luxury Object</div>
+        <div class="post-desc">A perfume bottle, glass vessel, or luxury product shot. Could be the Giorgio Armani foundation, the Smells fragrance, the amber bottle. Single image or 2-up carousel. Client-tagged caption.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">6:00 PM</div>
+        <div class="post-format">Single or 2-up</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">6</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 2 · Mon</div>
+        <div class="post-day-type personal">Personal</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Personal Series — Rotate Pillar</div>
+        <div class="post-desc">Week 2 opens with personal work to shift the 3×3 grid. Ensures that looking at the grid, no two adjacent posts feel identical in weight. A material study, texture, experiment from the archive.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">7:30 AM</div>
+        <div class="post-format">Single · Square</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">7</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 2 · Tue</div>
+        <div class="post-day-type ad">Commissioned</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Campaign · Multi-Image</div>
+        <div class="post-desc">A richer carousel from a campaign — 4–6 images from a single commission. Behind-scenes + hero shots. Tells the story of the shoot. Great for saving / sharing. Client-tag in caption.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">12:00 PM</div>
+        <div class="post-format">Carousel · 4–6</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">8</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 2 · Wed</div>
+        <div class="post-day-type editorial">Editorial</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Magazine Story — Centrepiece</div>
+        <div class="post-desc">A spread from print editorial if available, or a set of images from a magazine commission. Could include the PFAFF spread, the green textile, the thread study. Midweek editorial creates a strong grid anchor.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">8:00 AM</div>
+        <div class="post-format">Carousel · Square</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">9</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 2 · Thu</div>
+        <div class="post-day-type personal">Personal</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Personal — Colour Study</div>
+        <div class="post-desc">A purely personal colour or material investigation. Something that doesn't fit a client brief but could only come from your eye. This post is what makes a director choose you over a technically equal photographer.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">6:30 PM</div>
+        <div class="post-format">Single · Any ratio</div>
+      </div>
+    </div>
+    <div class="sample-post">
+      <div class="post-num">10</div>
+      <div class="post-day-col">
+        <div class="post-day-name">Week 2 · Fri</div>
+        <div class="post-day-type editorial">Editorial</div>
+      </div>
+      <div class="post-content">
+        <div class="post-title">Portrait / Fashion — Week Close</div>
+        <div class="post-desc">Close week 2 with a portrait or fashion-adjacent editorial shot. Creates a strong bookend contrast to week 1's Friday product. Sets up the 3×3 preview for the following week beautifully.</div>
+      </div>
+      <div class="post-meta-col">
+        <div class="post-time">6:00 PM</div>
+        <div class="post-format">Single · Portrait</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GROWTH -->
+<section id="growth" class="growth-section">
+  <p class="section-number">08 — Growth & Engagement Tactics</p>
+  <h2 class="section-heading">Beyond the<br><em>feed.</em></h2>
+  <div class="growth-grid">
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Stories: The Studio Layer</div>
+      <div class="growth-body">Post 3–5 Stories per week independently of feed posts. Process footage, studio snaps, colour references, things that caught your eye. Stories keep you present in the algorithm between feed posts and build the sense of a real practice happening in real time. Use the "Close Friends" list for more personal, unfinished work.</div>
+    </div>
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Strategic Tagging</div>
+      <div class="growth-body">Always tag brands in both the image and caption when posting commissioned work. Tag collaborators (makeup artists, stylists, art directors) — they reshare, extending your reach to adjacent professional audiences. For personal work, tag 1–2 galleries or publications whose aesthetic aligns with yours. Avoid generic "photography" tags.</div>
+    </div>
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Engagement: Give Before You Get</div>
+      <div class="growth-body">Spend 10 minutes after each post engaging with accounts in your peer group — Australian photographers, international creatives, art directors who follow you. Comment with genuine specificity, not emoji. The algorithm reads engagement velocity. Your comments on others' work increase your own distribution.</div>
+    </div>
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Bi-monthly Reels</div>
+      <div class="growth-body">One atmospheric Reel every 2–3 weeks. 15–20 seconds. Moving product, drifting light across a set, hands at work. No text overlays. Ambient sound or silence. Reels are your discovery mechanism — they reach non-followers. Think of them as the trailer for the exhibition the feed represents.</div>
+    </div>
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Highlights as Portfolio</div>
+      <div class="growth-body">Restructure your Highlights to mirror your three content pillars: Commissioned, Editorial, Personal. Add a fourth: Process. This turns your profile into a navigable portfolio for new visitors — especially art directors who land on your page from a tag. Update each Highlight monthly.</div>
+    </div>
+    <div class="growth-card">
+      <span class="growth-icon">◻</span>
+      <div class="growth-title">Dropbox Review Workflow</div>
+      <div class="growth-body">Share your Dropbox folder and I'll review your archive week-by-week, selecting and matching specific images to each daily slot based on tonal contrast, pillar fit, and 3×3 grid harmony. We can plan 2–4 weeks ahead so you're never scrambling. This is where the strategy becomes the actual feed.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-name">Shelley<br>Horan</div>
+  <div class="footer-meta">
+    <p>@shelley_horan</p>
+    <p>Instagram Strategy · 2026</p>
+    <p style="margin-top: 12px; color: rgba(158,149,144,0.5);">Prepared with Claude · Anthropic</p>
+  </div>
+</footer>
+
+<script>
+  // Update nav dots on scroll
+  const sections = document.querySelectorAll('section, footer');
+  const dots = document.querySelectorAll('.nav-dot');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const idx = Array.from(sections).indexOf(entry.target);
+        dots.forEach(d => d.classList.remove('active'));
+        if (dots[idx]) dots[idx].classList.add('active');
+      }
+    });
+  }, { threshold: 0.4 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
