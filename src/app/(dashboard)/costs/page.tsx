@@ -84,7 +84,7 @@ export default async function CostsPage() {
                 <div className="mt-1 text-xs" style={{ color: PALETTE.muted }}>
                   {agent.callCount} call{agent.callCount === 1 ? '' : 's'}
                   {' · '}
-                  {formatCurrency(agent.totalUsd, 'USD')} USD
+                  {formatCurrency(agent.totalUsd, 'USD')}
                 </div>
               </div>
             ))}
