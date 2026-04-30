@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import ViewToggle from '@/components/crew-bookings/ViewToggle';
 import { listCrewBookings, type CrewBookingRow } from '@/lib/data/crew-bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, CREW_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
@@ -29,9 +30,12 @@ export default async function CrewBookingsPage() {
     <>
       <Topbar title="Crew Bookings" />
       <div className="p-4 sm:p-6">
-        <p className="mb-4 text-xs" style={{ color: PALETTE.muted }}>
-          {crewList.length} crew member{crewList.length !== 1 ? 's' : ''} with {rows.length} assignment{rows.length !== 1 ? 's' : ''}
-        </p>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <ViewToggle active="list" />
+          <p className="text-xs" style={{ color: PALETTE.muted }}>
+            {crewList.length} crew member{crewList.length !== 1 ? 's' : ''} · {rows.length} assignment{rows.length !== 1 ? 's' : ''}
+          </p>
+        </div>
 
         {crewList.length === 0 ? (
           <p className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>

@@ -15,6 +15,20 @@ export interface CrewBookingRow {
   booking_state: string;
   booking_tier: string;
   shoot_date_notes: string | null;
+  shoot_start: string | null; // YYYY-MM-DD
+  shoot_end: string | null;   // YYYY-MM-DD (exclusive — Postgres daterange convention)
+}
+
+/**
+ * Postgres daterange comes back as a string like '[2026-05-04,2026-05-08)'
+ * (start inclusive, end exclusive). This pulls out the two ISO dates, or
+ * returns nulls when the range is empty/null.
+ */
+function parseDateRange(input: string | null | undefined): { start: string | null; end: string | null } {
+  if (!input) return { start: null, end: null };
+  const m = input.match(/^[\[(](\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?[\])]$/);
+  if (!m) return { start: null, end: null };
+  return { start: m[1] ?? null, end: m[2] ?? null };
 }
 
 /**
@@ -34,7 +48,7 @@ export async function listCrewBookings(): Promise<CrewBookingRow[]> {
       status,
       booking_id,
       crew:atelier_crew(name, primary_role, tier),
-      booking:atelier_bookings(booking_ref, title, state, tier, shoot_date_notes)
+      booking:atelier_bookings(booking_ref, title, state, tier, shoot_date_notes, shoot_dates)
     `)
     .order('crew_id');
 
@@ -47,6 +61,7 @@ export async function listCrewBookings(): Promise<CrewBookingRow[]> {
     const r = row as Record<string, unknown>;
     const crew = r.crew as Record<string, unknown> | null;
     const booking = r.booking as Record<string, unknown> | null;
+    const range = parseDateRange(booking?.shoot_dates as string | null);
     return {
       id: r.id as string,
       crew_id: r.crew_id as string,
@@ -62,6 +77,92 @@ export async function listCrewBookings(): Promise<CrewBookingRow[]> {
       booking_state: (booking?.state as string) ?? 'brief_received',
       booking_tier: (booking?.tier as string) ?? 'content',
       shoot_date_notes: (booking?.shoot_date_notes as string) ?? null,
+      shoot_start: range.start,
+      shoot_end: range.end,
     };
   });
+}
+
+export interface CalendarShoot {
+  bookingId: string;
+  bookingRef: string | null;
+  title: string;
+  state: string;
+  tier: string;
+  start: string;            // YYYY-MM-DD inclusive
+  end: string;              // YYYY-MM-DD inclusive (we collapse Postgres' exclusive end here)
+  crew: { id: string; name: string; role: string | null; tier: string }[];
+}
+
+/**
+ * Returns one entry per booking that has a shoot_dates value, with the crew
+ * assigned. Used by the calendar view. Shoots without a date range are
+ * excluded — they have nowhere to land on a calendar.
+ */
+export async function getCalendarShoots(): Promise<CalendarShoot[]> {
+  const rows = await listCrewBookings();
+
+  const byBooking = new Map<string, CalendarShoot>();
+  for (const r of rows) {
+    if (!r.shoot_start) continue;
+    if (!byBooking.has(r.booking_id)) {
+      // Postgres daterange ends are exclusive; for display we want last shoot day inclusive.
+      const endExclusive = r.shoot_end;
+      let endInclusive = endExclusive;
+      if (endExclusive) {
+        const d = new Date(endExclusive + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() - 1);
+        endInclusive = d.toISOString().slice(0, 10);
+      }
+      byBooking.set(r.booking_id, {
+        bookingId: r.booking_id,
+        bookingRef: r.booking_ref,
+        title: r.booking_title,
+        state: r.booking_state,
+        tier: r.booking_tier,
+        start: r.shoot_start,
+        end: endInclusive ?? r.shoot_start,
+        crew: [],
+      });
+    }
+    byBooking.get(r.booking_id)!.crew.push({
+      id: r.crew_id,
+      name: r.crew_name,
+      role: r.crew_role,
+      tier: r.crew_tier,
+    });
+  }
+
+  // Also pull bookings that have a shoot_dates set but no crew assigned yet —
+  // they should still show on the calendar (Jasper hasn't booked the crew yet).
+  const supabase = await createClient();
+  const { data: orphans } = await supabase
+    .from('atelier_bookings')
+    .select('id, booking_ref, title, state, tier, shoot_dates')
+    .not('shoot_dates', 'is', null);
+
+  for (const b of (orphans ?? []) as Record<string, unknown>[] ) {
+    const id = b.id as string;
+    if (byBooking.has(id)) continue;
+    const range = parseDateRange(b.shoot_dates as string | null);
+    if (!range.start) continue;
+    let endInclusive = range.end;
+    if (range.end) {
+      const d = new Date(range.end + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 1);
+      endInclusive = d.toISOString().slice(0, 10);
+    }
+    byBooking.set(id, {
+      bookingId: id,
+      bookingRef: (b.booking_ref as string) ?? null,
+      title: (b.title as string) ?? 'Untitled',
+      state: (b.state as string) ?? 'brief_received',
+      tier: (b.tier as string) ?? 'content',
+      start: range.start,
+      end: endInclusive ?? range.start,
+      crew: [],
+    });
+  }
+
+  return Array.from(byBooking.values()).sort((a, b) => a.start.localeCompare(b.start));
 }
