@@ -85,15 +85,8 @@ export default function ApprovalQueue({ approvals }: Props) {
                 </div>
               )}
 
-              {/* Draft content preview */}
-              <details className="mt-2">
-                <summary className="cursor-pointer text-[11px]" style={{ color: PALETTE.muted }}>
-                  View draft content
-                </summary>
-                <pre className="mt-1 max-h-40 overflow-auto rounded-md p-2 text-[11px]" style={{ background: PALETTE.bg, color: PALETTE.muted }}>
-                  {JSON.stringify(a.draft_content, null, 2)}
-                </pre>
-              </details>
+              {/* Draft content preview — pretty-print known action types */}
+              <DraftPreview actionType={a.action_type} content={a.draft_content as unknown as Record<string, unknown> | null} />
 
               {/* Rejection reason */}
               {a.rejection_reason && (
@@ -133,5 +126,46 @@ export default function ApprovalQueue({ approvals }: Props) {
         </div>
       ))}
     </div>
+  );
+}
+
+type DraftContent = Record<string, unknown> | null;
+
+function DraftPreview({ actionType, content }: { actionType: string; content: DraftContent }) {
+  if (actionType === 'crew_hold_request' && content) {
+    const email = content.email as { to?: string; subject?: string; body?: string } | undefined;
+    if (email) {
+      return (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px]" style={{ color: PALETTE.muted }}>
+            View email draft
+          </summary>
+          <div
+            className="mt-2 rounded-md border p-3 text-[11px]"
+            style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+          >
+            <div className="mb-2 space-y-0.5 border-b pb-2" style={{ borderColor: PALETTE.border }}>
+              <div><span style={{ color: PALETTE.muted }}>To:</span> {email.to ?? '— no email on file —'}</div>
+              <div><span style={{ color: PALETTE.muted }}>Subject:</span> {email.subject}</div>
+            </div>
+            <pre
+              className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed"
+              style={{ color: PALETTE.text }}
+            >{email.body}</pre>
+          </div>
+        </details>
+      );
+    }
+  }
+  // Fallback — JSON
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-[11px]" style={{ color: PALETTE.muted }}>
+        View draft content
+      </summary>
+      <pre className="mt-1 max-h-40 overflow-auto rounded-md p-2 text-[11px]" style={{ background: PALETTE.bg, color: PALETTE.muted }}>
+        {JSON.stringify(content, null, 2)}
+      </pre>
+    </details>
   );
 }

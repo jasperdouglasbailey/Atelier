@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
 import BookingTimeline from '@/components/bookings/BookingTimeline';
+import HoldRequestsTrigger from '@/components/bookings/HoldRequestsTrigger';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
@@ -36,6 +37,11 @@ export default async function BookingDetailPage({ params }: Props) {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <BookingDetail booking={booking} />
+            <HoldRequestsTrigger
+              bookingId={id}
+              bookingState={booking.state}
+              pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
+            />
             <div className="rounded-lg border p-4" style={{ background: '#1a1d27', borderColor: '#2e3347' }}>
               <QuoteBuilder
                 bookingId={id}
