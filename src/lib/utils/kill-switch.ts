@@ -1,21 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
+import type { KillSwitchState } from '@/lib/types/database';
 
-export type KillSwitchState = {
-  id: string;
-  is_active: boolean;
-  pause_outbound: boolean;
-  updated_at: string;
-  updated_by: string | null;
-};
+const TABLE = 'atelier_kill_switch';
 
-/**
- * Reads the singleton kill_switch row. Returns null on any failure
- * (e.g. table empty) so agent code can default to a safe stance.
- */
+export type { KillSwitchState };
+
 export async function getKillSwitchState(): Promise<KillSwitchState | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('kill_switch')
+    .from(TABLE)
     .select('*')
     .limit(1)
     .maybeSingle();
@@ -24,14 +17,6 @@ export async function getKillSwitchState(): Promise<KillSwitchState | null> {
   return data as KillSwitchState;
 }
 
-/**
- * Returns the gating signals every agent action should consult:
- *   canProceed       — false when the red switch is active (full freeze)
- *   canSendOutbound  — false when either switch is active (block sends, but
- *                      drafting is still allowed when only amber is on)
- *
- * Fail-safe: if state can't be read, both flags fall back to false.
- */
 export async function checkKillSwitch(): Promise<{
   canProceed: boolean;
   canSendOutbound: boolean;
@@ -43,10 +28,6 @@ export async function checkKillSwitch(): Promise<{
   return { canProceed, canSendOutbound };
 }
 
-/**
- * Toggle helper used by the Topbar buttons. Updates the singleton row
- * and returns the new state.
- */
 export async function setKillSwitch(
   patch: { is_active?: boolean; pause_outbound?: boolean },
   userId: string | null = null,
@@ -61,9 +42,8 @@ export async function setKillSwitch(
   };
 
   if (!current) {
-    // First-run safety: insert a row if the table is empty
     const { data, error } = await supabase
-      .from('kill_switch')
+      .from(TABLE)
       .insert({
         is_active: patch.is_active ?? false,
         pause_outbound: patch.pause_outbound ?? false,
@@ -76,7 +56,7 @@ export async function setKillSwitch(
   }
 
   const { data, error } = await supabase
-    .from('kill_switch')
+    .from(TABLE)
     .update(update)
     .eq('id', current.id)
     .select()

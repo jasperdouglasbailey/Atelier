@@ -22,7 +22,7 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
     // Hydrate from DB on mount when no SSR state was provided
     if (!initialKillSwitch) {
       supabase
-        .from('kill_switch')
+        .from('atelier_kill_switch')
         .select('*')
         .limit(1)
         .maybeSingle()
@@ -35,7 +35,7 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
       .channel('topbar_kill_switch')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'kill_switch' },
+        { event: '*', schema: 'public', table: 'atelier_kill_switch' },
         (payload) => {
           if (payload.eventType === 'DELETE') setState(null);
           else if (payload.new) setState(payload.new as KillSwitchState);

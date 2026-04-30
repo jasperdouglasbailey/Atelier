@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
-import { AGENTS, type AgentId } from '@/lib/utils/constants';
+import { AGENTS } from '@/lib/utils/constants';
+import type { AgentName } from '@/lib/types/database';
+
+const TABLE = 'atelier_llm_calls';
 
 export type LogLLMCallInput = {
-  agentName: AgentId | string;
+  agentName: AgentName | string;
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -14,7 +17,7 @@ export type LogLLMCallInput = {
 export async function logLLMCall(input: LogLLMCallInput): Promise<void> {
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('llm_calls').insert({
+    const { error } = await supabase.from(TABLE).insert({
       agent_name: input.agentName,
       model: input.model,
       input_tokens: input.inputTokens,
@@ -36,8 +39,7 @@ function periodStart(period: CostPeriod): Date {
   if (period === 'day') {
     d.setHours(0, 0, 0, 0);
   } else if (period === 'week') {
-    const day = d.getDay();
-    d.setDate(d.getDate() - day);
+    d.setDate(d.getDate() - d.getDay());
     d.setHours(0, 0, 0, 0);
   } else {
     d.setDate(1);
@@ -53,16 +55,11 @@ export type AgentSummary = {
   callCount: number;
 };
 
-/**
- * Aggregates llm_calls cost & call counts per agent over the requested period.
- * Aggregation runs in JS rather than SQL because Supabase doesn't expose a
- * generic group-by; the volume here is small enough that it doesn't matter.
- */
 export async function getCostSummary(period: CostPeriod): Promise<AgentSummary[]> {
   const since = periodStart(period).toISOString();
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('llm_calls')
+    .from(TABLE)
     .select('agent_name, estimated_cost_usd')
     .gte('created_at', since);
 
@@ -89,26 +86,18 @@ export async function getMonthlyTotal(): Promise<number> {
   const since = periodStart('month').toISOString();
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('llm_calls')
+    .from(TABLE)
     .select('estimated_cost_usd')
     .gte('created_at', since);
 
-  if (error) {
-    console.error('[llm-costs] monthly total failed', error.message);
-    return 0;
-  }
+  if (error) return 0;
   return ((data ?? []) as { estimated_cost_usd: number }[]).reduce(
-    (sum, r) => sum + (Number(r.estimated_cost_usd) || 0),
-    0,
+    (sum, r) => sum + (Number(r.estimated_cost_usd) || 0), 0,
   );
 }
 
 export type DailySpend = { date: string; totalUsd: number };
 
-/**
- * Returns one row per day for the last `days` days, including days with zero
- * spend so the chart has a continuous x-axis.
- */
 export async function getDailySpend(days = 30): Promise<DailySpend[]> {
   const since = new Date();
   since.setHours(0, 0, 0, 0);
@@ -116,15 +105,12 @@ export async function getDailySpend(days = 30): Promise<DailySpend[]> {
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('llm_calls')
+    .from(TABLE)
     .select('created_at, estimated_cost_usd')
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: true });
 
-  if (error) {
-    console.error('[llm-costs] daily spend failed', error.message);
-    return [];
-  }
+  if (error) return [];
 
   const buckets = new Map<string, number>();
   for (let i = 0; i < days; i++) {

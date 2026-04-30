@@ -16,7 +16,7 @@ function randInt(min: number, max: number) {
 }
 
 /**
- * Inserts ~`count` mock llm_calls rows distributed across the last 30 days.
+ * Inserts ~`count` mock atelier_llm_calls rows distributed across the last 30 days.
  * Idempotent-ish: pass replace=true to wipe existing rows first. Useful while
  * the real agents aren't logging yet.
  */
@@ -28,7 +28,7 @@ export async function seedMockCosts({
 
   if (replace) {
     // delete-everything pattern Supabase requires a filter for
-    await supabase.from('llm_calls').delete().not('id', 'is', null);
+    await supabase.from('atelier_llm_calls').delete().not('id', 'is', null);
   }
 
   const now = Date.now();
@@ -55,7 +55,7 @@ export async function seedMockCosts({
     };
   });
 
-  const { error } = await supabase.from('llm_calls').insert(rows);
+  const { error } = await supabase.from('atelier_llm_calls').insert(rows);
   if (error) {
     console.error('[seed-costs] insert failed', error.message);
     return { inserted: 0 };

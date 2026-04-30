@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
-import type { Json } from '@/lib/types/database';
+import type { Json, AuditLogRow } from '@/lib/types/database';
+
+const TABLE = 'atelier_audit_log';
 
 export type AuditEntry = {
   userId: string | null;
@@ -11,14 +13,10 @@ export type AuditEntry = {
   ipAddress?: string | null;
 };
 
-/**
- * Insert a row into audit_log. Never throws — auditing must not block
- * the originating action. Errors are logged to the server console.
- */
 export async function logAudit(entry: AuditEntry): Promise<void> {
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('audit_log').insert({
+    const { error } = await supabase.from(TABLE).insert({
       user_id: entry.userId,
       action: entry.action,
       table_name: entry.tableName,
@@ -42,18 +40,6 @@ export type AuditFilters = {
   pageSize?: number;
 };
 
-export type AuditLogRow = {
-  id: string;
-  created_at: string;
-  user_id: string | null;
-  action: string;
-  table_name: string;
-  record_id: string | null;
-  old_value: Json | null;
-  new_value: Json | null;
-  ip_address: string | null;
-};
-
 export async function listAudit(filters: AuditFilters = {}): Promise<{
   rows: AuditLogRow[];
   total: number;
@@ -67,7 +53,7 @@ export async function listAudit(filters: AuditFilters = {}): Promise<{
 
   const supabase = await createClient();
   let query = supabase
-    .from('audit_log')
+    .from(TABLE)
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);

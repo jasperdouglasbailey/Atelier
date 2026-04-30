@@ -14,7 +14,7 @@ export async function toggleKillSwitchAction(field: 'is_active' | 'pause_outboun
   await logAudit({
     userId: null, // wired up once auth lands
     action: next ? `kill_switch.${field}.enable` : `kill_switch.${field}.disable`,
-    tableName: 'kill_switch',
+    tableName: 'atelier_kill_switch',
     recordId: updated?.id ?? null,
     oldValue: current ? { [field]: current[field] } : null,
     newValue: { [field]: next },

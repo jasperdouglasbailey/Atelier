@@ -17,7 +17,7 @@ export default function KillSwitchBanner({ initialState }: Props) {
       .channel('kill_switch_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'kill_switch' },
+        { event: '*', schema: 'public', table: 'atelier_kill_switch' },
         (payload) => {
           if (payload.eventType === 'DELETE') {
             setState(null);
