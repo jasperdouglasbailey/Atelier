@@ -87,6 +87,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
               <tr style={{ background: PALETTE.bg, color: PALETTE.muted }} className="text-left text-xs uppercase tracking-wide">
                 <th className="px-4 py-3">Ref</th>
                 <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">State</th>
                 <th className="px-4 py-3">Tier</th>
                 <th className="px-4 py-3">Total</th>
@@ -96,45 +97,51 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
             <tbody>
               {bookings.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
                     {params.search ? 'No bookings match your search.' : 'No bookings yet. Create one to get started.'}
                   </td>
                 </tr>
               )}
-              {bookings.map((b) => (
-                <tr key={b.id} className="border-t" style={{ borderColor: PALETTE.border }}>
-                  <td className="px-4 py-3">
-                    <Link href={`/bookings/${b.id}`} className="font-mono text-xs" style={{ color: PALETTE.accent }}>
-                      {b.booking_ref ?? '—'}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3" style={{ color: PALETTE.text }}>
-                    <Link href={`/bookings/${b.id}`} className="hover:underline">
-                      {b.title}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
-                      style={{
-                        background: `${STATE_COLORS[b.state]}22`,
-                        color: STATE_COLORS[b.state],
-                      }}
-                    >
-                      {BOOKING_STATE_LABELS[b.state]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
-                    {SHOOT_TIER_LABELS[b.tier]}
-                  </td>
-                  <td className="px-4 py-3 text-xs font-medium" style={{ color: PALETTE.text }}>
-                    {b.grand_total > 0 ? formatCurrency(b.grand_total, 'AUD') : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
-                    {formatDate(b.created_at)}
-                  </td>
-                </tr>
-              ))}
+              {bookings.map((b) => {
+                const clientName = b.client?.company || b.client?.name || null;
+                return (
+                  <tr key={b.id} className="border-t" style={{ borderColor: PALETTE.border }}>
+                    <td className="px-4 py-3">
+                      <Link href={`/bookings/${b.id}`} className="font-mono text-xs" style={{ color: PALETTE.accent }}>
+                        {b.booking_ref ?? '—'}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3" style={{ color: PALETTE.text }}>
+                      <Link href={`/bookings/${b.id}`} className="hover:underline">
+                        {b.title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: clientName ? PALETTE.muted : '#404560' }}>
+                      {clientName ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                        style={{
+                          background: `${STATE_COLORS[b.state]}22`,
+                          color: STATE_COLORS[b.state],
+                        }}
+                      >
+                        {BOOKING_STATE_LABELS[b.state]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
+                      {SHOOT_TIER_LABELS[b.tier]}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium" style={{ color: PALETTE.text }}>
+                      {b.grand_total > 0 ? formatCurrency(b.grand_total, 'AUD') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
+                      {formatDate(b.created_at)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

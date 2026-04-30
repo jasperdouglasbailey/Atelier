@@ -4,6 +4,11 @@ import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
 import { emitEvent } from '@/lib/utils/events';
 import { logAudit } from '@/lib/utils/audit';
 
+/** Booking row augmented with the joined client record (for list views). */
+export type BookingListRow = Booking & {
+  client?: { name: string; company: string | null } | null;
+};
+
 const TABLE = 'atelier_bookings';
 
 // ============================================================
@@ -21,7 +26,7 @@ export type BookingListFilters = {
 };
 
 export async function listBookings(filters: BookingListFilters = {}): Promise<{
-  bookings: Booking[];
+  bookings: BookingListRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -34,7 +39,10 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   const supabase = await createClient();
   let query = supabase
     .from(TABLE)
-    .select('*', { count: 'exact' })
+    .select(
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)',
+      { count: 'exact' },
+    )
     .order('created_at', { ascending: false })
     .range(from, to);
 
@@ -59,7 +67,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   }
 
   return {
-    bookings: (data ?? []) as Booking[],
+    bookings: (data ?? []) as BookingListRow[],
     total: count ?? 0,
     page,
     pageSize,

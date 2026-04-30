@@ -12,6 +12,8 @@ export default function HoldRequestsTrigger({ bookingId, pendingCrewCount, booki
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ created?: number; skipped?: number; error?: string; reason?: string } | null>(null);
 
+  // Only surface this panel when there's something actionable:
+  // crew sitting in hold_requested status waiting for an approval draft.
   if (pendingCrewCount === 0) return null;
 
   const onClick = () => {
@@ -28,29 +30,31 @@ export default function HoldRequestsTrigger({ bookingId, pendingCrewCount, booki
   return (
     <section
       className="rounded-lg border p-4"
-      style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+      style={{ background: PALETTE.surface, borderColor: `${PALETTE.warning}55` }}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-            Crew hold requests
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.warning }}>
+            Crew awaiting hold-request drafts
           </h3>
           <p className="mt-1 text-sm" style={{ color: PALETTE.text }}>
-            {pendingCrewCount} crew member{pendingCrewCount === 1 ? '' : 's'} on hold-requested status.
+            {pendingCrewCount} crew member{pendingCrewCount === 1 ? '' : 's'}{' '}
+            on <span style={{ color: PALETTE.warning }}>hold-requested</span> status
+            — no approval draft in inbox yet.
           </p>
-          {!isQuoteSent && (
-            <p className="mt-1 text-[11px]" style={{ color: PALETTE.warning }}>
-              Booking is in “{bookingState}”. Drafts will be queued as needs-review (not auto-approvable) until the quote is sent.
-            </p>
-          )}
+          <p className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
+            {isQuoteSent
+              ? 'Drafts should have auto-queued when the quote was sent. Re-run if they\'re missing.'
+              : `Booking is at "${bookingState}" — advance to Quote Sent to trigger automatically, or re-run here manually.`}
+          </p>
         </div>
         <button
           onClick={onClick}
           disabled={isPending}
-          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-          style={{ background: PALETTE.accent, color: PALETTE.bg }}
+          className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+          style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning, border: `1px solid ${PALETTE.warning}44` }}
         >
-          {isPending ? 'Generating…' : 'Propose hold-request drafts'}
+          {isPending ? 'Queuing…' : 'Re-run hold-request drafts'}
         </button>
       </div>
 
@@ -69,8 +73,11 @@ export default function HoldRequestsTrigger({ bookingId, pendingCrewCount, booki
             <>
               {result.created ?? 0} new draft{(result.created ?? 0) === 1 ? '' : 's'} queued
               {result.skipped ? ` · ${result.skipped} already in inbox` : ''}
-              {result.reason === 'no_pending_holds' && ' · nothing to do (no crew on hold-requested status)'}
-              . See <a href="/inbox" className="underline">/inbox</a>.
+              {result.reason === 'no_pending_holds' && ' · nothing to do'}
+              .{' '}
+              <a href="/inbox" className="underline">
+                View in inbox →
+              </a>
             </>
           )}
         </div>

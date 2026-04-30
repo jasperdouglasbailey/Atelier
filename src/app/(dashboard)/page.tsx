@@ -3,6 +3,7 @@ import Topbar from '@/components/layout/Topbar';
 import { getBookingCounts, getUpcomingShoots } from '@/lib/data/bookings';
 import { getPendingCount } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
+import { describeEvent } from '@/lib/utils/event-descriptions';
 import { BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, PALETTE, ACTIVE_STATES } from '@/lib/utils/constants';
 import { formatDate, formatDateTime } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
@@ -101,18 +102,26 @@ export default async function DashboardPage() {
               <div className="space-y-2">
                 {recentEvents.map((e) => {
                   const payload = (e.payload ?? {}) as Record<string, unknown>;
+                  const { label, detail } = describeEvent(e.event_type, payload);
+                  const ref = payload.booking_ref as string | undefined;
                   return (
                     <div key={e.id} className="border-l-2 pl-3" style={{ borderColor: PALETTE.border }}>
-                      <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
-                        {e.event_type.replace(/\./g, ' · ')}
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-medium" style={{ color: PALETTE.text }}>
+                          {label}
+                        </span>
+                        {ref && (
+                          <span className="font-mono text-[10px]" style={{ color: PALETTE.accent }}>
+                            {ref}
+                          </span>
+                        )}
                       </div>
-                      {payload.booking_ref ? (
-                        <div className="text-[11px]" style={{ color: PALETTE.accent }}>
-                          {String(payload.booking_ref)}
-                        </div>
-                      ) : null}
+                      {detail && (
+                        <div className="text-[11px]" style={{ color: PALETTE.muted }}>{detail}</div>
+                      )}
                       <div className="text-[10px]" style={{ color: '#6b7186' }}>
                         {formatDateTime(e.created_at)}
+                        {e.actor ? ` · ${e.actor}` : ''}
                       </div>
                     </div>
                   );
