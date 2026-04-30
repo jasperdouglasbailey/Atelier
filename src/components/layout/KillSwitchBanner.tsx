@@ -1,24 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { KillSwitchState } from '@/lib/utils/kill-switch';
+import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 
-export default function KillSwitchBanner({ message }: { message?: string }) {
-  const [dismissed, setDismissed] = useState(false);
+type Props = { initialState: KillSwitchState | null };
 
-  if (dismissed || !message) return null;
+export default function KillSwitchBanner({ initialState }: Props) {
+  const [state, setState] = useState<KillSwitchState | null>(initialState);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('kill_switch_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'kill_switch' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setState(null);
+          } else if (payload.new) {
+            setState(payload.new as KillSwitchState);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  if (!state) return null;
+  if (!state.is_active && !state.pause_outbound) return null;
+
+  const isRed = state.is_active;
+  const palette = isRed
+    ? { bg: '#3d1a1a', border: '#5c2626', text: '#f87171', btn: '#7f1d1d' }
+    : { bg: '#3d2e0f', border: '#6b4f1a', text: '#fbbf24', btn: '#854d0e' };
+
+  const message = isRed
+    ? 'KILL SWITCH ACTIVE — All agents paused, outbound held'
+    : 'Outbound paused — drafts held, nothing sends externally';
+
+  const field: 'is_active' | 'pause_outbound' = isRed ? 'is_active' : 'pause_outbound';
+
+  const onResume = () => {
+    startTransition(async () => {
+      await toggleKillSwitchAction(field);
+    });
+  };
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-2 text-sm"
-      style={{ background: '#3d1a1a', color: '#f87171', borderBottom: '1px solid #5c2626' }}
+      role="alert"
+      className="flex w-full flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+      style={{ background: palette.bg, color: palette.text, borderBottom: `1px solid ${palette.border}` }}
     >
-      <span>{message}</span>
+      <div className="flex items-center gap-2 font-medium">
+        <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: palette.text }} />
+        <span>{message}</span>
+      </div>
       <button
-        onClick={() => setDismissed(true)}
-        className="ml-4 text-xs opacity-60 hover:opacity-100 transition-opacity"
-        aria-label="Dismiss"
+        onClick={onResume}
+        disabled={isPending}
+        className="w-full rounded-md px-4 py-2 text-xs font-semibold uppercase tracking-wide transition-opacity disabled:opacity-50 sm:w-auto"
+        style={{ background: palette.btn, color: '#fff' }}
       >
-        ✕
+        {isPending ? 'Resuming…' : 'Resume'}
       </button>
     </div>
   );
