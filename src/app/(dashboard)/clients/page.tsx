@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { listClients } from '@/lib/data/entities';
 import { PALETTE } from '@/lib/utils/constants';
@@ -17,7 +18,7 @@ export default async function ClientsPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
-            <div key={c.id} className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <Link key={c.id} href={`/clients/${c.id}`} className="block rounded-lg border p-4 transition hover:border-opacity-80" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
               <div className="flex items-start justify-between">
                 <div className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</div>
                 {c.is_creative_agency && (
@@ -31,7 +32,7 @@ export default async function ClientsPage() {
                 {c.abn && <div>ABN: {c.abn}</div>}
                 {c.payment_terms_days && <div>Terms: {c.payment_terms_days} days</div>}
               </div>
-            </div>
+            </Link>
           ))}
           {clients.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>

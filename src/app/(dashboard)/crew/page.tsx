@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { listCrew } from '@/lib/data/entities';
 import { PALETTE, CREW_TIER_LABELS } from '@/lib/utils/constants';
@@ -23,7 +24,7 @@ export default async function CrewPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {crew.map((c) => (
-            <div key={c.id} className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <Link key={c.id} href={`/crew/${c.id}`} className="block rounded-lg border p-4 transition hover:border-opacity-80" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
               <div className="flex items-start justify-between">
                 <div className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</div>
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase" style={{ background: `${tierColor(c.tier)}22`, color: tierColor(c.tier) }}>
@@ -40,7 +41,7 @@ export default async function CrewPage() {
                 {c.gst_registered && <span className="rounded-full border px-2 py-0.5" style={{ borderColor: PALETTE.border, color: PALETTE.muted }}>GST</span>}
                 {!c.onboarding_completed && <span className="rounded-full border px-2 py-0.5" style={{ borderColor: PALETTE.warning, color: PALETTE.warning }}>Onboarding pending</span>}
               </div>
-            </div>
+            </Link>
           ))}
           {crew.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>

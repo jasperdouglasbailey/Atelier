@@ -3,10 +3,12 @@ import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
 import BookingTimeline from '@/components/bookings/BookingTimeline';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
+import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
 import { listQuoteVersions, listFeeLinesForBooking, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
+import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 
 type Props = { params: Promise<{ id: string }> };
@@ -16,12 +18,13 @@ export default async function BookingDetailPage({ params }: Props) {
   const booking = await getBooking(id);
   if (!booking) notFound();
 
-  const [events, quoteVersions, feeLines, bookingTalent, bookingCrew, allTalent, allCrew] = await Promise.all([
+  const [events, quoteVersions, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew] = await Promise.all([
     listEvents({ bookingId: id, limit: 30 }),
     listQuoteVersions(id),
     listFeeLinesForBooking(id),
     listBookingTalent(id),
     listBookingCrew(id),
+    listUsageLicences(id),
     listTalent(),
     listCrew(),
   ]);
@@ -39,6 +42,9 @@ export default async function BookingDetailPage({ params }: Props) {
                 quoteVersions={quoteVersions}
                 feeLines={feeLines}
               />
+            </div>
+            <div className="rounded-lg border p-4" style={{ background: '#1a1d27', borderColor: '#2e3347' }}>
+              <UsageLicenceBuilder bookingId={id} licences={usageLicences} />
             </div>
             <BookingTeam
               bookingId={id}

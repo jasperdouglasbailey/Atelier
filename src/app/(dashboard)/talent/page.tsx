@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { listTalent } from '@/lib/data/entities';
 import { PALETTE } from '@/lib/utils/constants';
@@ -17,7 +18,7 @@ export default async function TalentPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {talent.map((t) => (
-            <div key={t.id} className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <Link key={t.id} href={`/talent/${t.id}`} className="block rounded-lg border p-4 transition hover:border-opacity-80" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-sm font-medium" style={{ color: PALETTE.text }}>{t.working_name}</div>
@@ -39,7 +40,7 @@ export default async function TalentPage() {
                 {t.representation_status === 'exclusive' && <span className="rounded-full border px-2 py-0.5" style={{ borderColor: PALETTE.accent, color: PALETTE.accent }}>Exclusive</span>}
                 {!t.onboarding_completed && <span className="rounded-full border px-2 py-0.5" style={{ borderColor: PALETTE.warning, color: PALETTE.warning }}>Onboarding pending</span>}
               </div>
-            </div>
+            </Link>
           ))}
           {talent.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
