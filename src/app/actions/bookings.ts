@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
+import { proposeHoldRequests } from '@/lib/automation/hold-requests';
+import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import type { BookingState } from '@/lib/types/database';
 
 export async function createBookingAction(formData: FormData) {
@@ -70,8 +72,22 @@ export async function transitionBookingAction(
   const result = await transitionState(id, newState, meta);
   if (!result.ok) return { error: result.error };
 
+  // Auto-trigger crew hold requests when quote is sent.
+  // Runs deterministically — no LLM, no external call.
+  // Kill switch is checked inside proposeHoldRequests; failures are logged
+  // but never block the state transition itself.
+  if (newState === 'quote_sent') {
+    const ks = await checkKillSwitch();
+    if (ks.canProceed) {
+      proposeHoldRequests(id).catch((err) =>
+        console.error('[transitionBookingAction] auto hold-request failed', err),
+      );
+    }
+  }
+
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
+  revalidatePath('/inbox');
   revalidatePath('/');
   return { ok: true };
 }
