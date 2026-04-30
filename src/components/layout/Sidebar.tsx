@@ -3,34 +3,36 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-type NavItem = { label: string; href: string };
+type NavItem = { label: string; href: string; badge?: number };
 type NavSection = { title?: string; items: NavItem[] };
 
-const sections: NavSection[] = [
-  {
-    items: [
-      { label: 'Dashboard', href: '/' },
-      { label: 'Inbox', href: '/inbox' },
-      { label: 'Bookings', href: '/bookings' },
-      { label: 'Talent', href: '/talent' },
-      { label: 'Crew', href: '/crew' },
-      { label: 'Crew Bookings', href: '/crew-bookings' },
-      { label: 'Clients', href: '/clients' },
-      { label: 'Campaigns', href: '/campaigns' },
-    ],
-  },
-  {
-    title: 'System',
-    items: [
-      { label: 'Costs', href: '/costs' },
-      { label: 'Audit', href: '/audit' },
-      { label: 'Settings', href: '/settings' },
-    ],
-  },
-];
+type Props = { inboxCount?: number };
 
-export default function Sidebar() {
+export default function Sidebar({ inboxCount = 0 }: Props) {
   const pathname = usePathname();
+
+  const sections: NavSection[] = [
+    {
+      items: [
+        { label: 'Dashboard', href: '/' },
+        { label: 'Inbox', href: '/inbox', badge: inboxCount },
+        { label: 'Bookings', href: '/bookings' },
+        { label: 'Talent', href: '/talent' },
+        { label: 'Crew', href: '/crew' },
+        { label: 'Crew Bookings', href: '/crew-bookings' },
+        { label: 'Clients', href: '/clients' },
+        { label: 'Campaigns', href: '/campaigns' },
+      ],
+    },
+    {
+      title: 'System',
+      items: [
+        { label: 'Costs', href: '/costs' },
+        { label: 'Audit', href: '/audit' },
+        { label: 'Settings', href: '/settings' },
+      ],
+    },
+  ];
 
   return (
     <aside
@@ -55,19 +57,27 @@ export default function Sidebar() {
               </div>
             )}
             <ul className="space-y-1">
-              {section.items.map(({ label, href }) => {
+              {section.items.map(({ label, href, badge }) => {
                 const active = pathname === href || (href !== '/' && pathname.startsWith(href));
                 return (
                   <li key={href}>
                     <Link
                       href={href}
-                      className="flex items-center rounded-md px-3 py-2 text-sm transition-colors"
+                      className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
                       style={{
                         color: active ? '#e8eaed' : '#9aa0b4',
                         background: active ? '#2e3347' : 'transparent',
                       }}
                     >
-                      {label}
+                      <span>{label}</span>
+                      {badge != null && badge > 0 && (
+                        <span
+                          className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                          style={{ background: '#6c8aff', color: '#0f1117', minWidth: 18, textAlign: 'center' }}
+                        >
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

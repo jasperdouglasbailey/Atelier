@@ -9,6 +9,12 @@ export type BookingListRow = Booking & {
   client?: { name: string; company: string | null } | null;
 };
 
+/** Booking row with full relations for the detail page. */
+export type BookingDetailRow = Booking & {
+  client?: { id: string; name: string; company: string | null } | null;
+  brand?: { id: string; name: string } | null;
+};
+
 const TABLE = 'atelier_bookings';
 
 // ============================================================
@@ -74,16 +80,18 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   };
 }
 
-export async function getBooking(id: string): Promise<Booking | null> {
+export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(TABLE)
-    .select('*')
+    .select(
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+    )
     .eq('id', id)
     .maybeSingle();
 
   if (error || !data) return null;
-  return data as Booking;
+  return data as unknown as BookingDetailRow;
 }
 
 // ============================================================

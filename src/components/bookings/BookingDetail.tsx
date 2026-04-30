@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Booking, BookingState } from '@/lib/types/database';
+import type { BookingDetailRow } from '@/lib/data/bookings';
+import type { BookingState } from '@/lib/types/database';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
@@ -10,7 +12,7 @@ import {
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 
-type Props = { booking: Booking };
+type Props = { booking: BookingDetailRow };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -37,6 +39,9 @@ export default function BookingDetail({ booking }: Props) {
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
   const allowedTransitions = STATE_TRANSITIONS[booking.state] ?? [];
+
+  const clientName = booking.client?.company || booking.client?.name || null;
+  const brandName = booking.brand?.name || null;
 
   async function handleTransition(newState: BookingState) {
     setTransitioning(true);
@@ -78,9 +83,21 @@ export default function BookingDetail({ booking }: Props) {
               {BOOKING_STATE_LABELS[booking.state]}
             </span>
           </div>
-          <div className="mt-1 flex gap-4 text-xs" style={{ color: PALETTE.muted }}>
+          <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: PALETTE.muted }}>
             <span>{booking.booking_ref}</span>
             <span>{SHOOT_TIER_LABELS[booking.tier]}</span>
+            {clientName && (
+              <Link
+                href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
+                className="hover:underline"
+                style={{ color: PALETTE.accent }}
+              >
+                {clientName}
+              </Link>
+            )}
+            {brandName && (
+              <span>{brandName}</span>
+            )}
             {booking.grand_total > 0 && <span>{formatCurrency(booking.grand_total, 'AUD')}</span>}
           </div>
         </div>
@@ -130,6 +147,8 @@ export default function BookingDetail({ booking }: Props) {
 
       {/* Brief fields */}
       <Section title="Brief">
+        {clientName && <Field label="Client" value={clientName} />}
+        {brandName && <Field label="Brand" value={brandName} />}
         <Field label="Shoot Location" value={booking.shoot_location} />
         <Field label="Shoot Dates" value={booking.shoot_date_notes} />
         <Field label="Talent Count" value={booking.talent_count} />
