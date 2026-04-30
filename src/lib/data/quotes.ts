@@ -326,6 +326,34 @@ export async function removeBookingTalent(id: string) {
   return !error;
 }
 
+export async function updateBookingCrewStatus(id: string, status: string) {
+  const supabase = await createClient();
+  const update: { status: string; confirmed_at?: string } = { status };
+  if (status === 'confirmed') update.confirmed_at = new Date().toISOString();
+  const { data, error } = await supabase
+    .from(BC_TABLE)
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) { console.error('[quotes] update booking crew status', error.message); return null; }
+  return data;
+}
+
+export async function updateBookingCrewStatusByCrewId(bookingId: string, crewId: string, status: string) {
+  const supabase = await createClient();
+  const update: { status: string; confirmed_at?: string } = { status };
+  if (status === 'confirmed') update.confirmed_at = new Date().toISOString();
+  const { data, error } = await supabase
+    .from(BC_TABLE)
+    .update(update)
+    .eq('booking_id', bookingId)
+    .eq('crew_id', crewId)
+    .select();
+  if (error) { console.error('[quotes] update booking crew status by crew_id', error.message); return null; }
+  return data;
+}
+
 export async function addBookingCrew(input: {
   booking_id: string;
   crew_id: string;

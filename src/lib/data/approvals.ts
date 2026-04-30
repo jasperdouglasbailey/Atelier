@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { Approval, ApprovalStatus } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
+import { applyApprovalDecisionEffects } from '@/lib/automation/approval-effects';
 
 const TABLE = 'atelier_approvals';
 
@@ -67,6 +68,15 @@ export async function decideApproval(
     recordId: id,
     newValue: { decision, rejectionReason: rejectionReason ?? null },
   });
+
+  // Dispatch downstream side effects (e.g. flip atelier_booking_crew.status
+  // from hold_requested → sent on a crew_hold_request approval). Failures
+  // are logged but don't roll back the decision row itself.
+  try {
+    await applyApprovalDecisionEffects(approval, decision);
+  } catch (err) {
+    console.error('[approvals] decision effects failed', err);
+  }
 
   return approval;
 }

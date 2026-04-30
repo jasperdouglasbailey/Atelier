@@ -145,6 +145,16 @@ export const CREW_ROLES = [
   'retoucher', 'video_operator', 'gaffer', 'grip',
 ] as const;
 
+// Crew booking status (atelier_booking_crew.status)
+export const CREW_STATUS_OPTIONS = [
+  'hold_requested',
+  'sent',
+  'confirmed',
+  'declined',
+  'released',
+] as const;
+export type CrewStatus = typeof CREW_STATUS_OPTIONS[number];
+
 // UI palette
 export const PALETTE = {
   bg: '#0f1117',

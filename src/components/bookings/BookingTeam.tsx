@@ -9,6 +9,7 @@ import {
   addBookingTalentAction, removeBookingTalentAction,
   addBookingCrewAction, removeBookingCrewAction,
 } from '@/app/actions/quotes';
+import CrewStatusSelect from './CrewStatusSelect';
 
 type Props = {
   bookingId: string;
@@ -165,9 +166,9 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       {c?.name ?? 'Unknown'}
                       {bc.role_on_booking && <span className="ml-2 text-[10px]" style={{ color: PALETTE.muted }}>{bc.role_on_booking}</span>}
                     </div>
-                    <div className="text-[10px] flex gap-3" style={{ color: PALETTE.muted }}>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
                       {bc.day_rate != null && <span>Day: {formatCurrency(bc.day_rate)}</span>}
-                      <span className="capitalize">{bc.status}</span>
+                      <CrewStatusSelect bookingCrewId={bc.id} bookingId={bookingId} status={bc.status} />
                       {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
                     </div>
                   </div>
