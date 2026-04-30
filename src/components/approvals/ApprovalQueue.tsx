@@ -37,7 +37,7 @@ export default function ApprovalQueue({ approvals }: Props) {
   if (approvals.length === 0) {
     return (
       <div className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-        Nothing in the queue. When agents draft actions, they'll appear here for your approval.
+        Nothing in the queue. When agents draft actions, they&apos;ll appear here for your approval.
       </div>
     );
   }

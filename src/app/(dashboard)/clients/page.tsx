@@ -36,7 +36,7 @@ export default async function ClientsPage() {
           ))}
           {clients.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-              No clients yet. They'll be created when you create bookings.
+              No clients yet. They&apos;ll be created when you create bookings.
             </div>
           )}
         </div>
