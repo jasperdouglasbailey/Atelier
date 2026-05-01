@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { listTalent } from '@/lib/data/entities';
-import { PALETTE } from '@/lib/utils/constants';
+import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
+import type { ArtistDiscipline } from '@/lib/types/database';
 import CreateTalentDialog from '@/components/entities/CreateTalentDialog';
 
 export default async function TalentPage() {
@@ -22,9 +23,10 @@ export default async function TalentPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-sm font-medium" style={{ color: PALETTE.text }}>{t.working_name}</div>
-                  {t.legal_name !== t.working_name && (
-                    <div className="text-[11px]" style={{ color: PALETTE.muted }}>{t.legal_name}</div>
-                  )}
+                  <div className="text-[11px]" style={{ color: PALETTE.muted }}>
+                    {ARTIST_DISCIPLINE_LABELS[t.discipline as ArtistDiscipline] ?? t.discipline}
+                    {t.specialty ? ` · ${t.specialty}` : ''}
+                  </div>
                 </div>
                 {!t.is_active && (
                   <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ background: `${PALETTE.danger}22`, color: PALETTE.danger }}>Inactive</span>

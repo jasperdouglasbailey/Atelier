@@ -34,12 +34,21 @@ export default async function ClientDetailPage({ params }: Props) {
         {/* Header */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
           <div className="flex items-start justify-between">
-            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{client.name}</h2>
-            {client.is_creative_agency && (
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                Agency
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{client.name}</h2>
+              {client.is_creative_agency && (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
+                  Agency
+                </span>
+              )}
+            </div>
+            <Link
+              href={`/clients/${client.id}/edit`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              ✏ Edit
+            </Link>
           </div>
         </section>
 

@@ -6,6 +6,7 @@ import { updateBookingAction } from '@/app/actions/bookings';
 import {
   SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE,
 } from '@/lib/utils/constants';
+import { dateRangeToInputs } from '@/lib/utils/daterange';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { Client, Brand } from '@/lib/types/database';
 
@@ -28,26 +29,13 @@ const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, backgroun
 const labelClass = 'block text-xs font-medium mb-1';
 const labelStyle = { color: PALETTE.muted };
 
-/** Parse Postgres daterange → start and end YYYY-MM-DD for form inputs. */
-function parseDateRange(range: string | null): { start: string; end: string } {
-  if (!range) return { start: '', end: '' };
-  const m = range.match(/^[\[(](\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?[\])]$/);
-  if (!m || !m[1]) return { start: '', end: '' };
-  const start = m[1];
-  if (m[2]) {
-    const end = new Date(m[2] + 'T00:00:00Z');
-    end.setUTCDate(end.getUTCDate() - 1);
-    return { start, end: end.toISOString().slice(0, 10) };
-  }
-  return { start, end: '' };
-}
 
 export default function BookingEditForm({ booking, clients, brands }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dates = parseDateRange(booking.shoot_dates);
+  const dates = dateRangeToInputs(booking.shoot_dates);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

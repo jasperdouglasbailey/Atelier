@@ -17,6 +17,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
+import { LETHAL_TRIFECTA_REFUSAL_CLAUSE } from '@/lib/utils/lethal-trifecta';
 
 // ============================================================
 // Types
@@ -118,9 +119,13 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     max_tokens: maxTokens,
     messages: request.messages,
   };
-  if (request.systemPrompt) {
-    body.system = request.systemPrompt;
-  }
+  // Every system prompt is prepended with the lethal-trifecta refusal clause
+  // — NON-NEGOTIABLE doctrine. See src/lib/utils/lethal-trifecta.ts.
+  // Agents must refuse (not hedge) any request crossing all three of
+  // sensitive data + untrusted input + external comms.
+  body.system = request.systemPrompt
+    ? `${LETHAL_TRIFECTA_REFUSAL_CLAUSE}\n\n---\n\n${request.systemPrompt}`
+    : LETHAL_TRIFECTA_REFUSAL_CLAUSE;
 
   // Make the API call
   let response: Response;

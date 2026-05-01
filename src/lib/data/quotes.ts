@@ -3,6 +3,7 @@ import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 const QUOTE_TABLE = 'atelier_quote_versions';
 const LINE_TABLE = 'atelier_fee_lines';
@@ -66,7 +67,7 @@ export async function createQuoteVersion(bookingId: string, notes?: string): Pro
   await emitEvent('quote.version_created', {
     booking_id: bookingId,
     version: nextVersion,
-  }, { bookingId, actor: 'jasper' });
+  }, { bookingId, actor: await getCurrentActor() });
 
   return data as QuoteVersion;
 }
@@ -202,7 +203,7 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
   await recalcQuoteTotals(input.quote_version_id);
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'add_fee_line',
     tableName: LINE_TABLE,
     recordId: (data as FeeLine).id,
@@ -259,7 +260,7 @@ export async function removeFeeLine(id: string): Promise<boolean> {
   await recalcQuoteTotals((existing as { quote_version_id: string }).quote_version_id);
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'remove_fee_line',
     tableName: LINE_TABLE,
     recordId: id,
@@ -354,14 +355,47 @@ export async function updateBookingCrewStatusByCrewId(bookingId: string, crewId:
   return data;
 }
 
+/**
+ * Add a crew member to a booking.
+ *
+ * NEVER_AGAIN HARD BLOCK — doctrine NON-NEGOTIABLE.
+ * Attempting to book crew tagged `never_again` is refused at the data layer
+ * and surfaces a structured error the UI displays as an alert. Belt-and-braces:
+ * the UI also filters them out, but the data layer is the floor — if a
+ * compromised or buggy UI tries to insert one, it fails here.
+ */
 export async function addBookingCrew(input: {
   booking_id: string;
   crew_id: string;
   role_on_booking?: string | null;
   day_rate?: number | null;
   notes?: string | null;
-}) {
+}): Promise<
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; error: string; reason: 'never_again' | 'db_error' }
+> {
   const supabase = await createClient();
+
+  // Tier check — refuse never_again before any insert.
+  const { data: crew, error: crewErr } = await supabase
+    .from('atelier_crew')
+    .select('id, name, tier')
+    .eq('id', input.crew_id)
+    .maybeSingle();
+
+  if (crewErr || !crew) {
+    return { ok: false, error: 'Crew member not found', reason: 'db_error' };
+  }
+
+  if (crew.tier === 'never_again') {
+    console.warn('[quotes] BLOCKED never_again booking attempt', { crew_id: crew.id, name: crew.name });
+    return {
+      ok: false,
+      error: `${crew.name} is tagged "never again" — cannot be booked. Update their tier in /crew/${crew.id} first if circumstances have changed.`,
+      reason: 'never_again',
+    };
+  }
+
   const { data, error } = await supabase
     .from(BC_TABLE)
     .insert({
@@ -371,8 +405,11 @@ export async function addBookingCrew(input: {
     .select()
     .single();
 
-  if (error) { console.error('[quotes] add booking crew', error.message); return null; }
-  return data;
+  if (error) {
+    console.error('[quotes] add booking crew', error.message);
+    return { ok: false, error: error.message, reason: 'db_error' };
+  }
+  return { ok: true, data };
 }
 
 export async function removeBookingCrew(id: string) {

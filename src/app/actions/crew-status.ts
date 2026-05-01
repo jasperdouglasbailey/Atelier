@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { updateBookingCrewStatus } from '@/lib/data/quotes';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 export async function updateCrewStatusAction(args: {
   bookingCrewId: string;
@@ -21,10 +22,10 @@ export async function updateCrewStatusAction(args: {
     booking_id: bookingId,
     from: oldStatus,
     to: newStatus,
-  }, { bookingId, actor: 'jasper' });
+  }, { bookingId, actor: await getCurrentActor() });
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'crew_status_change',
     tableName: 'atelier_booking_crew',
     recordId: bookingCrewId,

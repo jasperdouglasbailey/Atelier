@@ -5,18 +5,8 @@ import { createBooking, getBooking, updateBooking, transitionState, type CreateB
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
+import { buildDateRange } from '@/lib/utils/daterange';
 import type { BookingState } from '@/lib/types/database';
-
-/** Converts start/end date strings from a form into a Postgres daterange string. */
-function buildDateRange(start: string | null, end: string | null): string | null {
-  if (!start) return null;
-  // Postgres daterange uses exclusive upper bound — add 1 day to the end
-  const endDate = end || start;
-  const exclusiveEnd = new Date(endDate + 'T00:00:00Z');
-  exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
-  const exclusiveEndStr = exclusiveEnd.toISOString().slice(0, 10);
-  return `[${start},${exclusiveEndStr})`;
-}
 
 export async function createBookingAction(formData: FormData) {
   const shootStart = (formData.get('shoot_date_start') as string) || null;

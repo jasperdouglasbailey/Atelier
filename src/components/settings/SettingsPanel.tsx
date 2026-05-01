@@ -149,8 +149,7 @@ export default function SettingsPanel({ killSwitch, agency }: Props) {
         <div className="space-y-2">
           <IntegrationRow name="Supabase" status="connected" detail="ap-southeast-2 (Sydney)" />
           <IntegrationRow name="Xero" status="pending" detail="Invoice sync — needs OAuth setup" />
-          <IntegrationRow name="Dropbox" status="pending" detail="File delivery — needs OAuth setup" />
-          <IntegrationRow name="Outlook / Microsoft Graph" status="pending" detail="Email relay — needs OAuth setup" />
+          <IntegrationRow name="Google (Gmail · Drive · Calendar)" status="pending" detail="Email relay, file delivery, shoot day events — single OAuth grant" />
           <IntegrationRow name="Anthropic API" status="pending" detail="Agent processing — needs API key" />
         </div>
       </section>

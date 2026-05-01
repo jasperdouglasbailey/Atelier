@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { parseDateRangeRaw as parseDateRange } from '@/lib/utils/daterange';
 
 export interface CrewBookingRow {
   id: string;
@@ -17,18 +18,6 @@ export interface CrewBookingRow {
   shoot_date_notes: string | null;
   shoot_start: string | null; // YYYY-MM-DD
   shoot_end: string | null;   // YYYY-MM-DD (exclusive — Postgres daterange convention)
-}
-
-/**
- * Postgres daterange comes back as a string like '[2026-05-04,2026-05-08)'
- * (start inclusive, end exclusive). This pulls out the two ISO dates, or
- * returns nulls when the range is empty/null.
- */
-function parseDateRange(input: string | null | undefined): { start: string | null; end: string | null } {
-  if (!input) return { start: null, end: null };
-  const m = input.match(/^[\[(](\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?[\])]$/);
-  if (!m) return { start: null, end: null };
-  return { start: m[1] ?? null, end: m[2] ?? null };
 }
 
 /**

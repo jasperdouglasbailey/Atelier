@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import type { Client, Brand, Talent, Crew, Campaign, CrewTier } from '@/lib/types/database';
+import type { Client, Brand, Talent, Crew, Campaign, CrewTier, ArtistDiscipline } from '@/lib/types/database';
 
 // ============================================================
 // Clients
@@ -23,7 +23,7 @@ export async function getClient(id: string): Promise<Client | null> {
 export async function createClientRecord(input: {
   name: string; email?: string; phone?: string; company?: string;
   abn?: string; is_creative_agency?: boolean; parent_company_id?: string;
-  payment_terms_days?: number; notes?: string;
+  payment_terms_days?: number; notes?: string; preferred_comms?: string;
 }): Promise<Client | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_clients').insert(input).select().single();
@@ -76,7 +76,12 @@ export async function getTalent(id: string): Promise<Talent | null> {
 }
 
 export async function createTalentRecord(input: {
-  legal_name: string; working_name: string; email?: string; mobile?: string;
+  legal_name: string; working_name: string;
+  /** Required — what kind of creative this person is. */
+  discipline: ArtistDiscipline;
+  specialty?: string;
+  preferred_comms?: string;
+  email?: string; mobile?: string;
   pronouns?: string; abn?: string; gst_registered?: boolean; entity_type?: string;
   representation_status?: string; instagram?: string; website?: string; notes?: string;
 }): Promise<Talent | null> {
@@ -117,7 +122,7 @@ export async function getCrewMember(id: string): Promise<Crew | null> {
 export async function createCrewRecord(input: {
   name: string; email?: string; mobile?: string; primary_role?: string;
   tier?: CrewTier; abn?: string; gst_registered?: boolean;
-  default_day_rate?: number; notes?: string;
+  default_day_rate?: number; notes?: string; preferred_comms?: string;
 }): Promise<Crew | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_crew').insert(input).select().single();

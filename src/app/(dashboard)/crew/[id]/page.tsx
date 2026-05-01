@@ -51,7 +51,7 @@ export default async function CrewDetailPage({ params }: Props) {
                 {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(r => r.replace(/_/g, ' ')).join(', ')}` : ''}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${tierColor}22`, color: tierColor }}>
                 {CREW_TIER_LABELS[crew.tier]}
               </span>
@@ -61,6 +61,13 @@ export default async function CrewDetailPage({ params }: Props) {
               }}>
                 {crew.is_active ? 'Active' : 'Inactive'}
               </span>
+              <Link
+                href={`/crew/${crew.id}/edit`}
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+              >
+                ✏ Edit
+              </Link>
             </div>
           </div>
         </section>

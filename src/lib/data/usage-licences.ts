@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { UsageLicence, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 const TABLE = 'atelier_usage_licences';
 
@@ -40,7 +41,7 @@ export async function addUsageLicence(input: CreateUsageLicenceInput): Promise<U
   if (error) { console.error('[usage] create', error.message); return null; }
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'add_usage_licence',
     tableName: TABLE,
     recordId: (data as UsageLicence).id,
@@ -56,7 +57,7 @@ export async function removeUsageLicence(id: string): Promise<boolean> {
   if (error) { console.error('[usage] remove', error.message); return false; }
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'remove_usage_licence',
     tableName: TABLE,
     recordId: id,

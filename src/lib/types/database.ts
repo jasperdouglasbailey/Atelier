@@ -17,6 +17,24 @@ export type ShootTier =
   | 'pr_press' | 'corporate' | 'event' | 'still_life' | 'fashion_film' | 'pre_production_only';
 
 export type CrewTier = 'preferred_core' | 'regular_freelance' | 'never_again';
+
+/**
+ * Artist disciplines — what kind of creative this person is.
+ * Saunders & Co represents creatives, not models. Locked in
+ * supabase/migrations/0002_artist_disciplines.sql.
+ */
+export type ArtistDiscipline =
+  | 'photographer'
+  | 'videographer'
+  | 'wardrobe_stylist'
+  | 'hair'
+  | 'makeup'
+  | 'hair_and_makeup'
+  | 'manicurist';
+
+/** How this person prefers to be contacted. */
+export type PreferredComms = 'email' | 'sms' | 'imessage' | 'phone' | 'whatsapp';
+
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type AgentName = 'orchestrator' | 'brief_intake' | 'booking' | 'comms' | 'finance' | 'client' | 'marketing' | 'security_audit';
 export type UsageMedia =
@@ -60,6 +78,8 @@ export interface Client {
   payment_terms_days: number | null;
   notes: string | null;
   avg_doi_days: number | null;
+  /** How this client prefers to be contacted. */
+  preferred_comms: string | null;
 }
 
 export interface Brand {
@@ -76,6 +96,12 @@ export interface Talent {
   updated_at: string;
   legal_name: string;
   working_name: string;
+  /** What this artist does. Required after migration 0002. */
+  discipline: ArtistDiscipline;
+  /** Free-text sub-niche, e.g. "fashion editorial", "product still life", "swimwear". */
+  specialty: string | null;
+  /** How this artist prefers to be contacted. Free-text but UI uses PreferredComms enum. */
+  preferred_comms: string | null;
   pronouns: string | null;
   dob: string | null;
   mobile: string | null;
@@ -115,6 +141,8 @@ export interface Crew {
   name: string;
   email: string | null;
   mobile: string | null;
+  /** How this crew member prefers to be contacted. */
+  preferred_comms: string | null;
   abn: string | null;
   gst_registered: boolean;
   primary_role: string | null;

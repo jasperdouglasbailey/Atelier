@@ -1,4 +1,4 @@
-import type { BookingState, ShootTier, CrewTier, AgentName, FeeLineType } from '@/lib/types/database';
+import type { BookingState, ShootTier, CrewTier, AgentName, FeeLineType, ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 
 // Ordered booking states for the state machine
 export const BOOKING_STATES: readonly BookingState[] = [
@@ -82,6 +82,48 @@ export const CREW_TIER_LABELS: Record<CrewTier, string> = {
   preferred_core: 'Preferred Core',
   regular_freelance: 'Regular Freelance',
   never_again: 'Never Again',
+};
+
+// ============================================================
+// Artist disciplines — what kind of creative this person is.
+// Saunders & Co represents creatives, not models. Locked in
+// supabase/migrations/0002_artist_disciplines.sql.
+// ============================================================
+
+export const ARTIST_DISCIPLINES: ArtistDiscipline[] = [
+  'photographer',
+  'videographer',
+  'wardrobe_stylist',
+  'hair',
+  'makeup',
+  'hair_and_makeup',
+  'manicurist',
+];
+
+export const ARTIST_DISCIPLINE_LABELS: Record<ArtistDiscipline, string> = {
+  photographer: 'Photographer',
+  videographer: 'Videographer',
+  wardrobe_stylist: 'Wardrobe Stylist',
+  hair: 'Hair',
+  makeup: 'Makeup',
+  hair_and_makeup: 'Hair & Makeup',
+  manicurist: 'Manicurist',
+};
+
+// ============================================================
+// Preferred comms — how each person likes to be contacted
+// ============================================================
+
+export const PREFERRED_COMMS_OPTIONS: PreferredComms[] = [
+  'email', 'sms', 'imessage', 'phone', 'whatsapp',
+];
+
+export const PREFERRED_COMMS_LABELS: Record<PreferredComms, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  imessage: 'iMessage',
+  phone: 'Phone call',
+  whatsapp: 'WhatsApp',
 };
 
 export const AGENTS: { id: AgentName; label: string }[] = [

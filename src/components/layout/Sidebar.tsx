@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { signOutAction } from '@/app/actions/auth';
+
 type NavItem = { label: string; href: string; badge?: number };
 type NavSection = { title?: string; items: NavItem[] };
 
-type Props = { inboxCount?: number };
+type Props = { inboxCount?: number; userEmail?: string | null };
 
-export default function Sidebar({ inboxCount = 0 }: Props) {
+export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   const pathname = usePathname();
 
   const sections: NavSection[] = [
@@ -92,6 +94,29 @@ export default function Sidebar({ inboxCount = 0 }: Props) {
           </div>
         ))}
       </nav>
+
+      {userEmail && (
+        <form
+          action={signOutAction}
+          className="border-t px-3 py-3"
+          style={{ borderColor: '#2e3347' }}
+        >
+          <div
+            className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest truncate"
+            style={{ color: '#6b7186' }}
+            title={userEmail}
+          >
+            {userEmail}
+          </div>
+          <button
+            type="submit"
+            className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/5"
+            style={{ color: '#9aa0b4', background: 'transparent', border: 'none', cursor: 'pointer' }}
+          >
+            Sign out
+          </button>
+        </form>
+      )}
     </aside>
   );
 }

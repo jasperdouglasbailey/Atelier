@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { getTalent } from '@/lib/data/entities';
 import { listTalentBookingHistory } from '@/lib/data/quotes';
-import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
+import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, ARTIST_DISCIPLINE_LABELS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
+import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
 
@@ -54,12 +55,28 @@ export default async function TalentDetailPage({ params }: Props) {
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{talent.working_name}</h2>
-              <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>{talent.legal_name}</div>
+              <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
+                {ARTIST_DISCIPLINE_LABELS[talent.discipline as ArtistDiscipline] ?? talent.discipline}
+                {talent.specialty ? ` · ${talent.specialty}` : ''}
+                {' · '}{talent.legal_name}
+              </div>
+              {talent.preferred_comms && (
+                <div className="text-[10px] mt-0.5" style={{ color: PALETTE.muted }}>
+                  Prefers: {PREFERRED_COMMS_LABELS[talent.preferred_comms as PreferredComms] ?? talent.preferred_comms}
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Badge label={talent.is_active ? 'Active' : 'Inactive'} active={talent.is_active} />
               <Badge label={talent.gst_registered ? 'GST Reg' : 'No GST'} active={talent.gst_registered} />
               <Badge label={talent.onboarding_completed ? 'Onboarded' : 'Pending'} active={talent.onboarding_completed} />
+              <Link
+                href={`/talent/${talent.id}/edit`}
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+              >
+                ✏ Edit
+              </Link>
             </div>
           </div>
         </section>

@@ -42,10 +42,15 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
 
   async function handleAddCrew(formData: FormData) {
     setBusy(true);
-    await addBookingCrewAction(formData);
+    const result = await addBookingCrewAction(formData);
+    setBusy(false);
+    if ('error' in result && result.error) {
+      // The data layer rejects "never_again" tier here — surface the message.
+      alert(result.error);
+      return;
+    }
     setShowAddCrew(false);
     router.refresh();
-    setBusy(false);
   }
 
   async function handleRemoveCrew(id: string) {

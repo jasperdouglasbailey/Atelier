@@ -149,9 +149,12 @@ export function parseBrief(text: string): ParsedBrief {
   }
 
   // ---- Talent count ----
+  // Matches "3 models", "2 female models", "5 male/non-binary talent" etc.
+  // Allows up to 3 optional words (gender, age, ethnicity) between the
+  // number and the noun, since briefs commonly write "2 female models".
   let talentCount: number | null = null;
   const talentCountMatch = lower.match(
-    /(\d+)\s+(?:models?|talent|artists?|subjects?)/
+    /(\d+)\s+(?:[\w\-/]+\s+){0,3}(?:models?|talent|artists?|subjects?)\b/
   ) ?? lower.match(/(?:models?|talent|artists?)\s*[:\-]?\s*(\d+)/);
   if (talentCountMatch) {
     const n = parseInt(talentCountMatch[1], 10);

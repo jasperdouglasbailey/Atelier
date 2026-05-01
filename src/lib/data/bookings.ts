@@ -3,6 +3,7 @@ import type { Booking, BookingState, ShootTier } from '@/lib/types/database';
 import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
 import { emitEvent } from '@/lib/utils/events';
 import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 /** Booking row augmented with the joined client record (for list views). */
 export type BookingListRow = Booking & {
@@ -144,10 +145,10 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking 
     booking_ref: booking.booking_ref,
     title: booking.title,
     tier: booking.tier,
-  }, { bookingId: booking.id, actor: 'jasper' });
+  }, { bookingId: booking.id, actor: await getCurrentActor() });
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'create',
     tableName: TABLE,
     recordId: booking.id,
@@ -186,7 +187,7 @@ export async function updateBooking(
   }
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'update',
     tableName: TABLE,
     recordId: id,
@@ -260,10 +261,10 @@ export async function transitionState(
     to: newState,
     reason: meta?.reason ?? null,
     booking_ref: booking.booking_ref,
-  }, { bookingId: id, actor: 'jasper' });
+  }, { bookingId: id, actor: await getCurrentActor() });
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'state_change',
     tableName: TABLE,
     recordId: id,

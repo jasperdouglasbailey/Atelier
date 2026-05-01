@@ -3,6 +3,7 @@ import type { Approval, ApprovalStatus } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
 import { applyApprovalDecisionEffects } from '@/lib/automation/approval-effects';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 const TABLE = 'atelier_approvals';
 
@@ -44,7 +45,7 @@ export async function decideApproval(
     .update({
       status: decision,
       decided_at: new Date().toISOString(),
-      decided_by: 'jasper',
+      decided_by: await getCurrentActor(),
       rejection_reason: decision === 'rejected' ? (rejectionReason ?? null) : null,
     })
     .eq('id', id)
@@ -59,10 +60,10 @@ export async function decideApproval(
     approval_id: id,
     action_type: approval.action_type,
     agent: approval.agent,
-  }, { bookingId: approval.booking_id, actor: 'jasper' });
+  }, { bookingId: approval.booking_id, actor: await getCurrentActor() });
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: `approval_${decision}`,
     tableName: TABLE,
     recordId: id,

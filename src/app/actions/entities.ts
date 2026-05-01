@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClientRecord, updateClient } from '@/lib/data/entities';
 import { createTalentRecord, updateTalent } from '@/lib/data/entities';
 import { createCrewRecord, updateCrew } from '@/lib/data/entities';
-import type { CrewTier } from '@/lib/types/database';
+import type { CrewTier, ArtistDiscipline } from '@/lib/types/database';
 
 export async function createClientAction(formData: FormData) {
   const result = await createClientRecord({
@@ -27,18 +27,25 @@ export async function updateClientAction(id: string, formData: FormData) {
   for (const [key, val] of formData.entries()) {
     if (key === 'is_creative_agency') updates[key] = val === 'true';
     else if (key === 'payment_terms_days') updates[key] = val ? Number(val) : null;
-    else updates[key] = val || null;
+    else updates[key] = (val as string) || null;
   }
   const result = await updateClient(id, updates);
   if (!result) return { error: 'Failed to update client' };
   revalidatePath('/clients');
+  revalidatePath(`/clients/${id}`);
   return { ok: true };
 }
 
 export async function createTalentAction(formData: FormData) {
+  const discipline = formData.get('discipline') as ArtistDiscipline | null;
+  if (!discipline) return { error: 'Discipline is required' };
+
   const result = await createTalentRecord({
     legal_name: formData.get('legal_name') as string,
     working_name: formData.get('working_name') as string,
+    discipline,
+    specialty: (formData.get('specialty') as string) || undefined,
+    preferred_comms: (formData.get('preferred_comms') as string) || undefined,
     email: (formData.get('email') as string) || undefined,
     mobile: (formData.get('mobile') as string) || undefined,
     pronouns: (formData.get('pronouns') as string) || undefined,
@@ -70,4 +77,45 @@ export async function createCrewAction(formData: FormData) {
   if (!result) return { error: 'Failed to create crew member' };
   revalidatePath('/crew');
   return { id: result.id };
+}
+
+export async function updateCrewAction(id: string, formData: FormData) {
+  const updates: Record<string, unknown> = {};
+  const textFields = ['name', 'email', 'mobile', 'preferred_comms', 'primary_role', 'tier', 'abn',
+    'super_fund_name', 'super_member_number', 'super_usi', 'notes'];
+  for (const f of textFields) {
+    const val = formData.get(f);
+    if (val !== null) updates[f] = (val as string) || null;
+  }
+  if (formData.get('gst_registered') !== null) {
+    updates.gst_registered = formData.get('gst_registered') === 'true';
+  }
+  if (formData.get('default_day_rate') !== null) {
+    const v = formData.get('default_day_rate') as string;
+    updates.default_day_rate = v ? Number(v) : null;
+  }
+  const result = await updateCrew(id, updates);
+  if (!result) return { error: 'Failed to update crew member' };
+  revalidatePath('/crew');
+  revalidatePath(`/crew/${id}`);
+  return { ok: true };
+}
+
+export async function updateTalentAction(id: string, formData: FormData) {
+  const updates: Record<string, unknown> = {};
+  const textFields = ['legal_name', 'working_name', 'email', 'mobile', 'pronouns',
+    'discipline', 'specialty', 'preferred_comms',
+    'abn', 'entity_type', 'representation_status', 'instagram', 'website', 'notes'];
+  for (const f of textFields) {
+    const val = formData.get(f);
+    if (val !== null) updates[f] = (val as string) || null;
+  }
+  if (formData.get('gst_registered') !== null) {
+    updates.gst_registered = formData.get('gst_registered') === 'true';
+  }
+  const result = await updateTalent(id, updates);
+  if (!result) return { error: 'Failed to update talent' };
+  revalidatePath('/talent');
+  revalidatePath(`/talent/${id}`);
+  return { ok: true };
 }

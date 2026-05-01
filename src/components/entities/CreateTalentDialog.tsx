@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createTalentAction } from '@/app/actions/entities';
-import { PALETTE } from '@/lib/utils/constants';
+import { PALETTE, ARTIST_DISCIPLINES, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
 const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg };
@@ -43,6 +43,13 @@ export default function CreateTalentDialog() {
         <form onSubmit={handleSubmit} className="space-y-3">
           <input name="working_name" required placeholder="Working name *" className={inputClass} style={inputStyle} />
           <input name="legal_name" required placeholder="Legal full name *" className={inputClass} style={inputStyle} />
+          <select name="discipline" required className={inputClass} style={inputStyle} defaultValue="">
+            <option value="" disabled>Discipline *</option>
+            {ARTIST_DISCIPLINES.map((d) => (
+              <option key={d} value={d}>{ARTIST_DISCIPLINE_LABELS[d]}</option>
+            ))}
+          </select>
+          <input name="specialty" placeholder="Specialty / sub-niche (optional)" className={inputClass} style={inputStyle} />
           <input name="email" type="email" placeholder="Email" className={inputClass} style={inputStyle} />
           <input name="mobile" placeholder="Mobile" className={inputClass} style={inputStyle} />
           <input name="pronouns" placeholder="Pronouns" className={inputClass} style={inputStyle} />

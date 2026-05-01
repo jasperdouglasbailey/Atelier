@@ -13,6 +13,7 @@ import type { Approval } from '@/lib/types/database';
 import { updateBookingCrewStatusByCrewId } from '@/lib/data/quotes';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 export type Decision = 'approved' | 'rejected';
 
@@ -47,10 +48,10 @@ async function applyCrewHoldRequestEffect(approval: Approval, decision: Decision
     booking_id: bookingId,
     crew_id: crewId,
     approval_id: approval.id,
-  }, { bookingId, actor: 'jasper' });
+  }, { bookingId, actor: await getCurrentActor() });
 
   await logAudit({
-    userId: 'jasper',
+    userId: await getCurrentActor(),
     action: 'crew_status_change',
     tableName: 'atelier_booking_crew',
     recordId: `${bookingId}:${crewId}`,

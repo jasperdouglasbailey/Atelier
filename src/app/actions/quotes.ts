@@ -181,7 +181,11 @@ export async function addBookingCrewAction(formData: FormData) {
     day_rate: dayRate,
   });
 
-  if (!result) return { error: 'Failed to add crew to booking' };
+  if (!result.ok) {
+    // Surface the specific reason — UI shows "never_again" rejections in
+    // an alert with a link to the crew member's profile.
+    return { error: result.error, reason: result.reason };
+  }
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
 }
