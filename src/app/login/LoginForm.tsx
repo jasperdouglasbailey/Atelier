@@ -36,15 +36,16 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
 
   // Read hash-fragment errors on mount and clear the hash so refreshes are clean.
+  // Lazy initial state avoids the setState-in-effect lint warning while
+  // still being safe (readHashError is browser-only and SSR-guarded internally).
+  const [initialHashError] = useState(() => readHashError());
   useEffect(() => {
-    const hashErr = readHashError();
-    if (hashErr) {
-      setError(hashErr);
-      // Strip the hash so reload doesn't re-trigger.
+    if (initialHashError) {
+      setError(initialHashError);
       const url = window.location.pathname + window.location.search;
       window.history.replaceState({}, '', url);
     }
-  }, []);
+  }, [initialHashError]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
