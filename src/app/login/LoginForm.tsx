@@ -33,19 +33,18 @@ function readHashError(): string | null {
 export default function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Initial error reads from URL hash fragment (where Supabase puts errors
+  // like otp_expired). Lazy initial state means we don't need setState in
+  // an effect, which keeps the react-compiler lint happy.
+  const [error, setError] = useState<string | null>(() => readHashError());
 
-  // Read hash-fragment errors on mount and clear the hash so refreshes are clean.
-  // Lazy initial state avoids the setState-in-effect lint warning while
-  // still being safe (readHashError is browser-only and SSR-guarded internally).
-  const [initialHashError] = useState(() => readHashError());
+  // Once mounted, clear the hash from the URL so a refresh doesn't re-show.
   useEffect(() => {
-    if (initialHashError) {
-      setError(initialHashError);
+    if (typeof window !== 'undefined' && window.location.hash.includes('error')) {
       const url = window.location.pathname + window.location.search;
       window.history.replaceState({}, '', url);
     }
-  }, [initialHashError]);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
