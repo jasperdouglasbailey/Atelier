@@ -20,7 +20,7 @@ export default function SeedButton() {
       onClick={onClick}
       disabled={isPending}
       className="rounded-md border px-3 py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-      style={{ borderColor: '#2e3347', color: '#9aa0b4', background: 'transparent' }}
+      style={{ borderColor: '#262626', color: '#8b8b8b', background: 'transparent' }}
     >
       {isPending ? 'Seeding…' : 'Seed mock data'}
     </button>

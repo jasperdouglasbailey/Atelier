@@ -26,7 +26,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const filterClass = 'rounded-md border bg-transparent px-2 py-1 text-xs';
-  const filterStyle = { borderColor: '#2e3347', color: '#e8eaed', background: '#0f1117' };
+  const filterStyle = { borderColor: '#262626', color: '#ededed', background: '#0a0a0a' };
 
   const buildPageHref = (p: number) => {
     const sp = new URLSearchParams();
@@ -44,15 +44,15 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
       <Topbar title="Audit" />
       <div className="p-4 sm:p-6">
         <form className="mb-4 flex flex-wrap items-end gap-3" method="get">
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#9aa0b4' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
             From
             <input type="date" name="from" defaultValue={params.from} className={filterClass} style={filterStyle} />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#9aa0b4' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
             To
             <input type="date" name="to" defaultValue={params.to} className={filterClass} style={filterStyle} />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#9aa0b4' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
             Action
             <input
               type="text"
@@ -63,7 +63,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
               style={filterStyle}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#9aa0b4' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
             Table
             <input
               type="text"
@@ -77,14 +77,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           <button
             type="submit"
             className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: '#6c8aff', color: '#0f1117' }}
+            style={{ background: '#6c8aff', color: '#0a0a0a' }}
           >
             Apply
           </button>
           <Link
             href="/audit"
             className="rounded-md border px-3 py-1.5 text-xs"
-            style={{ borderColor: '#2e3347', color: '#9aa0b4' }}
+            style={{ borderColor: '#262626', color: '#8b8b8b' }}
           >
             Reset
           </Link>
@@ -92,11 +92,11 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
         <div
           className="overflow-x-auto rounded-lg border"
-          style={{ borderColor: '#2e3347', background: '#1a1d27' }}
+          style={{ borderColor: '#262626', background: '#141414' }}
         >
           <table className="min-w-full text-sm">
             <thead>
-              <tr style={{ background: '#0f1117', color: '#9aa0b4' }} className="text-left text-xs uppercase tracking-wide">
+              <tr style={{ background: '#0a0a0a', color: '#8b8b8b' }} className="text-left text-xs uppercase tracking-wide">
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Action</th>
@@ -108,24 +108,24 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: '#9aa0b4' }}>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: '#8b8b8b' }}>
                     No audit entries match the current filters.
                   </td>
                 </tr>
               )}
               {rows.map((r) => (
-                <tr key={r.id} className="border-t" style={{ borderColor: '#2e3347' }}>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: '#9aa0b4' }}>
+                <tr key={r.id} className="border-t" style={{ borderColor: '#262626' }}>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: '#8b8b8b' }}>
                     {formatDateTime(r.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#e8eaed' }}>
-                    {r.user_id ?? <span style={{ color: '#6b7186' }}>system</span>}
+                  <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>
+                    {r.user_id ?? <span style={{ color: '#6b6b6b' }}>system</span>}
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <code style={{ color: '#6c8aff' }}>{r.action}</code>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#e8eaed' }}>{r.table_name}</td>
-                  <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#9aa0b4' }}>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>{r.table_name}</td>
+                  <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#8b8b8b' }}>
                     {r.record_id ?? '—'}
                   </td>
                   <td className="px-4 py-3">
@@ -137,7 +137,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs" style={{ color: '#9aa0b4' }}>
+        <div className="mt-4 flex items-center justify-between text-xs" style={{ color: '#8b8b8b' }}>
           <span>
             {total === 0 ? '0 entries' : `Showing page ${page} of ${totalPages} · ${total} total`}
           </span>
@@ -147,8 +147,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
               href={buildPageHref(Math.max(1, page - 1))}
               className="rounded-md border px-3 py-1.5"
               style={{
-                borderColor: '#2e3347',
-                color: page <= 1 ? '#4b5060' : '#e8eaed',
+                borderColor: '#262626',
+                color: page <= 1 ? '#4b5060' : '#ededed',
                 pointerEvents: page <= 1 ? 'none' : 'auto',
               }}
             >
@@ -159,8 +159,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
               href={buildPageHref(Math.min(totalPages, page + 1))}
               className="rounded-md border px-3 py-1.5"
               style={{
-                borderColor: '#2e3347',
-                color: page >= totalPages ? '#4b5060' : '#e8eaed',
+                borderColor: '#262626',
+                color: page >= totalPages ? '#4b5060' : '#ededed',
                 pointerEvents: page >= totalPages ? 'none' : 'auto',
               }}
             >
@@ -175,12 +175,12 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
 function ChangeSummary({ oldValue, newValue }: { oldValue: unknown; newValue: unknown }) {
   if (!oldValue && !newValue) {
-    return <span style={{ color: '#6b7186' }}>—</span>;
+    return <span style={{ color: '#6b6b6b' }}>—</span>;
   }
   const summary = JSON.stringify(newValue ?? oldValue);
   const truncated = summary.length > 80 ? `${summary.slice(0, 80)}…` : summary;
   return (
-    <code className="text-[11px]" style={{ color: '#9aa0b4' }}>
+    <code className="text-[11px]" style={{ color: '#8b8b8b' }}>
       {truncated}
     </code>
   );

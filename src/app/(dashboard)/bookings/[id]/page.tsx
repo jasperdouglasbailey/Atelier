@@ -71,14 +71,14 @@ export default async function BookingDetailPage({ params }: Props) {
                 bookingCrew={bookingCrew}
               />
             )}
-            <div className="rounded-lg border p-4" style={{ background: '#1a1d27', borderColor: '#2e3347' }}>
+            <div className="rounded-lg border p-4" style={{ background: '#141414', borderColor: '#262626' }}>
               <QuoteBuilder
                 bookingId={id}
                 quoteVersions={quoteVersions}
                 feeLines={feeLines}
               />
             </div>
-            <div className="rounded-lg border p-4" style={{ background: '#1a1d27', borderColor: '#2e3347' }}>
+            <div className="rounded-lg border p-4" style={{ background: '#141414', borderColor: '#262626' }}>
               <UsageLicenceBuilder bookingId={id} licences={usageLicences} />
             </div>
             <BookingTeam

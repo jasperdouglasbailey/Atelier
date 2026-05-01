@@ -115,15 +115,9 @@ export default function BookingForm({ clients, brands }: Props) {
       </div>
 
       {/* Talent */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} style={labelStyle}>Talent Count</label>
-          <input name="talent_count" type="number" min="0" className={inputClass} style={inputStyle} />
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>Talent Spec</label>
-          <input name="talent_spec" className={inputClass} style={inputStyle} placeholder="e.g. 1 photographer, 1 HMU" />
-        </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>Talent Spec</label>
+        <input name="talent_spec" className={inputClass} style={inputStyle} placeholder="e.g. 1 photographer, 1 HMU" />
       </div>
 
       {/* Deliverables */}
@@ -139,15 +133,9 @@ export default function BookingForm({ clients, brands }: Props) {
       </div>
 
       {/* Usage */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
-          <input name="usage_duration_months" type="number" min="0" className={inputClass} style={inputStyle} placeholder="e.g. 12" />
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>Budget Indication (AUD)</label>
-          <input name="budget_indication" type="number" min="0" step="0.01" className={inputClass} style={inputStyle} />
-        </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
+        <input name="usage_duration_months" type="number" min="0" className={inputClass} style={inputStyle} placeholder="e.g. 12" />
       </div>
       <div>
         <label className={labelClass} style={labelStyle}>Usage Notes</label>

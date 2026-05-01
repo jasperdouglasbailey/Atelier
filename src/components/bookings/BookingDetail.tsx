@@ -196,7 +196,6 @@ export default function BookingDetail({ booking }: Props) {
         {brandName && <Field label="Brand" value={brandName} />}
         <Field label="Shoot Location" value={booking.shoot_location} />
         <Field label="Shoot Dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-        <Field label="Talent Count" value={booking.talent_count} />
         <Field label="Talent Spec" value={booking.talent_spec} />
         <Field label="Deliverables Type" value={booking.deliverables_type} />
         <Field label="Deliverables Count" value={booking.deliverables_count} />
@@ -212,7 +211,6 @@ export default function BookingDetail({ booking }: Props) {
       </Section>
 
       <Section title="Financials">
-        <Field label="Budget Indication" value={booking.budget_indication ? formatCurrency(booking.budget_indication, booking.budget_currency) : null} />
         <Field label="Subtotal" value={booking.subtotal > 0 ? formatCurrency(booking.subtotal, 'AUD') : null} />
         <Field label="ASF" value={booking.total_asf > 0 ? formatCurrency(booking.total_asf, 'AUD') : null} />
         <Field label="GST" value={booking.total_gst > 0 ? formatCurrency(booking.total_gst, 'AUD') : null} />

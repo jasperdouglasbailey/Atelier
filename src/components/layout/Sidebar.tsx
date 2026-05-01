@@ -23,7 +23,6 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         { label: 'Crew', href: '/crew' },
         { label: 'Crew Bookings', href: '/crew-bookings' },
         { label: 'Clients', href: '/clients' },
-        { label: 'Campaigns', href: '/campaigns' },
       ],
     },
     {
@@ -45,9 +44,9 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   return (
     <aside
       className="hidden h-screen w-56 flex-col border-r md:flex"
-      style={{ background: '#1a1d27', borderColor: '#2e3347' }}
+      style={{ background: '#141414', borderColor: '#262626' }}
     >
-      <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: '#2e3347' }}>
+      <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: '#262626' }}>
         <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: '#6c8aff' }}>
           Atelier
         </span>
@@ -59,7 +58,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
             {section.title && (
               <div
                 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest"
-                style={{ color: '#6b7186' }}
+                style={{ color: '#6b6b6b' }}
               >
                 {section.title}
               </div>
@@ -73,15 +72,15 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
                       href={href}
                       className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
                       style={{
-                        color: active ? '#e8eaed' : '#9aa0b4',
-                        background: active ? '#2e3347' : 'transparent',
+                        color: active ? '#ededed' : '#8b8b8b',
+                        background: active ? '#262626' : 'transparent',
                       }}
                     >
                       <span>{label}</span>
                       {badge != null && badge > 0 && (
                         <span
                           className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                          style={{ background: '#6c8aff', color: '#0f1117', minWidth: 18, textAlign: 'center' }}
+                          style={{ background: '#6c8aff', color: '#0a0a0a', minWidth: 18, textAlign: 'center' }}
                         >
                           {badge > 99 ? '99+' : badge}
                         </span>
@@ -99,11 +98,11 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         <form
           action={signOutAction}
           className="border-t px-3 py-3"
-          style={{ borderColor: '#2e3347' }}
+          style={{ borderColor: '#262626' }}
         >
           <div
             className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest truncate"
-            style={{ color: '#6b7186' }}
+            style={{ color: '#6b6b6b' }}
             title={userEmail}
           >
             {userEmail}
@@ -111,7 +110,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
           <button
             type="submit"
             className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/5"
-            style={{ color: '#9aa0b4', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
           >
             Sign out
           </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { KillSwitchState } from '@/lib/utils/kill-switch';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
@@ -11,6 +12,11 @@ type Props = {
 };
 
 export default function Topbar({ title, initialKillSwitch = null }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  // Show back/forward only on detail pages (depth > 1). Top-level pages
+  // already have sidebar nav; the buttons would clutter without value there.
+  const showHistory = pathname !== '/' && pathname.split('/').filter(Boolean).length > 1;
   const [state, setState] = useState<KillSwitchState | null>(initialKillSwitch);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -68,9 +74,33 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
     <>
       <header
         className="flex h-14 items-center gap-3 border-b px-4 sm:px-6"
-        style={{ background: '#1a1d27', borderColor: '#2e3347' }}
+        style={{ background: '#141414', borderColor: '#262626' }}
       >
-        <h1 className="flex-1 truncate text-sm font-medium" style={{ color: '#e8eaed' }}>
+        {showHistory && (
+          <div className="flex items-center gap-0.5 mr-1">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-md px-2 py-1 text-base leading-none transition-colors hover:bg-white/5"
+              style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              aria-label="Go back"
+              title="Back"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => router.forward()}
+              className="rounded-md px-2 py-1 text-base leading-none transition-colors hover:bg-white/5"
+              style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              aria-label="Go forward"
+              title="Forward"
+            >
+              →
+            </button>
+          </div>
+        )}
+        <h1 className="flex-1 truncate text-sm font-medium" style={{ color: '#ededed' }}>
           {title}
         </h1>
 
@@ -79,8 +109,8 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
           disabled={isPending}
           className="hidden rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 sm:inline-flex"
           style={{
-            borderColor: isPaused ? '#fbbf24' : '#2e3347',
-            color: isPaused ? '#fbbf24' : '#9aa0b4',
+            borderColor: isPaused ? '#fbbf24' : '#262626',
+            color: isPaused ? '#fbbf24' : '#8b8b8b',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
           aria-pressed={isPaused}
@@ -104,14 +134,14 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
       </header>
 
       {/* Mobile-only pause-outbound row, since we hide it from the header above */}
-      <div className="flex border-b px-4 py-2 sm:hidden" style={{ background: '#1a1d27', borderColor: '#2e3347' }}>
+      <div className="flex border-b px-4 py-2 sm:hidden" style={{ background: '#141414', borderColor: '#262626' }}>
         <button
           onClick={togglePauseOutbound}
           disabled={isPending}
           className="w-full rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50"
           style={{
-            borderColor: isPaused ? '#fbbf24' : '#2e3347',
-            color: isPaused ? '#fbbf24' : '#9aa0b4',
+            borderColor: isPaused ? '#fbbf24' : '#262626',
+            color: isPaused ? '#fbbf24' : '#8b8b8b',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
         >
@@ -130,12 +160,12 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
           <div
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-lg border p-6 shadow-2xl"
-            style={{ background: '#1a1d27', borderColor: '#2e3347', color: '#e8eaed' }}
+            style={{ background: '#141414', borderColor: '#262626', color: '#ededed' }}
           >
             <h2 className="mb-2 text-base font-semibold">
               {isActive ? 'Disable kill switch?' : 'Enable kill switch?'}
             </h2>
-            <p className="mb-5 text-sm" style={{ color: '#9aa0b4' }}>
+            <p className="mb-5 text-sm" style={{ color: '#8b8b8b' }}>
               {isActive
                 ? 'Agents will resume processing and outbound sends will be allowed (subject to the pause-outbound flag).'
                 : 'Are you sure? This will freeze ALL agent activity. Drafts will not be generated and nothing will send externally.'}
@@ -144,14 +174,14 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
               <button
                 onClick={() => setConfirmOpen(false)}
                 className="rounded-md border px-4 py-2 text-sm"
-                style={{ borderColor: '#2e3347', color: '#9aa0b4' }}
+                style={{ borderColor: '#262626', color: '#8b8b8b' }}
               >
                 Cancel
               </button>
               <button
                 onClick={confirmKillSwitch}
                 className="rounded-md px-4 py-2 text-sm font-semibold"
-                style={{ background: isActive ? '#2e3347' : '#7f1d1d', color: '#fff' }}
+                style={{ background: isActive ? '#262626' : '#7f1d1d', color: '#fff' }}
               >
                 {isActive ? 'Disable kill switch' : 'Enable kill switch'}
               </button>

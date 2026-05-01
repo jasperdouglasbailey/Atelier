@@ -116,7 +116,18 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       <span>{bt.confirmed ? 'Confirmed' : 'Pencilled'}</span>
                     </div>
                   </div>
-                  <button onClick={() => handleRemoveTalent(bt.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={`/print/bookings/${bookingId}/artist/${bt.talent_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px]"
+                      style={{ color: PALETTE.accent }}
+                    >
+                      ↗ Remittance
+                    </a>
+                    <button onClick={() => handleRemoveTalent(bt.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
+                  </div>
                 </div>
               );
             })}
@@ -177,7 +188,18 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
                     </div>
                   </div>
-                  <button onClick={() => handleRemoveCrew(bc.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={`/print/bookings/${bookingId}/crew/${bc.crew_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px]"
+                      style={{ color: PALETTE.accent }}
+                    >
+                      ↗ Bill
+                    </a>
+                    <button onClick={() => handleRemoveCrew(bc.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
+                  </div>
                 </div>
               );
             })}

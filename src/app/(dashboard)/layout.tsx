@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#0f1117', color: '#e8eaed' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#0a0a0a', color: '#ededed' }}>
       <Sidebar inboxCount={inboxCount} userEmail={userEmail} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <KillSwitchBanner initialState={initialState} />

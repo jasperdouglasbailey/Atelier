@@ -33,14 +33,14 @@ function readHashError(): string | null {
 export default function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Initial error reads from URL hash fragment (where Supabase puts errors
+  // like otp_expired). Lazy initial state means we don't need setState in
+  // an effect, which keeps the react-compiler lint happy.
+  const [error, setError] = useState<string | null>(() => readHashError());
 
-  // Read hash-fragment errors on mount and clear the hash so refreshes are clean.
+  // Once mounted, clear the hash from the URL so a refresh doesn't re-show.
   useEffect(() => {
-    const hashErr = readHashError();
-    if (hashErr) {
-      setError(hashErr);
-      // Strip the hash so reload doesn't re-trigger.
+    if (typeof window !== 'undefined' && window.location.hash.includes('error')) {
       const url = window.location.pathname + window.location.search;
       window.history.replaceState({}, '', url);
     }

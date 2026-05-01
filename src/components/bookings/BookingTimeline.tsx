@@ -59,7 +59,7 @@ export default function BookingTimeline({ events }: Props) {
                       {String(payload.reason)}
                     </div>
                   ) : null}
-                  <div className="text-[10px] mt-0.5" style={{ color: '#6b7186' }}>
+                  <div className="text-[10px] mt-0.5" style={{ color: '#6b6b6b' }}>
                     {formatDateTime(e.created_at)}
                     {e.actor ? ` · ${e.actor}` : ''}
                   </div>
