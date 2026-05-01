@@ -155,6 +155,14 @@ export const CREW_STATUS_OPTIONS = [
 ] as const;
 export type CrewStatus = typeof CREW_STATUS_OPTIONS[number];
 
+export const CREW_STATUS_LABELS: Record<CrewStatus, string> = {
+  hold_requested: 'Hold requested',
+  sent: 'Hold sent',
+  confirmed: 'Confirmed',
+  declined: 'Declined',
+  released: 'Released',
+};
+
 // UI palette
 export const PALETTE = {
   bg: '#0f1117',

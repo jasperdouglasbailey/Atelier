@@ -380,3 +380,48 @@ export async function removeBookingCrew(id: string) {
   const { error } = await supabase.from(BC_TABLE).delete().eq('id', id);
   return !error;
 }
+
+// ============================================================
+// Entity history (for talent/crew detail pages)
+// ============================================================
+
+export type TalentBookingHistoryRow = {
+  id: string;
+  booking_id: string;
+  booking_ref: string | null;
+  booking_title: string;
+  booking_state: string;
+  booking_tier: string;
+  role_on_booking: string | null;
+  day_rate: number | null;
+  usage_fee: number | null;
+  confirmed: boolean;
+};
+
+export async function listTalentBookingHistory(talentId: string): Promise<TalentBookingHistoryRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(BT_TABLE)
+    .select('id, role_on_booking, day_rate, usage_fee, confirmed, booking_id, booking:atelier_bookings(booking_ref, title, state, tier)')
+    .eq('talent_id', talentId)
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error('[quotes] talent history', error.message); return []; }
+
+  return ((data ?? []) as unknown[]).map((row) => {
+    const r = row as Record<string, unknown>;
+    const b = r.booking as Record<string, unknown> | null;
+    return {
+      id: r.id as string,
+      booking_id: r.booking_id as string,
+      booking_ref: (b?.booking_ref as string) ?? null,
+      booking_title: (b?.title as string) ?? 'Unknown',
+      booking_state: (b?.state as string) ?? 'brief_received',
+      booking_tier: (b?.tier as string) ?? 'content',
+      role_on_booking: r.role_on_booking as string | null,
+      day_rate: r.day_rate as number | null,
+      usage_fee: r.usage_fee as number | null,
+      confirmed: r.confirmed as boolean,
+    };
+  });
+}

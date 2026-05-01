@@ -34,11 +34,12 @@ function parseDateRange(input: string | null | undefined): { start: string | nul
 /**
  * Cross-cutting crew-bookings view. Returns all crew assignments
  * joined with booking + crew info for the crew-centric dashboard.
+ * Pass crewId to filter to a single crew member (for the detail page).
  */
-export async function listCrewBookings(): Promise<CrewBookingRow[]> {
+export async function listCrewBookings(crewId?: string): Promise<CrewBookingRow[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('atelier_booking_crew')
     .select(`
       id,
@@ -49,8 +50,15 @@ export async function listCrewBookings(): Promise<CrewBookingRow[]> {
       booking_id,
       crew:atelier_crew(name, primary_role, tier),
       booking:atelier_bookings(booking_ref, title, state, tier, shoot_date_notes, shoot_dates)
-    `)
-    .order('crew_id');
+    `);
+
+  if (crewId) {
+    query = query.eq('crew_id', crewId);
+  } else {
+    query = query.order('crew_id');
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[crew-bookings] list', error.message);

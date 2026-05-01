@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import ViewToggle from '@/components/crew-bookings/ViewToggle';
 import { listCrewBookings, type CrewBookingRow } from '@/lib/data/crew-bookings';
-import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, CREW_TIER_LABELS } from '@/lib/utils/constants';
+import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, CREW_TIER_LABELS, CREW_STATUS_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import type { BookingState, ShootTier, CrewTier } from '@/lib/types/database';
 
@@ -89,7 +89,23 @@ export default async function CrewBookingsPage() {
                       <div className="flex items-center gap-3 text-[10px]" style={{ color: PALETTE.muted }}>
                         {b.role_on_booking && <span>{b.role_on_booking}</span>}
                         {b.day_rate != null && <span className="tabular-nums">{formatCurrency(b.day_rate)}/day</span>}
-                        <span className="capitalize">{b.status}</span>
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                          style={{
+                            background: b.status === 'confirmed' ? `${PALETTE.success}22`
+                              : b.status === 'declined' ? `${PALETTE.danger}22`
+                              : b.status === 'sent' ? `${PALETTE.accent}22`
+                              : b.status === 'released' ? `${PALETTE.muted}22`
+                              : `${PALETTE.warning}22`,
+                            color: b.status === 'confirmed' ? PALETTE.success
+                              : b.status === 'declined' ? PALETTE.danger
+                              : b.status === 'sent' ? PALETTE.accent
+                              : b.status === 'released' ? PALETTE.muted
+                              : PALETTE.warning,
+                          }}
+                        >
+                          {CREW_STATUS_LABELS[b.status as keyof typeof CREW_STATUS_LABELS] ?? b.status}
+                        </span>
                         {b.shoot_date_notes && <span>{b.shoot_date_notes}</span>}
                       </div>
                     </Link>

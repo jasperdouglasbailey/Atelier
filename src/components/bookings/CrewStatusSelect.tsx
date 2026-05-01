@@ -3,20 +3,12 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCrewStatusAction } from '@/app/actions/crew-status';
-import { PALETTE, CREW_STATUS_OPTIONS } from '@/lib/utils/constants';
+import { PALETTE, CREW_STATUS_OPTIONS, CREW_STATUS_LABELS } from '@/lib/utils/constants';
 
 type Props = {
   bookingCrewId: string;
   bookingId: string;
   status: string;
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  hold_requested: 'Hold requested',
-  sent: 'Hold sent',
-  confirmed: 'Confirmed',
-  declined: 'Declined',
-  released: 'Released',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -71,7 +63,7 @@ export default function CrewStatusSelect({ bookingCrewId, bookingId, status }: P
     >
       {CREW_STATUS_OPTIONS.map((s) => (
         <option key={s} value={s} style={{ background: PALETTE.bg, color: PALETTE.text }}>
-          {STATUS_LABELS[s] ?? s}
+          {CREW_STATUS_LABELS[s] ?? s}
         </option>
       ))}
     </select>

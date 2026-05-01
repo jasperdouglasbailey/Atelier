@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { getTalent } from '@/lib/data/entities';
-import { PALETTE } from '@/lib/utils/constants';
-import { formatDate } from '@/lib/utils/format';
+import { listTalentBookingHistory } from '@/lib/data/quotes';
+import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
+import { formatDate, formatCurrency } from '@/lib/utils/format';
+import type { BookingState } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -33,7 +35,10 @@ function Badge({ label, active }: { label: string; active: boolean }) {
 
 export default async function TalentDetailPage({ params }: Props) {
   const { id } = await params;
-  const talent = await getTalent(id);
+  const [talent, bookingHistory] = await Promise.all([
+    getTalent(id),
+    listTalentBookingHistory(id),
+  ]);
   if (!talent) notFound();
 
   return (
@@ -125,6 +130,58 @@ export default async function TalentDetailPage({ params }: Props) {
             <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{talent.notes}</p>
           </section>
         )}
+
+        {/* Booking history */}
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+            Booking History ({bookingHistory.length})
+          </h3>
+          {bookingHistory.length === 0 ? (
+            <p className="text-xs" style={{ color: PALETTE.muted }}>Not assigned to any bookings yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {bookingHistory.map((b) => (
+                <Link
+                  key={b.id}
+                  href={`/bookings/${b.booking_id}`}
+                  className="flex items-center justify-between rounded border px-3 py-2 transition hover:border-opacity-80"
+                  style={{ borderColor: PALETTE.border }}
+                >
+                  <div>
+                    <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
+                      {b.booking_ref ?? b.booking_title}
+                    </div>
+                    <div className="flex gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
+                      {b.role_on_booking && <span>{b.role_on_booking}</span>}
+                      {b.day_rate != null && <span>{formatCurrency(b.day_rate)}/day</span>}
+                      {b.usage_fee != null && b.usage_fee > 0 && <span>+{formatCurrency(b.usage_fee)} usage</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                      style={{
+                        background: `${STATE_COLORS[b.booking_state as BookingState] ?? PALETTE.muted}22`,
+                        color: STATE_COLORS[b.booking_state as BookingState] ?? PALETTE.muted,
+                      }}
+                    >
+                      {BOOKING_STATE_LABELS[b.booking_state as BookingState] ?? b.booking_state}
+                    </span>
+                    <span
+                      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                      style={{
+                        background: b.confirmed ? `${PALETTE.success}22` : `${PALETTE.warning}22`,
+                        color: b.confirmed ? PALETTE.success : PALETTE.warning,
+                      }}
+                    >
+                      {b.confirmed ? 'Confirmed' : 'Pencilled'}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
           Created {formatDate(talent.created_at)} · Updated {formatDate(talent.updated_at)}
