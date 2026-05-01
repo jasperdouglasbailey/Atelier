@@ -11,20 +11,20 @@ type Props = {
   currentState: string;
 };
 
-type FieldKey = keyof Omit<BriefIntakeResult, 'source' | 'confidence' | 'llmAvailable'>;
-
-const FIELD_LABELS: Record<FieldKey, string> = {
+// Subset of brief-intake fields we expose for review. Intentionally excludes
+// talent_count and budget_indication — both removed from the app per Jasper's
+// direction. Heuristic parser still extracts them, we just don't surface them.
+const FIELD_LABELS = {
   shoot_location: 'Shoot Location',
   shoot_date_start: 'Shoot Start Date',
   shoot_date_end: 'Shoot End Date',
   shoot_date_notes: 'Date Notes',
-  talent_count: 'Talent Count',
   talent_spec: 'Talent Spec',
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
   usage_duration_months: 'Usage Duration (months)',
-  budget_indication: 'Budget Indication ($)',
-};
+} as const;
+type FieldKey = keyof typeof FIELD_LABELS;
 
 export default function BriefParser({ bookingId, hasBriefText, currentState }: Props) {
   const [parsing, setParsing] = useState(false);

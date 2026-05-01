@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
   <title>Google OAuth — Atelier</title>
   <meta name="robots" content="noindex">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 40px auto; padding: 24px; background: #0f1117; color: #e8e9ee; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 40px auto; padding: 24px; background: #0a0a0a; color: #e8e9ee; }
     h1 { font-size: 18px; }
-    code { display: block; padding: 16px; background: #1a1d27; border: 1px solid #2e3347; border-radius: 6px; word-break: break-all; user-select: all; font-size: 12px; }
+    code { display: block; padding: 16px; background: #141414; border: 1px solid #262626; border-radius: 6px; word-break: break-all; user-select: all; font-size: 12px; }
     .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #7a8294; margin-top: 24px; margin-bottom: 6px; }
     .ok { color: #4ade80; }
     a { color: #60a5fa; }

@@ -12,6 +12,7 @@ import {
   computeFeeLine,
   computeQuoteTotals,
   computeArtistPayment,
+  computeCrewPayment,
   computeOT,
   createArtistFeeLine,
   createCrewLabourLine,
@@ -252,6 +253,41 @@ describe('computeOT', () => {
 // ============================================================
 // Artist payment helper
 // ============================================================
+
+describe('computeCrewPayment', () => {
+  it('GST-registered crew: super 12%, GST 10% on labour+expenses', () => {
+    // Lewis Stevenson canonical: $700 labour, no expenses, GST registered
+    const r = computeCrewPayment(700, 0, true);
+    closeTo(r.labourSubtotal, 700);
+    expect(r.expensesSubtotal).toBe(0);
+    closeTo(r.superPaid, 84);            // 700 * 0.12
+    closeTo(r.gst, 70);                  // 700 * 0.10
+    closeTo(r.netPayment, 854);          // 700 + 84 + 70
+  });
+
+  it('Non-GST crew: super yes, GST no', () => {
+    const r = computeCrewPayment(500, 0, false);
+    closeTo(r.superPaid, 60);
+    expect(r.gst).toBe(0);
+    closeTo(r.netPayment, 560);
+  });
+
+  it('Crew with equipment expenses: super only on labour, GST on labour+expenses', () => {
+    // 600 labour + 200 equipment hire (their own gear)
+    const r = computeCrewPayment(600, 200, true);
+    closeTo(r.labourSubtotal, 600);
+    closeTo(r.expensesSubtotal, 200);
+    closeTo(r.superPaid, 72);            // 12% × 600 (NOT on equipment)
+    closeTo(r.gst, 80);                  // 10% × (600 + 200)
+    closeTo(r.netPayment, 952);          // 600 + 200 + 72 + 80
+  });
+
+  it('No GST on super in any scenario (AU rule)', () => {
+    const r = computeCrewPayment(1000, 100, true);
+    // GST should NOT include super in its base
+    closeTo(r.gst, 110);                 // 10% of 1100 (labour+expenses), NOT 1100+120
+  });
+});
 
 describe('computeArtistPayment', () => {
   it('zero fees yields zero everything', () => {

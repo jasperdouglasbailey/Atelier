@@ -147,7 +147,6 @@ export default async function QuotePrintPage({ params }: Props) {
           {(booking.shoot_dates || booking.shoot_date_notes) && (
             <Row label="Shoot Dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes ?? ''} />
           )}
-          {booking.talent_count && <Row label="Talent Count" value={String(booking.talent_count)} />}
           {booking.talent_spec && <Row label="Talent Spec" value={booking.talent_spec} />}
           {booking.deliverables_type && <Row label="Deliverables" value={booking.deliverables_type} />}
           {booking.deliverables_count && <Row label="Deliverable Count" value={String(booking.deliverables_count)} />}

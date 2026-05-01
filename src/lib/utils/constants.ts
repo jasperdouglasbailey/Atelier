@@ -206,13 +206,15 @@ export const CREW_STATUS_LABELS: Record<CrewStatus, string> = {
 };
 
 // UI palette
+// Refined editorial dark — true blacks, neutral grays, accent used sparingly.
+// References: prodn.com, art-direction-led fashion sites.
 export const PALETTE = {
-  bg: '#0f1117',
-  surface: '#1a1d27',
-  border: '#2e3347',
-  accent: '#6c8aff',
-  text: '#e8eaed',
-  muted: '#9aa0b4',
+  bg: '#0a0a0a',         // true near-black
+  surface: '#141414',    // subtle elevation, no blue tint
+  border: '#262626',     // neutral gray
+  accent: '#6c8aff',     // KEEP — action signature, use sparingly
+  text: '#ededed',       // cleaner white
+  muted: '#8b8b8b',      // neutral gray, no purple
   danger: '#f87171',
   warning: '#fbbf24',
   success: '#4ade80',
@@ -233,6 +235,6 @@ export const STATE_COLORS: Record<BookingState, string> = {
   final_delivery: '#38bdf8',
   invoice_issued: '#22d3ee',
   paid: '#4ade80',
-  released: '#9aa0b4',
+  released: '#8b8b8b',
   cancelled: '#f87171',
 };

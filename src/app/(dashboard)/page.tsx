@@ -119,7 +119,7 @@ export default async function DashboardPage() {
                       {detail && (
                         <div className="text-[11px]" style={{ color: PALETTE.muted }}>{detail}</div>
                       )}
-                      <div className="text-[10px]" style={{ color: '#6b7186' }}>
+                      <div className="text-[10px]" style={{ color: '#6b6b6b' }}>
                         {formatDateTime(e.created_at)}
                         {e.actor ? ` · ${e.actor}` : ''}
                       </div>

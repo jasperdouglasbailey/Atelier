@@ -148,6 +148,35 @@ export function computeArtistPayment(
 }
 
 // ============================================================
+// Crew payment / RCTI calculator
+// ============================================================
+// What the crew member is paid by the agency. Per AU doctrine:
+// - Super at 12% paid to fund (15% charged to client; 3% margin retained as
+//   admin cost — that 3% does NOT appear on the crew bill).
+// - GST on labour subtotal only (if crew is GST registered). NOT on super.
+// - No commission on crew (commission is artist-only).
+
+export interface CrewPayment {
+  labourSubtotal: number;    // crew_labour + overtime + travel — the wages
+  expensesSubtotal: number;  // crew_equipment / reimbursables they paid for and are billing back
+  superPaid: number;         // 12% of labourSubtotal — goes to fund
+  gst: number;               // 10% on (labourSubtotal + expensesSubtotal) if GST registered
+  netPayment: number;        // labour + expenses + super + GST
+}
+
+export function computeCrewPayment(
+  labourSubtotal: number,
+  expensesSubtotal: number,
+  isGstRegistered: boolean,
+): CrewPayment {
+  const superPaid = r2(labourSubtotal * SUPER_RATE_PAID);
+  // GST on labour + expenses, NEVER on super (super is GST-free in AU)
+  const gst = isGstRegistered ? r2((labourSubtotal + expensesSubtotal) * GST_RATE) : 0;
+  const netPayment = r2(labourSubtotal + expensesSubtotal + superPaid + gst);
+  return { labourSubtotal, expensesSubtotal, superPaid, gst, netPayment };
+}
+
+// ============================================================
 // OT calculator
 // ============================================================
 

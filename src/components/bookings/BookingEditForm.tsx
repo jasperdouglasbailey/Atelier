@@ -120,15 +120,9 @@ export default function BookingEditForm({ booking, clients, brands }: Props) {
       </div>
 
       {/* Talent */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} style={labelStyle}>Talent Count</label>
-          <input name="talent_count" type="number" min="0" defaultValue={booking.talent_count ?? ''} className={inputClass} style={inputStyle} />
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>Talent Spec</label>
-          <input name="talent_spec" defaultValue={booking.talent_spec ?? ''} className={inputClass} style={inputStyle} />
-        </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>Talent Spec</label>
+        <input name="talent_spec" defaultValue={booking.talent_spec ?? ''} className={inputClass} style={inputStyle} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -171,15 +165,9 @@ export default function BookingEditForm({ booking, clients, brands }: Props) {
       </div>
 
       {/* Usage */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
-          <input name="usage_duration_months" type="number" min="0" defaultValue={booking.usage_duration_months ?? ''} className={inputClass} style={inputStyle} />
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>Budget Indication (AUD)</label>
-          <input name="budget_indication" type="number" min="0" step="0.01" defaultValue={booking.budget_indication ?? ''} className={inputClass} style={inputStyle} />
-        </div>
+      <div>
+        <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
+        <input name="usage_duration_months" type="number" min="0" defaultValue={booking.usage_duration_months ?? ''} className={inputClass} style={inputStyle} />
       </div>
 
       <div>
