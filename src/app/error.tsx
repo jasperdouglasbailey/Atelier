@@ -10,6 +10,7 @@
  */
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { PALETTE } from '@/lib/utils/constants';
 
 export default function ErrorBoundary({
@@ -55,13 +56,13 @@ export default function ErrorBoundary({
           >
             Try again
           </button>
-          <a
+          <Link
             href="/"
             className="rounded px-4 py-2 text-sm font-medium"
             style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
           >
             Go to dashboard
-          </a>
+          </Link>
         </div>
       </div>
     </div>
