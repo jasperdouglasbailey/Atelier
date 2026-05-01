@@ -5,6 +5,7 @@ import { listUsageLicences } from '@/lib/data/usage-licences';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import PrintActions from './PrintActions';
 
@@ -58,6 +59,7 @@ export default async function QuotePrintPage({ params }: Props) {
 
   if (!booking) notFound();
 
+  const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || null;
   const today = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
   const totals = feeLines.length > 0 ? computeQuoteTotals(feeLines) : null;
@@ -88,11 +90,14 @@ export default async function QuotePrintPage({ params }: Props) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: '#1a1a1a' }}>
-            SAUNDERS &amp; CO
+            {agency.name.toUpperCase()}
           </div>
           <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-            Photography Production Agency · Sydney, NSW
+            Photography Production Agency · {agency.address ?? 'Sydney, NSW'}
           </div>
+          {agency.abn && (
+            <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>ABN: {agency.abn}</div>
+          )}
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.02em', color: '#1a1a1a' }}>
@@ -126,7 +131,7 @@ export default async function QuotePrintPage({ params }: Props) {
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{booking.booking_ref}</div>
           <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Date: {today}</div>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Valid: 30 days from issue</div>
+          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Valid: {agency.quoteValidityDays} days from issue</div>
         </div>
       </div>
 
@@ -252,7 +257,7 @@ export default async function QuotePrintPage({ params }: Props) {
         </p>
         <p style={{ margin: 0 }}>
           Quote is subject to talent and crew availability confirmation. Cancellation terms apply once a booking is confirmed.
-          Saunders &amp; Co acts as agent on behalf of represented talent.
+          {agency.name} acts as agent on behalf of represented talent.
         </p>
       </div>
     </div>

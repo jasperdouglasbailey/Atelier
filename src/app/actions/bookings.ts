@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createBooking, getBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
-import { parseBrief } from '@/lib/utils/brief-parser';
+import { extractBriefFields } from '@/lib/automation/brief-intake';
 import type { BookingState } from '@/lib/types/database';
 
 /** Converts start/end date strings from a form into a Postgres daterange string. */
@@ -127,7 +127,8 @@ export async function parseBriefAction(id: string) {
   if (!booking) return { error: 'Booking not found' };
   if (!booking.brief_raw_text) return { error: 'No raw brief text on this booking' };
 
-  const suggestions = parseBrief(booking.brief_raw_text);
+  // extractBriefFields uses the heuristic parser + LLM (when API key is set)
+  const suggestions = await extractBriefFields(booking.brief_raw_text, id);
   return { ok: true, suggestions };
 }
 

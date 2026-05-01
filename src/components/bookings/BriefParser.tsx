@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { parseBriefAction, applyBriefSuggestionsAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
-import type { ParsedBrief } from '@/lib/utils/brief-parser';
+import type { BriefIntakeResult } from '@/lib/automation/brief-intake';
 
 type Props = {
   bookingId: string;
@@ -11,7 +11,7 @@ type Props = {
   currentState: string;
 };
 
-type FieldKey = keyof ParsedBrief;
+type FieldKey = keyof Omit<BriefIntakeResult, 'source' | 'confidence' | 'llmAvailable'>;
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   shoot_location: 'Shoot Location',
@@ -29,7 +29,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
 export default function BriefParser({ bookingId, hasBriefText, currentState }: Props) {
   const [parsing, setParsing] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [suggestions, setSuggestions] = useState<ParsedBrief | null>(null);
+  const [suggestions, setSuggestions] = useState<BriefIntakeResult | null>(null);
   const [selected, setSelected] = useState<Set<FieldKey>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -48,11 +48,12 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
       return;
     }
 
-    const s = (result as { ok: true; suggestions: ParsedBrief }).suggestions;
+    const s = (result as { ok: true; suggestions: BriefIntakeResult }).suggestions;
     setSuggestions(s);
 
-    // Auto-select all non-null fields
-    const nonNull = (Object.keys(s) as FieldKey[]).filter((k) => s[k] != null);
+    // Auto-select all non-null data fields (excluding meta fields)
+    const META = new Set(['source', 'confidence', 'llmAvailable']);
+    const nonNull = (Object.keys(s) as FieldKey[]).filter((k) => !META.has(k) && (s as Record<string, unknown>)[k] != null);
     setSelected(new Set(nonNull));
   }
 
@@ -81,7 +82,11 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
 
   if (!hasBriefText) return null;
 
-  const hasSuggestions = suggestions && Object.values(suggestions).some((v) => v != null);
+  const META_KEYS = new Set(['source', 'confidence', 'llmAvailable']);
+  const dataKeys = suggestions
+    ? (Object.keys(suggestions) as FieldKey[]).filter((k) => !META_KEYS.has(k))
+    : [];
+  const hasSuggestions = suggestions && dataKeys.some((k) => (suggestions as Record<string, unknown>)[k] != null);
 
   return (
     <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
@@ -90,6 +95,12 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
           <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief Auto-Parser</h3>
           <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Extract structured fields from the raw brief text.
+            {suggestions?.llmAvailable === false && (
+              <span style={{ color: PALETTE.warning }}> · Heuristic only (set ANTHROPIC_API_KEY for AI extraction)</span>
+            )}
+            {suggestions?.llmAvailable && (
+              <span style={{ color: PALETTE.success }}> · AI-enhanced ({suggestions.confidence}% confidence)</span>
+            )}
           </p>
         </div>
         {!suggestions && !success && (
@@ -128,8 +139,8 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                 Select the fields you want to apply. Existing values will be overwritten.
               </p>
               <div className="space-y-1.5">
-                {(Object.keys(suggestions) as FieldKey[])
-                  .filter((k) => suggestions[k] != null)
+                {dataKeys
+                  .filter((k) => (suggestions as Record<string, unknown>)[k] != null)
                   .map((key) => (
                     <label
                       key={key}
@@ -151,7 +162,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                         {FIELD_LABELS[key]}
                       </span>
                       <span style={{ color: PALETTE.text, fontSize: 13, fontWeight: 500 }}>
-                        {String(suggestions[key])}
+                        {String((suggestions as Record<string, unknown>)[key])}
                       </span>
                     </label>
                   ))}

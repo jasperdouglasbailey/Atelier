@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { KillSwitchState } from '@/lib/types/database';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
+import type { AgencyConfig } from '@/lib/utils/agency-config';
 
-type Props = { killSwitch: KillSwitchState | null };
+type Props = { killSwitch: KillSwitchState | null; agency: AgencyConfig };
 
 function Toggle({ label, description, checked, onChange, color }: {
   label: string;
@@ -35,7 +36,7 @@ function Toggle({ label, description, checked, onChange, color }: {
   );
 }
 
-export default function SettingsPanel({ killSwitch }: Props) {
+export default function SettingsPanel({ killSwitch, agency }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -99,6 +100,27 @@ export default function SettingsPanel({ killSwitch }: Props) {
             {killSwitch.updated_by && ` by ${killSwitch.updated_by}`}
           </div>
         )}
+      </section>
+
+      {/* Agency Profile */}
+      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
+          Agency Profile
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <InfoField label="Agency Name" value={agency.name} />
+          <InfoField label="ABN" value={agency.abn ?? '—'} />
+          <InfoField label="Address" value={agency.address ?? '—'} />
+          <InfoField label="Email" value={agency.email ?? '—'} />
+          <InfoField label="Phone" value={agency.phone ?? '—'} />
+          <InfoField label="Quote Validity" value={`${agency.quoteValidityDays} days`} />
+          <InfoField label="Payment Terms" value={`${agency.defaultPaymentTermsDays} days`} />
+        </div>
+        <p className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
+          Set these values in your environment variables (NEXT_PUBLIC_AGENCY_*). They appear on all quote and invoice documents.
+          <br />
+          Keys: AGENCY_NAME · AGENCY_ABN · AGENCY_ADDRESS · AGENCY_EMAIL · AGENCY_PHONE · QUOTE_VALIDITY_DAYS · DEFAULT_PAYMENT_TERMS_DAYS
+        </p>
       </section>
 
       {/* Fee Engine Defaults (read-only display) */}

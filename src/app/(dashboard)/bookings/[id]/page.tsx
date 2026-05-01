@@ -4,6 +4,7 @@ import BookingDetail from '@/components/bookings/BookingDetail';
 import BookingTimeline from '@/components/bookings/BookingTimeline';
 import HoldRequestsTrigger from '@/components/bookings/HoldRequestsTrigger';
 import OTExpenseEntry from '@/components/bookings/OTExpenseEntry';
+import MorningAfterChecklist from '@/components/bookings/MorningAfterChecklist';
 import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
@@ -53,6 +54,13 @@ export default async function BookingDetailPage({ params }: Props) {
               bookingState={booking.state}
               pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
             />
+            {/* Morning-after check workflow */}
+            {booking.state === 'morning_after_check' && (
+              <MorningAfterChecklist
+                bookingId={id}
+                bookingRef={booking.booking_ref}
+              />
+            )}
             {/* OT/expense window — show when window is open or recently closed */}
             {booking.ot_expenses_window_end && (
               <OTExpenseEntry

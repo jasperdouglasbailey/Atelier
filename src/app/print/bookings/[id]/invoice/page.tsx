@@ -4,6 +4,7 @@ import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine } from '@/lib/types/database';
 import PrintActions from '../quote/PrintActions';
 
@@ -62,11 +63,11 @@ export default async function InvoicePrintPage({ params }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
   const today = new Date();
   const todayStr = today.toLocaleDateString('en-AU', { dateStyle: 'long' });
-  const paymentTerms = 30; // default — TODO: from client.payment_terms_days when client is joined with full data
+  const agency = getAgencyConfig();
+  const paymentTerms = agency.defaultPaymentTermsDays;
   const dueDate = new Date(today);
   dueDate.setDate(dueDate.getDate() + paymentTerms);
   const dueDateStr = dueDate.toLocaleDateString('en-AU', { dateStyle: 'long' });
-
   const invoiceNumber = booking.booking_ref ? `INV-${booking.booking_ref}` : `INV-${id.slice(0, 8).toUpperCase()}`;
   const totals = feeLines.length > 0 ? computeQuoteTotals(feeLines) : null;
   const groups = groupFeeLines(feeLines);
@@ -92,9 +93,11 @@ export default async function InvoicePrintPage({ params }: Props) {
       {/* Agency header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>SAUNDERS &amp; CO</div>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Photography Production Agency · Sydney, NSW</div>
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>ABN: [agency ABN — add in settings]</div>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>{agency.name.toUpperCase()}</div>
+          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Photography Production Agency · {agency.address ?? 'Sydney, NSW'}</div>
+          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+            ABN: {agency.abn ?? <span style={{ fontStyle: 'italic' }}>Add NEXT_PUBLIC_AGENCY_ABN to settings</span>}
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.02em' }}>
@@ -242,10 +245,10 @@ export default async function InvoicePrintPage({ params }: Props) {
           TAX INVOICE — GST Registered
         </p>
         <p style={{ margin: '0 0 4px' }}>
-          ABN: [agency ABN] · Saunders &amp; Co Agency · Sydney NSW 2000
+          ABN: {agency.abn ?? '[set NEXT_PUBLIC_AGENCY_ABN]'} · {agency.name} · {agency.address ?? 'Sydney NSW'}
         </p>
         <p style={{ margin: 0 }}>
-          All amounts are in Australian Dollars (AUD). This invoice is issued in accordance with Australian GST requirements.
+          All amounts are in Australian Dollars (AUD) and inclusive of GST where applicable. This invoice is issued in accordance with Australian GST requirements.
           {booking.state !== 'invoice_issued' && booking.state !== 'paid' && (
             <span style={{ color: '#e07b39', fontWeight: 500 }}> This is a draft — not yet issued.</span>
           )}
