@@ -101,6 +101,27 @@ export async function updateCrewAction(id: string, formData: FormData) {
   return { ok: true };
 }
 
+/**
+ * Soft-archive a talent: sets is_active=false. Doctrine: never hard-delete,
+ * preserve audit trail. Reactivate via setTalentActiveAction(id, true).
+ */
+export async function setTalentActiveAction(id: string, active: boolean) {
+  const result = await updateTalent(id, { is_active: active });
+  if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} talent` };
+  revalidatePath('/talent');
+  revalidatePath(`/talent/${id}`);
+  return { ok: true };
+}
+
+/** Same pattern for crew. */
+export async function setCrewActiveAction(id: string, active: boolean) {
+  const result = await updateCrew(id, { is_active: active });
+  if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} crew member` };
+  revalidatePath('/crew');
+  revalidatePath(`/crew/${id}`);
+  return { ok: true };
+}
+
 export async function updateTalentAction(id: string, formData: FormData) {
   const updates: Record<string, unknown> = {};
   const textFields = ['legal_name', 'working_name', 'email', 'mobile', 'pronouns',

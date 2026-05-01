@@ -213,7 +213,10 @@ export async function proposeHoldRequests(bookingId: string): Promise<{
       agent: 'comms',
       action_type: 'crew_hold_request',
       booking_id: bookingId,
-      summary: `Hold request: ${p.crewName}${p.role ? ' (' + p.role.replace(/_/g, ' ') + ')' : ''} — ${booking.booking_ref ?? booking.title}`,
+      // Phrased as outbound — Saunders is REQUESTING the hold from the crew
+      // member. Past wording ("Hold request: X") was ambiguous (read as if
+      // the crew member was requesting a hold from us).
+      summary: `Send hold request to ${p.crewName}${p.role ? ' (' + p.role.replace(/_/g, ' ') + ')' : ''} — ${booking.booking_ref ?? booking.title}`,
       draft_content: {
         crew_id: p.crewId,
         crew_name: p.crewName,
