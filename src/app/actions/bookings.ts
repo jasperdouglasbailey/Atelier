@@ -6,7 +6,21 @@ import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import type { BookingState } from '@/lib/types/database';
 
+/** Converts start/end date strings from a form into a Postgres daterange string. */
+function buildDateRange(start: string | null, end: string | null): string | null {
+  if (!start) return null;
+  // Postgres daterange uses exclusive upper bound — add 1 day to the end
+  const endDate = end || start;
+  const exclusiveEnd = new Date(endDate + 'T00:00:00Z');
+  exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+  const exclusiveEndStr = exclusiveEnd.toISOString().slice(0, 10);
+  return `[${start},${exclusiveEndStr})`;
+}
+
 export async function createBookingAction(formData: FormData) {
+  const shootStart = (formData.get('shoot_date_start') as string) || null;
+  const shootEnd = (formData.get('shoot_date_end') as string) || null;
+
   const input: CreateBookingInput = {
     title: formData.get('title') as string,
     tier: formData.get('tier') as CreateBookingInput['tier'],
@@ -15,6 +29,7 @@ export async function createBookingAction(formData: FormData) {
     creative_agency_id: (formData.get('creative_agency_id') as string) || null,
     shoot_location: (formData.get('shoot_location') as string) || null,
     shoot_date_notes: (formData.get('shoot_date_notes') as string) || null,
+    shoot_dates: buildDateRange(shootStart, shootEnd),
     talent_count: formData.get('talent_count') ? Number(formData.get('talent_count')) : null,
     talent_spec: (formData.get('talent_spec') as string) || null,
     deliverables_type: (formData.get('deliverables_type') as string) || null,
@@ -45,6 +60,12 @@ export async function updateBookingAction(id: string, formData: FormData) {
   for (const f of fields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = val || null;
+  }
+  // Structured shoot date range
+  const shootStart = formData.get('shoot_date_start') as string | null;
+  const shootEnd = formData.get('shoot_date_end') as string | null;
+  if (shootStart !== null || shootEnd !== null) {
+    updates.shoot_dates = buildDateRange(shootStart || null, shootEnd || null);
   }
   const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication', 'looks_per_talent'];
   for (const f of numFields) {

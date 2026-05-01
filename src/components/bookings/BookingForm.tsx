@@ -93,14 +93,24 @@ export default function BookingForm({ clients, brands }: Props) {
       </div>
 
       {/* Location & dates */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label className={labelClass} style={labelStyle}>Shoot Location</label>
+        <input name="shoot_location" className={inputClass} style={inputStyle} placeholder="e.g. Studio 301, Surry Hills" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className={labelClass} style={labelStyle}>Shoot Location</label>
-          <input name="shoot_location" className={inputClass} style={inputStyle} placeholder="e.g. Studio 301, Surry Hills" />
+          <label className={labelClass} style={labelStyle}>Shoot Start Date</label>
+          <input name="shoot_date_start" type="date" className={inputClass} style={inputStyle} />
         </div>
         <div>
-          <label className={labelClass} style={labelStyle}>Shoot Date(s)</label>
-          <input name="shoot_date_notes" className={inputClass} style={inputStyle} placeholder="e.g. 15-16 May 2026" />
+          <label className={labelClass} style={labelStyle}>Shoot End Date</label>
+          <input name="shoot_date_end" type="date" className={inputClass} style={inputStyle} />
+          <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>Leave blank for single-day shoot</p>
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>Date Notes (free text)</label>
+          <input name="shoot_date_notes" className={inputClass} style={inputStyle} placeholder="e.g. TBD, pending client" />
         </div>
       </div>
 

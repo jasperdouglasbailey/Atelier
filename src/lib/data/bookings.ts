@@ -64,7 +64,10 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
 
   if (filters.tier) query = query.eq('tier', filters.tier);
   if (filters.clientId) query = query.eq('client_id', filters.clientId);
-  if (filters.search) query = query.ilike('title', `%${filters.search}%`);
+  if (filters.search) {
+    // Match on title OR booking_ref (case-insensitive)
+    query = query.or(`title.ilike.%${filters.search}%,booking_ref.ilike.%${filters.search}%`);
+  }
 
   const { data, count, error } = await query;
   if (error) {
@@ -106,6 +109,7 @@ export type CreateBookingInput = {
   creative_agency_id?: string | null;
   shoot_location?: string | null;
   shoot_date_notes?: string | null;
+  shoot_dates?: string | null; // Postgres daterange string e.g. '[2026-05-15,2026-05-17)'
   talent_count?: number | null;
   talent_spec?: string | null;
   deliverables_type?: string | null;
