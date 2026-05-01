@@ -1,13 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signInWithEmailAction } from '@/app/actions/auth';
 import { PALETTE } from '@/lib/utils/constants';
+
+/**
+ * When Supabase redirects with an error, the error details may live in
+ * the URL hash fragment (#error=...&error_description=...). Hash isn't
+ * sent to the server, so the login server component can't display them.
+ * This client-side reader extracts and surfaces them, then strips the
+ * hash so a refresh doesn't re-show the same error.
+ */
+function readHashError(): string | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash;
+  if (!hash || hash.length < 2) return null;
+
+  const params = new URLSearchParams(hash.slice(1));
+  const errorCode = params.get('error_code');
+  const errorDesc = params.get('error_description');
+
+  if (!errorCode && !errorDesc) return null;
+
+  const friendly =
+    errorCode === 'otp_expired'
+      ? 'That sign-in link has expired (links are valid for ~1 hour, and only the most recent one works). Request a new one below.'
+      : errorDesc?.replace(/\+/g, ' ') ?? 'Sign-in failed. Please request a new link.';
+
+  return friendly;
+}
 
 export default function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Read hash-fragment errors on mount and clear the hash so refreshes are clean.
+  useEffect(() => {
+    const hashErr = readHashError();
+    if (hashErr) {
+      setError(hashErr);
+      // Strip the hash so reload doesn't re-trigger.
+      const url = window.location.pathname + window.location.search;
+      window.history.replaceState({}, '', url);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
