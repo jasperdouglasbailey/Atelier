@@ -1,9 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
+import { createBooking, getBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
+import { parseBrief } from '@/lib/utils/brief-parser';
 import type { BookingState } from '@/lib/types/database';
 
 /** Converts start/end date strings from a form into a Postgres daterange string. */
@@ -110,5 +111,64 @@ export async function transitionBookingAction(
   revalidatePath('/bookings');
   revalidatePath('/inbox');
   revalidatePath('/');
+  return { ok: true };
+}
+
+// ============================================================
+// Brief auto-parser
+// ============================================================
+
+/**
+ * Parse the booking's raw brief text and return suggested field values.
+ * Does NOT apply changes — returns suggestions for the user to review.
+ */
+export async function parseBriefAction(id: string) {
+  const booking = await getBooking(id);
+  if (!booking) return { error: 'Booking not found' };
+  if (!booking.brief_raw_text) return { error: 'No raw brief text on this booking' };
+
+  const suggestions = parseBrief(booking.brief_raw_text);
+  return { ok: true, suggestions };
+}
+
+/**
+ * Apply parsed brief suggestions to the booking (only fields that are provided).
+ * Builds the date range from the two date strings if present.
+ */
+export async function applyBriefSuggestionsAction(id: string, formData: FormData) {
+  const updates: Record<string, unknown> = {};
+
+  const textFields = [
+    'shoot_location', 'shoot_date_notes', 'talent_spec', 'deliverables_type',
+  ] as const;
+  for (const f of textFields) {
+    const val = formData.get(f);
+    if (val !== null && val !== '') updates[f] = val;
+  }
+
+  const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication'] as const;
+  for (const f of numFields) {
+    const val = formData.get(f);
+    if (val !== null && val !== '') updates[f] = Number(val);
+  }
+
+  // Build date range from start/end strings
+  const shootStart = formData.get('shoot_date_start') as string | null;
+  const shootEnd = formData.get('shoot_date_end') as string | null;
+  if (shootStart) {
+    updates.shoot_dates = buildDateRange(shootStart, shootEnd ?? shootStart);
+  }
+
+  const result = await updateBooking(id, updates);
+  if (!result) return { error: 'Failed to apply suggestions' };
+
+  // Advance state to brief_parsed if still at brief_received
+  const current = await getBooking(id);
+  if (current?.state === 'brief_received') {
+    await transitionState(id, 'brief_parsed');
+  }
+
+  revalidatePath(`/bookings/${id}`);
+  revalidatePath('/bookings');
   return { ok: true };
 }

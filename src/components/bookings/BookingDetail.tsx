@@ -118,6 +118,35 @@ export default function BookingDetail({ booking }: Props) {
           </div>
         </div>
 
+        {/* Print / document actions */}
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/bookings/${booking.id}/edit`}
+            className="rounded-md px-3 py-1.5 text-xs font-medium"
+            style={{ background: PALETTE.surface, color: PALETTE.text, border: `1px solid ${PALETTE.border}` }}
+          >
+            ✏ Edit
+          </Link>
+          <Link
+            href={`/print/bookings/${booking.id}/quote`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-3 py-1.5 text-xs font-medium"
+            style={{ background: PALETTE.surface, color: PALETTE.accent, border: `1px solid ${PALETTE.border}` }}
+          >
+            ↗ Quote
+          </Link>
+          <Link
+            href={`/print/bookings/${booking.id}/invoice`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-3 py-1.5 text-xs font-medium"
+            style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            ↗ Invoice
+          </Link>
+        </div>
+
         {/* State transitions */}
         {allowedTransitions.length > 0 && (
           <div className="flex flex-wrap gap-2">

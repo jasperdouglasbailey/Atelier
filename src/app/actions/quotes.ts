@@ -192,3 +192,93 @@ export async function removeBookingCrewAction(id: string, bookingId: string) {
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
 }
+
+// ============================================================
+// OT & expense entry (morning-after window)
+// ============================================================
+
+/**
+ * Add an overtime fee line to the booking's latest quote version.
+ * The OT amount is pre-calculated by the client and passed in directly,
+ * because computeOT depends on runtime inputs (actual hours, day rate).
+ */
+export async function addOTLineAction(formData: FormData) {
+  const bookingId = formData.get('booking_id') as string;
+  const quoteVersionId = formData.get('quote_version_id') as string;
+  const description = formData.get('description') as string;
+  const quantity = Number(formData.get('quantity') || 1); // hours
+  const unitPrice = Number(formData.get('unit_price') || 0); // OT rate per hour
+  const crewId = (formData.get('crew_id') as string) || null;
+
+  const defaults = lineTypeDefaults('overtime');
+  const subtotal = Math.round(quantity * unitPrice * 100) / 100;
+  const asfAmount = Math.round(subtotal * defaults.asf_rate * 100) / 100;
+
+  const input: CreateFeeLineInput = {
+    quote_version_id: quoteVersionId,
+    booking_id: bookingId,
+    line_type: 'overtime',
+    description,
+    quantity,
+    unit_price: unitPrice,
+    subtotal,
+    asf_rate: defaults.asf_rate,
+    asf_amount: asfAmount,
+    is_gst_exempt: defaults.is_gst_exempt,
+    is_super_bearing: defaults.is_super_bearing,
+    super_rate_charged: defaults.super_rate_charged,
+    super_rate_paid: defaults.super_rate_paid,
+    is_commissionable: defaults.is_commissionable,
+    commission_rate: defaults.commission_rate,
+    crew_id: crewId,
+    notes: (formData.get('notes') as string) || null,
+  };
+
+  const line = await addFeeLine(input);
+  if (!line) return { error: 'Failed to add OT line' };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, id: line.id };
+}
+
+/**
+ * Add a production expense fee line (catering, travel, props, etc.)
+ * during the morning-after OT/expenses window.
+ */
+export async function addExpenseLineAction(formData: FormData) {
+  const bookingId = formData.get('booking_id') as string;
+  const quoteVersionId = formData.get('quote_version_id') as string;
+  const lineType = formData.get('line_type') as FeeLineType;
+  const description = formData.get('description') as string;
+  const amount = Number(formData.get('amount') || 0);
+
+  const expenseDefaults = lineTypeDefaults(lineType);
+  // Expenses typically have no ASF unless explicitly specified
+  const asfRate = 0;
+  const asfAmount = 0;
+
+  const input: CreateFeeLineInput = {
+    quote_version_id: quoteVersionId,
+    booking_id: bookingId,
+    line_type: lineType,
+    description,
+    quantity: 1,
+    unit_price: amount,
+    subtotal: amount,
+    asf_rate: asfRate,
+    asf_amount: asfAmount,
+    is_gst_exempt: false,
+    is_super_bearing: false,
+    super_rate_charged: 0,
+    super_rate_paid: 0,
+    is_commissionable: false,
+    commission_rate: 0,
+    notes: (formData.get('notes') as string) || null,
+  };
+
+  const line = await addFeeLine(input);
+  if (!line) return { error: 'Failed to add expense line' };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, id: line.id };
+}

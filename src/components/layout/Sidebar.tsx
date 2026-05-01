@@ -25,9 +25,15 @@ export default function Sidebar({ inboxCount = 0 }: Props) {
       ],
     },
     {
+      title: 'Analytics',
+      items: [
+        { label: 'Reports', href: '/reports' },
+        { label: 'Costs', href: '/costs' },
+      ],
+    },
+    {
       title: 'System',
       items: [
-        { label: 'Costs', href: '/costs' },
         { label: 'Audit', href: '/audit' },
         { label: 'Settings', href: '/settings' },
       ],
