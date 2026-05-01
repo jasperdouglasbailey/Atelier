@@ -10,7 +10,23 @@ import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
   STATE_TRANSITIONS, PALETTE,
 } from '@/lib/utils/constants';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatDate } from '@/lib/utils/format';
+
+/** Parses a Postgres daterange string and returns a human-readable date span. */
+function formatShootDates(range: string | null): string | null {
+  if (!range) return null;
+  const m = range.match(/^[\[(](\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?[\])]$/);
+  if (!m || !m[1]) return null;
+  const start = m[1];
+  if (m[2]) {
+    // Postgres daterange end is exclusive — subtract 1 day for display
+    const end = new Date(m[2] + 'T00:00:00Z');
+    end.setUTCDate(end.getUTCDate() - 1);
+    const endStr = end.toISOString().slice(0, 10);
+    return endStr === start ? formatDate(start) : `${formatDate(start)} – ${formatDate(endStr)}`;
+  }
+  return formatDate(start);
+}
 
 type Props = { booking: BookingDetailRow };
 
@@ -150,7 +166,7 @@ export default function BookingDetail({ booking }: Props) {
         {clientName && <Field label="Client" value={clientName} />}
         {brandName && <Field label="Brand" value={brandName} />}
         <Field label="Shoot Location" value={booking.shoot_location} />
-        <Field label="Shoot Dates" value={booking.shoot_date_notes} />
+        <Field label="Shoot Dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
         <Field label="Talent Count" value={booking.talent_count} />
         <Field label="Talent Spec" value={booking.talent_spec} />
         <Field label="Deliverables Type" value={booking.deliverables_type} />
