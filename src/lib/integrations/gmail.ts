@@ -226,38 +226,60 @@ export async function searchInbox(query: string, limit = 10): Promise<{
     return [];
   }
 
-  const token = await getAccessToken();
-  const listUrl = `https://gmail.googleapis.com/gmail/v1/users/${GMAIL_USER}/messages?q=${encodeURIComponent(query)}&maxResults=${limit}`;
+  // Hard 5s timeout so a slow Gmail call can't hang a page render.
+  // Booking detail uses Suspense for streaming; this still bounds the worst case.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5_000);
 
-  const listResp = await fetch(listUrl, { headers: { authorization: `Bearer ${token}` } });
-  if (!listResp.ok) {
-    console.error('[gmail] searchInbox list failed', listResp.status);
+  try {
+    const token = await getAccessToken();
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/${GMAIL_USER}/messages?q=${encodeURIComponent(query)}&maxResults=${limit}`;
+
+    const listResp = await fetch(listUrl, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    if (!listResp.ok) {
+      console.error('[gmail] searchInbox list failed', listResp.status);
+      return [];
+    }
+    const listData = await listResp.json() as { messages?: { id: string }[] };
+    const ids = (listData.messages ?? []).slice(0, limit).map((m) => m.id);
+
+    // Fetch each message in parallel for headers + snippet.
+    const results = await Promise.all(ids.map(async (id) => {
+      const msgUrl = `https://gmail.googleapis.com/gmail/v1/users/${GMAIL_USER}/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`;
+      const r = await fetch(msgUrl, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      if (!r.ok) return null;
+      const m = await r.json() as {
+        id: string;
+        snippet: string;
+        payload: { headers: { name: string; value: string }[] };
+        internalDate: string;
+      };
+      const headerOf = (n: string) =>
+        m.payload.headers.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? '';
+      return {
+        id: m.id,
+        subject: headerOf('Subject'),
+        from: headerOf('From'),
+        receivedAt: new Date(parseInt(m.internalDate, 10)).toISOString(),
+        snippet: m.snippet ?? '',
+      };
+    }));
+
+    return results.filter((r): r is NonNullable<typeof r> => r !== null);
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      console.warn('[gmail] searchInbox timed out after 5s', query);
+    } else {
+      console.error('[gmail] searchInbox error', err);
+    }
     return [];
+  } finally {
+    clearTimeout(timer);
   }
-  const listData = await listResp.json() as { messages?: { id: string }[] };
-  const ids = (listData.messages ?? []).slice(0, limit).map((m) => m.id);
-
-  // Fetch each message in parallel for headers + snippet.
-  const results = await Promise.all(ids.map(async (id) => {
-    const msgUrl = `https://gmail.googleapis.com/gmail/v1/users/${GMAIL_USER}/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`;
-    const r = await fetch(msgUrl, { headers: { authorization: `Bearer ${token}` } });
-    if (!r.ok) return null;
-    const m = await r.json() as {
-      id: string;
-      snippet: string;
-      payload: { headers: { name: string; value: string }[] };
-      internalDate: string;
-    };
-    const headerOf = (n: string) =>
-      m.payload.headers.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? '';
-    return {
-      id: m.id,
-      subject: headerOf('Subject'),
-      from: headerOf('From'),
-      receivedAt: new Date(parseInt(m.internalDate, 10)).toISOString(),
-      snippet: m.snippet ?? '',
-    };
-  }));
-
-  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }

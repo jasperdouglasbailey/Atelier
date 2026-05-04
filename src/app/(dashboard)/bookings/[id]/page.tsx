@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
@@ -17,15 +18,42 @@ import { listTalent, listCrew } from '@/lib/data/entities';
 import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
+import { PALETTE } from '@/lib/utils/constants';
 
 type Props = { params: Promise<{ id: string }> };
+
+/**
+ * Streamed comms section. The Gmail search runs in parallel with rendering;
+ * the rest of the page paints first, then this slot fills in when threads
+ * arrive (or immediately, if Google is not configured).
+ */
+async function StreamingComms({ bookingRef }: { bookingRef: string | null }) {
+  if (!bookingRef) return null;
+  const threads = await searchInbox(bookingRef, 20).catch(() => []);
+  return <BookingComms bookingRef={bookingRef} threads={threads} isConfigured={isGoogleConfigured()} />;
+}
+
+function CommsLoadingFallback({ bookingRef }: { bookingRef: string | null }) {
+  if (!bookingRef) return null;
+  return (
+    <section
+      className="rounded-lg border px-4 py-3"
+      style={{ background: PALETTE.surface, borderColor: PALETTE.border, color: PALETTE.muted }}
+    >
+      <p className="text-xs">
+        <span className="font-semibold uppercase tracking-wide">Comms — {bookingRef}</span>
+        <span className="ml-2 opacity-70">loading from Gmail…</span>
+      </p>
+    </section>
+  );
+}
 
 export default async function BookingDetailPage({ params }: Props) {
   const { id } = await params;
   const booking = await getBooking(id);
   if (!booking) notFound();
 
-  const [events, quoteVersions, latestQuote, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew, gmailThreads] = await Promise.all([
+  const [events, quoteVersions, latestQuote, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew] = await Promise.all([
     listEvents({ bookingId: id, limit: 30 }),
     listQuoteVersions(id),
     getLatestQuoteVersion(id),
@@ -35,11 +63,6 @@ export default async function BookingDetailPage({ params }: Props) {
     listUsageLicences(id),
     listTalent(),
     listCrew(),
-    // Fetch Gmail threads matching the booking ref. Returns [] when Google
-    // is not configured so the page never errors in dev.
-    booking.booking_ref
-      ? searchInbox(booking.booking_ref, 20).catch(() => [])
-      : Promise.resolve([]),
   ]);
 
   return (
@@ -62,11 +85,9 @@ export default async function BookingDetailPage({ params }: Props) {
               bookingState={booking.state}
               pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
             />
-            <BookingComms
-              bookingRef={booking.booking_ref}
-              threads={gmailThreads}
-              isConfigured={isGoogleConfigured()}
-            />
+            <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
+              <StreamingComms bookingRef={booking.booking_ref} />
+            </Suspense>
             {/* Morning-after check workflow */}
             {booking.state === 'morning_after_check' && (
               <MorningAfterChecklist
