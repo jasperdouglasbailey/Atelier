@@ -1,5 +1,6 @@
 import Sidebar from '@/components/layout/Sidebar';
 import KillSwitchBanner from '@/components/layout/KillSwitchBanner';
+import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { getPendingCount } from '@/lib/data/approvals';
 import { createClient } from '@/lib/supabase/server';
@@ -18,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <KillSwitchBanner initialState={initialState} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+      <KeyboardShortcuts />
     </div>
   );
 }

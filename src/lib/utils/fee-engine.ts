@@ -124,6 +124,36 @@ export function computeQuoteTotals(lines: Partial<FeeLine>[]): QuoteTotals {
 }
 
 // ============================================================
+// Agency margin (gross revenue retained on the booking)
+// ============================================================
+
+export interface AgencyMargin {
+  commission: number;       // 20% commission on artist labour
+  asf: number;              // ASF charged to client (default 15%)
+  superSpread: number;      // 3% retained on crew super (charged 15%, paid 12%)
+  total: number;            // commission + asf + superSpread
+}
+
+/**
+ * Compute the agency's gross margin from a fee-line summary.
+ * This is what Saunders & Co retains, before operating costs and tax.
+ *
+ * Components:
+ *   - 20% commission on artist labour (paid out of the artist's gross)
+ *   - ASF (default 15%) charged to the client on top of line subtotals
+ *   - 3% spread on crew super (15% charged − 12% paid to fund)
+ *
+ * GST flows through — not part of margin.
+ */
+export function computeAgencyMargin(totals: QuoteTotals): AgencyMargin {
+  const commission = totals.totalCommission;
+  const asf = totals.totalAsf;
+  const superSpread = r2(totals.totalSuper - totals.totalSuperPaid);
+  const total = r2(commission + asf + superSpread);
+  return { commission, asf, superSpread, total };
+}
+
+// ============================================================
 // Artist net payment calculator
 // ============================================================
 

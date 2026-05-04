@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import ListSearchBar from '@/components/layout/ListSearchBar';
 import { listBookings } from '@/lib/data/bookings';
 import { BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -57,25 +58,27 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
           </Link>
         </div>
 
-        {/* Search */}
-        <form className="mb-4 flex gap-3" method="get">
-          <input type="hidden" name="group" value={group} />
-          <input
-            type="text"
-            name="search"
-            placeholder="Search bookings..."
-            defaultValue={params.search}
-            className="flex-1 rounded-md border bg-transparent px-3 py-2 text-sm"
-            style={{ borderColor: PALETTE.border, color: PALETTE.text }}
-          />
-          <button
-            type="submit"
-            className="rounded-md px-4 py-2 text-xs font-medium"
-            style={{ background: PALETTE.accent, color: PALETTE.bg }}
-          >
-            Search
-          </button>
-        </form>
+        {/* Search + tier filter */}
+        <ListSearchBar
+          searchValue={params.search}
+          searchPlaceholder="Search by ref, title or client…"
+          hiddenParams={{ group, ...(params.tier ? { tier: params.tier } : {}) }}
+          filters={
+            <select
+              name="tier"
+              defaultValue={params.tier ?? ''}
+              className="rounded-md border bg-transparent px-3 py-2 text-sm"
+              style={{ borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg }}
+            >
+              <option value="">All tiers</option>
+              {Object.entries(SHOOT_TIER_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          }
+          count={total}
+          countLabel="booking"
+        />
 
         {/* Table */}
         <div

@@ -1,109 +1,282 @@
 /**
- * Google Drive Integration Stub
+ * Google Drive Integration
  *
- * Handles: file delivery to clients, selects retrieval, asset management.
  * Each booking gets a standard folder structure under a top-level Atelier
- * folder. The folder layout matches the previous Dropbox layout exactly,
- * so existing process docs / muscle memory still apply.
+ * folder. Folder layout:
  *
- * Setup: shares OAuth credentials with Gmail and Calendar — see google-auth.ts.
- * The `drive.file` scope limits the app to files it created itself. This is
- * a deliberate trade — if Jasper drops files into a booking folder via the
- * Drive web UI, the app can still see them (because they're inside an
- * app-created folder), but the app CANNOT see arbitrary other Drive content.
+ *   [ROOT_FOLDER_NAME or GOOGLE_DRIVE_ROOT_FOLDER_ID]
+ *     └── {year}
+ *           └── {bookingRef}
+ *                 ├── Briefs
+ *                 ├── Selects
+ *                 ├── Retouched
+ *                 ├── Finals — Delivered
+ *                 └── Admin
  *
- * Real implementation will use:
- *   - Drive REST API: https://www.googleapis.com/drive/v3/files
- *   - Folder = file with mimeType 'application/vnd.google-apps.folder'
- *   - Sharing: POST /files/{id}/permissions with role='reader', type='anyone'
- *     produces a shareable link suitable for client delivery
- *   - For uploads: multipart upload (small files <5MB) or resumable (larger)
+ * Scope: drive.file — the app can only see/create files it created itself.
+ * Year and root folders are found via files.list before creating to avoid
+ * duplicates across app restarts.
+ *
+ * Env:
+ *   GOOGLE_DRIVE_ROOT_FOLDER_ID — optional. If set, booking year folders are
+ *     created directly under it (Jasper drops files alongside them in Drive).
+ *     If not set, the app creates a top-level "Atelier — Saunders & Co" folder
+ *     on the first booking and reuses it thereafter.
  */
 
-import { isGoogleConfigured } from './google-auth';
+import { isGoogleConfigured, getAccessToken } from './google-auth';
 
-export interface DriveFolderStructure {
-  root: string;           // e.g. "Saunders & Co / 2026 / AJE eComm #3579"
-  briefs: string;         // .../Briefs
-  selects: string;        // .../Selects
-  retouched: string;      // .../Retouched
-  finals: string;         // .../Finals — Delivered
-  admin: string;          // .../Admin (call sheets, releases)
+const DRIVE_BASE = 'https://www.googleapis.com/drive/v3/files';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const ROOT_FOLDER_NAME = 'Atelier — Saunders & Co';
+
+export interface BookingDriveIds {
+  root_id: string;
+  folder_ids: {
+    briefs: string;
+    selects: string;
+    retouched: string;
+    finals: string;
+    admin: string;
+  };
+  root_link: string;
 }
 
-/** Create the standard booking folder structure in Drive. */
-export async function createBookingFolders(bookingRef: string, year: number): Promise<DriveFolderStructure> {
-  // Path-style identifiers for logging / display. The actual API uses
-  // file IDs, but we surface a friendly hierarchy in the booking record.
-  const root = `Saunders & Co/${year}/${bookingRef}`;
-  const structure: DriveFolderStructure = {
-    root,
-    briefs: `${root}/Briefs`,
-    selects: `${root}/Selects`,
-    retouched: `${root}/Retouched`,
-    finals: `${root}/Finals — Delivered`,
-    admin: `${root}/Admin`,
+// ── low-level helpers ────────────────────────────────────────────────────────
+
+async function driveGet<T>(url: string, token: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => 'unknown');
+    throw new Error(`Drive GET ${url}: ${res.status} ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function drivePost<T>(url: string, token: string, body: object): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => 'unknown');
+    throw new Error(`Drive POST ${url}: ${res.status} ${errBody}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Search for a folder by name inside an optional parent. Returns the first hit's ID or null. */
+async function findFolder(token: string, name: string, parentId?: string): Promise<string | null> {
+  const clauses = [
+    `name='${name.replace(/'/g, "\\'")}'`,
+    `mimeType='${FOLDER_MIME}'`,
+    `trashed=false`,
+  ];
+  if (parentId) clauses.push(`'${parentId}' in parents`);
+
+  const q = encodeURIComponent(clauses.join(' and '));
+  const result = await driveGet<{ files: { id: string }[] }>(
+    `${DRIVE_BASE}?q=${q}&fields=files(id)&pageSize=1`,
+    token,
+  );
+  return result.files[0]?.id ?? null;
+}
+
+/** Create a folder inside an optional parent. Returns the new folder's ID. */
+async function createFolder(token: string, name: string, parentId?: string): Promise<{ id: string; webViewLink: string }> {
+  return drivePost<{ id: string; webViewLink: string }>(
+    `${DRIVE_BASE}?fields=id,webViewLink`,
+    token,
+    {
+      name,
+      mimeType: FOLDER_MIME,
+      ...(parentId ? { parents: [parentId] } : {}),
+    },
+  );
+}
+
+/** Find an existing folder or create it. Returns the folder ID. */
+async function findOrCreateFolder(token: string, name: string, parentId?: string): Promise<string> {
+  const existing = await findFolder(token, name, parentId);
+  if (existing) return existing;
+  const created = await createFolder(token, name, parentId);
+  return created.id;
+}
+
+// ── public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Create the standard booking folder structure in Drive.
+ * On quote_confirmed: call this and persist the returned IDs on the booking row.
+ * Degrades gracefully when Google credentials are absent.
+ */
+export async function createBookingFolders(
+  bookingRef: string,
+  year: number,
+): Promise<BookingDriveIds | null> {
+  if (!isGoogleConfigured()) {
+    console.log('[drive] CREATE FOLDERS (stub — no credentials)', bookingRef);
+    return null;
+  }
+
+  const token = await getAccessToken();
+
+  // Resolve or create root folder
+  const envRootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  const rootId = envRootId ?? await findOrCreateFolder(token, ROOT_FOLDER_NAME);
+
+  // Year subfolder (e.g. "2026")
+  const yearId = await findOrCreateFolder(token, String(year), rootId);
+
+  // Booking root folder
+  const bookingFolder = await createFolder(token, bookingRef, yearId);
+  const bookingRootId = bookingFolder.id;
+
+  // 5 subfolders in parallel
+  const [briefsId, selectsId, retouchedId, finalsId, adminId] = await Promise.all([
+    findOrCreateFolder(token, 'Briefs', bookingRootId),
+    findOrCreateFolder(token, 'Selects', bookingRootId),
+    findOrCreateFolder(token, 'Retouched', bookingRootId),
+    findOrCreateFolder(token, 'Finals — Delivered', bookingRootId),
+    findOrCreateFolder(token, 'Admin', bookingRootId),
+  ]);
+
+  // Get the booking root's webViewLink (createFolder returns it)
+  const rootLink = bookingFolder.webViewLink;
+
+  const result: BookingDriveIds = {
+    root_id: bookingRootId,
+    folder_ids: {
+      briefs: briefsId,
+      selects: selectsId,
+      retouched: retouchedId,
+      finals: finalsId,
+      admin: adminId,
+    },
+    root_link: rootLink,
   };
 
-  if (!isGoogleConfigured()) {
-    console.log('[drive] CREATE FOLDERS (stub — no credentials)', JSON.stringify(structure, null, 2));
-    return structure;
-  }
-
-  // TODO: POST 6 folder creates to /drive/v3/files with mimeType
-  // 'application/vnd.google-apps.folder' and parents=[parentId]. Top-level
-  // "Saunders & Co" folder is created once; year folders are created per
-  // year; booking folder + 5 children are created per booking. Persist the
-  // resulting Drive file IDs on atelier_bookings (e.g. drive_root_id).
-  console.log('[drive] CREATE FOLDERS (not yet implemented)', bookingRef);
-  return structure;
+  console.log('[drive] CREATED FOLDERS', bookingRef, result.root_id);
+  return result;
 }
 
-/** Create a publicly-shareable link for client delivery. */
-export async function createSharedLink(path: string): Promise<string> {
+/**
+ * Create a publicly-readable shared link for a specific Drive folder.
+ * Used on final_delivery to produce a client-delivery URL for the Finals folder.
+ * Returns the webViewLink, or null if credentials are absent.
+ */
+export async function createSharedLink(folderId: string): Promise<string | null> {
   if (!isGoogleConfigured()) {
-    console.log('[drive] CREATE SHARED LINK (stub — no credentials)', path);
-    return `https://drive.google.com/drive/folders/stub-${encodeURIComponent(path)}`;
+    console.log('[drive] CREATE SHARED LINK (stub — no credentials)', folderId);
+    return null;
   }
 
-  // TODO: POST /drive/v3/files/{fileId}/permissions
-  //   body: { role: 'reader', type: 'anyone' }
-  // then GET /drive/v3/files/{fileId}?fields=webViewLink to retrieve the URL.
-  console.log('[drive] CREATE SHARED LINK (not yet implemented)', path);
-  return `https://drive.google.com/drive/folders/stub-${encodeURIComponent(path)}`;
+  const token = await getAccessToken();
+
+  // Grant anyone-with-link reader access
+  await drivePost<unknown>(
+    `${DRIVE_BASE}/${folderId}/permissions`,
+    token,
+    { role: 'reader', type: 'anyone' },
+  );
+
+  // Retrieve the shareable link
+  const file = await driveGet<{ webViewLink: string }>(
+    `${DRIVE_BASE}/${folderId}?fields=webViewLink`,
+    token,
+  );
+
+  console.log('[drive] SHARED LINK CREATED', folderId, file.webViewLink);
+  return file.webViewLink;
 }
 
-/** Upload a file to a specific folder. */
+/**
+ * Upload a file to a specific Drive folder.
+ * Returns the Drive file ID, or null if credentials are absent.
+ */
 export async function uploadFile(
-  path: string,
-  _contents: Buffer | Uint8Array,
-  _mimeType?: string,
-): Promise<string> {
+  folderId: string,
+  filename: string,
+  contents: Buffer | Uint8Array,
+  mimeType = 'application/octet-stream',
+): Promise<string | null> {
   if (!isGoogleConfigured()) {
-    console.log('[drive] UPLOAD FILE (stub — no credentials)', path);
-    return `drive-file-stub-${Date.now()}`;
+    console.log('[drive] UPLOAD FILE (stub — no credentials)', filename);
+    return null;
   }
 
-  // TODO: multipart upload to https://www.googleapis.com/upload/drive/v3/files
-  //   ?uploadType=multipart with metadata + media parts.
-  // For files >5MB, switch to resumable uploads (uploadType=resumable).
-  console.log('[drive] UPLOAD FILE (not yet implemented)', path);
-  return `drive-file-stub-${Date.now()}`;
+  const token = await getAccessToken();
+
+  // Build multipart body (metadata + media)
+  const boundary = `-------${Date.now()}`;
+  const metadata = JSON.stringify({ name: filename, parents: [folderId] });
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    metadata,
+    `--${boundary}`,
+    `Content-Type: ${mimeType}`,
+    '',
+    '',
+  ].join('\r\n');
+
+  const metaPart = Buffer.from(body, 'utf8');
+  const closePart = Buffer.from(`\r\n--${boundary}--`, 'utf8');
+  const combined = Buffer.concat([metaPart, Buffer.from(contents), closePart]);
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+        'Content-Length': String(combined.length),
+      },
+      body: combined,
+    },
+  );
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => 'unknown');
+    throw new Error(`Drive upload ${filename}: ${res.status} ${errBody}`);
+  }
+
+  const result = await res.json() as { id: string };
+  console.log('[drive] UPLOADED', filename, result.id);
+  return result.id;
 }
 
-/** List files in a folder. */
-export async function listFiles(path: string): Promise<{
+/**
+ * List files in a Drive folder (files created by this app only, per drive.file scope).
+ */
+export async function listFiles(folderId: string): Promise<{
+  id: string;
   name: string;
-  path: string;
-  size: number;
-  modified: string;
+  mimeType: string;
+  size: string | null;
+  modifiedTime: string;
+  webViewLink: string;
 }[]> {
   if (!isGoogleConfigured()) {
-    console.log('[drive] LIST FILES (stub — no credentials)', path);
+    console.log('[drive] LIST FILES (stub — no credentials)', folderId);
     return [];
   }
 
-  // TODO: GET /drive/v3/files?q='{folderId}' in parents&fields=...
-  console.log('[drive] LIST FILES (not yet implemented)', path);
-  return [];
+  const token = await getAccessToken();
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  const result = await driveGet<{
+    files: { id: string; name: string; mimeType: string; size: string | null; modifiedTime: string; webViewLink: string }[];
+  }>(
+    `${DRIVE_BASE}?q=${q}&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&orderBy=name`,
+    token,
+  );
+  return result.files;
 }

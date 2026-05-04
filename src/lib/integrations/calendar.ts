@@ -1,49 +1,108 @@
 /**
- * Google Calendar Integration Stub
+ * Google Calendar Integration
  *
- * Handles: shoot day events, crew confirmations, deadline reminders.
+ * Creates shoot-day events on Jasper's primary calendar when a booking
+ * reaches quote_confirmed. All-day events use the `date` format (no
+ * timezone ambiguity). The `calendar.events` scope limits the app to
+ * events it created — it cannot see or modify other calendar entries.
  *
- * Setup: shares OAuth credentials with Gmail and Drive — see google-auth.ts.
- * The `calendar.events` scope (NOT `calendar.readonly` or full `calendar`)
- * limits the app to creating/updating events on Jasper's primary calendar.
- *
- * Real implementation will use:
- *   - Calendar REST API: https://www.googleapis.com/calendar/v3/calendars/primary/events
- *   - Event resource format (start/end with timeZone, attendees, location)
- *   - sendUpdates=all to email invites to attendees
+ * Event link pattern: https://calendar.google.com/calendar/event?eid={base64(eventId)}
+ * Simpler: just link to https://calendar.google.com/calendar/r — the event
+ * shows up there.
  */
 
-import { isGoogleConfigured } from './google-auth';
+import { isGoogleConfigured, getAccessToken } from './google-auth';
+
+const CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
 
 export interface CalendarEventInput {
   subject: string;
-  start: string;       // ISO datetime
-  end: string;
+  startDate: string;   // ISO date, e.g. "2026-05-15"
+  endDate: string;     // ISO date, inclusive — stored as exclusive +1 day in API
   location?: string;
-  attendees?: string[];
-  body?: string;
+  description?: string;
   bookingRef?: string;
-  timeZone?: string;   // e.g. 'Australia/Sydney'. Defaults to Sydney.
 }
 
-/** Create a calendar event (e.g. shoot day, recce, post review). */
-export async function createCalendarEvent(input: CalendarEventInput): Promise<{ eventId: string }> {
+export interface CalendarEventResult {
+  eventId: string;
+  htmlLink: string;
+}
+
+/**
+ * Create an all-day shoot event in Jasper's primary Google Calendar.
+ * Returns the event ID and a direct link to the event.
+ * Returns null if Google credentials are not configured (dev mode).
+ */
+export async function createCalendarEvent(input: CalendarEventInput): Promise<CalendarEventResult | null> {
   if (!isGoogleConfigured()) {
-    console.log('[calendar] CREATE EVENT (stub — no credentials)', input.subject, input.start);
-    return { eventId: `event-stub-${Date.now()}` };
+    console.log('[calendar] CREATE EVENT (stub — no credentials)', input.subject, input.startDate);
+    return null;
   }
 
-  // TODO: POST to https://www.googleapis.com/calendar/v3/calendars/primary/events
-  // ?sendUpdates=all
-  // body: {
-  //   summary: input.subject,
-  //   description: input.body,
-  //   location: input.location,
-  //   start: { dateTime: input.start, timeZone: input.timeZone ?? 'Australia/Sydney' },
-  //   end:   { dateTime: input.end,   timeZone: input.timeZone ?? 'Australia/Sydney' },
-  //   attendees: input.attendees?.map(email => ({ email })),
-  //   extendedProperties: { private: { bookingRef: input.bookingRef } },
-  // }
-  console.log('[calendar] CREATE EVENT (not yet implemented)', input.subject);
-  return { eventId: `event-stub-${Date.now()}` };
+  const token = await getAccessToken();
+
+  // Calendar all-day events use exclusive end: a 3-day shoot May 15–17
+  // needs end = "2026-05-18"
+  const exclusiveEnd = new Date(input.endDate + 'T00:00:00Z');
+  exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+  const exclusiveEndStr = exclusiveEnd.toISOString().slice(0, 10);
+
+  const descriptionLines = [
+    input.description ?? '',
+    input.bookingRef ? `Booking: ${input.bookingRef}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const body = {
+    summary: input.subject,
+    location: input.location,
+    description: descriptionLines || undefined,
+    start: { date: input.startDate },
+    end: { date: exclusiveEndStr },
+    ...(input.bookingRef
+      ? { extendedProperties: { private: { bookingRef: input.bookingRef } } }
+      : {}),
+  };
+
+  const res = await fetch(`${CALENDAR_BASE}?fields=id,htmlLink`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => 'unknown');
+    throw new Error(`Calendar CREATE event: ${res.status} ${errBody}`);
+  }
+
+  const data = await res.json() as { id: string; htmlLink: string };
+  console.log('[calendar] EVENT CREATED', input.bookingRef, data.id);
+  return { eventId: data.id, htmlLink: data.htmlLink };
+}
+
+/**
+ * Delete a calendar event (e.g. on booking release/cancellation).
+ * Silently ignores 404 — safe to call even if the event was already removed.
+ */
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  if (!isGoogleConfigured()) {
+    console.log('[calendar] DELETE EVENT (stub — no credentials)', eventId);
+    return;
+  }
+
+  const token = await getAccessToken();
+  const res = await fetch(`${CALENDAR_BASE}/${eventId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok && res.status !== 404) {
+    const errBody = await res.text().catch(() => 'unknown');
+    throw new Error(`Calendar DELETE event ${eventId}: ${res.status} ${errBody}`);
+  }
+
+  console.log('[calendar] EVENT DELETED', eventId);
 }

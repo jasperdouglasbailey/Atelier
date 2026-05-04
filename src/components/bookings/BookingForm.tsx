@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createBookingAction } from '@/app/actions/bookings';
+import { createClientAction, createBrandAction } from '@/app/actions/entities';
 import { SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE } from '@/lib/utils/constants';
 import type { Client, Brand } from '@/lib/types/database';
 
@@ -16,16 +17,146 @@ const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, backgroun
 const labelClass = 'block text-xs font-medium mb-1';
 const labelStyle = { color: PALETTE.muted };
 
-export default function BookingForm({ clients, brands }: Props) {
+const QUICK_CREATE_VALUE = '__new__';
+
+/** Compact inline form that appears when "Create new" is chosen from a dropdown. */
+function QuickCreateForm({
+  type,
+  onCreated,
+  onCancel,
+}: {
+  type: 'client' | 'brand';
+  onCreated: (id: string, label: string) => void;
+  onCancel: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaving(true);
+    setErr(null);
+    const fd = new FormData(e.currentTarget);
+    if (type === 'client') {
+      const result = await createClientAction(fd);
+      if ('error' in result) { setErr(result.error ?? 'Failed'); setSaving(false); return; }
+      const name = fd.get('name') as string;
+      const company = fd.get('company') as string;
+      onCreated(result.id, company ? `${name} (${company})` : name);
+    } else {
+      const result = await createBrandAction(fd);
+      if ('error' in result) { setErr(result.error ?? 'Failed'); setSaving(false); return; }
+      onCreated(result.id, result.name);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mt-2 rounded-md border p-3 space-y-2"
+      style={{ borderColor: PALETTE.accent, background: `${PALETTE.accent}0a` }}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.accent }}>
+        New {type === 'client' ? 'Client' : 'Brand'}
+      </p>
+
+      {err && <p className="text-xs" style={{ color: PALETTE.danger }}>{err}</p>}
+
+      {type === 'client' ? (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label className={labelClass} style={labelStyle}>Name *</label>
+              <input name="name" required className={inputClass} style={inputStyle} placeholder="Contact name" />
+            </div>
+            <div>
+              <label className={labelClass} style={labelStyle}>Company</label>
+              <input name="company" className={inputClass} style={inputStyle} placeholder="e.g. AJE" />
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label className={labelClass} style={labelStyle}>Email</label>
+              <input name="email" type="email" className={inputClass} style={inputStyle} />
+            </div>
+            <div>
+              <label className={labelClass} style={labelStyle}>Phone</label>
+              <input name="phone" className={inputClass} style={inputStyle} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <div>
+          <label className={labelClass} style={labelStyle}>Brand Name *</label>
+          <input name="name" required className={inputClass} style={inputStyle} placeholder="e.g. AJE" />
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          style={{ background: PALETTE.accent, color: PALETTE.bg }}
+        >
+          {saving ? 'Saving...' : `Add ${type === 'client' ? 'client' : 'brand'}`}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded px-3 py-1.5 text-xs"
+          style={{ color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export default function BookingForm({ clients: initialClients, brands: initialBrands }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Client state
+  const [clients, setClients] = useState(initialClients);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [showNewClient, setShowNewClient] = useState(false);
+
+  // Brand state
+  const [brands, setBrands] = useState(initialBrands);
+  const [selectedBrandId, setSelectedBrandId] = useState('');
+  const [showNewBrand, setShowNewBrand] = useState(false);
+
+  function handleClientChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (e.target.value === QUICK_CREATE_VALUE) {
+      setShowNewClient(true);
+      setSelectedClientId('');
+    } else {
+      setShowNewClient(false);
+      setSelectedClientId(e.target.value);
+    }
+  }
+
+  function handleBrandChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (e.target.value === QUICK_CREATE_VALUE) {
+      setShowNewBrand(true);
+      setSelectedBrandId('');
+    } else {
+      setShowNewBrand(false);
+      setSelectedBrandId(e.target.value);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     const formData = new FormData(e.currentTarget);
+    // Inject controlled IDs (dropdowns are controlled so FormData won't pick them up reliably)
+    if (selectedClientId) formData.set('client_id', selectedClientId);
+    if (selectedBrandId) formData.set('brand_id', selectedBrandId);
     const result = await createBookingAction(formData);
     if ('error' in result) {
       setError(result.error ?? 'Unknown error');
@@ -63,21 +194,55 @@ export default function BookingForm({ clients, brands }: Props) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass} style={labelStyle}>Client (Billing)</label>
-          <select name="client_id" className={inputClass} style={inputStyle}>
+          <select
+            value={showNewClient ? QUICK_CREATE_VALUE : selectedClientId}
+            onChange={handleClientChange}
+            className={inputClass}
+            style={inputStyle}
+          >
             <option value="">— Select —</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>
             ))}
+            <option value={QUICK_CREATE_VALUE}>+ New client…</option>
           </select>
+          {showNewClient && (
+            <QuickCreateForm
+              type="client"
+              onCreated={(id, label) => {
+                setClients((prev) => [...prev, { id, name: label, company: null } as Client]);
+                setSelectedClientId(id);
+                setShowNewClient(false);
+              }}
+              onCancel={() => { setShowNewClient(false); setSelectedClientId(''); }}
+            />
+          )}
         </div>
         <div>
           <label className={labelClass} style={labelStyle}>End Brand</label>
-          <select name="brand_id" className={inputClass} style={inputStyle}>
+          <select
+            value={showNewBrand ? QUICK_CREATE_VALUE : selectedBrandId}
+            onChange={handleBrandChange}
+            className={inputClass}
+            style={inputStyle}
+          >
             <option value="">— Select —</option>
             {brands.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
+            <option value={QUICK_CREATE_VALUE}>+ New brand…</option>
           </select>
+          {showNewBrand && (
+            <QuickCreateForm
+              type="brand"
+              onCreated={(id, label) => {
+                setBrands((prev) => [...prev, { id, name: label } as Brand]);
+                setSelectedBrandId(id);
+                setShowNewBrand(false);
+              }}
+              onCancel={() => { setShowNewBrand(false); setSelectedBrandId(''); }}
+            />
+          )}
         </div>
       </div>
 

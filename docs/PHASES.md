@@ -21,16 +21,17 @@ What ships now. If a feature isn't in Phase 1, it doesn't ship now.
 - Magic-link auth (Supabase) + middleware enforcement + email allowlist
 - Google OAuth (Gmail + Drive + Calendar) — single grant, all 5 scopes live
 - **Gmail send / draft / send-draft / search** — real (no longer stub) ✅
+- **Drive folder creation** — real (findOrCreate, idempotent); quote_confirmed auto-creates 6 folders; final_delivery creates Finals shared link ✅
+- **Calendar event creation** — real all-day events; quote_confirmed creates shoot event; release/cancel deletes it ✅
+- **Inline client + brand creation in BookingForm** — "New client…" / "New brand…" quick-create without leaving the form ✅
 - Reports + Costs dashboards
 - Lethal trifecta refusal clause auto-prepended to every LLM call
 - Artist disciplines (photographer, videographer, H&MU, etc.) — required field
 
 **Remaining Phase 1 work:**
-- Drive integration (real folder creation, shared links) — currently stub w/ creds
-- Calendar integration (real event creation) — currently stub w/ creds
-- Brief Intake agent (live LLM call) — heuristic parser works without; LLM call is wired but not yet exercised in approval-flow
-- Booking agent rate proposals (corpus dependent — Phase 2 makes this useful)
+- Brief Intake agent (live LLM call) — heuristic parser works; LLM call is wired but not yet exercised in approval-flow
 - Scheduled tasks runtime (cron / Vercel scheduled functions for OT 7-day window, post-shoot client chase 7/14/22/30, etc.)
+- Per-booking comms tab — Gmail threads matching booking_ref shown in booking detail
 - E2E smoke test on a real new booking
 - Pre-launch checklist
 

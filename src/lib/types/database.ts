@@ -234,6 +234,17 @@ export interface Booking {
   selects_cadence: string | null;
   client_delivery_date: string | null;
   created_by: string | null;
+  final_delivery_at: string | null;
+  drive_root_id: string | null;
+  drive_folder_ids: {
+    briefs: string;
+    selects: string;
+    retouched: string;
+    finals: string;
+    admin: string;
+  } | null;
+  drive_root_link: string | null;
+  calendar_event_id: string | null;
 }
 
 export interface BookingTalent {

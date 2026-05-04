@@ -240,9 +240,10 @@ export async function transitionState(
     windowEnd.setDate(windowEnd.getDate() + 7);
     patch.ot_expenses_window_end = windowEnd.toISOString();
   }
-  // Lock OT/expenses when moving past post-production
+  // Lock OT/expenses and record delivery timestamp when moving to final_delivery
   if (newState === 'final_delivery') {
     patch.ot_expenses_locked = true;
+    patch.final_delivery_at = new Date().toISOString();
   }
 
   const { data, error } = await supabase

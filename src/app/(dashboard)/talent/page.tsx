@@ -1,21 +1,46 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import ListSearchBar from '@/components/layout/ListSearchBar';
 import { listTalent } from '@/lib/data/entities';
 import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 import type { ArtistDiscipline } from '@/lib/types/database';
 import CreateTalentDialog from '@/components/entities/CreateTalentDialog';
 
-export default async function TalentPage() {
-  const talent = await listTalent();
+type SearchParams = Promise<{ search?: string; discipline?: string }>;
+
+export default async function TalentPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const allTalent = await listTalent(params.search);
+  // Discipline filter applies in-memory (small dataset; no need to push to DB).
+  const talent = params.discipline
+    ? allTalent.filter((t) => t.discipline === params.discipline)
+    : allTalent;
 
   return (
     <>
       <Topbar title="Talent" />
       <div className="p-4 sm:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs" style={{ color: PALETTE.muted }}>{talent.length} artist{talent.length === 1 ? '' : 's'}</p>
-          <CreateTalentDialog />
-        </div>
+        <ListSearchBar
+          searchValue={params.search}
+          searchPlaceholder="Search by name or specialty…"
+          hiddenParams={params.discipline ? { discipline: params.discipline } : undefined}
+          filters={
+            <select
+              name="discipline"
+              defaultValue={params.discipline ?? ''}
+              className="rounded-md border bg-transparent px-3 py-2 text-sm"
+              style={{ borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg }}
+            >
+              <option value="">All disciplines</option>
+              {Object.entries(ARTIST_DISCIPLINE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          }
+          count={talent.length}
+          countLabel="artist"
+          rightSlot={<CreateTalentDialog />}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {talent.map((t) => (
@@ -46,7 +71,9 @@ export default async function TalentPage() {
           ))}
           {talent.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-              No talent yet. Add your first artist to get started.
+              {params.search || params.discipline
+                ? 'No talent match these filters.'
+                : 'No talent yet. Add your first artist to get started.'}
             </div>
           )}
         </div>

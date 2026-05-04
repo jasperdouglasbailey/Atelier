@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClientRecord, updateClient } from '@/lib/data/entities';
+import { createClientRecord, updateClient, createBrand } from '@/lib/data/entities';
 import { createTalentRecord, updateTalent } from '@/lib/data/entities';
 import { createCrewRecord, updateCrew } from '@/lib/data/entities';
 import type { CrewTier, ArtistDiscipline } from '@/lib/types/database';
@@ -34,6 +34,17 @@ export async function updateClientAction(id: string, formData: FormData) {
   revalidatePath('/clients');
   revalidatePath(`/clients/${id}`);
   return { ok: true };
+}
+
+export async function createBrandAction(formData: FormData) {
+  const result = await createBrand({
+    name: formData.get('name') as string,
+    industry: (formData.get('industry') as string) || undefined,
+    notes: (formData.get('notes') as string) || undefined,
+  });
+  if (!result) return { error: 'Failed to create brand' };
+  revalidatePath('/clients');
+  return { id: result.id, name: result.name };
 }
 
 export async function createTalentAction(formData: FormData) {

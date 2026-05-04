@@ -11,6 +11,16 @@ import type { BookingState } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
+function Stat({ label, value, sublabel }: { label: string; value: React.ReactNode; sublabel?: string }) {
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>{label}</div>
+      <div className="mt-0.5 text-base font-semibold" style={{ color: PALETTE.text }}>{value}</div>
+      {sublabel && <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>{sublabel}</div>}
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === '') return null;
   return (
@@ -42,6 +52,25 @@ export default async function TalentDetailPage({ params }: Props) {
     listTalentBookingHistory(id),
   ]);
   if (!talent) notFound();
+
+  // Quick stats from booking history
+  const totalBookings = bookingHistory.length;
+  const confirmedBookings = bookingHistory.filter((b) => b.confirmed).length;
+  const activeBookings = bookingHistory.filter(
+    (b) => !['paid', 'released', 'cancelled'].includes(b.booking_state),
+  ).length;
+  const ratesPaid = bookingHistory
+    .filter((b) => b.confirmed && b.day_rate)
+    .map((b) => b.day_rate as number);
+  const avgDayRate = ratesPaid.length > 0
+    ? Math.round(ratesPaid.reduce((s, r) => s + r, 0) / ratesPaid.length)
+    : null;
+  const topTier = (() => {
+    if (totalBookings === 0) return null;
+    const counts: Record<string, number> = {};
+    for (const b of bookingHistory) counts[b.booking_tier] = (counts[b.booking_tier] ?? 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  })();
 
   return (
     <>
@@ -82,6 +111,27 @@ export default async function TalentDetailPage({ params }: Props) {
             </div>
           </div>
         </section>
+
+        {/* Quick stats */}
+        {totalBookings > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+              <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
+              <Stat label="Active" value={activeBookings} sublabel="not yet paid" />
+              <Stat
+                label="Avg Day Rate"
+                value={avgDayRate ? formatCurrency(avgDayRate, 'AUD') : '—'}
+                sublabel={ratesPaid.length > 0 ? `over ${ratesPaid.length} confirmed` : undefined}
+              />
+              <Stat
+                label="Top Tier"
+                value={topTier ? topTier.replace(/_/g, ' ') : '—'}
+                sublabel={topTier ? 'most worked' : undefined}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Contact */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

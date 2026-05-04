@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState } from '@/lib/types/database';
+import type { AgencyMargin } from '@/lib/utils/fee-engine';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
@@ -28,7 +29,7 @@ function formatShootDates(range: string | null): string | null {
   return formatDate(start);
 }
 
-type Props = { booking: BookingDetailRow };
+type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -49,7 +50,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking }: Props) {
+export default function BookingDetail({ booking, margin = null }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -215,6 +216,28 @@ export default function BookingDetail({ booking }: Props) {
         <Field label="ASF" value={booking.total_asf > 0 ? formatCurrency(booking.total_asf, 'AUD') : null} />
         <Field label="GST" value={booking.total_gst > 0 ? formatCurrency(booking.total_gst, 'AUD') : null} />
         <Field label="Grand Total" value={booking.grand_total > 0 ? formatCurrency(booking.grand_total, 'AUD') : null} />
+        {margin && margin.total > 0 && (
+          <>
+            <Field
+              label="Agency Margin"
+              value={
+                <span style={{ color: PALETTE.success, fontWeight: 600 }}>
+                  {formatCurrency(margin.total, 'AUD')}
+                </span>
+              }
+            />
+            <Field
+              label="Margin Breakdown"
+              value={
+                <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+                  Commission {formatCurrency(margin.commission, 'AUD')}
+                  {margin.asf > 0 ? ` · ASF ${formatCurrency(margin.asf, 'AUD')}` : ''}
+                  {margin.superSpread > 0 ? ` · Super spread ${formatCurrency(margin.superSpread, 'AUD')}` : ''}
+                </span>
+              }
+            />
+          </>
+        )}
       </Section>
 
       {(booking.cancellation_reason || booking.release_reason) && (
@@ -225,6 +248,55 @@ export default function BookingDetail({ booking }: Props) {
             <Field label="Cancellation Fee" value={formatCurrency(booking.cancellation_fee, 'AUD')} />
           )}
         </Section>
+      )}
+
+      {/* Google links — shown once quote_confirmed fires */}
+      {(booking.drive_root_link || booking.calendar_event_id) && (
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Google</h3>
+          <div className="flex flex-wrap gap-2">
+            {booking.calendar_event_id && (
+              <a
+                href={`https://calendar.google.com/calendar/r/eventedit/${booking.calendar_event_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-2 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Calendar Event
+              </a>
+            )}
+            {booking.drive_root_link && (
+              <a
+                href={booking.drive_root_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-2 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive Folder
+              </a>
+            )}
+            {booking.drive_folder_ids && (
+              (['briefs', 'selects', 'retouched', 'finals', 'admin'] as const).map((key) => {
+                const folderId = booking.drive_folder_ids![key];
+                const label = key === 'finals' ? 'Finals' : key.charAt(0).toUpperCase() + key.slice(1);
+                return (
+                  <a
+                    key={key}
+                    href={`https://drive.google.com/drive/folders/${folderId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded px-2 py-1 text-xs"
+                    style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                  >
+                    {label}
+                  </a>
+                );
+              })
+            )}
+          </div>
+        </section>
       )}
 
       {booking.agency_notes && (
