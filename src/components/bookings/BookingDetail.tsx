@@ -227,6 +227,55 @@ export default function BookingDetail({ booking }: Props) {
         </Section>
       )}
 
+      {/* Google links — shown once quote_confirmed fires */}
+      {(booking.drive_root_link || booking.calendar_event_id) && (
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Google</h3>
+          <div className="flex flex-wrap gap-2">
+            {booking.calendar_event_id && (
+              <a
+                href={`https://calendar.google.com/calendar/r/eventedit/${booking.calendar_event_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-2 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Calendar Event
+              </a>
+            )}
+            {booking.drive_root_link && (
+              <a
+                href={booking.drive_root_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-2 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive Folder
+              </a>
+            )}
+            {booking.drive_folder_ids && (
+              (['briefs', 'selects', 'retouched', 'finals', 'admin'] as const).map((key) => {
+                const folderId = booking.drive_folder_ids![key];
+                const label = key === 'finals' ? 'Finals' : key.charAt(0).toUpperCase() + key.slice(1);
+                return (
+                  <a
+                    key={key}
+                    href={`https://drive.google.com/drive/folders/${folderId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded px-2 py-1 text-xs"
+                    style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                  >
+                    {label}
+                  </a>
+                );
+              })
+            )}
+          </div>
+        </section>
+      )}
+
       {booking.agency_notes && (
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Agency Notes</h3>

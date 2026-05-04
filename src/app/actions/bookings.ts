@@ -6,6 +6,9 @@ import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
 import { buildDateRange } from '@/lib/utils/daterange';
+import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
+import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
+import { dateRangeToInputs } from '@/lib/utils/daterange';
 import type { BookingState } from '@/lib/types/database';
 
 export async function createBookingAction(formData: FormData) {
@@ -94,6 +97,85 @@ export async function transitionBookingAction(
       proposeHoldRequests(id).catch((err) =>
         console.error('[transitionBookingAction] auto hold-request failed', err),
       );
+    }
+  }
+
+  // On quote_confirmed: create Drive folders + Calendar event, both async.
+  // Neither blocks the state transition itself.
+  if (newState === 'quote_confirmed') {
+    const booking = await getBooking(id);
+    if (booking) {
+      const year = new Date().getFullYear();
+
+      // Drive folders
+      if (booking.booking_ref) {
+        createBookingFolders(booking.booking_ref, year)
+          .then((driveIds) => {
+            if (!driveIds) return;
+            return updateBooking(id, {
+              drive_root_id: driveIds.root_id,
+              drive_folder_ids: driveIds.folder_ids,
+              drive_root_link: driveIds.root_link,
+            });
+          })
+          .catch((err) => console.error('[transitionBookingAction] Drive folder creation failed', err));
+      }
+
+      // Calendar event — only if shoot dates are known
+      const { start, end } = dateRangeToInputs(booking.shoot_dates);
+      if (start) {
+        const clientName = (booking as { client?: { name: string; company?: string | null } | null }).client?.company
+          ?? (booking as { client?: { name: string; company?: string | null } | null }).client?.name;
+        const subject = [booking.booking_ref, booking.title, clientName].filter(Boolean).join(' — ');
+        createCalendarEvent({
+          subject,
+          startDate: start,
+          endDate: end || start,
+          location: booking.shoot_location ?? undefined,
+          description: [
+            `Tier: ${booking.tier}`,
+            booking.talent_spec ? `Talent: ${booking.talent_spec}` : '',
+          ].filter(Boolean).join('\n'),
+          bookingRef: booking.booking_ref ?? undefined,
+        })
+          .then((result) => {
+            if (!result) return;
+            return updateBooking(id, { calendar_event_id: result.eventId });
+          })
+          .catch((err) => console.error('[transitionBookingAction] Calendar event creation failed', err));
+      }
+    }
+  }
+
+  // On release or cancel: remove the calendar event so Jasper's calendar stays clean.
+  if (newState === 'released' || newState === 'cancelled') {
+    const booking = await getBooking(id);
+    if (booking?.calendar_event_id) {
+      deleteCalendarEvent(booking.calendar_event_id).catch((err) =>
+        console.error('[transitionBookingAction] Calendar event deletion failed', err),
+      );
+    }
+  }
+
+  // On final_delivery: create a shared client-delivery link for the Finals folder.
+  if (newState === 'final_delivery') {
+    const booking = await getBooking(id);
+    const finalsId = (booking?.drive_folder_ids as { finals?: string } | null)?.finals;
+    if (finalsId) {
+      createSharedLink(finalsId)
+        .then((link) => {
+          if (!link) return;
+          // Persist the Finals shared link in agency_notes as a reference until
+          // we have a dedicated delivery_link column.
+          const existingNotes = booking?.agency_notes ?? '';
+          const noteEntry = `[Drive Finals] ${link}`;
+          if (!existingNotes.includes(noteEntry)) {
+            return updateBooking(id, {
+              agency_notes: existingNotes ? `${existingNotes}\n${noteEntry}` : noteEntry,
+            });
+          }
+        })
+        .catch((err) => console.error('[transitionBookingAction] Drive shared link failed', err));
     }
   }
 
