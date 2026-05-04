@@ -1,20 +1,27 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import ListSearchBar from '@/components/layout/ListSearchBar';
 import { listClients } from '@/lib/data/entities';
 import { PALETTE } from '@/lib/utils/constants';
 import CreateClientDialog from '@/components/entities/CreateClientDialog';
 
-export default async function ClientsPage() {
-  const clients = await listClients();
+type SearchParams = Promise<{ search?: string }>;
+
+export default async function ClientsPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const clients = await listClients(params.search);
 
   return (
     <>
       <Topbar title="Clients" />
       <div className="p-4 sm:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs" style={{ color: PALETTE.muted }}>{clients.length} client{clients.length === 1 ? '' : 's'}</p>
-          <CreateClientDialog />
-        </div>
+        <ListSearchBar
+          searchValue={params.search}
+          searchPlaceholder="Search by name or company…"
+          count={clients.length}
+          countLabel="client"
+          rightSlot={<CreateClientDialog />}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
@@ -36,7 +43,9 @@ export default async function ClientsPage() {
           ))}
           {clients.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-              No clients yet. They&apos;ll be created when you create bookings.
+              {params.search
+                ? 'No clients match this search.'
+                : 'No clients yet. They’ll be created when you create bookings.'}
             </div>
           )}
         </div>

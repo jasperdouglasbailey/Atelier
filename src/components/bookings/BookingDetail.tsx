@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState } from '@/lib/types/database';
+import type { AgencyMargin } from '@/lib/utils/fee-engine';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
@@ -28,7 +29,7 @@ function formatShootDates(range: string | null): string | null {
   return formatDate(start);
 }
 
-type Props = { booking: BookingDetailRow };
+type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -49,7 +50,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking }: Props) {
+export default function BookingDetail({ booking, margin = null }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -215,6 +216,28 @@ export default function BookingDetail({ booking }: Props) {
         <Field label="ASF" value={booking.total_asf > 0 ? formatCurrency(booking.total_asf, 'AUD') : null} />
         <Field label="GST" value={booking.total_gst > 0 ? formatCurrency(booking.total_gst, 'AUD') : null} />
         <Field label="Grand Total" value={booking.grand_total > 0 ? formatCurrency(booking.grand_total, 'AUD') : null} />
+        {margin && margin.total > 0 && (
+          <>
+            <Field
+              label="Agency Margin"
+              value={
+                <span style={{ color: PALETTE.success, fontWeight: 600 }}>
+                  {formatCurrency(margin.total, 'AUD')}
+                </span>
+              }
+            />
+            <Field
+              label="Margin Breakdown"
+              value={
+                <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+                  Commission {formatCurrency(margin.commission, 'AUD')}
+                  {margin.asf > 0 ? ` · ASF ${formatCurrency(margin.asf, 'AUD')}` : ''}
+                  {margin.superSpread > 0 ? ` · Super spread ${formatCurrency(margin.superSpread, 'AUD')}` : ''}
+                </span>
+              }
+            />
+          </>
+        )}
       </Section>
 
       {(booking.cancellation_reason || booking.release_reason) && (

@@ -19,6 +19,8 @@ import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
 import { PALETTE } from '@/lib/utils/constants';
+import { computeQuoteTotals, computeAgencyMargin } from '@/lib/utils/fee-engine';
+import type { FeeLine } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -65,13 +67,19 @@ export default async function BookingDetailPage({ params }: Props) {
     listCrew(),
   ]);
 
+  // Agency margin: commission + ASF + super spread. Computed from fee lines
+  // because the booking row doesn't store commission/super totals separately.
+  const margin = feeLines.length > 0
+    ? computeAgencyMargin(computeQuoteTotals(feeLines as Partial<FeeLine>[]))
+    : null;
+
   return (
     <>
       <Topbar title={booking.booking_ref ?? booking.title} />
       <div className="p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <BookingDetail booking={booking} />
+            <BookingDetail booking={booking} margin={margin} />
             {/* Brief parser — show when raw text is present and state is early */}
             {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
               <BriefParser

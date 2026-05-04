@@ -1,11 +1,19 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import ListSearchBar from '@/components/layout/ListSearchBar';
 import { listCrew } from '@/lib/data/entities';
 import { PALETTE, CREW_TIER_LABELS } from '@/lib/utils/constants';
+import type { CrewTier } from '@/lib/types/database';
 import CreateCrewDialog from '@/components/entities/CreateCrewDialog';
 
-export default async function CrewPage() {
-  const crew = await listCrew();
+type SearchParams = Promise<{ search?: string; tier?: string }>;
+
+export default async function CrewPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const crew = await listCrew({
+    search: params.search,
+    tier: params.tier as CrewTier | undefined,
+  });
 
   const tierColor = (tier: string) => {
     if (tier === 'preferred_core') return PALETTE.success;
@@ -17,10 +25,27 @@ export default async function CrewPage() {
     <>
       <Topbar title="Crew" />
       <div className="p-4 sm:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs" style={{ color: PALETTE.muted }}>{crew.length} crew member{crew.length === 1 ? '' : 's'}</p>
-          <CreateCrewDialog />
-        </div>
+        <ListSearchBar
+          searchValue={params.search}
+          searchPlaceholder="Search by name or role…"
+          hiddenParams={params.tier ? { tier: params.tier } : undefined}
+          filters={
+            <select
+              name="tier"
+              defaultValue={params.tier ?? ''}
+              className="rounded-md border bg-transparent px-3 py-2 text-sm"
+              style={{ borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg }}
+            >
+              <option value="">All tiers</option>
+              {Object.entries(CREW_TIER_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          }
+          count={crew.length}
+          countLabel="crew member"
+          rightSlot={<CreateCrewDialog />}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {crew.map((c) => (
@@ -45,7 +70,9 @@ export default async function CrewPage() {
           ))}
           {crew.length === 0 && (
             <div className="col-span-full py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-              No crew yet. Add your first crew member to get started.
+              {params.search || params.tier
+                ? 'No crew match these filters.'
+                : 'No crew yet. Add your first crew member to get started.'}
             </div>
           )}
         </div>
