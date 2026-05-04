@@ -78,8 +78,14 @@ export async function GET(req: NextRequest) {
     if (!booking.final_delivery_at || !booking.booking_ref) continue;
 
     const days = daysSince(booking.final_delivery_at as string);
-    const clientRaw = booking.client as { name: string; company: string | null } | null;
-    const clientName = clientRaw?.company ?? clientRaw?.name ?? 'there';
+    // Supabase join inference returns client as array | object depending on relation.
+    // Normalise to a single record before reading.
+    const clientRaw = booking.client as unknown as
+      | { name: string; company: string | null }
+      | { name: string; company: string | null }[]
+      | null;
+    const clientObj = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw;
+    const clientName = clientObj?.company ?? clientObj?.name ?? 'there';
 
     for (const mark of CHASE_DAY_MARKS) {
       if (days < mark) continue; // not time yet

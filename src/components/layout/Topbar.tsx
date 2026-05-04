@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { KillSwitchState } from '@/lib/utils/kill-switch';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
@@ -9,14 +10,61 @@ import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 type Props = {
   title: string;
   initialKillSwitch?: KillSwitchState | null;
+  /** Override auto-inferred back link. Useful when the parent isn't the URL parent. */
+  backHref?: string;
+  backLabel?: string;
 };
 
-export default function Topbar({ title, initialKillSwitch = null }: Props) {
-  const router = useRouter();
+const SECTION_LABELS: Record<string, string> = {
+  bookings: 'Bookings',
+  talent: 'Talent',
+  crew: 'Crew',
+  clients: 'Clients',
+  inbox: 'Inbox',
+  reports: 'Reports',
+  costs: 'Costs',
+  audit: 'Audit',
+  settings: 'Settings',
+  'crew-bookings': 'Crew Bookings',
+};
+
+/**
+ * Derive a deterministic back link from the URL. Always points to the
+ * parent listing — works even when the user arrived via a deep link
+ * (browser back would fail in that case).
+ */
+function inferBackLink(pathname: string): { href: string; label: string } | null {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length < 2) return null;
+
+  // /bookings/[id] → /bookings ("Bookings")
+  // /talent/[id] → /talent ("Talent")
+  if (segments.length === 2) {
+    const parent = segments[0];
+    return { href: `/${parent}`, label: SECTION_LABELS[parent] ?? parent };
+  }
+
+  // /bookings/[id]/edit → /bookings/[id] ("Booking")
+  // /talent/[id]/edit → /talent/[id] ("Talent profile")
+  if (segments.length === 3 && segments[2] === 'edit') {
+    const sectionLabel = SECTION_LABELS[segments[0]] ?? segments[0];
+    return { href: `/${segments[0]}/${segments[1]}`, label: sectionLabel.replace(/s$/, '') };
+  }
+
+  // /crew-bookings/calendar → /crew-bookings ("Crew Bookings")
+  if (segments[0] === 'crew-bookings' && segments[1] === 'calendar') {
+    return { href: '/crew-bookings', label: 'Crew Bookings' };
+  }
+
+  return null;
+}
+
+export default function Topbar({ title, initialKillSwitch = null, backHref, backLabel }: Props) {
   const pathname = usePathname();
-  // Show back/forward only on detail pages (depth > 1). Top-level pages
-  // already have sidebar nav; the buttons would clutter without value there.
-  const showHistory = pathname !== '/' && pathname.split('/').filter(Boolean).length > 1;
+  const inferred = inferBackLink(pathname);
+  const back = backHref && backLabel
+    ? { href: backHref, label: backLabel }
+    : inferred;
   const [state, setState] = useState<KillSwitchState | null>(initialKillSwitch);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -76,29 +124,15 @@ export default function Topbar({ title, initialKillSwitch = null }: Props) {
         className="flex h-14 items-center gap-3 border-b px-4 sm:px-6"
         style={{ background: '#141414', borderColor: '#262626' }}
       >
-        {showHistory && (
-          <div className="flex items-center gap-0.5 mr-1">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="rounded-md px-2 py-1 text-base leading-none transition-colors hover:bg-white/5"
-              style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
-              aria-label="Go back"
-              title="Back"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              onClick={() => router.forward()}
-              className="rounded-md px-2 py-1 text-base leading-none transition-colors hover:bg-white/5"
-              style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
-              aria-label="Go forward"
-              title="Forward"
-            >
-              →
-            </button>
-          </div>
+        {back && (
+          <Link
+            href={back.href}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-white/5"
+            style={{ color: '#8b8b8b' }}
+          >
+            <span aria-hidden>←</span>
+            <span>{back.label}</span>
+          </Link>
         )}
         <h1 className="flex-1 truncate text-sm font-medium" style={{ color: '#ededed' }}>
           {title}
