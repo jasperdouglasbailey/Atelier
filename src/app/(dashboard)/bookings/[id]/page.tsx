@@ -14,6 +14,9 @@ import { listEvents } from '@/lib/utils/events';
 import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
+import { searchInbox } from '@/lib/integrations/gmail';
+import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import BookingComms from '@/components/bookings/BookingComms';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -22,7 +25,7 @@ export default async function BookingDetailPage({ params }: Props) {
   const booking = await getBooking(id);
   if (!booking) notFound();
 
-  const [events, quoteVersions, latestQuote, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew] = await Promise.all([
+  const [events, quoteVersions, latestQuote, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew, gmailThreads] = await Promise.all([
     listEvents({ bookingId: id, limit: 30 }),
     listQuoteVersions(id),
     getLatestQuoteVersion(id),
@@ -32,6 +35,11 @@ export default async function BookingDetailPage({ params }: Props) {
     listUsageLicences(id),
     listTalent(),
     listCrew(),
+    // Fetch Gmail threads matching the booking ref. Returns [] when Google
+    // is not configured so the page never errors in dev.
+    booking.booking_ref
+      ? searchInbox(booking.booking_ref, 20).catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -53,6 +61,11 @@ export default async function BookingDetailPage({ params }: Props) {
               bookingId={id}
               bookingState={booking.state}
               pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
+            />
+            <BookingComms
+              bookingRef={booking.booking_ref}
+              threads={gmailThreads}
+              isConfigured={isGoogleConfigured()}
             />
             {/* Morning-after check workflow */}
             {booking.state === 'morning_after_check' && (
