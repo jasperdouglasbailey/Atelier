@@ -7,7 +7,8 @@ import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 import type { AgencyConfig } from '@/lib/utils/agency-config';
 
-type Props = { killSwitch: KillSwitchState | null; agency: AgencyConfig };
+type IntegrationStatus = { googleConnected: boolean; xeroConnected: boolean; anthropicConnected: boolean };
+type Props = { killSwitch: KillSwitchState | null; agency: AgencyConfig; integrations?: IntegrationStatus };
 
 function Toggle({ label, description, checked, onChange, color }: {
   label: string;
@@ -36,7 +37,7 @@ function Toggle({ label, description, checked, onChange, color }: {
   );
 }
 
-export default function SettingsPanel({ killSwitch, agency }: Props) {
+export default function SettingsPanel({ killSwitch, agency, integrations }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -148,9 +149,28 @@ export default function SettingsPanel({ killSwitch, agency }: Props) {
         </h2>
         <div className="space-y-2">
           <IntegrationRow name="Supabase" status="connected" detail="ap-southeast-2 (Sydney)" />
-          <IntegrationRow name="Xero" status="pending" detail="Invoice sync — needs OAuth setup" />
-          <IntegrationRow name="Google (Gmail · Drive · Calendar)" status="pending" detail="Email relay, file delivery, shoot day events — single OAuth grant" />
-          <IntegrationRow name="Anthropic API" status="pending" detail="Agent processing — needs API key" />
+          <IntegrationRow
+            name="Google (Gmail · Drive · Calendar)"
+            status={integrations?.googleConnected ? 'connected' : 'pending'}
+            detail={integrations?.googleConnected
+              ? 'Connected — Gmail, Drive, and Calendar active'
+              : 'Email relay, file delivery, shoot day events — single OAuth grant'}
+            action={!integrations?.googleConnected ? { label: 'Connect Google', href: '/api/auth/start/google' } : undefined}
+          />
+          <IntegrationRow
+            name="Xero"
+            status={integrations?.xeroConnected ? 'connected' : 'pending'}
+            detail={integrations?.xeroConnected
+              ? 'Connected — invoice sync active'
+              : 'Invoice sync — needs OAuth credentials (XERO_CLIENT_ID + XERO_CLIENT_SECRET)'}
+          />
+          <IntegrationRow
+            name="Anthropic API"
+            status={integrations?.anthropicConnected ? 'connected' : 'pending'}
+            detail={integrations?.anthropicConnected
+              ? 'Connected — brief parsing, quote drafting active'
+              : 'Agent processing — set ANTHROPIC_API_KEY in Vercel environment'}
+          />
         </div>
       </section>
     </div>
@@ -166,19 +186,37 @@ function InfoField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function IntegrationRow({ name, status, detail }: { name: string; status: 'connected' | 'pending' | 'error'; detail: string }) {
+function IntegrationRow({
+  name, status, detail, action,
+}: {
+  name: string;
+  status: 'connected' | 'pending' | 'error';
+  detail: string;
+  action?: { label: string; href: string };
+}) {
   const colors = {
     connected: PALETTE.success,
     pending: PALETTE.warning,
     error: PALETTE.danger,
   };
   return (
-    <div className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
-      <div>
-        <div className="text-xs font-medium" style={{ color: PALETTE.text }}>{name}</div>
-        <div className="text-[10px]" style={{ color: PALETTE.muted }}>{detail}</div>
+    <div className="flex items-center justify-between rounded border px-3 py-2.5" style={{ borderColor: PALETTE.border }}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ background: colors[status] }} />
+          <div className="text-xs font-medium" style={{ color: PALETTE.text }}>{name}</div>
+        </div>
+        <div className="text-[10px] mt-0.5 ml-4" style={{ color: PALETTE.muted }}>{detail}</div>
       </div>
-      <span className="inline-block h-2 w-2 rounded-full" style={{ background: colors[status] }} />
+      {action && (
+        <a
+          href={action.href}
+          className="ml-3 flex-shrink-0 rounded px-3 py-1 text-[11px] font-medium"
+          style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+        >
+          {action.label}
+        </a>
+      )}
     </div>
   );
 }

@@ -66,8 +66,23 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   if (filters.tier) query = query.eq('tier', filters.tier);
   if (filters.clientId) query = query.eq('client_id', filters.clientId);
   if (filters.search) {
-    // Match on title OR booking_ref (case-insensitive)
-    query = query.or(`title.ilike.%${filters.search}%,booking_ref.ilike.%${filters.search}%`);
+    // Pre-fetch matching client IDs so we can OR on client_id (PostgREST
+    // can't filter on embedded foreign-table columns inside .or())
+    const { data: matchedClients } = await supabase
+      .from('atelier_clients')
+      .select('id')
+      .or(`name.ilike.%${filters.search}%,company.ilike.%${filters.search}%`)
+      .limit(50);
+    const clientIds = (matchedClients ?? []).map((c: { id: string }) => c.id);
+
+    const orParts = [
+      `title.ilike.%${filters.search}%`,
+      `booking_ref.ilike.%${filters.search}%`,
+    ];
+    if (clientIds.length > 0) {
+      orParts.push(`client_id.in.(${clientIds.join(',')})`);
+    }
+    query = query.or(orParts.join(','));
   }
 
   const { data, count, error } = await query;
@@ -293,6 +308,60 @@ export async function getBookingCounts(): Promise<Record<string, number>> {
     counts[row.state] = (counts[row.state] ?? 0) + 1;
   }
   return counts;
+}
+
+// Attention items: bookings that need Jasper's input, ordered by urgency.
+// States and their implied action:
+//   morning_after_check → selects/OT review needed (highest urgency — time-sensitive)
+//   brief_received      → new brief in, needs parsing
+//   brief_parsed        → brief parsed, needs quote drafted
+//   quote_drafted       → quote ready to send to client
+export type AttentionItem = {
+  id: string;
+  booking_ref: string | null;
+  title: string;
+  state: BookingState;
+  client_company: string | null;
+  client_name: string | null;
+  updated_at: string;
+};
+
+const ATTENTION_STATES: BookingState[] = [
+  'morning_after_check',
+  'brief_received',
+  'brief_parsed',
+  'quote_drafted',
+];
+
+export async function getAttentionItems(): Promise<AttentionItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('id, booking_ref, title, state, updated_at, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
+    .in('state', ATTENTION_STATES)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  if (error || !data) return [];
+
+  // Sort by urgency: morning_after_check first, then by updated_at descending
+  const stateOrder = Object.fromEntries(ATTENTION_STATES.map((s, i) => [s, i]));
+  const rows = (data as unknown as Array<{
+    id: string; booking_ref: string | null; title: string; state: BookingState; updated_at: string;
+    client: { name: string; company: string | null } | null;
+  }>);
+
+  rows.sort((a, b) => (stateOrder[a.state] ?? 99) - (stateOrder[b.state] ?? 99));
+
+  return rows.map((r) => ({
+    id: r.id,
+    booking_ref: r.booking_ref,
+    title: r.title,
+    state: r.state,
+    client_company: r.client?.company ?? null,
+    client_name: r.client?.name ?? null,
+    updated_at: r.updated_at,
+  }));
 }
 
 export async function getUpcomingShoots(days = 14): Promise<Booking[]> {
