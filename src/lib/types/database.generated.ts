@@ -62,6 +62,57 @@ export type Database = {
         }
         Relationships: []
       }
+      atelier_app_users: {
+        Row: {
+          created_at: string
+          crew_id: string | null
+          display_name: string | null
+          invited_at: string | null
+          is_active: boolean
+          last_seen_at: string | null
+          role: string
+          talent_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          crew_id?: string | null
+          display_name?: string | null
+          invited_at?: string | null
+          is_active?: boolean
+          last_seen_at?: string | null
+          role: string
+          talent_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          crew_id?: string | null
+          display_name?: string | null
+          invited_at?: string | null
+          is_active?: boolean
+          last_seen_at?: string | null
+          role?: string
+          talent_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_app_users_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_crew"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_app_users_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_talent"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atelier_approvals: {
         Row: {
           action_type: string
@@ -2139,8 +2190,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_app_role: { Args: never; Returns: string }
+      current_crew_id: { Args: never; Returns: string }
+      current_talent_id: { Args: never; Returns: string }
       current_user_id: { Args: never; Returns: string }
       current_user_role: { Args: never; Returns: string }
+      is_owner_or_partner: { Args: never; Returns: boolean }
     }
     Enums: {
       atelier_agent_name:
