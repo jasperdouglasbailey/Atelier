@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import { parseDateRangeRaw as parseDateRange } from '@/lib/utils/daterange';
 
 export interface CrewBookingRow {
@@ -52,7 +53,7 @@ export async function listCrewBookings(crewId?: string): Promise<CrewBookingRow[
   const { data, error } = await query;
 
   if (error) {
-    console.error('[crew-bookings] list', error.message);
+    reportDataError('[crew-bookings] list', error);
     return [];
   }
 

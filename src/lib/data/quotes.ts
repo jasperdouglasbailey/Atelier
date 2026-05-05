@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import { createServiceClient } from '@/lib/supabase/service';
 import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
@@ -21,7 +22,7 @@ export async function listQuoteVersions(bookingId: string): Promise<QuoteVersion
     .eq('booking_id', bookingId)
     .order('version', { ascending: false });
 
-  if (error) { console.error('[quotes] list versions', error.message); return []; }
+  if (error) { reportDataError('[quotes] list versions', error); return []; }
   return (data ?? []) as QuoteVersion[];
 }
 
@@ -63,7 +64,7 @@ export async function createQuoteVersion(bookingId: string, notes?: string): Pro
     .select()
     .single();
 
-  if (error) { console.error('[quotes] create version', error.message); return null; }
+  if (error) { reportDataError('[quotes] create version', error); return null; }
 
   await emitEvent('quote.version_created', {
     booking_id: bookingId,
@@ -84,7 +85,7 @@ export async function recalcQuoteTotals(quoteVersionId: string): Promise<QuoteVe
     .eq('quote_version_id', quoteVersionId)
     .order('sort_order', { ascending: true });
 
-  if (linesErr) { console.error('[quotes] fetch lines for recalc', linesErr.message); return null; }
+  if (linesErr) { reportDataError('[quotes] fetch lines for recalc', linesErr); return null; }
 
   const feeLines = (lines ?? []) as FeeLine[];
   const totals = computeQuoteTotals(feeLines);
@@ -103,7 +104,7 @@ export async function recalcQuoteTotals(quoteVersionId: string): Promise<QuoteVe
     .select()
     .single();
 
-  if (qvErr) { console.error('[quotes] update totals', qvErr.message); return null; }
+  if (qvErr) { reportDataError('[quotes] update totals', qvErr); return null; }
 
   const quoteVersion = qv as QuoteVersion;
 
@@ -144,7 +145,7 @@ export async function listFeeLines(quoteVersionId: string): Promise<FeeLine[]> {
     .eq('quote_version_id', quoteVersionId)
     .order('sort_order', { ascending: true });
 
-  if (error) { console.error('[quotes] list lines', error.message); return []; }
+  if (error) { reportDataError('[quotes] list lines', error); return []; }
   return (data ?? []) as FeeLine[];
 }
 
@@ -209,7 +210,7 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
     .select()
     .single();
 
-  if (error) { console.error('[quotes] add line', error.message); return null; }
+  if (error) { reportDataError('[quotes] add line', error); return null; }
 
   // Recalc totals
   await recalcQuoteTotals(input.quote_version_id);
@@ -243,7 +244,7 @@ export async function updateFeeLine(
     .select()
     .single();
 
-  if (error) { console.error('[quotes] update line', error.message); return null; }
+  if (error) { reportDataError('[quotes] update line', error); return null; }
 
   const line = data as FeeLine;
   await recalcQuoteTotals(line.quote_version_id);
@@ -267,7 +268,7 @@ export async function removeFeeLine(id: string): Promise<boolean> {
     .delete()
     .eq('id', id);
 
-  if (error) { console.error('[quotes] remove line', error.message); return false; }
+  if (error) { reportDataError('[quotes] remove line', error); return false; }
 
   await recalcQuoteTotals((existing as { quote_version_id: string }).quote_version_id);
 
@@ -295,7 +296,7 @@ export async function listBookingTalent(bookingId: string) {
     .select('*, talent:atelier_talent(*)')
     .eq('booking_id', bookingId);
 
-  if (error) { console.error('[quotes] booking talent', error.message); return []; }
+  if (error) { reportDataError('[quotes] booking talent', error); return []; }
   return data ?? [];
 }
 
@@ -306,7 +307,7 @@ export async function listBookingCrew(bookingId: string) {
     .select('*, crew:atelier_crew(*)')
     .eq('booking_id', bookingId);
 
-  if (error) { console.error('[quotes] booking crew', error.message); return []; }
+  if (error) { reportDataError('[quotes] booking crew', error); return []; }
   return data ?? [];
 }
 
@@ -329,7 +330,7 @@ export async function addBookingTalent(input: {
     .select()
     .single();
 
-  if (error) { console.error('[quotes] add booking talent', error.message); return null; }
+  if (error) { reportDataError('[quotes] add booking talent', error); return null; }
   return data;
 }
 
@@ -349,7 +350,7 @@ export async function updateBookingCrewStatus(id: string, status: string) {
     .eq('id', id)
     .select()
     .single();
-  if (error) { console.error('[quotes] update booking crew status', error.message); return null; }
+  if (error) { reportDataError('[quotes] update booking crew status', error); return null; }
   return data;
 }
 
@@ -363,7 +364,7 @@ export async function updateBookingCrewStatusByCrewId(bookingId: string, crewId:
     .eq('booking_id', bookingId)
     .eq('crew_id', crewId)
     .select();
-  if (error) { console.error('[quotes] update booking crew status by crew_id', error.message); return null; }
+  if (error) { reportDataError('[quotes] update booking crew status by crew_id', error); return null; }
   return data;
 }
 
@@ -418,7 +419,7 @@ export async function addBookingCrew(input: {
     .single();
 
   if (error) {
-    console.error('[quotes] add booking crew', error.message);
+    reportDataError('[quotes] add booking crew', error);
     return { ok: false, error: error.message, reason: 'db_error' };
   }
   return { ok: true, data };
@@ -499,7 +500,7 @@ export async function listTalentBookingHistory(talentId: string): Promise<Talent
     .eq('talent_id', talentId)
     .order('created_at', { ascending: false });
 
-  if (error) { console.error('[quotes] talent history', error.message); return []; }
+  if (error) { reportDataError('[quotes] talent history', error); return []; }
 
   return ((data ?? []) as unknown[]).map((row) => {
     const r = row as Record<string, unknown>;

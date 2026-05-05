@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import type { UsageLicence, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
@@ -13,7 +14,7 @@ export async function listUsageLicences(bookingId: string): Promise<UsageLicence
     .eq('booking_id', bookingId)
     .order('created_at', { ascending: true });
 
-  if (error) { console.error('[usage] list', error.message); return []; }
+  if (error) { reportDataError('[usage] list', error); return []; }
   return (data ?? []) as UsageLicence[];
 }
 
@@ -38,7 +39,7 @@ export async function addUsageLicence(input: CreateUsageLicenceInput): Promise<U
     .select()
     .single();
 
-  if (error) { console.error('[usage] create', error.message); return null; }
+  if (error) { reportDataError('[usage] create', error); return null; }
 
   await logAudit({
     userId: await getCurrentActor(),
@@ -54,7 +55,7 @@ export async function addUsageLicence(input: CreateUsageLicenceInput): Promise<U
 export async function removeUsageLicence(id: string): Promise<boolean> {
   const supabase = await createClient();
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
-  if (error) { console.error('[usage] remove', error.message); return false; }
+  if (error) { reportDataError('[usage] remove', error); return false; }
 
   await logAudit({
     userId: await getCurrentActor(),

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import { createServiceClient } from '@/lib/supabase/service';
 import type { Booking, BookingState, ShootTier } from '@/lib/types/database';
 import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
@@ -92,7 +93,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
 
   const { data, count, error } = await query;
   if (error) {
-    console.error('[bookings] list failed', error.message);
+    reportDataError('[bookings] list failed', error);
     return { bookings: [], total: 0, page, pageSize };
   }
 
@@ -180,7 +181,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking 
     .single();
 
   if (error) {
-    console.error('[bookings] create failed', error.message);
+    reportDataError('[bookings] create failed', error);
     return null;
   }
 
@@ -227,7 +228,7 @@ export async function updateBooking(
     .single();
 
   if (error) {
-    console.error('[bookings] update failed', error.message);
+    reportDataError('[bookings] update failed', error);
     return null;
   }
 

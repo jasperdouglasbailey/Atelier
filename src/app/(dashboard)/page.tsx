@@ -5,6 +5,7 @@ import { getPendingCount } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
 import { describeEvent } from '@/lib/utils/event-descriptions';
 import { getReportSummary } from '@/lib/data/reports';
+import { runHealthProbes } from '@/lib/utils/health';
 import {
   BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS,
   PALETTE, ACTIVE_STATES,
@@ -27,7 +28,7 @@ const urgencyColor: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices] = await Promise.all([
+  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices, healthProbes] = await Promise.all([
     getBookingCounts(),
     getUpcomingShoots(14),
     getPendingCount(),
@@ -35,7 +36,10 @@ export default async function DashboardPage() {
     getAttentionItems(),
     getReportSummary(),
     getOverdueInvoices(),
+    runHealthProbes(),
   ]);
+
+  const failedProbes = healthProbes.filter((p) => !p.ok);
 
   const totalActive = ACTIVE_STATES.reduce((s, st) => s + (counts[st] ?? 0), 0);
 
@@ -48,6 +52,42 @@ export default async function DashboardPage() {
     <>
       <Topbar title="Dashboard" />
       <div className="p-4 sm:p-6 space-y-6">
+        {/* Health banner — only renders when one of the critical-query
+            probes fails. Lets Jasper see schema/RLS drift before users hit it. */}
+        {failedProbes.length > 0 && (
+          <section
+            className="rounded-lg border-l-2 px-4 py-3"
+            style={{ background: `${PALETTE.danger}11`, borderColor: PALETTE.danger }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.danger }}>
+                  System health — {failedProbes.length} query failing
+                </div>
+                <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
+                  These run on every dashboard load. A failure usually means a column
+                  rename, missing migration, or RLS regression.
+                </div>
+              </div>
+              <Link
+                href="/api/health?probe=1"
+                className="text-[11px] underline"
+                style={{ color: PALETTE.danger }}
+              >
+                Raw output →
+              </Link>
+            </div>
+            <ul className="mt-2 space-y-0.5">
+              {failedProbes.map((p) => (
+                <li key={p.name} className="text-[11px] tabular-nums" style={{ color: PALETTE.text }}>
+                  <span className="font-mono opacity-70">{p.name}:</span>{' '}
+                  <span style={{ color: PALETTE.danger }}>{'error' in p ? p.error : ''}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Summary KPI cards */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Active Bookings" value={totalActive} href="/bookings" />
