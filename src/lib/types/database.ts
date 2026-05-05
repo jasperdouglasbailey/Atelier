@@ -247,6 +247,8 @@ export interface Booking {
   } | null;
   drive_root_link: string | null;
   calendar_event_id: string | null;
+  /** Opaque UUID for the /q/[token] public quote link sent to clients. */
+  quote_token: string;
 }
 
 export interface BookingTalent {

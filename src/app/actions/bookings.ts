@@ -283,6 +283,7 @@ function buildQuoteEmailHtml(opts: {
   tier: string;
   grandTotal: number;
   shootDates: string | null;
+  quoteUrl?: string;
 }): string {
   const lines: string[] = [
     `<p>Hi ${opts.clientName || 'there'},</p>`,
@@ -299,8 +300,16 @@ function buildQuoteEmailHtml(opts: {
     lines.push(`  <tr><td style="padding:8px 12px 4px 0;color:#666;font-weight:600">Total (inc. GST)</td><td style="padding:8px 0;font-weight:600;font-size:16px">${formatCurrencyAU(opts.grandTotal)}</td></tr>`);
   }
   lines.push('</table>');
+  if (opts.quoteUrl) {
+    lines.push(
+      `<p style="margin:20px 0"><a href="${opts.quoteUrl}" style="display:inline-block;padding:10px 20px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;font-weight:600">View Full Quote</a></p>`,
+    );
+  }
   lines.push('<p>To confirm, please reply to this email. We\'ll hold the dates and issue paperwork once we hear from you.</p>');
   lines.push('<p style="margin-top:24px">Jasper Bailey<br>Saunders &amp; Co<br><a href="mailto:info@saundersandco.com.au">info@saundersandco.com.au</a></p>');
+  if (opts.quoteUrl) {
+    lines.push(`<p style="margin-top:16px;font-size:11px;color:#999">Quote link: <a href="${opts.quoteUrl}" style="color:#999">${opts.quoteUrl}</a></p>`);
+  }
   return lines.join('\n');
 }
 
@@ -324,6 +333,9 @@ export async function sendQuoteEmailAction(
   const defaultSubject = `[${booking.booking_ref ?? bookingId.slice(0, 8)}] Quote — ${booking.title}`;
   const subject = overrides?.subject ?? defaultSubject;
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://atelier.saundersandco.com.au';
+  const quoteUrl = booking.quote_token ? `${appUrl}/q/${booking.quote_token}` : undefined;
+
   const body = overrides?.body ?? buildQuoteEmailHtml({
     bookingRef: booking.booking_ref ?? '',
     title: booking.title,
@@ -331,6 +343,7 @@ export async function sendQuoteEmailAction(
     tier: booking.tier,
     grandTotal: booking.grand_total ?? 0,
     shootDates: booking.shoot_date_notes ?? null,
+    quoteUrl,
   });
 
   if (!isGoogleConfigured()) {

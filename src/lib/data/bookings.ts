@@ -115,6 +115,24 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   return data as unknown as BookingDetailRow;
 }
 
+/**
+ * Look up a booking by its public quote token.
+ * Used by the /q/[token] client-facing route (no auth required).
+ */
+export async function getBookingByQuoteToken(token: string): Promise<BookingDetailRow | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+    )
+    .eq('quote_token', token)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as unknown as BookingDetailRow;
+}
+
 // ============================================================
 // Mutations
 // ============================================================
