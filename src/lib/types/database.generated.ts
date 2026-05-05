@@ -730,10 +730,12 @@ export type Database = {
           certifications: string[] | null
           created_at: string
           default_day_rate: number | null
+          dob: string | null
           drive_folder_id: string | null
           drive_folder_link: string | null
           email: string | null
           gst_registered: boolean | null
+          home_address: string | null
           id: string
           is_active: boolean
           kit_list: string | null
@@ -742,6 +744,7 @@ export type Database = {
           notes: string | null
           onboarding_completed: boolean | null
           onboarding_token: string | null
+          onboarding_token_expires_at: string | null
           preferred_comms: string | null
           primary_role: string | null
           secondary_roles: string[] | null
@@ -758,10 +761,12 @@ export type Database = {
           certifications?: string[] | null
           created_at?: string
           default_day_rate?: number | null
+          dob?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           email?: string | null
           gst_registered?: boolean | null
+          home_address?: string | null
           id?: string
           is_active?: boolean
           kit_list?: string | null
@@ -770,6 +775,7 @@ export type Database = {
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null
+          onboarding_token_expires_at?: string | null
           preferred_comms?: string | null
           primary_role?: string | null
           secondary_roles?: string[] | null
@@ -786,10 +792,12 @@ export type Database = {
           certifications?: string[] | null
           created_at?: string
           default_day_rate?: number | null
+          dob?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           email?: string | null
           gst_registered?: boolean | null
+          home_address?: string | null
           id?: string
           is_active?: boolean
           kit_list?: string | null
@@ -798,6 +806,7 @@ export type Database = {
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null
+          onboarding_token_expires_at?: string | null
           preferred_comms?: string | null
           primary_role?: string | null
           secondary_roles?: string[] | null
@@ -1234,6 +1243,7 @@ export type Database = {
           notes: string | null
           onboarding_completed: boolean | null
           onboarding_token: string | null
+          onboarding_token_expires_at: string | null
           passport_expiry: string | null
           preferred_comms: string | null
           pronouns: string | null
@@ -1277,6 +1287,7 @@ export type Database = {
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null
+          onboarding_token_expires_at?: string | null
           passport_expiry?: string | null
           preferred_comms?: string | null
           pronouns?: string | null
@@ -1320,6 +1331,7 @@ export type Database = {
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null
+          onboarding_token_expires_at?: string | null
           passport_expiry?: string | null
           preferred_comms?: string | null
           pronouns?: string | null

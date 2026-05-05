@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { getCrewMember } from '@/lib/data/entities';
 import { listCrewBookings } from '@/lib/data/crew-bookings';
+import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import { PALETTE, CREW_TIER_LABELS, CREW_STATUS_LABELS, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
@@ -100,6 +101,7 @@ export default async function CrewDetailPage({ params }: Props) {
               >
                 ✏ Edit
               </Link>
+              <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
             </div>
           </div>
         </section>

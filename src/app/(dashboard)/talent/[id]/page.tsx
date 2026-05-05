@@ -6,6 +6,7 @@ import { listTalentBookingHistory } from '@/lib/data/quotes';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, ARTIST_DISCIPLINE_LABELS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
 import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 import ArchiveTalentButton from '@/components/entities/ArchiveTalentButton';
+import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
 
@@ -108,6 +109,7 @@ export default async function TalentDetailPage({ params }: Props) {
                 ✏ Edit
               </Link>
               <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
+              <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />
             </div>
           </div>
         </section>
