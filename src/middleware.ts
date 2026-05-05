@@ -20,6 +20,9 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   - Static asset paths (matcher excludes _next/static, _next/image, favicon)
  */
 
+// /portal/* is auth-required (gate is in the portal layout — checks role) but
+// it's not a public path. Listed here only as a comment to make the routing
+// architecture explicit.
 const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/api/cron', '/onboard', '/q'];
 
 function isPublicPath(pathname: string): boolean {

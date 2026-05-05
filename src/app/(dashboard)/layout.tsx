@@ -1,11 +1,20 @@
+import { redirect } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import KillSwitchBanner from '@/components/layout/KillSwitchBanner';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { getPendingCount } from '@/lib/data/approvals';
+import { getCurrentAppUser } from '@/lib/data/app-users';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Role-based routing: talent/crew users belong in their portal, not the
+  // owner dashboard. Owner/partner (or unprovisioned/no-role users for
+  // backwards compatibility) stay here.
+  const appUser = await getCurrentAppUser();
+  if (appUser?.role === 'talent') redirect('/portal/talent');
+  if (appUser?.role === 'crew')   redirect('/portal/crew');
+
   const [initialState, inboxCount, userEmail] = await Promise.all([
     getKillSwitchState(),
     getPendingCount(),
