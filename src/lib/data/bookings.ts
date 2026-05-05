@@ -411,3 +411,78 @@ export async function getUpcomingShoots(days = 14): Promise<Booking[]> {
   if (error) return [];
   return (data ?? []) as Booking[];
 }
+
+// ============================================================
+// Overdue invoice tracking
+// ============================================================
+
+export type OverdueInvoice = {
+  id: string;
+  booking_ref: string | null;
+  title: string;
+  grand_total: number;
+  invoice_issued_at: string;
+  days_outstanding: number;
+  payment_terms_days: number;
+  is_overdue: boolean;
+  client_id: string | null;
+  client_name: string | null;
+  client_company: string | null;
+};
+
+/**
+ * Fetches all unpaid invoiced bookings (state = invoice_issued) and
+ * annotates each with days outstanding and whether it's overdue relative
+ * to the client's payment_terms_days (defaults to 30 days if unset).
+ *
+ * Only returns bookings where the invoice was issued at least 1 day ago.
+ */
+export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      'id, booking_ref, title, grand_total, invoice_issued_at, client_id, client:atelier_clients!atelier_bookings_client_id_fkey(name, company, payment_terms_days)',
+    )
+    .eq('state', 'invoice_issued')
+    .not('invoice_issued_at', 'is', null)
+    .order('invoice_issued_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  const now = Date.now();
+  const rows = data as unknown as Array<{
+    id: string;
+    booking_ref: string | null;
+    title: string;
+    grand_total: number;
+    invoice_issued_at: string;
+    client_id: string | null;
+    client: { name: string; company: string | null; payment_terms_days: number | null } | null;
+  }>;
+
+  return rows
+    .map((r): OverdueInvoice => {
+      const issuedMs = new Date(r.invoice_issued_at).getTime();
+      const daysOutstanding = Math.max(0, Math.round((now - issuedMs) / 86_400_000));
+      const paymentTerms = r.client?.payment_terms_days ?? 30;
+      return {
+        id: r.id,
+        booking_ref: r.booking_ref,
+        title: r.title,
+        grand_total: r.grand_total,
+        invoice_issued_at: r.invoice_issued_at,
+        days_outstanding: daysOutstanding,
+        payment_terms_days: paymentTerms,
+        is_overdue: daysOutstanding > paymentTerms,
+        client_id: r.client_id,
+        client_name: r.client?.name ?? null,
+        client_company: r.client?.company ?? null,
+      };
+    })
+    // Surface overdue first, then sort by age descending within each group
+    .sort((a, b) => {
+      if (a.is_overdue !== b.is_overdue) return a.is_overdue ? -1 : 1;
+      return b.days_outstanding - a.days_outstanding;
+    });
+}

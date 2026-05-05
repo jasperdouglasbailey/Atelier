@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
-import { getBookingCounts, getUpcomingShoots, getAttentionItems } from '@/lib/data/bookings';
+import { getBookingCounts, getUpcomingShoots, getAttentionItems, getOverdueInvoices } from '@/lib/data/bookings';
 import { getPendingCount } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
 import { describeEvent } from '@/lib/utils/event-descriptions';
@@ -27,13 +27,14 @@ const urgencyColor: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary] = await Promise.all([
+  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices] = await Promise.all([
     getBookingCounts(),
     getUpcomingShoots(14),
     getPendingCount(),
     listEvents({ limit: 10 }),
     getAttentionItems(),
     getReportSummary(),
+    getOverdueInvoices(),
   ]);
 
   const totalActive = ACTIVE_STATES.reduce((s, st) => s + (counts[st] ?? 0), 0);
@@ -68,6 +69,66 @@ export default async function DashboardPage() {
             href="/reports"
           />
         </div>
+
+        {/* Overdue invoices — surfaces unpaid invoices past payment terms */}
+        {overdueInvoices.length > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: `${PALETTE.danger}55` }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.danger }}>
+                Invoices Outstanding ({overdueInvoices.length})
+              </h2>
+              <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+                {formatCurrency(overdueInvoices.reduce((s, i) => s + i.grand_total, 0))} total
+              </span>
+            </div>
+            <div className="space-y-2">
+              {overdueInvoices.map((inv) => {
+                const clientLabel = inv.client_company || inv.client_name;
+                return (
+                  <Link
+                    key={inv.id}
+                    href={`/bookings/${inv.id}`}
+                    className="flex items-center justify-between rounded-md border px-4 py-3 transition hover:opacity-80"
+                    style={{
+                      borderColor: inv.is_overdue ? `${PALETTE.danger}44` : `${PALETTE.warning}44`,
+                      background: inv.is_overdue ? `${PALETTE.danger}08` : `${PALETTE.warning}08`,
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>
+                          {inv.title}
+                        </span>
+                        {inv.booking_ref && (
+                          <span className="font-mono text-[10px] flex-shrink-0" style={{ color: PALETTE.accent }}>
+                            {inv.booking_ref}
+                          </span>
+                        )}
+                      </div>
+                      {clientLabel && (
+                        <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>{clientLabel}</div>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-3 ml-4 text-right">
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: PALETTE.text }}>
+                          {formatCurrency(inv.grand_total)}
+                        </div>
+                        <div
+                          className="text-[11px] font-medium"
+                          style={{ color: inv.is_overdue ? PALETTE.danger : PALETTE.warning }}
+                        >
+                          {inv.days_outstanding}d outstanding
+                          {inv.is_overdue ? ` (terms: ${inv.payment_terms_days}d)` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Morning decision queue */}
         {attentionItems.length > 0 && (
