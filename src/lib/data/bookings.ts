@@ -50,7 +50,9 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   let query = supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company), booking_talent:atelier_booking_talent(talent:atelier_talent(name, discipline))',
+      // The atelier_talent table has working_name (not name) — alias it back to
+      // `name` so list/board components can read primaryArtist.name unchanged.
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company), booking_talent:atelier_booking_talent(talent:atelier_talent(name:working_name, discipline))',
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
