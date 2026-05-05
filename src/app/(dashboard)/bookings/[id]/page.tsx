@@ -13,6 +13,8 @@ import BookingTeam from '@/components/bookings/BookingTeam';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
 import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
+import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
+import PrecedentSignals from '@/components/bookings/PrecedentSignals';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 import { searchInbox } from '@/lib/integrations/gmail';
@@ -75,6 +77,17 @@ export default async function BookingDetailPage({ params }: Props) {
     ? await getTalentRatePrecedents(primaryTalentId, id)
     : [];
 
+  // Phase 3 precedent signals — corpus + live history aggregates
+  const proposedDayRate = bookingTalent[0]?.day_rate ?? null;
+  const [talentBand, clientBand, talentClientHistory, clientCorpus] = await Promise.all([
+    primaryTalentId ? getTalentRateBand({ talentId: primaryTalentId, tier: booking.tier }) : Promise.resolve(null),
+    booking.client_id ? getClientRateBand({ clientId: booking.client_id, tier: booking.tier }) : Promise.resolve(null),
+    primaryTalentId && booking.client_id
+      ? getTalentClientHistory({ talentId: primaryTalentId, clientId: booking.client_id })
+      : Promise.resolve([]),
+    booking.client_id ? getClientCorpusSignal({ clientId: booking.client_id, tier: booking.tier }) : Promise.resolve(null),
+  ]);
+
   // Agency margin: commission + ASF + super spread. Computed from fee lines
   // because the booking row doesn't store commission/super totals separately.
   const margin = feeLines.length > 0
@@ -88,6 +101,14 @@ export default async function BookingDetailPage({ params }: Props) {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <BookingDetail booking={booking} margin={margin} licences={usageLicences} googleConfigured={isGoogleConfigured()} />
+            <PrecedentSignals
+              talentBand={talentBand}
+              clientBand={clientBand}
+              talentClientHistory={talentClientHistory}
+              clientCorpus={clientCorpus}
+              proposedDayRate={proposedDayRate}
+              proposedGrandTotal={booking.grand_total}
+            />
             {/* Inbox shortcut — focused Brief→Quote→Send workspace */}
             {['brief_received', 'brief_parsed', 'quote_drafted'].includes(booking.state) && (
               <div
