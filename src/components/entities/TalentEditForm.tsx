@@ -45,6 +45,7 @@ export default function TalentEditForm({ talent }: Props) {
       return;
     }
     router.push(`/talent/${talent.id}`);
+    router.refresh();
   }
 
   const inputStyle = {

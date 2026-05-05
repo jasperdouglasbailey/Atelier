@@ -33,6 +33,7 @@ export default function CrewEditForm({ crew }: Props) {
       return;
     }
     router.push(`/crew/${crew.id}`);
+    router.refresh();
   }
 
   const inputStyle = {

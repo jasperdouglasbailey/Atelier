@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent } from '@/lib/types/database';
 import type { RatePrecedent } from '@/lib/data/quotes';
-import { computeQuoteTotals, type ComputedFeeLine } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import {
@@ -78,12 +78,14 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (latestVersion) setSelectedVersionId(latestVersion.id);
   }, [initialFeeLines, latestVersion]);
 
-  // Inline editing state
+  // Inline editing state. asf_rate is editable here so Jasper can flip ASF
+  // off on equipment/pass-through lines without leaving the quote table.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
     description: string;
     quantity: string;
     unit_price: string;
+    asf_rate: string; // stored as percent string, e.g. '15' or '0'
   } | null>(null);
 
   // Compute totals with live preview when a row is being edited
@@ -91,7 +93,9 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (l.id !== editingId || !editValues) return l;
     const qty = parseFloat(editValues.quantity) || l.quantity;
     const price = parseFloat(editValues.unit_price) || l.unit_price;
-    return { ...l, quantity: qty, unit_price: price, subtotal: qty * price };
+    const asfRatePct = parseFloat(editValues.asf_rate);
+    const asfRate = Number.isFinite(asfRatePct) ? asfRatePct / 100 : (l.asf_rate ?? DEFAULT_ASF_RATE);
+    return { ...l, quantity: qty, unit_price: price, subtotal: qty * price, asf_rate: asfRate };
   });
   const totals = computeQuoteTotals(previewLines);
 
@@ -107,6 +111,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       description: line.description,
       quantity: String(line.quantity),
       unit_price: String(line.unit_price),
+      asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
     });
     setShowAddLine(false);
   }
@@ -124,6 +129,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     fd.set('quantity', editValues.quantity);
     fd.set('unit_price', editValues.unit_price);
     fd.set('booking_id', bookingId);
+    // asf_rate is stored as a decimal in DB; convert from percent string
+    const asfPct = parseFloat(editValues.asf_rate);
+    if (Number.isFinite(asfPct)) {
+      fd.set('asf_rate', String(asfPct / 100));
+    }
     const result = await updateFeeLineAction(line.id, fd);
     if ('error' in result) {
       setError(result.error ?? 'Failed to save');
@@ -484,7 +494,23 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                         />
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.accent }}>{formatCurrency(previewQty * previewPrice)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{formatCurrency(previewComputed?.asfAmount ?? 0)}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number" step="1" min="0" max="100"
+                            value={editValues.asf_rate}
+                            onChange={(e) => setEditValues((v) => v && { ...v, asf_rate: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); }}
+                            className="w-12 rounded border px-1.5 py-1 text-xs text-right tabular-nums"
+                            style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                            title="ASF rate (%) — set to 0 to skip ASF on this line"
+                          />
+                          <span className="text-[10px]" style={{ color: PALETTE.muted }}>%</span>
+                        </div>
+                        <div className="mt-0.5 text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
+                          {formatCurrency(previewComputed?.asfAmount ?? 0)}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{formatCurrency(previewComputed?.gstAmount ?? 0)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(previewComputed?.lineTotal ?? 0)}</td>
                       <td className="px-3 py-2">
@@ -517,7 +543,16 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                     <td className="px-3 py-2 text-right tabular-nums">{line.quantity}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(line.unit_price)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.subtotal ?? line.subtotal)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.asfAmount ?? line.asf_amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {(line.asf_rate ?? 0) === 0 ? (
+                        <span style={{ color: PALETTE.muted }} title="No ASF on this line — click to edit">—</span>
+                      ) : (
+                        <>
+                          {formatCurrency(computed?.asfAmount ?? line.asf_amount)}
+                          <span className="ml-1 text-[9px] opacity-60">{Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)}%</span>
+                        </>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.gstAmount ?? 0)}</td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(computed?.lineTotal ?? 0)}</td>
                     <td className="px-3 py-2">
@@ -582,12 +617,43 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </span>
           </div>
 
-          {totals.totalCommission > 0 && (
-            <div className="flex items-baseline justify-between text-xs" style={{ color: PALETTE.muted }}>
-              <span>Agency commission (retained at remittance)</span>
-              <span className="tabular-nums">{formatCurrency(totals.totalCommission)} + {formatCurrency(totals.totalCommissionGst)} GST</span>
-            </div>
-          )}
+          {/* Agency margin breakdown — what Saunders & Co keeps from this booking.
+              Includes commission on artist labour, ALL ASF (artist + outgoings — no
+              other agency takes the ASF on outgoings, we keep it), and the super
+              spread (15% charged − 12% paid to fund). */}
+          {(() => {
+            const margin = computeAgencyMargin(totals);
+            if (margin.total <= 0) return null;
+            return (
+              <div
+                className="rounded-md border-l-2 px-3 py-2 space-y-1"
+                style={{ borderColor: PALETTE.accent, background: `${PALETTE.accent}08` }}
+              >
+                <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.accent }}>
+                  <span>Agency margin (retained)</span>
+                  <span className="tabular-nums text-sm font-bold normal-case tracking-normal">{formatCurrency(margin.total)}</span>
+                </div>
+                {margin.commission > 0 && (
+                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                    <span>Commission (artist labour)</span>
+                    <span className="tabular-nums">{formatCurrency(margin.commission)}<span className="opacity-60"> + {formatCurrency(totals.totalCommissionGst)} GST</span></span>
+                  </div>
+                )}
+                {margin.asf > 0 && (
+                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                    <span>ASF (artist + outgoings)</span>
+                    <span className="tabular-nums">{formatCurrency(margin.asf)}</span>
+                  </div>
+                )}
+                {margin.superSpread > 0 && (
+                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                    <span>Super spread (15% charged − 12% paid)</span>
+                    <span className="tabular-nums">{formatCurrency(margin.superSpread)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -616,6 +682,12 @@ function TotalField({ label, value, muted, warn }: { label: string; value: numbe
 // Add line form (inline)
 // ============================================================
 
+// Line types where ASF doesn't typically apply (fringes / pass-through costs).
+// Used to default the "Charge ASF" toggle to off.
+const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>([
+  'crew_equipment', 'equipment_rental',
+]);
+
 function AddLineForm({
   quoteVersionId, bookingId, onSubmit, onCancel, busy,
 }: {
@@ -626,6 +698,13 @@ function AddLineForm({
   busy: boolean;
 }) {
   const [lineType, setLineType] = useState<FeeLineType>('artist_fee');
+  const [chargeAsf, setChargeAsf] = useState<boolean>(!ASF_OFF_BY_DEFAULT.has('artist_fee'));
+
+  // Re-default ASF toggle whenever line type changes — Jasper can still override.
+  function handleLineTypeChange(t: FeeLineType) {
+    setLineType(t);
+    setChargeAsf(!ASF_OFF_BY_DEFAULT.has(t));
+  }
 
   return (
     <form
@@ -642,7 +721,7 @@ function AddLineForm({
           <select
             name="line_type"
             value={lineType}
-            onChange={(e) => setLineType(e.target.value as FeeLineType)}
+            onChange={(e) => handleLineTypeChange(e.target.value as FeeLineType)}
             className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
             style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
           >
@@ -684,14 +763,27 @@ function AddLineForm({
         </div>
         <div>
           <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
-            ASF Rate (default {(DEFAULT_ASF_RATE * 100).toFixed(0)}%)
+            ASF
           </label>
-          <input
-            name="asf_rate" type="number" step="0.01" min="0" max="1"
-            placeholder={String(DEFAULT_ASF_RATE)}
-            className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
-            style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
-          />
+          <label
+            className="mt-0.5 flex items-center gap-2 rounded border px-2 py-1.5 text-xs cursor-pointer select-none"
+            style={{
+              background: chargeAsf ? `${PALETTE.accent}10` : PALETTE.bg,
+              borderColor: chargeAsf ? `${PALETTE.accent}55` : PALETTE.border,
+              color: chargeAsf ? PALETTE.accent : PALETTE.muted,
+            }}
+            title="Uncheck to skip ASF on this line — useful for equipment rentals and other pass-through costs."
+          >
+            <input
+              type="checkbox"
+              checked={chargeAsf}
+              onChange={(e) => setChargeAsf(e.target.checked)}
+              className="accent-blue-400"
+            />
+            <span>Charge {(DEFAULT_ASF_RATE * 100).toFixed(0)}%</span>
+          </label>
+          {/* Hidden input feeds the form action — 0 when toggle is off. */}
+          <input type="hidden" name="asf_rate" value={chargeAsf ? DEFAULT_ASF_RATE : 0} />
         </div>
       </div>
 

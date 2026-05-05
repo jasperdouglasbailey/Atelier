@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import {
   createQuoteVersion, addFeeLine, updateFeeLine, removeFeeLine,
   addBookingTalent, removeBookingTalent, addBookingCrew, removeBookingCrew,
-  listFeeLines,
+  listFeeLines, getFeeLine,
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
 import type { FeeLineType, FeeLine } from '@/lib/types/database';
@@ -154,15 +154,24 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
     updates.unit_price = Number(price);
   }
 
-  // Recompute subtotal + asf if qty or price changed
-  if (updates.quantity != null || updates.unit_price != null) {
-    const q = (updates.quantity as number) ?? Number(formData.get('current_quantity') || 1);
-    const p = (updates.unit_price as number) ?? Number(formData.get('current_unit_price') || 0);
-    updates.subtotal = Math.round(q * p * 100) / 100;
+  // ASF rate can be updated independently of qty/price — Jasper toggles it
+  // off for equipment / pass-through lines without touching anything else.
+  const asfRateRaw = formData.get('asf_rate');
+  const asfRateChanged = asfRateRaw != null && asfRateRaw !== '';
+  if (asfRateChanged) {
+    updates.asf_rate = Number(asfRateRaw);
+  }
 
-    const asfRate = Number(formData.get('asf_rate') || formData.get('current_asf_rate') || DEFAULT_ASF_RATE);
-    updates.asf_rate = asfRate;
-    updates.asf_amount = Math.round((updates.subtotal as number) * asfRate * 100) / 100;
+  // Recompute subtotal + asf_amount whenever qty, price, or asf_rate changed.
+  // Pull whichever values aren't being updated from the existing row so the
+  // arithmetic stays consistent.
+  if (updates.quantity != null || updates.unit_price != null || asfRateChanged) {
+    const existing = await getFeeLine(id);
+    const q = (updates.quantity as number) ?? existing?.quantity ?? 1;
+    const p = (updates.unit_price as number) ?? existing?.unit_price ?? 0;
+    const r = (updates.asf_rate as number) ?? existing?.asf_rate ?? DEFAULT_ASF_RATE;
+    updates.subtotal = Math.round(q * p * 100) / 100;
+    updates.asf_amount = Math.round((updates.subtotal as number) * r * 100) / 100;
   }
 
   const notes = formData.get('notes');

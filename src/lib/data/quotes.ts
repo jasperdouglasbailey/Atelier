@@ -125,6 +125,17 @@ export async function recalcQuoteTotals(quoteVersionId: string): Promise<QuoteVe
 // Fee lines
 // ============================================================
 
+export async function getFeeLine(id: string): Promise<FeeLine | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(LINE_TABLE)
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as FeeLine;
+}
+
 export async function listFeeLines(quoteVersionId: string): Promise<FeeLine[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

@@ -236,6 +236,7 @@ export default function LocationForm({ location }: Props) {
 
     if (result.error) { setError(result.error); return; }
     router.push(location ? `/locations/${location.id}` : `/locations/${result.id}`);
+    router.refresh();
   }
 
   const v = location;
