@@ -375,6 +375,44 @@ export interface Approval {
   booking?: Booking;
 }
 
+export type StudioType =
+  | 'photo_studio' | 'film_studio' | 'outdoor' | 'retail'
+  | 'residential' | 'venue' | 'other';
+
+export interface Location {
+  id: string;
+  created_at: string;
+  updated_at: string;
+
+  name: string;
+  alias: string | null;
+  studio_type: StudioType;
+
+  address: string | null;
+  suburb: string | null;
+  state: string;
+  postcode: string | null;
+
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  website: string | null;
+
+  half_day_rate: number | null;
+  full_day_rate: number | null;
+  weekend_surcharge_pct: number | null;
+  rate_notes: string | null;
+
+  facilities: string[] | null;
+  parking_notes: string | null;
+  access_notes: string | null;
+  square_metres: number | null;
+  max_capacity: number | null;
+
+  notes: string | null;
+  is_active: boolean;
+}
+
 export interface KillSwitchState {
   id: string;
   is_active: boolean;

@@ -5,12 +5,13 @@ import { useState } from 'react';
 import { createBookingAction } from '@/app/actions/bookings';
 import { createClientAction, createBrandAction } from '@/app/actions/entities';
 import { SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE } from '@/lib/utils/constants';
-import type { Client, Brand, Talent, UsageMedia, UsageTerritory, ArtistDiscipline } from '@/lib/types/database';
+import type { Client, Brand, Talent, Location, UsageMedia, UsageTerritory, ArtistDiscipline } from '@/lib/types/database';
 
 type Props = {
   clients: Client[];
   brands: Brand[];
   talent: Talent[];
+  locations: Location[];
 };
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
@@ -163,7 +164,7 @@ const USAGE_TERRITORY_OPTIONS: { value: UsageTerritory; label: string }[] = [
   { value: 'asia_incl_japan', label: 'Asia (incl. Japan)' }, { value: 'middle_east', label: 'Middle East' }, { value: 'emea', label: 'EMEA' },
 ];
 
-export default function BookingForm({ clients: initialClients, brands: initialBrands, talent }: Props) {
+export default function BookingForm({ clients: initialClients, brands: initialBrands, talent, locations }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -184,6 +185,23 @@ export default function BookingForm({ clients: initialClients, brands: initialBr
 
   // Tier — defaults based on artist discipline when artist is picked
   const [tier, setTier] = useState<string>('content');
+
+  // Location library pick
+  const [locationPickId, setLocationPickId] = useState('');
+  const [shootLocationText, setShootLocationText] = useState('');
+
+  function handleLocationPick(e: React.ChangeEvent<HTMLSelectElement>) {
+    const id = e.target.value;
+    setLocationPickId(id);
+    if (id) {
+      const loc = locations.find((l) => l.id === id);
+      if (loc) {
+        // Auto-fill the text field with suburb-level info
+        const parts = [loc.name, loc.suburb].filter(Boolean).join(', ');
+        setShootLocationText(parts);
+      }
+    }
+  }
 
   // Usage arrays
   const [selectedMedia, setSelectedMedia] = useState<Set<UsageMedia>>(new Set());
@@ -434,7 +452,36 @@ export default function BookingForm({ clients: initialClients, brands: initialBr
       {/* ── Location & Dates ───────────────────────────────────── */}
       <div>
         <label className={labelClass} style={labelStyle}>Shoot Location</label>
-        <input name="shoot_location" className={inputClass} style={inputStyle} placeholder="e.g. Studio 301, Surry Hills" />
+        {locations.length > 0 && (
+          <div className="mb-2">
+            <select
+              value={locationPickId}
+              onChange={handleLocationPick}
+              className={inputClass}
+              style={{ ...inputStyle, fontSize: 12, color: locationPickId ? PALETTE.text : PALETTE.muted }}
+            >
+              <option value="">— Pick from location library —</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}{l.suburb ? ` · ${l.suburb}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <input
+          name="shoot_location"
+          value={shootLocationText}
+          onChange={(e) => { setShootLocationText(e.target.value); setLocationPickId(''); }}
+          className={inputClass}
+          style={inputStyle}
+          placeholder="e.g. Studio 301, Surry Hills"
+        />
+        {locationPickId && (
+          <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.accent }}>
+            Pre-filled from location library — edit freely.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
