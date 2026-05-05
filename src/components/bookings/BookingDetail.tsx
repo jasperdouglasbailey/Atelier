@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
-import type { BookingState } from '@/lib/types/database';
+import type { BookingState, UsageLicence } from '@/lib/types/database';
 import type { AgencyMargin } from '@/lib/utils/fee-engine';
+import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
@@ -29,7 +30,7 @@ function formatShootDates(range: string | null): string | null {
   return formatDate(start);
 }
 
-type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null };
+type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null; licences: UsageLicence[] };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -50,7 +51,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking, margin = null }: Props) {
+export default function BookingDetail({ booking, margin = null, licences }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -204,12 +205,39 @@ export default function BookingDetail({ booking, margin = null }: Props) {
         <Field label="Selects Cadence" value={booking.selects_cadence} />
       </Section>
 
-      <Section title="Usage">
-        <Field label="Media" value={booking.usage_media?.join(', ')} />
-        <Field label="Territory" value={booking.usage_territory?.join(', ')} />
-        <Field label="Duration" value={booking.usage_duration_months ? `${booking.usage_duration_months} months` : null} />
-        <Field label="Notes" value={booking.usage_notes} />
-      </Section>
+      {/* Usage brief fields + Usage Licences — shown in one combined panel */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage</h3>
+        {(booking.usage_media?.length || booking.usage_territory?.length || booking.usage_duration_months || booking.usage_notes) ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {booking.usage_duration_months ? <Field label="Duration" value={`${booking.usage_duration_months} months`} /> : null}
+            {booking.usage_notes ? <Field label="Notes" value={booking.usage_notes} /> : null}
+            {booking.usage_media?.length ? (
+              <div className="sm:col-span-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Media</div>
+                <div className="flex flex-wrap gap-1">
+                  {booking.usage_media.map((m) => (
+                    <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{m.replace(/_/g, ' ')}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {booking.usage_territory?.length ? (
+              <div className="sm:col-span-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Territory</div>
+                <div className="flex flex-wrap gap-1">
+                  {booking.usage_territory.map((t) => (
+                    <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{t.replace(/_/g, ' ')}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="border-t pt-4" style={{ borderColor: PALETTE.border }}>
+          <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
+        </div>
+      </section>
 
       <Section title="Financials">
         <Field label="Subtotal" value={booking.subtotal > 0 ? formatCurrency(booking.subtotal, 'AUD') : null} />

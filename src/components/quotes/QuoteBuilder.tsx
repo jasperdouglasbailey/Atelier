@@ -2,20 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
+import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent } from '@/lib/types/database';
 import { computeQuoteTotals, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import {
   createQuoteVersionAction,
   addFeeLineAction, removeFeeLineAction, updateFeeLineAction,
-  getFeeLinesByVersionAction,
+  getFeeLinesByVersionAction, generateQuoteFromTemplateAction,
 } from '@/app/actions/quotes';
 
 type Props = {
   bookingId: string;
   quoteVersions: QuoteVersion[];
   feeLines: FeeLine[]; // fee lines for the latest version (initial server render)
+  bookingTalent?: BookingTalent[];
 };
 
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
@@ -33,11 +34,18 @@ const OUTGOING_TYPES = new Set<FeeLineType>([
   'casting', 'location_fee', 'permits', 'insurance',
 ]);
 
-export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines }: Props) {
+export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [] }: Props) {
   const router = useRouter();
   const [showAddLine, setShowAddLine] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Template generation state
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | 'videographer' | null>(null);
+  // Pre-fill shoot fee from first talent's confirmed day rate, fallback to template default
+  const primaryTalentDayRate = bookingTalent[0]?.day_rate ?? null;
+  const [shootFeeInput, setShootFeeInput] = useState<string>('');
 
   // Version navigation
   const latestVersion = quoteVersions[0] ?? null;
@@ -129,6 +137,31 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       router.refresh();
     }
     setBusy(false);
+  }
+
+  async function handleGenerateFromTemplate() {
+    if (!selectedTemplate) return;
+    setBusy(true);
+    setError(null);
+    const override = shootFeeInput ? parseFloat(shootFeeInput) : undefined;
+    const result = await generateQuoteFromTemplateAction(bookingId, selectedTemplate, override);
+    if ('error' in result) {
+      setError(result.error ?? 'Failed');
+    } else {
+      setShowTemplatePanel(false);
+      setSelectedTemplate(null);
+      setShootFeeInput('');
+      router.refresh();
+    }
+    setBusy(false);
+  }
+
+  function openTemplate(t: 'photographer' | 'videographer') {
+    setSelectedTemplate(t);
+    // Pre-fill shoot fee from talent rate (fallback to template default)
+    const defaultFee = t === 'photographer' ? 4000 : 3000;
+    setShootFeeInput(String(primaryTalentDayRate ?? defaultFee));
+    setShowTemplatePanel(true);
   }
 
   async function handleAddLine(formData: FormData) {
@@ -224,10 +257,98 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         </div>
       )}
 
-      {!latestVersion && (
-        <p className="text-xs" style={{ color: PALETTE.muted }}>
-          No quote yet. Create one to start adding fee lines.
-        </p>
+      {/* Template panel — shown when generating from template */}
+      {showTemplatePanel && selectedTemplate && (
+        <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: `${PALETTE.accent}44` }}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold capitalize" style={{ color: PALETTE.text }}>
+              {selectedTemplate} template
+            </span>
+            <button
+              onClick={() => { setShowTemplatePanel(false); setSelectedTemplate(null); }}
+              className="text-[11px]"
+              style={{ color: PALETTE.muted }}
+            >
+              Cancel
+            </button>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold uppercase mb-1" style={{ color: PALETTE.muted }}>
+              Shoot fee ($)
+              {primaryTalentDayRate && (
+                <span className="ml-1 font-normal normal-case" style={{ color: PALETTE.accent }}>
+                  · pre-filled from {bookingTalent[0] && 'talent_id' in bookingTalent[0] ? 'talent' : 'talent'} day rate
+                </span>
+              )}
+            </label>
+            <input
+              type="number"
+              step="50"
+              min="0"
+              value={shootFeeInput}
+              onChange={(e) => setShootFeeInput(e.target.value)}
+              className="w-40 rounded border px-2 py-1.5 text-sm"
+              style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+            />
+          </div>
+          <p className="text-[10px]" style={{ color: PALETTE.muted }}>
+            {selectedTemplate === 'photographer'
+              ? 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'
+              : 'Creates: shoot fee · 1AC labour ($900) · 1AC kit ($400) · lighting tech ($750). Agency commission + crew fringes auto-computed.'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleGenerateFromTemplate}
+              disabled={busy}
+              className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={{ background: PALETTE.accent, color: PALETTE.bg }}
+            >
+              {busy ? 'Generating…' : 'Generate Quote'}
+            </button>
+            <button
+              onClick={() => { setShowTemplatePanel(false); setSelectedTemplate(null); }}
+              className="rounded px-3 py-1.5 text-xs"
+              style={{ color: PALETTE.muted }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!latestVersion && !showTemplatePanel && (
+        <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: PALETTE.border }}>
+          <p className="text-xs font-medium" style={{ color: PALETTE.text }}>Start this quote:</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => openTemplate('photographer')}
+              disabled={busy}
+              className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            >
+              📷 Photographer template
+            </button>
+            <button
+              onClick={() => openTemplate('videographer')}
+              disabled={busy}
+              className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            >
+              🎬 Videographer template
+            </button>
+            <button
+              onClick={handleCreateVersion}
+              disabled={busy}
+              className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
+              style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              Blank quote
+            </button>
+          </div>
+          <p className="text-[10px]" style={{ color: PALETTE.muted }}>
+            Templates pre-fill standard crew & rates — you can edit every line after.
+          </p>
+        </div>
       )}
 
       {/* Add line form */}

@@ -8,6 +8,8 @@ import { getCurrentActor } from '@/lib/utils/actor';
 /** Booking row augmented with the joined client record (for list views). */
 export type BookingListRow = Booking & {
   client?: { name: string; company: string | null } | null;
+  /** First attached talent — used for list/board display. */
+  booking_talent?: Array<{ talent: { name: string; discipline: string | null } | null }> | null;
 };
 
 /** Booking row with full relations for the detail page. */
@@ -47,7 +49,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   let query = supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company), booking_talent:atelier_booking_talent(talent:atelier_talent(name, discipline))',
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })

@@ -8,8 +8,136 @@ import {
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
 import type { FeeLineType, FeeLine } from '@/lib/types/database';
-import { computeFeeLine } from '@/lib/utils/fee-engine';
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
+
+// ============================================================
+// Quote template definitions
+// ============================================================
+
+type QuoteTemplate = 'photographer' | 'videographer';
+
+type TemplateLine = {
+  line_type: FeeLineType;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  is_commissionable: boolean;
+  commission_rate: number;
+  is_super_bearing: boolean;
+  super_rate_charged: number;
+  super_rate_paid: number;
+  asf_rate: number;
+};
+
+const TEMPLATE_LINES: Record<QuoteTemplate, TemplateLine[]> = {
+  photographer: [
+    {
+      line_type: 'artist_fee',
+      description: 'Photographer — shoot fee',
+      quantity: 1, unit_price: 4000,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'crew_labour',
+      description: 'Digital operator',
+      quantity: 1, unit_price: 600,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'crew_labour',
+      description: 'Assistant',
+      quantity: 1, unit_price: 600,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+  ],
+  videographer: [
+    {
+      line_type: 'artist_fee',
+      description: 'Videographer — shoot fee',
+      quantity: 1, unit_price: 3000,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'crew_labour',
+      description: '1AC labour',
+      quantity: 1, unit_price: 900,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'crew_equipment',
+      description: '1AC kit',
+      quantity: 1, unit_price: 400,
+      is_commissionable: false, commission_rate: 0,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'crew_labour',
+      description: 'Lighting tech labour',
+      quantity: 1, unit_price: 750,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+  ],
+};
+
+/**
+ * Create a new quote version pre-populated with standard template lines.
+ * shootFeeOverride replaces the template's default shoot fee if the talent's
+ * confirmed day rate is known.
+ */
+export async function generateQuoteFromTemplateAction(
+  bookingId: string,
+  template: QuoteTemplate,
+  shootFeeOverride?: number,
+) {
+  const qv = await createQuoteVersion(bookingId);
+  if (!qv) return { error: 'Failed to create quote version' };
+
+  const lines = TEMPLATE_LINES[template];
+  for (let i = 0; i < lines.length; i++) {
+    const tl = lines[i];
+    const unitPrice =
+      tl.line_type === 'artist_fee' && shootFeeOverride != null && shootFeeOverride > 0
+        ? shootFeeOverride
+        : tl.unit_price;
+    const subtotal = Math.round(tl.quantity * unitPrice * 100) / 100;
+    const asfAmount = Math.round(subtotal * tl.asf_rate * 100) / 100;
+
+    await addFeeLine({
+      quote_version_id: qv.id,
+      booking_id: bookingId,
+      line_type: tl.line_type,
+      description: tl.description,
+      quantity: tl.quantity,
+      unit_price: unitPrice,
+      subtotal,
+      asf_rate: tl.asf_rate,
+      asf_amount: asfAmount,
+      is_gst_exempt: false,
+      is_super_bearing: tl.is_super_bearing,
+      super_rate_charged: tl.super_rate_charged,
+      super_rate_paid: tl.super_rate_paid,
+      is_commissionable: tl.is_commissionable,
+      commission_rate: tl.commission_rate,
+      sort_order: i,
+    });
+  }
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, id: qv.id, version: qv.version };
+}
 
 // ============================================================
 // Quote version

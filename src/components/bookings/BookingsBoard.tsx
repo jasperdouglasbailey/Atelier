@@ -83,11 +83,21 @@ export default function BookingsBoard({ bookings }: Props) {
                     <div className="text-xs font-medium leading-tight mb-1" style={{ color: PALETTE.text }}>
                       {b.title}
                     </div>
-                    {b.talent_spec && (
-                      <div className="text-[10px] mb-0.5" style={{ color: PALETTE.accent }}>
-                        {b.talent_spec}
-                      </div>
-                    )}
+                    {(() => {
+                      const primaryArtist = b.booking_talent?.[0]?.talent;
+                      return primaryArtist ? (
+                        <div className="text-[10px] mb-0.5" style={{ color: PALETTE.accent }}>
+                          {primaryArtist.name}
+                          {primaryArtist.discipline && (
+                            <span className="ml-1" style={{ color: PALETTE.muted }}>· {primaryArtist.discipline}</span>
+                          )}
+                        </div>
+                      ) : b.talent_spec ? (
+                        <div className="text-[10px] mb-0.5" style={{ color: PALETTE.muted }}>
+                          {b.talent_spec}
+                        </div>
+                      ) : null;
+                    })()}
                     {clientName && (
                       <div className="text-[10px]" style={{ color: PALETTE.muted }}>
                         {clientName}
