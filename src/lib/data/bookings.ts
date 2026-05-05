@@ -545,3 +545,155 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
       return b.days_outstanding - a.days_outstanding;
     });
 }
+
+// ============================================================
+// Hard delete + corpus archival
+// ============================================================
+
+/**
+ * Map a booking's terminal state to a corpus outcome value.
+ *
+ * won              → reached 'paid' or 'released' (shoot happened, invoiced)
+ * lost_pre_quote   → cancelled before a quote was ever sent to the client
+ * lost_post_quote  → cancelled after quote_sent (client saw the number and walked)
+ * cancelled        → any other terminal state we don't have a sharper label for
+ */
+function deriveOutcome(
+  state: BookingState,
+  quoteWasSent: boolean,
+): 'won' | 'lost_pre_quote' | 'lost_post_quote' | 'cancelled' {
+  if (state === 'paid' || state === 'released') return 'won';
+  if (state === 'cancelled') return quoteWasSent ? 'lost_post_quote' : 'lost_pre_quote';
+  return 'cancelled';
+}
+
+/**
+ * Compute a stable sha256 hex digest of a string.
+ * Works in the Node.js runtime (no browser crypto needed here — this is
+ * server-only data-layer code).
+ */
+async function sha256hex(value: string): Promise<string> {
+  const { createHash } = await import('crypto');
+  return createHash('sha256').update(value).digest('hex');
+}
+
+/**
+ * Hard-delete a booking and write one anonymised row to atelier_corpus_bookings.
+ *
+ * Only valid for bookings in terminal states: paid, released, cancelled.
+ * Returns true on success, false on any error.
+ *
+ * Cascade behaviour (FK ON DELETE CASCADE) automatically removes:
+ *   atelier_booking_talent, atelier_booking_crew, atelier_fee_lines,
+ *   atelier_approval_requests, atelier_events (where booking_id is FK'd)
+ */
+export async function deleteBookingWithCorpus(bookingId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const serviceClient = createServiceClient();
+
+  // 1. Fetch the booking and its first talent assignment
+  const { data: booking, error: fetchError } = await supabase
+    .from(TABLE)
+    .select(
+      '*, booking_talent:atelier_booking_talent(talent_id)',
+    )
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  if (fetchError || !booking) {
+    reportDataError('[bookings] deleteWithCorpus — fetch failed', fetchError ?? new Error('not found'));
+    return false;
+  }
+
+  const b = booking as Booking & {
+    booking_talent?: Array<{ talent_id: string }> | null;
+  };
+
+  // Guard: only allow deletion of terminal states
+  const TERMINAL: BookingState[] = ['paid', 'released', 'cancelled'];
+  if (!TERMINAL.includes(b.state)) {
+    reportDataError(
+      '[bookings] deleteWithCorpus — refused',
+      new Error(`Booking ${bookingId} is in state '${b.state}'; only terminal bookings can be deleted`),
+    );
+    return false;
+  }
+
+  // 2. Determine whether a quote was ever sent (to pick the right outcome)
+  //    We check the audit log for a 'transition' row whose new_value contains 'quote_sent'.
+  const { data: auditRows } = await supabase
+    .from('atelier_audit_log')
+    .select('new_value')
+    .eq('record_id', bookingId)
+    .eq('action', 'transition')
+    .limit(50);
+
+  const quoteWasSent = (auditRows ?? []).some((row: { new_value: unknown }) => {
+    const nv = row.new_value as Record<string, unknown> | null;
+    return nv?.to === 'quote_sent' || nv?.state === 'quote_sent';
+  });
+
+  const outcome = deriveOutcome(b.state, quoteWasSent);
+
+  // 3. Build corpus row — hash PII, drop exact dates
+  const clientHash = b.client_id ? await sha256hex(b.client_id) : null;
+  const primaryTalentId = b.booking_talent?.[0]?.talent_id ?? null;
+  const talentHash = primaryTalentId ? await sha256hex(primaryTalentId) : null;
+
+  const shootYearMonth = b.shoot_dates
+    ? b.shoot_dates.replace(/^\[/, '').slice(0, 7) // '[2026-05-15,...' → '2026-05'
+    : null;
+
+  const corpusRow = {
+    client_hash: clientHash,
+    talent_hash: talentHash,
+    tier: b.tier,
+    day_rate: null as number | null,          // day rate lives on booking_talent; skip for now
+    deliverable_count: b.deliverables_count,
+    usage_media: (b.usage_media ?? []) as string[],
+    usage_territory: (b.usage_territory ?? []) as string[],
+    usage_duration_months: b.usage_duration_months,
+    grand_total: b.grand_total,
+    shoot_year_month: shootYearMonth,
+    outcome,
+    source_booking_state: b.state,
+  };
+
+  // 4. Write corpus row via service client (bypasses RLS insert restriction)
+  const { error: corpusError } = await serviceClient
+    .from('atelier_corpus_bookings')
+    .insert(corpusRow);
+
+  if (corpusError) {
+    // Log but don't abort — corpus write failure should not block the delete
+    console.error('[bookings] corpus insert failed', corpusError.message);
+  }
+
+  // 5. Audit the deletion before it happens
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'hard_delete',
+    tableName: TABLE,
+    recordId: bookingId,
+    oldValue: {
+      title: b.title,
+      booking_ref: b.booking_ref,
+      state: b.state,
+      outcome,
+    } as unknown as import('@/lib/types/database').Json,
+    newValue: null,
+  });
+
+  // 6. Hard delete — FK cascades handle child rows
+  const { error: deleteError } = await serviceClient
+    .from(TABLE)
+    .delete()
+    .eq('id', bookingId);
+
+  if (deleteError) {
+    reportDataError('[bookings] deleteWithCorpus — delete failed', deleteError);
+    return false;
+  }
+
+  return true;
+}

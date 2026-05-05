@@ -1,10 +1,3 @@
-// AUTO-GENERATED — do not edit by hand.
-// Regenerate via: `supabase gen types typescript --project-id <id> > src/lib/types/database.generated.ts`
-// Or via the Supabase MCP `generate_typescript_types` tool.
-//
-// Schema fingerprint and last regen are tracked at the top of database.ts so we
-// know when this needs refreshing.
-
 export type Json =
   | string
   | number
@@ -678,6 +671,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      atelier_corpus_bookings: {
+        Row: {
+          client_hash: string | null
+          created_at: string
+          day_rate: number | null
+          deliverable_count: number | null
+          grand_total: number | null
+          id: string
+          outcome: string
+          shoot_year_month: string | null
+          source_booking_state: string | null
+          talent_hash: string | null
+          tier: string | null
+          usage_duration_months: number | null
+          usage_media: string[] | null
+          usage_territory: string[] | null
+        }
+        Insert: {
+          client_hash?: string | null
+          created_at?: string
+          day_rate?: number | null
+          deliverable_count?: number | null
+          grand_total?: number | null
+          id?: string
+          outcome: string
+          shoot_year_month?: string | null
+          source_booking_state?: string | null
+          talent_hash?: string | null
+          tier?: string | null
+          usage_duration_months?: number | null
+          usage_media?: string[] | null
+          usage_territory?: string[] | null
+        }
+        Update: {
+          client_hash?: string | null
+          created_at?: string
+          day_rate?: number | null
+          deliverable_count?: number | null
+          grand_total?: number | null
+          id?: string
+          outcome?: string
+          shoot_year_month?: string | null
+          source_booking_state?: string | null
+          talent_hash?: string | null
+          tier?: string | null
+          usage_duration_months?: number | null
+          usage_media?: string[] | null
+          usage_territory?: string[] | null
+        }
+        Relationships: []
       }
       atelier_crew: {
         Row: {
