@@ -56,28 +56,18 @@ src/
 
 The work is sequenced so dependencies stack naturally and the Xero block doesn't gate anything else.
 
-1. **Phase 1a — parity + small wins.** Tier-1 quick fixes (#2 / #3 / #4 / #7-partial)
-   plus the parity work (BookingFormFields, edit-form parity, quote regen, autofill). ✅ Shipped.
-2. **Phase 1b — entity expansion + resilience.** New fields on existing entities,
-   hard delete, magic-link onboarding (#6), auto Drive folders (#7 full),
-   plus the resilience pass (loud failures, generated types, health probes,
-   audit failures). ✅ Mostly shipped — magic-link onboarding still open.
-3. **Phase 3 — corpus + Tier 2.** Corpus consumers (rate precedents, repeat-client
-   pattern detection), Tier-2 features #13 / #15. Corpus *table* and write-on-delete
-   shipped early in 1b/PR#15; Phase 3 is the read side.
-4. **Phase 4 — agent automation.** Confidence contracts, critique passes,
-   Tier-3 #17, auto call-sheet (#10).
-5. **Phase 2 — Xero.** Deferred until credentials land; touches no other phase
-   so order doesn't matter beyond unblocking.
-6. **Phase 5 — RLS + partner accounts.** Privacy matrix at the DB layer,
-   then Jemma / Gary multi-user.
-7. **Phase 6 — talent / crew portals.** Lighter than originally scoped because
-   onboarding moved up to 1b.
-8. **Phase 7 — production polish.** Performance, monitoring, edge cases.
+1. **Phase 1a — parity + small wins.** ✅ Shipped.
+2. **Phase 1b — entity expansion + resilience.** ✅ Shipped (PRs #14, #15, #17 + auto-Drive earlier).
+3. **Phase 3 — corpus + Tier 2.** ✅ First slice shipped (PR #18 — precedent signals on booking detail). Tier-2 #13 / #15 still pending clarification.
+4. **Phase 4 — agent automation.** ✅ First pass shipped (PR #19 — agent primitives, critique pass on brief-clarify, auto call sheet). Full agent prompt suite (confidence contracts wired into every agent, precedent requirement enforcement) still pending.
+5. **Phase 2 — Xero.** ⏳ Blocked on credentials.
+6. **Phase 5 — RLS + partner accounts.** ✅ Infrastructure shipped (PR #20 — app_users table, role helpers, partner UI). Owner + partner accounts seeded. Actual RLS lockdown deferred to a follow-up after talent/crew portal smoke-test.
+7. **Phase 6 — talent / crew portals.** ✅ Shipped (PR ##  — `/portal/talent`, `/portal/crew`, role-based redirect from dashboard).
+8. **Phase 7 — production polish.** ⏳ Performance, monitoring, edge cases — ongoing.
 
-## Build status (updated 2026-05-05, session 4)
+## Build status (updated 2026-05-05, session 5)
 
-### Fully built (Phase 1a + most of 1b)
+### Fully built (Phases 1a, 1b, 3 first slice, 4 first pass, 5 first slice, 6 portals)
 - Booking pipeline: all 13 states, list + kanban board + month calendar, detail, edit, new
 - Quote builder: versioned (v1, v2…), photographer + videographer templates, artist/outgoing split, live total preview, inline row editing (per-line ASF % editable, "Charge 15%" checkbox on add)
 - Quote agency-margin breakdown: commission + all ASF + super spread shown on builder
@@ -103,6 +93,11 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 - Artist shown on booking list/board/edit via booking_talent join
 - **Resilience pass (Phase 1b PR#14):** `reportDataError()` (throws in dev, logs in prod), generated DB types + compile-time compat assertions, `/api/health?probe=1`, `logAuditFailure()` writes `<action>_failed` rows
 - **Hard delete + corpus archival (PR#15):** terminal-state-only `deleteBookingAction()` writes anonymised row to `atelier_corpus_bookings` (sha256-hashed client/talent IDs) before cascade. Action-only, no UI button yet.
+- **Magic-link onboarding (PR#17):** "Send onboarding link" button on talent/crew detail pages emails a 14-day URL to `/onboard/[token]`; recipient sees pre-filled form to update name, contact, ABN, super, address, DOB, default day rate. `submitOnboardingAction` marks `onboarding_completed=true` but leaves `is_active` for owner sign-off.
+- **Phase 3 precedent signals (PR#18):** `<PrecedentSignals>` panel on booking detail surfaces talent rate band, client total band, talent-client prior work, and corpus signal. Sample-size guard (n<3 = "thin data") implemented at the data layer.
+- **Phase 4 agent primitives (PR#19):** `agent-primitives.ts` exports `JASPER_VOICE_RULES`, `critiqueDraft()`, `buildConfidenceContract()`, `formatPrecedentCitation()`. Brief-clarify email now runs through critique pass with up to 2 attempts. Auto call-sheet at `/print/bookings/[id]/call-sheet`.
+- **Phase 5 partner accounts (PR#20):** `atelier_app_users` table + `current_app_role()` / `is_owner_or_partner()` SQL helpers. `/settings/partners` admin UI to provision owner / partner / talent / crew roles. Jasper, Jemma, Gary already seeded with owner/partner roles.
+- **Phase 6 portals (this PR):** `/portal/talent` and `/portal/crew` with own profile, upcoming + past bookings, day rate, compliance hints. Dashboard layout redirects talent/crew users to their portal automatically.
 
 ### In progress / partially wired
 - Gmail outbound: wired, needs GOOGLE_REFRESH_TOKEN credentials set
@@ -110,20 +105,11 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 - Quote templates: photographer + videographer; no usage/grading/equipment lines yet
 - Repeat-client autofill on new booking: in progress
 
-### Phase 1b — still open
-- **Magic-link onboarding (#6)** — talent/crew can set their own default day rate, address, ABN, super fund via emailed link
-- **Entity expansion fields** — list TBD with Jasper (e.g. crew tier override, talent travel preferences)
-
-### Phase 3+ — not yet built
-- Corpus *consumers* (rate precedents UI, repeat-client signal surfacing) — table exists from Phase 1b, no readers yet
-- Signal surfacing: DOI drift, rate delta, talent-client history inline on bookings
-- Tier-2 #13 / #15
-- Full agent prompts: confidence contracts, critique passes, precedent requirements
-- Tier-3 #17, auto call-sheet (#10)
-- RLS enforcement (privacy matrix at DB layer)
-- Partner accounts (Jemma, Gary multi-user)
-- Talent / crew portals
-- Production polish
+### Deferred to follow-up PRs
+- **RLS lockdown (Phase 5b)** — the `atelier_app_users` infrastructure is live and roles are seeded, but the existing `auth_full_access` RLS policy is intentionally not yet replaced. Once Jasper has confirmed talent/crew portals work end-to-end (we'd need to provision a real talent/crew test account first), the lockdown migration drops `auth_full_access` and replaces it with `is_owner_or_partner()` for full access plus per-table scoped policies for talent (own row + own booking_talent + own bookings) and crew (mirror).
+- **Tier-2 features #13 / #15** — numbered list reference unclear; needs a quick sync with Jasper.
+- **Phase 2 (Xero)** — blocked on credentials.
+- **Phase 7 (production polish)** — performance, monitoring, edge cases. Standing checklist: tsc clean, tests green, no TODO/FIXME left behind, no hardcoded names/data, AJE eComm #3579 canonical test still passes.
 
 ## When in doubt
 
