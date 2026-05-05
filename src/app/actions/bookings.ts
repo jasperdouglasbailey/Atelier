@@ -144,6 +144,29 @@ export async function transitionBookingAction(
           .catch((err) => console.error('[transitionBookingAction] Drive folder creation failed', err));
       }
 
+      // Auto-draft confirmation email to client — always a draft (never auto-sent).
+      // Async, never blocks the state transition.
+      if (isGoogleConfigured() && booking.client?.email) {
+        const clientName = booking.client.company || booking.client.name || '';
+        const confirmBody = buildConfirmationEmailHtml({
+          bookingRef: booking.booking_ref ?? '',
+          title: booking.title,
+          clientName,
+          tier: booking.tier,
+          grandTotal: booking.grand_total ?? 0,
+          shootDates: booking.shoot_date_notes ?? null,
+          shootLocation: booking.shoot_location ?? null,
+        });
+        draftEmail({
+          to: [booking.client.email],
+          subject: `[${booking.booking_ref ?? id.slice(0, 8)}] Booking Confirmed — ${booking.title}`,
+          body: confirmBody,
+          bookingRef: booking.booking_ref ?? undefined,
+        }).catch((err) =>
+          console.error('[transitionBookingAction] confirmation email draft failed', err),
+        );
+      }
+
       // Calendar event — only if shoot dates are known
       const { start, end } = dateRangeToInputs(booking.shoot_dates);
       if (start) {
@@ -311,6 +334,37 @@ function buildQuoteEmailHtml(opts: {
   if (opts.quoteUrl) {
     lines.push(`<p style="margin-top:16px;font-size:11px;color:#999">Quote link: <a href="${opts.quoteUrl}" style="color:#999">${opts.quoteUrl}</a></p>`);
   }
+  return lines.join('\n');
+}
+
+function buildConfirmationEmailHtml(opts: {
+  bookingRef: string;
+  title: string;
+  clientName: string;
+  tier: string;
+  grandTotal: number;
+  shootDates: string | null;
+  shootLocation: string | null;
+}): string {
+  const lines: string[] = [
+    `<p>Hi ${opts.clientName || 'there'},</p>`,
+    `<p>Wonderful — we're confirmed for <strong>${opts.title}</strong> (${opts.bookingRef}). We have the dates locked in and will be in touch shortly with paperwork.</p>`,
+    '<table style="border-collapse:collapse;margin:16px 0;font-size:14px">',
+    `  <tr><td style="padding:4px 12px 4px 0;color:#666">Project</td><td style="padding:4px 0"><strong>${opts.title}</strong></td></tr>`,
+    `  <tr><td style="padding:4px 12px 4px 0;color:#666">Reference</td><td style="padding:4px 0">${opts.bookingRef}</td></tr>`,
+  ];
+  if (opts.shootDates) {
+    lines.push(`  <tr><td style="padding:4px 12px 4px 0;color:#666">Shoot</td><td style="padding:4px 0">${opts.shootDates}</td></tr>`);
+  }
+  if (opts.shootLocation) {
+    lines.push(`  <tr><td style="padding:4px 12px 4px 0;color:#666">Location</td><td style="padding:4px 0">${opts.shootLocation}</td></tr>`);
+  }
+  if (opts.grandTotal > 0) {
+    lines.push(`  <tr><td style="padding:8px 12px 4px 0;color:#666;font-weight:600">Total (inc. GST)</td><td style="padding:8px 0;font-weight:600">${formatCurrencyAU(opts.grandTotal)}</td></tr>`);
+  }
+  lines.push('</table>');
+  lines.push('<p>We\'ll send through the production brief and talent hold paperwork in the coming days. Please don\'t hesitate to reach out in the meantime.</p>');
+  lines.push('<p style="margin-top:24px">Jasper Bailey<br>Saunders &amp; Co<br><a href="mailto:info@saundersandco.com.au">info@saundersandco.com.au</a></p>');
   return lines.join('\n');
 }
 
