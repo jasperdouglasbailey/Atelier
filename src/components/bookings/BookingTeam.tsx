@@ -24,11 +24,18 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [showAddCrew, setShowAddCrew] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [talentDayRate, setTalentDayRate] = useState('');
+  const [crewDayRate, setCrewDayRate] = useState('');
+
+  // Build lookup maps for fast rate pre-fill
+  const talentById = Object.fromEntries(allTalent.map(t => [t.id, t]));
+  const crewById = Object.fromEntries(allCrew.map(c => [c.id, c]));
 
   async function handleAddTalent(formData: FormData) {
     setBusy(true);
     await addBookingTalentAction(formData);
     setShowAddTalent(false);
+    setTalentDayRate('');
     router.refresh();
     setBusy(false);
   }
@@ -50,6 +57,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
       return;
     }
     setShowAddCrew(false);
+    setCrewDayRate('');
     router.refresh();
   }
 
@@ -80,7 +88,16 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         {showAddTalent && (
           <form action={handleAddTalent} className="mb-3 space-y-2 rounded border p-2" style={{ borderColor: PALETTE.border }}>
             <input type="hidden" name="booking_id" value={bookingId} />
-            <select name="talent_id" required className="w-full rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}>
+            <select
+              name="talent_id"
+              required
+              className="w-full rounded border px-2 py-1 text-xs"
+              style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+              onChange={(e) => {
+                const t = talentById[e.target.value];
+                setTalentDayRate(t?.default_day_rate != null ? String(t.default_day_rate) : '');
+              }}
+            >
               <option value="">Select talent...</option>
               {allTalent.filter(t => t.is_active).map(t => (
                 <option key={t.id} value={t.id}>{t.working_name}</option>
@@ -88,7 +105,20 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
             </select>
             <div className="grid grid-cols-3 gap-2">
               <input name="role_on_booking" required placeholder="Role" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
-              <input name="day_rate" type="number" step="0.01" placeholder="Day rate" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
+              <input
+                name="day_rate"
+                type="number"
+                step="0.01"
+                placeholder="Day rate"
+                value={talentDayRate}
+                onChange={(e) => setTalentDayRate(e.target.value)}
+                className="rounded border px-2 py-1 text-xs"
+                style={{
+                  background: PALETTE.bg,
+                  borderColor: talentDayRate ? PALETTE.accent : PALETTE.border,
+                  color: PALETTE.text,
+                }}
+              />
               <input name="usage_fee" type="number" step="0.01" placeholder="Usage fee" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
             </div>
             <button type="submit" disabled={busy} className="rounded px-2.5 py-1 text-[11px] font-medium disabled:opacity-50" style={{ background: PALETTE.accent, color: PALETTE.bg }}>
@@ -153,7 +183,16 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         {showAddCrew && (
           <form action={handleAddCrew} className="mb-3 space-y-2 rounded border p-2" style={{ borderColor: PALETTE.border }}>
             <input type="hidden" name="booking_id" value={bookingId} />
-            <select name="crew_id" required className="w-full rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}>
+            <select
+              name="crew_id"
+              required
+              className="w-full rounded border px-2 py-1 text-xs"
+              style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+              onChange={(e) => {
+                const c = crewById[e.target.value];
+                setCrewDayRate(c?.default_day_rate != null ? String(c.default_day_rate) : '');
+              }}
+            >
               <option value="">Select crew member...</option>
               {allCrew.filter(c => c.is_active && c.tier !== 'never_again').map(c => (
                 <option key={c.id} value={c.id}>{c.name} — {c.primary_role ?? 'General'}</option>
@@ -161,7 +200,20 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
             </select>
             <div className="grid grid-cols-2 gap-2">
               <input name="role_on_booking" placeholder="Role on booking" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
-              <input name="day_rate" type="number" step="0.01" placeholder="Day rate" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
+              <input
+                name="day_rate"
+                type="number"
+                step="0.01"
+                placeholder="Day rate"
+                value={crewDayRate}
+                onChange={(e) => setCrewDayRate(e.target.value)}
+                className="rounded border px-2 py-1 text-xs"
+                style={{
+                  background: PALETTE.bg,
+                  borderColor: crewDayRate ? PALETTE.accent : PALETTE.border,
+                  color: PALETTE.text,
+                }}
+              />
             </div>
             <button type="submit" disabled={busy} className="rounded px-2.5 py-1 text-[11px] font-medium disabled:opacity-50" style={{ background: PALETTE.accent, color: PALETTE.bg }}>
               Add Crew

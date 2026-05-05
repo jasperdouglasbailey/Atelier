@@ -128,6 +128,8 @@ export interface Talent {
   wwcc_expiry: string | null;
   instagram: string | null;
   website: string | null;
+  /** Suggested day rate — pre-fills the booking-team add form. */
+  default_day_rate: number | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
