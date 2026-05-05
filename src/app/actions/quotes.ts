@@ -4,11 +4,59 @@ import { revalidatePath } from 'next/cache';
 import {
   createQuoteVersion, addFeeLine, updateFeeLine, removeFeeLine,
   addBookingTalent, removeBookingTalent, addBookingCrew, removeBookingCrew,
+  listFeeLines,
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
-import type { FeeLineType } from '@/lib/types/database';
-import { computeFeeLine } from '@/lib/utils/fee-engine';
+import type { FeeLineType, FeeLine } from '@/lib/types/database';
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
+import { TEMPLATE_LINES_MAP, type QuoteTemplate } from '@/lib/utils/quote-templates';
+
+/**
+ * Create a new quote version pre-populated with standard template lines.
+ * shootFeeOverride replaces the template's default shoot fee if the talent's
+ * confirmed day rate is known.
+ */
+export async function generateQuoteFromTemplateAction(
+  bookingId: string,
+  template: QuoteTemplate,
+  shootFeeOverride?: number,
+) {
+  const qv = await createQuoteVersion(bookingId);
+  if (!qv) return { error: 'Failed to create quote version' };
+
+  const lines = TEMPLATE_LINES_MAP[template];
+  for (let i = 0; i < lines.length; i++) {
+    const tl = lines[i];
+    const unitPrice =
+      tl.line_type === 'artist_fee' && shootFeeOverride != null && shootFeeOverride > 0
+        ? shootFeeOverride
+        : tl.unit_price;
+    const subtotal = Math.round(tl.quantity * unitPrice * 100) / 100;
+    const asfAmount = Math.round(subtotal * tl.asf_rate * 100) / 100;
+
+    await addFeeLine({
+      quote_version_id: qv.id,
+      booking_id: bookingId,
+      line_type: tl.line_type,
+      description: tl.description,
+      quantity: tl.quantity,
+      unit_price: unitPrice,
+      subtotal,
+      asf_rate: tl.asf_rate,
+      asf_amount: asfAmount,
+      is_gst_exempt: false,
+      is_super_bearing: tl.is_super_bearing,
+      super_rate_charged: tl.super_rate_charged,
+      super_rate_paid: tl.super_rate_paid,
+      is_commissionable: tl.is_commissionable,
+      commission_rate: tl.commission_rate,
+      sort_order: i,
+    });
+  }
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, id: qv.id, version: qv.version };
+}
 
 // ============================================================
 // Quote version
@@ -133,6 +181,11 @@ export async function removeFeeLineAction(id: string, bookingId: string) {
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
+}
+
+/** Load fee lines for any quote version (used by version navigator). */
+export async function getFeeLinesByVersionAction(versionId: string): Promise<FeeLine[]> {
+  return listFeeLines(versionId);
 }
 
 // ============================================================

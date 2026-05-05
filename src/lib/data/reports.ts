@@ -1,6 +1,21 @@
 import { createClient } from '@/lib/supabase/server';
 import { ACTIVE_STATES } from '@/lib/utils/constants';
 
+export type WinRateStat = {
+  sent: number;       // quote has been sent (all non-early states)
+  confirmed: number;  // converted to confirmed booking
+  lost: number;       // released or cancelled after quoting
+  winRate: number;    // confirmed / (confirmed + lost), 0–1
+};
+
+export type TalentStat = {
+  talentId: string;
+  name: string;
+  discipline: string | null;
+  bookingCount: number;
+  totalRevenue: number; // grand_total sum across their bookings
+};
+
 export type MonthlyRevenueStat = {
   month: string; // 'YYYY-MM'
   bookingCount: number;
@@ -146,6 +161,69 @@ export async function getTierBreakdown(): Promise<TierStat[]> {
   }
 
   return Object.values(stats).sort((a, b) => b.grandTotal - a.grandTotal);
+}
+
+export async function getWinRate(): Promise<WinRateStat> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('state, grand_total');
+
+  if (error || !data) return { sent: 0, confirmed: 0, lost: 0, winRate: 0 };
+
+  const rows = data as { state: string; grand_total: number }[];
+
+  const CONFIRMED_STATES = new Set([
+    'quote_confirmed', 'pre_production', 'shoot_live', 'morning_after_check',
+    'post_production', 'final_delivery', 'invoice_issued', 'paid',
+  ]);
+  const EARLY_STATES = new Set(['brief_received', 'brief_parsed', 'quote_drafted']);
+
+  // "Quoted" = a quote was sent or the booking progressed beyond that point
+  const quoted = rows.filter((r) => !EARLY_STATES.has(r.state));
+  const confirmed = quoted.filter((r) => CONFIRMED_STATES.has(r.state)).length;
+  const lost = quoted.filter((r) => r.state === 'released' || r.state === 'cancelled').length;
+  const decided = confirmed + lost;
+  const winRate = decided > 0 ? confirmed / decided : 0;
+
+  return { sent: quoted.length, confirmed, lost, winRate };
+}
+
+export async function getTopTalent(limit = 8): Promise<TalentStat[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('atelier_booking_talent')
+    .select(
+      'talent_id, booking:atelier_bookings!atelier_booking_talent_booking_id_fkey(grand_total), talent:atelier_talent!atelier_booking_talent_talent_id_fkey(id, working_name, discipline)',
+    );
+
+  if (error || !data) return [];
+
+  const byTalent: Record<string, TalentStat> = {};
+  for (const row of data as unknown as {
+    talent_id: string;
+    booking: { grand_total: number } | null;
+    talent: { id: string; working_name: string; discipline: string | null } | null;
+  }[]) {
+    if (!row.talent_id || !row.talent) continue;
+    const key = row.talent_id;
+    if (!byTalent[key]) {
+      byTalent[key] = {
+        talentId: row.talent_id,
+        name: row.talent.working_name,
+        discipline: row.talent.discipline,
+        bookingCount: 0,
+        totalRevenue: 0,
+      };
+    }
+    byTalent[key].bookingCount++;
+    byTalent[key].totalRevenue += row.booking?.grand_total ?? 0;
+  }
+
+  return Object.values(byTalent)
+    .sort((a, b) => b.bookingCount - a.bookingCount || b.totalRevenue - a.totalRevenue)
+    .slice(0, limit);
 }
 
 export async function getTopClients(limit = 8): Promise<ClientRevenueStat[]> {

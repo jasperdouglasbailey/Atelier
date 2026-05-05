@@ -1,24 +1,45 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
-import { getBookingCounts, getUpcomingShoots } from '@/lib/data/bookings';
+import { getBookingCounts, getUpcomingShoots, getAttentionItems, getOverdueInvoices } from '@/lib/data/bookings';
 import { getPendingCount } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
 import { describeEvent } from '@/lib/utils/event-descriptions';
-import { BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, PALETTE, ACTIVE_STATES } from '@/lib/utils/constants';
-import { formatDate, formatDateTime } from '@/lib/utils/format';
+import { getReportSummary } from '@/lib/data/reports';
+import {
+  BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS,
+  PALETTE, ACTIVE_STATES,
+} from '@/lib/utils/constants';
+import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
 
+// Labels + CTAs for each attention state
+const ATTENTION_CONFIG: Record<string, { action: string; urgency: 'high' | 'medium' | 'low' }> = {
+  morning_after_check: { action: 'Check selects & OT', urgency: 'high' },
+  brief_received:      { action: 'Parse brief',         urgency: 'medium' },
+  brief_parsed:        { action: 'Draft quote',          urgency: 'medium' },
+  quote_drafted:       { action: 'Send to client',       urgency: 'medium' },
+};
+
+const urgencyColor: Record<string, string> = {
+  high: PALETTE.danger,
+  medium: PALETTE.warning,
+  low: PALETTE.muted,
+};
+
 export default async function DashboardPage() {
-  const [counts, upcoming, pendingApprovals, recentEvents] = await Promise.all([
+  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices] = await Promise.all([
     getBookingCounts(),
     getUpcomingShoots(14),
     getPendingCount(),
     listEvents({ limit: 10 }),
+    getAttentionItems(),
+    getReportSummary(),
+    getOverdueInvoices(),
   ]);
 
   const totalActive = ACTIVE_STATES.reduce((s, st) => s + (counts[st] ?? 0), 0);
 
-  // Build pipeline summary — only show states with bookings
+  // Pipeline — only show states with bookings
   const pipeline = ACTIVE_STATES
     .filter((st) => (counts[st] ?? 0) > 0)
     .map((st) => ({ state: st, count: counts[st] ?? 0 }));
@@ -27,13 +48,138 @@ export default async function DashboardPage() {
     <>
       <Topbar title="Dashboard" />
       <div className="p-4 sm:p-6 space-y-6">
-        {/* Summary cards */}
+        {/* Summary KPI cards */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Active Bookings" value={totalActive} href="/bookings" />
-          <StatCard label="Pending Approvals" value={pendingApprovals} href="/inbox" accent={pendingApprovals > 0} />
-          <StatCard label="Completed" value={counts['paid'] ?? 0} href="/bookings?group=completed" />
-          <StatCard label="Lost / Cancelled" value={(counts['released'] ?? 0) + (counts['cancelled'] ?? 0)} href="/bookings?group=lost" />
+          <StatCard
+            label="Revenue (Month)"
+            value={formatCurrency(summary.revenueThisMonth)}
+            href="/reports"
+            accent
+          />
+          <StatCard
+            label="Inbox"
+            value={pendingApprovals}
+            href="/inbox"
+            accentIfPositive={pendingApprovals > 0}
+          />
+          <StatCard
+            label="Revenue (YTD)"
+            value={formatCurrency(summary.revenueThisYear)}
+            href="/reports"
+          />
         </div>
+
+        {/* Overdue invoices — surfaces unpaid invoices past payment terms */}
+        {overdueInvoices.length > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: `${PALETTE.danger}55` }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.danger }}>
+                Invoices Outstanding ({overdueInvoices.length})
+              </h2>
+              <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+                {formatCurrency(overdueInvoices.reduce((s, i) => s + i.grand_total, 0))} total
+              </span>
+            </div>
+            <div className="space-y-2">
+              {overdueInvoices.map((inv) => {
+                const clientLabel = inv.client_company || inv.client_name;
+                return (
+                  <Link
+                    key={inv.id}
+                    href={`/bookings/${inv.id}`}
+                    className="flex items-center justify-between rounded-md border px-4 py-3 transition hover:opacity-80"
+                    style={{
+                      borderColor: inv.is_overdue ? `${PALETTE.danger}44` : `${PALETTE.warning}44`,
+                      background: inv.is_overdue ? `${PALETTE.danger}08` : `${PALETTE.warning}08`,
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>
+                          {inv.title}
+                        </span>
+                        {inv.booking_ref && (
+                          <span className="font-mono text-[10px] flex-shrink-0" style={{ color: PALETTE.accent }}>
+                            {inv.booking_ref}
+                          </span>
+                        )}
+                      </div>
+                      {clientLabel && (
+                        <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>{clientLabel}</div>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-3 ml-4 text-right">
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: PALETTE.text }}>
+                          {formatCurrency(inv.grand_total)}
+                        </div>
+                        <div
+                          className="text-[11px] font-medium"
+                          style={{ color: inv.is_overdue ? PALETTE.danger : PALETTE.warning }}
+                        >
+                          {inv.days_outstanding}d outstanding
+                          {inv.is_overdue ? ` (terms: ${inv.payment_terms_days}d)` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Morning decision queue */}
+        {attentionItems.length > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+              Needs Your Decision ({attentionItems.length})
+            </h2>
+            <div className="space-y-2">
+              {attentionItems.map((item) => {
+                const cfg = ATTENTION_CONFIG[item.state] ?? { action: 'Review', urgency: 'low' };
+                const color = urgencyColor[cfg.urgency];
+                const clientLabel = item.client_company || item.client_name || null;
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/bookings/${item.id}`}
+                    className="flex items-center justify-between rounded-md border px-4 py-3 transition hover:border-opacity-80"
+                    style={{ borderColor: `${color}44`, background: `${color}08` }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>
+                          {item.title}
+                        </span>
+                        {item.booking_ref && (
+                          <span className="font-mono text-[10px] flex-shrink-0" style={{ color: PALETTE.accent }}>
+                            {item.booking_ref}
+                          </span>
+                        )}
+                      </div>
+                      {clientLabel && (
+                        <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>{clientLabel}</div>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-3 ml-4">
+                      <span className="text-[11px] font-medium" style={{ color }}>
+                        {cfg.action}
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                        style={{ background: `${STATE_COLORS[item.state]}22`, color: STATE_COLORS[item.state] }}
+                      >
+                        {BOOKING_STATE_LABELS[item.state]}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Pipeline */}
         {pipeline.length > 0 && (
@@ -135,15 +281,24 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, href, accent }: { label: string; value: number; href: string; accent?: boolean }) {
+function StatCard({
+  label, value, href, accent, accentIfPositive,
+}: {
+  label: string;
+  value: string | number;
+  href: string;
+  accent?: boolean;
+  accentIfPositive?: boolean;
+}) {
+  const isAccented = accent || accentIfPositive;
   return (
     <Link
       href={href}
       className="rounded-lg border p-4 transition-opacity hover:opacity-80"
-      style={{ background: PALETTE.surface, borderColor: accent ? PALETTE.accent : PALETTE.border }}
+      style={{ background: PALETTE.surface, borderColor: isAccented ? PALETTE.accent : PALETTE.border }}
     >
       <div className="text-xs uppercase tracking-wide" style={{ color: PALETTE.muted }}>{label}</div>
-      <div className="mt-1 text-2xl font-semibold" style={{ color: accent ? PALETTE.accent : PALETTE.text }}>
+      <div className="mt-1 text-2xl font-semibold" style={{ color: isAccented ? PALETTE.accent : PALETTE.text }}>
         {value}
       </div>
     </Link>

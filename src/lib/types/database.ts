@@ -128,6 +128,8 @@ export interface Talent {
   wwcc_expiry: string | null;
   instagram: string | null;
   website: string | null;
+  /** Suggested day rate — pre-fills the booking-team add form. */
+  default_day_rate: number | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
@@ -245,6 +247,12 @@ export interface Booking {
   } | null;
   drive_root_link: string | null;
   calendar_event_id: string | null;
+  /** Opaque UUID for the /q/[token] public quote link sent to clients. */
+  quote_token: string;
+  /** Set automatically when the booking transitions to invoice_issued. */
+  invoice_issued_at: string | null;
+  /** Set automatically when the booking transitions to paid. */
+  paid_at: string | null;
 }
 
 export interface BookingTalent {
@@ -257,6 +265,8 @@ export interface BookingTalent {
   usage_fee: number | null;
   confirmed: boolean;
   notes: string | null;
+  /** Set when Atelier pays this artist. Null = not yet paid. */
+  artist_paid_at: string | null;
   // Joined
   talent?: Talent;
 }
@@ -271,6 +281,8 @@ export interface BookingCrew {
   status: string;
   confirmed_at: string | null;
   notes: string | null;
+  /** Set when Atelier pays this crew member. Null = not yet paid. */
+  artist_paid_at: string | null;
   // Joined
   crew?: Crew;
 }
@@ -361,6 +373,44 @@ export interface Approval {
   idempotency_key: string | null;
   // Joined
   booking?: Booking;
+}
+
+export type StudioType =
+  | 'photo_studio' | 'film_studio' | 'outdoor' | 'retail'
+  | 'residential' | 'venue' | 'other';
+
+export interface Location {
+  id: string;
+  created_at: string;
+  updated_at: string;
+
+  name: string;
+  alias: string | null;
+  studio_type: StudioType;
+
+  address: string | null;
+  suburb: string | null;
+  state: string;
+  postcode: string | null;
+
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  website: string | null;
+
+  half_day_rate: number | null;
+  full_day_rate: number | null;
+  weekend_surcharge_pct: number | null;
+  rate_notes: string | null;
+
+  facilities: string[] | null;
+  parking_notes: string | null;
+  access_notes: string | null;
+  square_metres: number | null;
+  max_capacity: number | null;
+
+  notes: string | null;
+  is_active: boolean;
 }
 
 export interface KillSwitchState {

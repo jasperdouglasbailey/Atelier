@@ -12,12 +12,13 @@ import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
-import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
+import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
+import PayrollPanel from '@/components/bookings/PayrollPanel';
 import { PALETTE } from '@/lib/utils/constants';
 import { computeQuoteTotals, computeAgencyMargin } from '@/lib/utils/fee-engine';
 import type { FeeLine } from '@/lib/types/database';
@@ -67,6 +68,12 @@ export default async function BookingDetailPage({ params }: Props) {
     listCrew(),
   ]);
 
+  // Rate precedents for the primary artist (if any) — helps Jasper price consistently
+  const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
+  const ratePrecedents: RatePrecedent[] = primaryTalentId
+    ? await getTalentRatePrecedents(primaryTalentId, id)
+    : [];
+
   // Agency margin: commission + ASF + super spread. Computed from fee lines
   // because the booking row doesn't store commission/super totals separately.
   const margin = feeLines.length > 0
@@ -79,7 +86,7 @@ export default async function BookingDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <BookingDetail booking={booking} margin={margin} />
+            <BookingDetail booking={booking} margin={margin} licences={usageLicences} googleConfigured={isGoogleConfigured()} />
             {/* Brief parser — show when raw text is present and state is early */}
             {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
               <BriefParser
@@ -118,11 +125,18 @@ export default async function BookingDetailPage({ params }: Props) {
                 bookingId={id}
                 quoteVersions={quoteVersions}
                 feeLines={feeLines}
+                bookingTalent={bookingTalent}
+                ratePrecedents={ratePrecedents}
               />
             </div>
-            <div className="rounded-lg border p-4" style={{ background: '#141414', borderColor: '#262626' }}>
-              <UsageLicenceBuilder bookingId={id} licences={usageLicences} />
-            </div>
+            {/* Pay-on-paid tracker — show once we're invoicing or paid */}
+            {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
+              <PayrollPanel
+                bookingId={id}
+                bookingTalent={bookingTalent as import('@/lib/types/database').BookingTalent[]}
+                bookingCrew={bookingCrew as import('@/lib/types/database').BookingCrew[]}
+              />
+            )}
             <BookingTeam
               bookingId={id}
               bookingTalent={bookingTalent}

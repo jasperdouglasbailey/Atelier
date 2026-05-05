@@ -4,16 +4,18 @@ import Topbar from '@/components/layout/Topbar';
 import BookingEditForm from '@/components/bookings/BookingEditForm';
 import { getBooking } from '@/lib/data/bookings';
 import { listClients, listBrands } from '@/lib/data/entities';
-import { PALETTE } from '@/lib/utils/constants';
+import { listBookingTalent } from '@/lib/data/quotes';
+import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function BookingEditPage({ params }: Props) {
   const { id } = await params;
-  const [booking, clients, brands] = await Promise.all([
+  const [booking, clients, brands, bookingTalent] = await Promise.all([
     getBooking(id),
     listClients(),
     listBrands(),
+    listBookingTalent(id),
   ]);
 
   if (!booking) notFound();
@@ -32,9 +34,29 @@ export default async function BookingEditPage({ params }: Props) {
           </Link>
         </div>
         <div className="rounded-lg border p-6" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h2 className="text-base font-semibold mb-6" style={{ color: PALETTE.text }}>
-            Edit Booking
-          </h2>
+          <div className="flex items-start justify-between mb-6">
+            <h2 className="text-base font-semibold" style={{ color: PALETTE.text }}>
+              Edit Booking
+            </h2>
+            {bookingTalent.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {bookingTalent.map((bt) => {
+                  const t = bt as typeof bt & { talent?: { name: string; discipline: string | null } | null };
+                  const name = t.talent?.name ?? '—';
+                  const disc = t.talent?.discipline ? ARTIST_DISCIPLINE_LABELS[t.talent.discipline as keyof typeof ARTIST_DISCIPLINE_LABELS] : null;
+                  return (
+                    <span
+                      key={bt.id}
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+                      style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33` }}
+                    >
+                      {name}{disc ? ` · ${disc}` : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <BookingEditForm booking={booking} clients={clients} brands={brands} />
         </div>
       </div>

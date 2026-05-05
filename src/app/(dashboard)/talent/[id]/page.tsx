@@ -150,6 +150,12 @@ export default async function TalentDetailPage({ params }: Props) {
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
           <div className="grid gap-3 sm:grid-cols-2">
+            {talent.default_day_rate != null && (
+              <Field
+                label="Default Day Rate"
+                value={talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })}
+              />
+            )}
             <Field label="ABN" value={talent.abn} />
             <Field label="Entity Type" value={talent.entity_type} />
             <Field label="Representation" value={talent.representation_status} />

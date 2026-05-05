@@ -5,6 +5,7 @@ import { listTalent } from '@/lib/data/entities';
 import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 import type { ArtistDiscipline } from '@/lib/types/database';
 import CreateTalentDialog from '@/components/entities/CreateTalentDialog';
+import CSVImportExport from '@/components/csv/CSVImportExport';
 
 type SearchParams = Promise<{ search?: string; discipline?: string }>;
 
@@ -39,7 +40,12 @@ export default async function TalentPage({ searchParams }: { searchParams: Searc
           }
           count={talent.length}
           countLabel="artist"
-          rightSlot={<CreateTalentDialog />}
+          rightSlot={
+            <div className="flex items-center gap-2">
+              <CSVImportExport type="talent" />
+              <CreateTalentDialog />
+            </div>
+          }
         />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

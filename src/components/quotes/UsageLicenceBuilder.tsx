@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { UsageLicence, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import { PALETTE } from '@/lib/utils/constants';
@@ -71,6 +71,20 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
   const [busy, setBusy] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<UsageMedia[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<UsageTerritory[]>([]);
+  // BUR auto-calculation
+  const [burMultiplier, setBurMultiplier] = useState('');
+  const [baseRate, setBaseRate] = useState('');
+  const [autoFee, setAutoFee] = useState('');
+
+  useEffect(() => {
+    const bur = parseFloat(burMultiplier);
+    const base = parseFloat(baseRate);
+    if (!isNaN(bur) && !isNaN(base) && bur > 0 && base > 0) {
+      setAutoFee(String(Math.round(bur * base)));
+    } else {
+      setAutoFee('');
+    }
+  }, [burMultiplier, baseRate]);
 
   function toggleMedia(m: UsageMedia) {
     setSelectedMedia(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -87,8 +101,20 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
     setShowAdd(false);
     setSelectedMedia([]);
     setSelectedTerritory([]);
+    setBurMultiplier('');
+    setBaseRate('');
+    setAutoFee('');
     router.refresh();
     setBusy(false);
+  }
+
+  function handleCancel() {
+    setShowAdd(false);
+    setSelectedMedia([]);
+    setSelectedTerritory([]);
+    setBurMultiplier('');
+    setBaseRate('');
+    setAutoFee('');
   }
 
   async function handleRemove(id: string) {
@@ -106,7 +132,7 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
           Usage Licences ({licences.length})
         </h3>
         <button
-          onClick={() => setShowAdd(!showAdd)}
+          onClick={showAdd ? handleCancel : () => setShowAdd(true)}
           className="rounded px-2.5 py-1 text-[11px] font-medium"
           style={{ background: showAdd ? 'transparent' : `${PALETTE.accent}22`, color: PALETTE.accent }}
         >
@@ -198,7 +224,7 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             <div>
               <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Period</label>
               <select name="duration_months" className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}>
@@ -208,14 +234,62 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>BUR Multiplier</label>
-              <input name="bur_multiplier" type="number" step="0.1" min="0" placeholder="e.g. 1.5" className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
-            </div>
-            <div>
-              <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Fee ($)</label>
-              <input name="fee" type="number" step="0.01" min="0" required className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
+              <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Fee ($) *</label>
+              <input
+                name="fee"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={autoFee}
+                onChange={(e) => setAutoFee(e.target.value)}
+                className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
+                style={{ background: PALETTE.bg, borderColor: autoFee ? `${PALETTE.accent}66` : PALETTE.border, color: PALETTE.text }}
+              />
             </div>
           </div>
+          {/* BUR auto-calculator — optional helper */}
+          <details className="rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
+            <summary className="cursor-pointer text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
+              BUR Calculator (optional)
+            </summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div>
+                <label className="block text-[10px] uppercase" style={{ color: PALETTE.muted }}>BUR Multiplier</label>
+                <input
+                  name="bur_multiplier"
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  placeholder="e.g. 0.3"
+                  value={burMultiplier}
+                  onChange={(e) => setBurMultiplier(e.target.value)}
+                  className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
+                  style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase" style={{ color: PALETTE.muted }}>Base Rate ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 3500 (day rate)"
+                  value={baseRate}
+                  onChange={(e) => setBaseRate(e.target.value)}
+                  className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
+                  style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+                />
+              </div>
+              <div className="flex items-end pb-1.5">
+                {autoFee && (
+                  <span className="text-xs font-medium" style={{ color: PALETTE.accent }}>
+                    = ${Number(autoFee).toLocaleString()} ↑ auto-filled above
+                  </span>
+                )}
+              </div>
+            </div>
+          </details>
 
           <div>
             <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Notes</label>

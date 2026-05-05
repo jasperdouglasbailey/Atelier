@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { logAudit } from '@/lib/utils/audit';
@@ -435,6 +436,50 @@ export type TalentBookingHistoryRow = {
   confirmed: boolean;
 };
 
+export type RatePrecedent = {
+  bookingId: string;
+  bookingRef: string | null;
+  tier: string;
+  dayRate: number;
+  state: string;
+};
+
+/**
+ * Returns up to 5 most recent day rates for a talent on past bookings,
+ * excluding the booking identified by exceptBookingId.
+ * Used by QuoteBuilder to show rate context when setting the shoot fee.
+ */
+export async function getTalentRatePrecedents(
+  talentId: string,
+  exceptBookingId: string,
+): Promise<RatePrecedent[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(BT_TABLE)
+    .select('booking_id, day_rate, booking:atelier_bookings(booking_ref, state, tier)')
+    .eq('talent_id', talentId)
+    .neq('booking_id', exceptBookingId)
+    .not('day_rate', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (error || !data) return [];
+
+  return ((data as unknown[]) as Array<{
+    booking_id: string;
+    day_rate: number;
+    booking: { booking_ref: string | null; state: string; tier: string } | null;
+  }>)
+    .filter((r) => r.day_rate > 0 && r.booking)
+    .map((r) => ({
+      bookingId: r.booking_id,
+      bookingRef: r.booking?.booking_ref ?? null,
+      tier: r.booking?.tier ?? 'content',
+      dayRate: r.day_rate,
+      state: r.booking?.state ?? '',
+    }));
+}
+
 export async function listTalentBookingHistory(talentId: string): Promise<TalentBookingHistoryRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -461,4 +506,36 @@ export async function listTalentBookingHistory(talentId: string): Promise<Talent
       confirmed: r.confirmed as boolean,
     };
   });
+}
+
+// ============================================================
+// Service-role (public) variants — bypasses RLS for unauthenticated routes
+// ============================================================
+
+/** Used by /q/[token] public quote viewer — no user session. */
+export async function getLatestQuoteVersionPublic(bookingId: string): Promise<QuoteVersion | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as QuoteVersion;
+}
+
+/** Used by /q/[token] public quote viewer — no user session. */
+export async function listFeeLinesPublic(quoteVersionId: string): Promise<FeeLine[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(LINE_TABLE)
+    .select('*')
+    .eq('quote_version_id', quoteVersionId)
+    .order('sort_order', { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as FeeLine[];
 }

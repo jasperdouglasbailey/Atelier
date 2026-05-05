@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { Booking, BookingState, ShootTier } from '@/lib/types/database';
 import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
 import { emitEvent } from '@/lib/utils/events';
@@ -8,11 +9,13 @@ import { getCurrentActor } from '@/lib/utils/actor';
 /** Booking row augmented with the joined client record (for list views). */
 export type BookingListRow = Booking & {
   client?: { name: string; company: string | null } | null;
+  /** First attached talent — used for list/board display. */
+  booking_talent?: Array<{ talent: { name: string; discipline: string | null } | null }> | null;
 };
 
 /** Booking row with full relations for the detail page. */
 export type BookingDetailRow = Booking & {
-  client?: { id: string; name: string; company: string | null } | null;
+  client?: { id: string; name: string; company: string | null; email: string | null } | null;
   brand?: { id: string; name: string } | null;
 };
 
@@ -47,7 +50,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   let query = supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(name, company), booking_talent:atelier_booking_talent(talent:atelier_talent(name, discipline))',
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
@@ -66,8 +69,23 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   if (filters.tier) query = query.eq('tier', filters.tier);
   if (filters.clientId) query = query.eq('client_id', filters.clientId);
   if (filters.search) {
-    // Match on title OR booking_ref (case-insensitive)
-    query = query.or(`title.ilike.%${filters.search}%,booking_ref.ilike.%${filters.search}%`);
+    // Pre-fetch matching client IDs so we can OR on client_id (PostgREST
+    // can't filter on embedded foreign-table columns inside .or())
+    const { data: matchedClients } = await supabase
+      .from('atelier_clients')
+      .select('id')
+      .or(`name.ilike.%${filters.search}%,company.ilike.%${filters.search}%`)
+      .limit(50);
+    const clientIds = (matchedClients ?? []).map((c: { id: string }) => c.id);
+
+    const orParts = [
+      `title.ilike.%${filters.search}%`,
+      `booking_ref.ilike.%${filters.search}%`,
+    ];
+    if (clientIds.length > 0) {
+      orParts.push(`client_id.in.(${clientIds.join(',')})`);
+    }
+    query = query.or(orParts.join(','));
   }
 
   const { data, count, error } = await query;
@@ -89,9 +107,32 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
     )
     .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as unknown as BookingDetailRow;
+}
+
+/**
+ * Look up a booking by its public quote token.
+ * Used by the /q/[token] client-facing route (no auth required).
+ */
+/**
+ * Public variant — uses service role to bypass RLS.
+ * Called from the unauthenticated /q/[token] route; the UUID token is
+ * the secret that authorises access to this specific booking.
+ */
+export async function getBookingByQuoteToken(token: string): Promise<BookingDetailRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+    )
+    .eq('quote_token', token)
     .maybeSingle();
 
   if (error || !data) return null;
@@ -121,6 +162,8 @@ export type CreateBookingInput = {
   budget_indication?: number | null;
   agency_notes?: string | null;
   brief_raw_text?: string | null;
+  usage_media?: string[] | null;
+  usage_territory?: string[] | null;
 };
 
 export async function createBooking(input: CreateBookingInput): Promise<Booking | null> {
@@ -245,6 +288,14 @@ export async function transitionState(
     patch.ot_expenses_locked = true;
     patch.final_delivery_at = new Date().toISOString();
   }
+  // Record when invoice is issued — used to compute DOI (days outstanding invoice)
+  if (newState === 'invoice_issued') {
+    patch.invoice_issued_at = new Date().toISOString();
+  }
+  // Record when payment clears — used to compute actual DOI and flag fast/slow payers
+  if (newState === 'paid') {
+    patch.paid_at = new Date().toISOString();
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -256,6 +307,13 @@ export async function transitionState(
   if (error) return { ok: false, error: error.message };
 
   const booking = data as Booking;
+
+  // Fire-and-forget: recompute avg_doi_days for the client when payment clears
+  if (newState === 'paid' && current.client_id) {
+    refreshClientAvgDoi(current.client_id).catch((err) =>
+      console.error('[transitionState] avg_doi refresh failed', err),
+    );
+  }
 
   await emitEvent('booking.state_changed', {
     from: current.state,
@@ -277,6 +335,49 @@ export async function transitionState(
 }
 
 // ============================================================
+// Client DOI maintenance
+// ============================================================
+
+/**
+ * Recomputes the client's average days-to-pay (avg_doi_days) from all
+ * paid bookings that have both invoice_issued_at and paid_at recorded.
+ * Called asynchronously when a booking transitions to "paid".
+ */
+async function refreshClientAvgDoi(clientId: string): Promise<void> {
+  const supabase = await createClient();
+
+  // Fetch all paid bookings for this client with both timestamps
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('invoice_issued_at, paid_at')
+    .eq('client_id', clientId)
+    .eq('state', 'paid')
+    .not('invoice_issued_at', 'is', null)
+    .not('paid_at', 'is', null);
+
+  if (error || !data || data.length === 0) return;
+
+  const rows = data as { invoice_issued_at: string; paid_at: string }[];
+
+  const totalDays = rows.reduce((sum, r) => {
+    const doi = Math.max(
+      0,
+      Math.round(
+        (new Date(r.paid_at).getTime() - new Date(r.invoice_issued_at).getTime()) / 86_400_000,
+      ),
+    );
+    return sum + doi;
+  }, 0);
+
+  const avgDoi = Math.round(totalDays / rows.length);
+
+  await supabase
+    .from('atelier_clients')
+    .update({ avg_doi_days: avgDoi })
+    .eq('id', clientId);
+}
+
+// ============================================================
 // Dashboard queries
 // ============================================================
 
@@ -295,6 +396,60 @@ export async function getBookingCounts(): Promise<Record<string, number>> {
   return counts;
 }
 
+// Attention items: bookings that need Jasper's input, ordered by urgency.
+// States and their implied action:
+//   morning_after_check → selects/OT review needed (highest urgency — time-sensitive)
+//   brief_received      → new brief in, needs parsing
+//   brief_parsed        → brief parsed, needs quote drafted
+//   quote_drafted       → quote ready to send to client
+export type AttentionItem = {
+  id: string;
+  booking_ref: string | null;
+  title: string;
+  state: BookingState;
+  client_company: string | null;
+  client_name: string | null;
+  updated_at: string;
+};
+
+const ATTENTION_STATES: BookingState[] = [
+  'morning_after_check',
+  'brief_received',
+  'brief_parsed',
+  'quote_drafted',
+];
+
+export async function getAttentionItems(): Promise<AttentionItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('id, booking_ref, title, state, updated_at, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
+    .in('state', ATTENTION_STATES)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  if (error || !data) return [];
+
+  // Sort by urgency: morning_after_check first, then by updated_at descending
+  const stateOrder = Object.fromEntries(ATTENTION_STATES.map((s, i) => [s, i]));
+  const rows = (data as unknown as Array<{
+    id: string; booking_ref: string | null; title: string; state: BookingState; updated_at: string;
+    client: { name: string; company: string | null } | null;
+  }>);
+
+  rows.sort((a, b) => (stateOrder[a.state] ?? 99) - (stateOrder[b.state] ?? 99));
+
+  return rows.map((r) => ({
+    id: r.id,
+    booking_ref: r.booking_ref,
+    title: r.title,
+    state: r.state,
+    client_company: r.client?.company ?? null,
+    client_name: r.client?.name ?? null,
+    updated_at: r.updated_at,
+  }));
+}
+
 export async function getUpcomingShoots(days = 14): Promise<Booking[]> {
   const supabase = await createClient();
   const now = new Date().toISOString().slice(0, 10);
@@ -311,4 +466,79 @@ export async function getUpcomingShoots(days = 14): Promise<Booking[]> {
 
   if (error) return [];
   return (data ?? []) as Booking[];
+}
+
+// ============================================================
+// Overdue invoice tracking
+// ============================================================
+
+export type OverdueInvoice = {
+  id: string;
+  booking_ref: string | null;
+  title: string;
+  grand_total: number;
+  invoice_issued_at: string;
+  days_outstanding: number;
+  payment_terms_days: number;
+  is_overdue: boolean;
+  client_id: string | null;
+  client_name: string | null;
+  client_company: string | null;
+};
+
+/**
+ * Fetches all unpaid invoiced bookings (state = invoice_issued) and
+ * annotates each with days outstanding and whether it's overdue relative
+ * to the client's payment_terms_days (defaults to 30 days if unset).
+ *
+ * Only returns bookings where the invoice was issued at least 1 day ago.
+ */
+export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      'id, booking_ref, title, grand_total, invoice_issued_at, client_id, client:atelier_clients!atelier_bookings_client_id_fkey(name, company, payment_terms_days)',
+    )
+    .eq('state', 'invoice_issued')
+    .not('invoice_issued_at', 'is', null)
+    .order('invoice_issued_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  const now = Date.now();
+  const rows = data as unknown as Array<{
+    id: string;
+    booking_ref: string | null;
+    title: string;
+    grand_total: number;
+    invoice_issued_at: string;
+    client_id: string | null;
+    client: { name: string; company: string | null; payment_terms_days: number | null } | null;
+  }>;
+
+  return rows
+    .map((r): OverdueInvoice => {
+      const issuedMs = new Date(r.invoice_issued_at).getTime();
+      const daysOutstanding = Math.max(0, Math.round((now - issuedMs) / 86_400_000));
+      const paymentTerms = r.client?.payment_terms_days ?? 30;
+      return {
+        id: r.id,
+        booking_ref: r.booking_ref,
+        title: r.title,
+        grand_total: r.grand_total,
+        invoice_issued_at: r.invoice_issued_at,
+        days_outstanding: daysOutstanding,
+        payment_terms_days: paymentTerms,
+        is_overdue: daysOutstanding > paymentTerms,
+        client_id: r.client_id,
+        client_name: r.client?.name ?? null,
+        client_company: r.client?.company ?? null,
+      };
+    })
+    // Surface overdue first, then sort by age descending within each group
+    .sort((a, b) => {
+      if (a.is_overdue !== b.is_overdue) return a.is_overdue ? -1 : 1;
+      return b.days_outstanding - a.days_outstanding;
+    });
 }
