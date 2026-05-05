@@ -14,6 +14,7 @@ import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/cal
 import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { callLLM } from '@/lib/integrations/anthropic';
+import { critiqueDraft, jasperVoicePromptBlock } from '@/lib/automation/agent-primitives';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { createClient as createSupabaseServer } from '@/lib/supabase/server';
 import { logAuditFailure } from '@/lib/utils/audit';
@@ -636,28 +637,55 @@ export async function draftClarifyingEmailAction(
 
   let body: string;
 
-  // Try LLM first
-  const llmResult = await callLLM({
-    purpose: 'brief_clarify',
-    bookingId,
-    maxTokens: 400,
-    messages: [{
-      role: 'user',
-      content: `Write a short, friendly email from Jasper Bailey at Saunders & Co to ${clientName} (client).
+  // Try LLM first — up to 2 attempts with critique-driven revision
+  // (doctrine: critique pass before serving). If LLM is unavailable
+  // or critique never passes, fall through to the template.
+  const systemPrompt = jasperVoicePromptBlock();
+  const initialPrompt = `Write a short clarifying email from Saunders & Co to ${clientName} (client).
 Reference: ${ref} — ${booking.title}
 
 We received their brief but need clarification on these points:
 ${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
-Write only the email body (no subject line). Keep it under 120 words. End with:
-Jasper Bailey
-Saunders & Co
-info@saundersandco.com.au`,
-    }],
-  }).catch(() => null);
+Write only the email body (no subject line). Keep it under 120 words.`;
 
-  if (llmResult?.ok) {
-    body = llmResult.text;
+  let llmBody: string | null = null;
+  let revisionNote = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const llmResult = await callLLM({
+      purpose: 'brief_clarify',
+      bookingId,
+      maxTokens: 400,
+      systemPrompt,
+      messages: [{
+        role: 'user',
+        content: revisionNote
+          ? `${initialPrompt}\n\nPrevious draft was rejected because: ${revisionNote}\nRewrite addressing that.`
+          : initialPrompt,
+      }],
+    }).catch(() => null);
+
+    if (!llmResult?.ok) break;
+
+    const draft = llmResult.text;
+    const critique = await critiqueDraft({
+      draft,
+      recipient: 'a busy creative director or producer at the client agency',
+      context: `awaiting clarification on a brief for ${booking.title}`,
+      bookingId,
+    });
+
+    // No critique available, or critique passed — ship it.
+    if (!critique || critique.isClear) {
+      llmBody = draft;
+      break;
+    }
+    // Critique failed; capture the note and try once more.
+    revisionNote = critique.revisionNeeded || critique.reaction;
+  }
+
+  if (llmBody) {
+    body = llmBody;
   } else {
     // Template fallback
     const questionList = questions.map((q, i) => `${i + 1}. Could you please confirm ${q}?`).join('\n');

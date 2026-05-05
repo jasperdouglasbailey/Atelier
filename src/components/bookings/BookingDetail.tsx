@@ -167,6 +167,16 @@ export default function BookingDetail({ booking, margin = null, licences, google
           >
             ↗ Invoice
           </Link>
+          <Link
+            href={`/print/bookings/${booking.id}/call-sheet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-3 py-1.5 text-xs font-medium"
+            title="Auto-generated call sheet"
+            style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            ↗ Call Sheet
+          </Link>
           <SendQuotePanel
             bookingId={booking.id}
             clientEmail={booking.client?.email ?? null}
