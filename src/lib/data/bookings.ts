@@ -136,6 +136,8 @@ export type CreateBookingInput = {
   budget_indication?: number | null;
   agency_notes?: string | null;
   brief_raw_text?: string | null;
+  usage_media?: string[] | null;
+  usage_territory?: string[] | null;
 };
 
 export async function createBooking(input: CreateBookingInput): Promise<Booking | null> {

@@ -144,6 +144,11 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
                           <Link href={`/bookings/${b.id}`} className="hover:underline">
                             {b.title}
                           </Link>
+                          {b.talent_spec && (
+                            <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
+                              {b.talent_spec}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: clientName ? PALETTE.muted : '#404560' }}>
                           {clientName ?? '—'}

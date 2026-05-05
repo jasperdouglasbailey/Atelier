@@ -83,6 +83,11 @@ export default function BookingsBoard({ bookings }: Props) {
                     <div className="text-xs font-medium leading-tight mb-1" style={{ color: PALETTE.text }}>
                       {b.title}
                     </div>
+                    {b.talent_spec && (
+                      <div className="text-[10px] mb-0.5" style={{ color: PALETTE.accent }}>
+                        {b.talent_spec}
+                      </div>
+                    )}
                     {clientName && (
                       <div className="text-[10px]" style={{ color: PALETTE.muted }}>
                         {clientName}

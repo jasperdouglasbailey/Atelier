@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { createBookingAction } from '@/app/actions/bookings';
 import { createClientAction, createBrandAction } from '@/app/actions/entities';
 import { SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE } from '@/lib/utils/constants';
-import type { Client, Brand } from '@/lib/types/database';
+import type { Client, Brand, UsageMedia, UsageTerritory } from '@/lib/types/database';
 
 type Props = {
   clients: Client[];
@@ -114,6 +114,29 @@ function QuickCreateForm({
   );
 }
 
+const POST_PROD_OPTIONS = [
+  { value: '', label: '— Not set —' },
+  { value: 'us_via_artist', label: 'Us via artist' },
+  { value: 'us_via_post_team', label: 'Us via post team' },
+  { value: 'client_in_house', label: 'Client in-house' },
+  { value: 'client_outsourced', label: 'Client outsourced' },
+];
+
+const USAGE_MEDIA_OPTIONS: { value: UsageMedia; label: string }[] = [
+  { value: 'all_media', label: 'All Media' }, { value: 'all_print', label: 'All Print' }, { value: 'all_digital', label: 'All Digital' },
+  { value: 'ooh', label: 'OOH / Billboards' }, { value: 'press', label: 'Press' }, { value: 'social_media', label: 'Social Media' },
+  { value: 'company_website', label: 'Website' }, { value: 'internet_advertising', label: 'Internet Ads' },
+  { value: 'packaging', label: 'Packaging' }, { value: 'pos', label: 'POS' }, { value: 'tv', label: 'TV / Broadcast' },
+  { value: 'brochures', label: 'Brochures' }, { value: 'collateral', label: 'Collateral' }, { value: 'ambient', label: 'Ambient' },
+];
+
+const USAGE_TERRITORY_OPTIONS: { value: UsageTerritory; label: string }[] = [
+  { value: 'worldwide', label: 'Worldwide' }, { value: 'australia', label: 'Australia' }, { value: 'oceania', label: 'Oceania' },
+  { value: 'usa', label: 'USA' }, { value: 'north_america', label: 'North America' },
+  { value: 'europe_all', label: 'Europe (all)' }, { value: 'uk', label: 'UK' },
+  { value: 'asia_incl_japan', label: 'Asia (incl. Japan)' }, { value: 'middle_east', label: 'Middle East' }, { value: 'emea', label: 'EMEA' },
+];
+
 export default function BookingForm({ clients: initialClients, brands: initialBrands }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +151,12 @@ export default function BookingForm({ clients: initialClients, brands: initialBr
   const [brands, setBrands] = useState(initialBrands);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [showNewBrand, setShowNewBrand] = useState(false);
+
+  // Usage arrays
+  const [selectedMedia, setSelectedMedia] = useState<Set<UsageMedia>>(new Set());
+  const [selectedTerritories, setSelectedTerritories] = useState<Set<UsageTerritory>>(new Set());
+  function toggleMedia(v: UsageMedia) { setSelectedMedia((p) => { const n = new Set(p); n.has(v) ? n.delete(v) : n.add(v); return n; }); }
+  function toggleTerritory(v: UsageTerritory) { setSelectedTerritories((p) => { const n = new Set(p); n.has(v) ? n.delete(v) : n.add(v); return n; }); }
 
   function handleClientChange(e: React.ChangeEvent<HTMLSelectElement>) {
     if (e.target.value === QUICK_CREATE_VALUE) {
@@ -157,6 +186,8 @@ export default function BookingForm({ clients: initialClients, brands: initialBr
     // Inject controlled IDs (dropdowns are controlled so FormData won't pick them up reliably)
     if (selectedClientId) formData.set('client_id', selectedClientId);
     if (selectedBrandId) formData.set('brand_id', selectedBrandId);
+    formData.set('usage_media', JSON.stringify([...selectedMedia]));
+    formData.set('usage_territory', JSON.stringify([...selectedTerritories]));
     const result = await createBookingAction(formData);
     if ('error' in result) {
       setError(result.error ?? 'Unknown error');
@@ -297,19 +328,62 @@ export default function BookingForm({ clients: initialClients, brands: initialBr
         </div>
       </div>
 
-      {/* Usage */}
+      {/* Post-production ownership */}
       <div>
-        <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
-        <input name="usage_duration_months" type="number" min="0" className={inputClass} style={inputStyle} placeholder="e.g. 12" />
+        <label className={labelClass} style={labelStyle}>Post-Production Ownership</label>
+        <select name="post_production_ownership" className={inputClass} style={inputStyle} defaultValue="">
+          {POST_PROD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </div>
+
+      {/* Usage */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
+          <input name="usage_duration_months" type="number" min="0" className={inputClass} style={inputStyle} placeholder="e.g. 12" />
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>Usage Notes</label>
+          <input name="usage_notes" className={inputClass} style={inputStyle} placeholder="e.g. Digital owned, AU only" />
+        </div>
+      </div>
+
       <div>
-        <label className={labelClass} style={labelStyle}>Usage Notes</label>
-        <input name="usage_notes" className={inputClass} style={inputStyle} placeholder="e.g. Digital owned, AU only" />
+        <label className={labelClass} style={labelStyle}>Media</label>
+        <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3">
+          {USAGE_MEDIA_OPTIONS.map(({ value, label }) => {
+            const active = selectedMedia.has(value);
+            return (
+              <label key={value} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-xs select-none" style={{ background: active ? `${PALETTE.accent}18` : 'transparent', color: active ? PALETTE.accent : PALETTE.muted, border: `1px solid ${active ? PALETTE.accent + '44' : PALETTE.border}` }}>
+                <input type="checkbox" className="accent-blue-400 flex-shrink-0" checked={active} onChange={() => toggleMedia(value)} />
+                {label}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass} style={labelStyle}>Territory</label>
+        <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3">
+          {USAGE_TERRITORY_OPTIONS.map(({ value, label }) => {
+            const active = selectedTerritories.has(value);
+            return (
+              <label key={value} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-xs select-none" style={{ background: active ? `${PALETTE.accent}18` : 'transparent', color: active ? PALETTE.accent : PALETTE.muted, border: `1px solid ${active ? PALETTE.accent + '44' : PALETTE.border}` }}>
+                <input type="checkbox" className="accent-blue-400 flex-shrink-0" checked={active} onChange={() => toggleTerritory(value)} />
+                {label}
+              </label>
+            );
+          })}
+        </div>
       </div>
 
       {/* Raw brief */}
       <div>
-        <label className={labelClass} style={labelStyle}>Raw Brief / Email</label>
+        <label className={labelClass} style={labelStyle}>
+          Raw Brief / Email
+          <span className="ml-2 font-normal normal-case" style={{ color: '#666' }}>— paste source email for the Brief Parser to auto-fill fields</span>
+        </label>
         <textarea name="brief_raw_text" rows={4} className={inputClass} style={inputStyle} placeholder="Paste the original brief or email here..." />
       </div>
 

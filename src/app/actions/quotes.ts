@@ -4,9 +4,10 @@ import { revalidatePath } from 'next/cache';
 import {
   createQuoteVersion, addFeeLine, updateFeeLine, removeFeeLine,
   addBookingTalent, removeBookingTalent, addBookingCrew, removeBookingCrew,
+  listFeeLines,
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
-import type { FeeLineType } from '@/lib/types/database';
+import type { FeeLineType, FeeLine } from '@/lib/types/database';
 import { computeFeeLine } from '@/lib/utils/fee-engine';
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 
@@ -133,6 +134,11 @@ export async function removeFeeLineAction(id: string, bookingId: string) {
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
+}
+
+/** Load fee lines for any quote version (used by version navigator). */
+export async function getFeeLinesByVersionAction(versionId: string): Promise<FeeLine[]> {
+  return listFeeLines(versionId);
 }
 
 // ============================================================

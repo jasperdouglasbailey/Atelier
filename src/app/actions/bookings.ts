@@ -15,6 +15,14 @@ export async function createBookingAction(formData: FormData) {
   const shootStart = (formData.get('shoot_date_start') as string) || null;
   const shootEnd = (formData.get('shoot_date_end') as string) || null;
 
+  // Parse usage arrays from JSON (serialised by BookingForm)
+  let usageMedia: string[] | null = null;
+  let usageTerritory: string[] | null = null;
+  const mediaRaw = formData.get('usage_media');
+  if (mediaRaw) { try { usageMedia = JSON.parse(mediaRaw as string); } catch { usageMedia = []; } }
+  const territoryRaw = formData.get('usage_territory');
+  if (territoryRaw) { try { usageTerritory = JSON.parse(territoryRaw as string); } catch { usageTerritory = []; } }
+
   const input: CreateBookingInput = {
     title: formData.get('title') as string,
     tier: formData.get('tier') as CreateBookingInput['tier'],
@@ -30,9 +38,11 @@ export async function createBookingAction(formData: FormData) {
     deliverables_count: formData.get('deliverables_count') ? Number(formData.get('deliverables_count')) : null,
     usage_duration_months: formData.get('usage_duration_months') ? Number(formData.get('usage_duration_months')) : null,
     usage_notes: (formData.get('usage_notes') as string) || null,
-    budget_indication: formData.get('budget_indication') ? Number(formData.get('budget_indication')) : null,
+    post_production_ownership: (formData.get('post_production_ownership') as string) || null,
     agency_notes: (formData.get('agency_notes') as string) || null,
     brief_raw_text: (formData.get('brief_raw_text') as string) || null,
+    usage_media: usageMedia,
+    usage_territory: usageTerritory,
   };
 
   const booking = await createBooking(input);
@@ -69,7 +79,17 @@ export async function updateBookingAction(id: string, formData: FormData) {
   if (formData.get('tier')) updates.tier = formData.get('tier');
   if (formData.get('client_id')) updates.client_id = formData.get('client_id') || null;
   if (formData.get('brand_id')) updates.brand_id = formData.get('brand_id') || null;
-  if (formData.get('post_production_ownership')) updates.post_production_ownership = formData.get('post_production_ownership') || null;
+  if (formData.get('post_production_ownership') !== null) updates.post_production_ownership = formData.get('post_production_ownership') || null;
+
+  // Array fields arrive as JSON strings from the edit form
+  const mediaRaw = formData.get('usage_media');
+  if (mediaRaw !== null) {
+    try { updates.usage_media = JSON.parse(mediaRaw as string); } catch { updates.usage_media = []; }
+  }
+  const territoryRaw = formData.get('usage_territory');
+  if (territoryRaw !== null) {
+    try { updates.usage_territory = JSON.parse(territoryRaw as string); } catch { updates.usage_territory = []; }
+  }
 
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to update booking' };
