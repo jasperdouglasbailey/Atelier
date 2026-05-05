@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createBooking, getBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
+import { createBooking, getBooking, updateBooking, transitionState, deleteBookingWithCorpus, type CreateBookingInput } from '@/lib/data/bookings';
 import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent } from '@/lib/data/quotes';
 import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
@@ -909,4 +909,35 @@ export async function getClientDefaultsAction(clientId: string): Promise<{
   }
 
   return { media, territories, durationMonths };
+}
+
+// ============================================================
+// Hard delete (terminal bookings only)
+// ============================================================
+
+/**
+ * Permanently delete a booking, archiving an anonymised row to
+ * atelier_corpus_bookings before the cascade fires.
+ *
+ * Only permitted for terminal states: paid, released, cancelled.
+ * There is intentionally no UI button wired to this yet — it is
+ * callable from the /audit surface or future admin tooling.
+ *
+ * Returns { ok: true } on success, { ok: false, error } on failure.
+ */
+export async function deleteBookingAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const ok = await deleteBookingWithCorpus(bookingId);
+    if (!ok) {
+      return { ok: false, error: 'Delete returned false — check logs for details.' };
+    }
+    revalidatePath('/bookings');
+    revalidatePath('/');
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
 }
