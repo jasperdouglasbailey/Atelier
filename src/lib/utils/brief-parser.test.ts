@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseBrief } from './brief-parser';
+import { parseBrief, mapTerritoryRaw, mapMediaRaw } from './brief-parser';
 
 describe('parseBrief — empty input', () => {
   it('returns all-null result for empty string', () => {
@@ -221,5 +221,74 @@ Sarah
   it('extracts budget', () => {
     const r = parseBrief(realBrief);
     expect(r.budget_indication).toBe(25000);
+  });
+});
+
+// ============================================================
+// Territory & media enum mappers
+// ============================================================
+
+describe('mapTerritoryRaw', () => {
+  it('maps a single common territory', () => {
+    expect(mapTerritoryRaw('Australia').matched).toEqual(['australia']);
+  });
+
+  it('maps multiple comma-separated territories', () => {
+    const r = mapTerritoryRaw('Australia, NZ, UK');
+    expect(r.matched).toEqual(expect.arrayContaining(['australia', 'oceania', 'uk']));
+    expect(r.matched).toHaveLength(3);
+    expect(r.unmatched).toHaveLength(0);
+  });
+
+  it('handles "and" and "&" as separators', () => {
+    expect(mapTerritoryRaw('Australia and NZ').matched).toEqual(expect.arrayContaining(['australia', 'oceania']));
+    expect(mapTerritoryRaw('AU & UK').matched).toEqual(expect.arrayContaining(['australia', 'uk']));
+  });
+
+  it('returns unmatched tokens for unknown territories', () => {
+    const r = mapTerritoryRaw('Australia, Mars, NZ');
+    expect(r.matched).toEqual(expect.arrayContaining(['australia', 'oceania']));
+    expect(r.unmatched).toEqual(['Mars']);
+  });
+
+  it('is case insensitive and ignores punctuation', () => {
+    expect(mapTerritoryRaw('AUSTRALIA.').matched).toEqual(['australia']);
+    expect(mapTerritoryRaw('australia').matched).toEqual(['australia']);
+  });
+
+  it('returns empty for null/empty input', () => {
+    expect(mapTerritoryRaw(null).matched).toEqual([]);
+    expect(mapTerritoryRaw('').matched).toEqual([]);
+  });
+
+  it('deduplicates repeated territories', () => {
+    const r = mapTerritoryRaw('Australia, AU, Aus');
+    expect(r.matched).toEqual(['australia']);
+  });
+});
+
+describe('mapMediaRaw', () => {
+  it('maps common Australian commercial media tokens', () => {
+    const r = mapMediaRaw('Front of store POS, Paid social');
+    expect(r.matched).toEqual(expect.arrayContaining(['pos', 'social_media']));
+  });
+
+  it('maps OOH and press', () => {
+    const r = mapMediaRaw('OOH, Press, Magazines');
+    expect(r.matched).toEqual(expect.arrayContaining(['ooh', 'press']));
+  });
+
+  it('maps "all digital" to all_digital', () => {
+    expect(mapMediaRaw('All digital').matched).toEqual(['all_digital']);
+  });
+
+  it('returns unmatched for genuinely unknown media', () => {
+    const r = mapMediaRaw('Skywriting, Direct mail');
+    expect(r.matched).toEqual(['direct_mail']);
+    expect(r.unmatched).toEqual(['Skywriting']);
+  });
+
+  it('returns empty for null input', () => {
+    expect(mapMediaRaw(null).matched).toEqual([]);
   });
 });

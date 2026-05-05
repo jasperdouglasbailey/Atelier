@@ -12,8 +12,10 @@
  * every page load.
  */
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 1800; // 30 min
+// Cache the Instagram fetch for 30 minutes — Instagram rate-limits aggressively
+// and the stats don't change minute-to-minute. revalidate alone (without
+// force-dynamic) gives us ISR-style caching at the route level.
+export const revalidate = 1800;
 
 const IG_HANDLE = 'saundersandcoagency';
 const IG_URL = `https://www.instagram.com/${IG_HANDLE}/`;

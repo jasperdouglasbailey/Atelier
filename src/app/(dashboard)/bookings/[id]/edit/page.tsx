@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import BookingEditForm from '@/components/bookings/BookingEditForm';
 import { getBooking } from '@/lib/data/bookings';
-import { listClients, listBrands } from '@/lib/data/entities';
+import { listClients, listBrands, listTalent } from '@/lib/data/entities';
+import { listLocations } from '@/lib/data/locations';
 import { listBookingTalent } from '@/lib/data/quotes';
 import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 
@@ -11,14 +12,19 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function BookingEditPage({ params }: Props) {
   const { id } = await params;
-  const [booking, clients, brands, bookingTalent] = await Promise.all([
+  const [booking, clients, brands, talent, locations, bookingTalent] = await Promise.all([
     getBooking(id),
     listClients(),
     listBrands(),
+    listTalent(),
+    listLocations({ active_only: true }),
     listBookingTalent(id),
   ]);
 
   if (!booking) notFound();
+
+  // Identify the current primary artist (first booking_talent row, by created_at)
+  const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
 
   return (
     <>
@@ -57,7 +63,14 @@ export default async function BookingEditPage({ params }: Props) {
               </div>
             )}
           </div>
-          <BookingEditForm booking={booking} clients={clients} brands={brands} />
+          <BookingEditForm
+            booking={booking}
+            clients={clients}
+            brands={brands}
+            talent={talent}
+            locations={locations}
+            primaryTalentId={primaryTalentId}
+          />
         </div>
       </div>
     </>

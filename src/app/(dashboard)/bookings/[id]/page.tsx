@@ -19,6 +19,7 @@ import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
 import PayrollPanel from '@/components/bookings/PayrollPanel';
+import Link from 'next/link';
 import { PALETTE } from '@/lib/utils/constants';
 import { computeQuoteTotals, computeAgencyMargin } from '@/lib/utils/fee-engine';
 import type { FeeLine } from '@/lib/types/database';
@@ -87,6 +88,24 @@ export default async function BookingDetailPage({ params }: Props) {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <BookingDetail booking={booking} margin={margin} licences={usageLicences} googleConfigured={isGoogleConfigured()} />
+            {/* Inbox shortcut — focused Brief→Quote→Send workspace */}
+            {['brief_received', 'brief_parsed', 'quote_drafted'].includes(booking.state) && (
+              <div
+                className="rounded-lg border px-4 py-3 flex items-center justify-between"
+                style={{ background: `${PALETTE.accent}0a`, borderColor: `${PALETTE.accent}33` }}
+              >
+                <p className="text-xs" style={{ color: PALETTE.muted }}>
+                  Focused brief → quote → send workspace
+                </p>
+                <Link
+                  href={`/inbox/${id}`}
+                  className="rounded px-3 py-1.5 text-xs font-medium"
+                  style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+                >
+                  Open in Inbox →
+                </Link>
+              </div>
+            )}
             {/* Brief parser — show when raw text is present and state is early */}
             {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
               <BriefParser

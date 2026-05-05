@@ -146,8 +146,8 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           disabled={isPending}
           className="hidden rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 sm:inline-flex"
           style={{
-            borderColor: isPaused ? '#fbbf24' : 'var(--p-border)',
-            color: isPaused ? '#fbbf24' : 'var(--p-muted)',
+            borderColor: isPaused ? 'var(--p-warning)' : 'var(--p-border)',
+            color: isPaused ? 'var(--p-warning)' : 'var(--p-muted)',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
           aria-pressed={isPaused}
@@ -161,7 +161,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           className="rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-50"
           style={{
             background: isActive ? '#7f1d1d' : 'transparent',
-            color: isActive ? '#fff' : '#f87171',
+            color: isActive ? '#fff' : 'var(--p-danger)',
             border: `1px solid ${isActive ? '#7f1d1d' : '#5c2626'}`,
           }}
           aria-pressed={isActive}
@@ -177,8 +177,8 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           disabled={isPending}
           className="w-full rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50"
           style={{
-            borderColor: isPaused ? '#fbbf24' : 'var(--p-border)',
-            color: isPaused ? '#fbbf24' : 'var(--p-muted)',
+            borderColor: isPaused ? 'var(--p-warning)' : 'var(--p-border)',
+            color: isPaused ? 'var(--p-warning)' : 'var(--p-muted)',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
         >
@@ -218,7 +218,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
               <button
                 onClick={confirmKillSwitch}
                 className="rounded-md px-4 py-2 text-sm font-semibold"
-                style={{ background: isActive ? '#262626' : '#7f1d1d', color: '#fff' }}
+                style={{ background: isActive ? 'var(--p-border)' : '#7f1d1d', color: '#fff' }}
               >
                 {isActive ? 'Disable kill switch' : 'Enable kill switch'}
               </button>

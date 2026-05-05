@@ -6,6 +6,10 @@
 --
 -- Public/token-gated routes (/q/[token], /api/onboard) use the service
 -- role client at the application layer and are never subject to RLS.
+--
+-- NOTE: `CREATE POLICY IF NOT EXISTS` is not supported in dynamic SQL
+-- inside PL/pgSQL on the running Postgres version. The DO block below
+-- uses an EXCEPTION handler to make re-runs idempotent.
 
 -- Enable RLS on every table
 alter table public.atelier_bookings        enable row level security;
@@ -25,7 +29,7 @@ alter table public.atelier_audit_log       enable row level security;
 alter table public.atelier_llm_calls       enable row level security;
 alter table public.atelier_kill_switch     enable row level security;
 
--- Authenticated-user full-access policies (using 'if not exists' guard via DO block)
+-- Authenticated-user full-access policies — idempotent via EXCEPTION block
 do $$
 declare
   tbl text;
@@ -38,11 +42,15 @@ begin
     'atelier_audit_log','atelier_llm_calls','atelier_kill_switch'
   ]
   loop
-    execute format(
-      'create policy if not exists "auth_full_access" on public.%I
-       for all using (auth.uid() is not null)
-       with check (auth.uid() is not null)',
-      tbl
-    );
+    begin
+      execute format(
+        'create policy "auth_full_access" on public.%I
+         for all using (auth.uid() is not null)
+         with check (auth.uid() is not null)',
+        tbl
+      );
+    exception when duplicate_object then
+      null; -- policy already exists, skip
+    end;
   end loop;
 end $$;

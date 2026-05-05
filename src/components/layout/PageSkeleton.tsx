@@ -33,7 +33,7 @@ function TopbarSkeleton() {
   return (
     <header
       className="flex h-14 items-center gap-3 border-b px-4 sm:px-6"
-      style={{ background: '#141414', borderColor: '#262626' }}
+      style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
     >
       <Pulse className="w-32" height="0.875rem" />
     </header>

@@ -209,7 +209,7 @@ export default function LocationForm({ location }: Props) {
   function toggleFacility(v: string) {
     setFacilities((prev) => {
       const next = new Set(prev);
-      next.has(v) ? next.delete(v) : next.add(v);
+      if (next.has(v)) next.delete(v); else next.add(v);
       return next;
     });
   }

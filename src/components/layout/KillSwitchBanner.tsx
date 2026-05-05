@@ -37,9 +37,11 @@ export default function KillSwitchBanner({ initialState }: Props) {
   if (!state.is_active && !state.pause_outbound) return null;
 
   const isRed = state.is_active;
+  // Banner backgrounds intentionally deep — alert states must read clearly
+  // in both dark and light themes. Text uses the themed danger/warning vars.
   const palette = isRed
-    ? { bg: '#3d1a1a', border: '#5c2626', text: '#f87171', btn: '#7f1d1d' }
-    : { bg: '#3d2e0f', border: '#6b4f1a', text: '#fbbf24', btn: '#854d0e' };
+    ? { bg: '#3d1a1a', border: '#5c2626', text: 'var(--p-danger)',  btn: '#7f1d1d' }
+    : { bg: '#3d2e0f', border: '#6b4f1a', text: 'var(--p-warning)', btn: '#854d0e' };
 
   const message = isRed
     ? 'KILL SWITCH ACTIVE — All agents paused, outbound held'
