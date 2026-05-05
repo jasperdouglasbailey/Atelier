@@ -52,6 +52,44 @@ src/
 - Supabase PostgREST builder lacks `.catch()` — use try/catch.
 - Postgres daterange end is EXCLUSIVE. Use `src/lib/utils/daterange.ts`.
 
+## Build status (updated 2026-05-05, session 3)
+
+### Fully built
+- Booking pipeline: all 13 states, list + kanban board, detail, edit, new
+- Quote builder: versioned (v1, v2…), photographer + videographer templates, artist/outgoing split, live total preview, inline row editing
+- Usage licences: media × territory × duration, BUR auto-calculator
+- Fee engine: 20% commission, 15% ASF, 12/15% super, 10% GST — passes AJE #3579 canonical test
+- Brief parser: AI extraction of 15 canonical fields, apply suggestions action
+- Brief clarifying email: detects missing fields, LLM-drafts polite follow-up, Gmail draft or clipboard fallback
+- Hold requests: auto-propose preferred-core crew, kill-switch gated
+- Morning-after checklist + OT/expense entry + 7-day lock cron
+- Dashboard: KPI cards, attention queue (morning decisions)
+- Reports: 12-month revenue bars, state/tier breakdown, top clients, top artists, win rate / quote conversion
+- Talent: list, detail (stats + booking history + default day rate), edit (default rate field), archive
+- Crew: list, detail, edit + crew calendar
+- Clients: list, detail (revenue KPIs, frequent artists, booking history), edit
+- Print templates: quote, invoice, artist brief, crew brief
+- Send Quote to Client: compose panel, Gmail draft/send, clipboard fallback, state transition quote_drafted → quote_sent
+- Public quote viewer `/q/[token]`: auth-free client-facing link, embedded in emails, "Client View" button on booking
+- Booking team: talent/crew add forms pre-fill day rate from stored default; migration 0006 adds default_day_rate to talent
+- Audit log, kill switch (Red/Amber/Green), settings
+- Google OAuth flow: Gmail search, outbound send/draft, Drive folders, Calendar events
+- Artist shown on booking list/board/edit via booking_talent join
+
+### In progress / partially wired
+- Gmail outbound: wired, needs GOOGLE_REFRESH_TOKEN credentials set
+- Xero: OAuth registered; **invoice sync not yet live** (needs credentials from Jasper)
+- Quote templates: photographer + videographer; no usage/grading/equipment lines yet
+
+### Not yet built — priority order
+1. **Xero invoice push** — create invoice in Xero from booking (blocked on credentials)
+2. **Pay-on-paid tracking** — mark invoice paid → trigger artist/crew remittance workflow
+3. **Corpus system** — store booking outcomes, rate precedents (sample-size guard: <3 = low confidence)
+4. **Signal surfacing** — DOI drift, rate delta, talent-client history shown inline on bookings
+5. **Full agent prompts** — confidence contracts, critique passes, precedent requirements
+6. **RLS enforcement** — privacy matrix at DB layer (talent sees own fees only)
+7. **Partner accounts** — Jemma Williams, Gary Saunders multi-user
+
 ## When in doubt
 
 If the master CLAUDE.md and this file disagree, the master wins. If the
