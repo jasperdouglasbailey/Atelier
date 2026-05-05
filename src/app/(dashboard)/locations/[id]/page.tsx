@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
 import { getLocation } from '@/lib/data/locations';
 import { PALETTE } from '@/lib/utils/constants';
-import type { StudioType } from '@/lib/types/database';
+import type { StudioType, StudioRoom } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -31,6 +31,68 @@ const FACILITY_LABELS: Record<string, string> = {
   catering_available: 'Catering available',
   parking_onsite: 'On-site parking',
 };
+
+const ROOM_FEATURE_LABELS: Record<string, string> = {
+  cyc_wall: 'Cyc wall',
+  led_lighting: 'LED lighting',
+  blackout: 'Blackout blinds',
+  natural_light: 'Natural light',
+  camera_grid: 'Camera grid',
+  power_3phase: '3-phase power',
+  change_area: 'Change area',
+  kitchen: 'Kitchen access',
+};
+
+function StudioRoomCard({ room }: { room: StudioRoom }) {
+  const fullRate = room.full_day_rate ? `$${room.full_day_rate.toLocaleString()}` : null;
+  const halfRate = room.half_day_rate ? `$${room.half_day_rate.toLocaleString()}` : null;
+  const rateStr = [halfRate && `${halfRate} half-day`, fullRate && `${fullRate} full day`]
+    .filter(Boolean).join(' · ') || null;
+  const surcharge = room.weekend_surcharge_pct
+    ? `+${Math.round(room.weekend_surcharge_pct * 100)}% weekend`
+    : null;
+
+  return (
+    <div className="rounded-lg border p-4" style={{ borderColor: PALETTE.border, background: PALETTE.surface }}>
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="text-sm font-semibold" style={{ color: PALETTE.text }}>{room.name || 'Untitled room'}</h3>
+        {(room.square_metres || room.max_capacity) && (
+          <div className="text-[11px] text-right" style={{ color: PALETTE.muted }}>
+            {room.square_metres && <div>{room.square_metres} m²</div>}
+            {room.max_capacity && <div>{room.max_capacity} pax</div>}
+          </div>
+        )}
+      </div>
+
+      {(rateStr || surcharge) && (
+        <div className="text-xs mb-2" style={{ color: PALETTE.text }}>
+          {rateStr}
+          {surcharge && <span className="ml-2" style={{ color: PALETTE.muted }}>{surcharge}</span>}
+        </div>
+      )}
+
+      {room.features && room.features.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {room.features.map((f) => (
+            <span
+              key={f}
+              className="rounded-full px-2 py-0.5 text-[10px]"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent }}
+            >
+              {ROOM_FEATURE_LABELS[f] ?? f}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {room.notes && (
+        <p className="mt-2 text-xs whitespace-pre-wrap" style={{ color: PALETTE.muted }}>
+          {room.notes}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
@@ -87,6 +149,26 @@ export default async function LocationDetailPage({ params }: Props) {
           </Link>
         </div>
 
+        {/* Drive folder link — prominent at top so Jasper can jump to images */}
+        {loc.drive_folder_link && (
+          <a
+            href={loc.drive_folder_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-6 flex items-center gap-3 rounded-lg border px-4 py-3 transition hover:opacity-90"
+            style={{ borderColor: `${PALETTE.accent}44`, background: `${PALETTE.accent}11` }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={PALETTE.accent} strokeWidth="2" className="flex-shrink-0">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <div className="flex-1">
+              <div className="text-sm font-semibold" style={{ color: PALETTE.accent }}>Open Google Drive folder</div>
+              <div className="text-[11px]" style={{ color: PALETTE.muted }}>Photos, floor plans, and reference material for this location</div>
+            </div>
+            <span className="text-sm" style={{ color: PALETTE.accent }}>→</span>
+          </a>
+        )}
+
         {/* Address */}
         <section className="mb-6">
           <h2 className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: PALETTE.muted }}>Address</h2>
@@ -121,6 +203,20 @@ export default async function LocationDetailPage({ params }: Props) {
               <Row label="Hire rate" value={rateStr} />
               <Row label="Weekend" value={surchargeStr} />
               <Row label="Notes" value={loc.rate_notes} />
+            </div>
+          </section>
+        )}
+
+        {/* Studio Rooms */}
+        {loc.studio_rooms && loc.studio_rooms.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: PALETTE.muted }}>
+              Rooms &amp; Stages ({loc.studio_rooms.length})
+            </h2>
+            <div className="space-y-3">
+              {loc.studio_rooms.map((room) => (
+                <StudioRoomCard key={room.id} room={room} />
+              ))}
             </div>
           </section>
         )}
