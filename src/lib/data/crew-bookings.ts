@@ -21,9 +21,11 @@ export interface CrewBookingRow {
 }
 
 /**
- * Cross-cutting crew-bookings view. Returns all crew assignments
- * joined with booking + crew info for the crew-centric dashboard.
- * Pass crewId to filter to a single crew member (for the detail page).
+ * Crew-assignment join view. Returns booking_crew rows decorated with
+ * crew + booking metadata. The dedicated `/crew-bookings` route was
+ * consolidated into `/bookings?view=calendar` and the per-crew detail
+ * page; this function is still used by `/crew/[id]` (pass crewId) and
+ * by getCalendarShoots() below (no filter).
  */
 export async function listCrewBookings(crewId?: string): Promise<CrewBookingRow[]> {
   const supabase = await createClient();

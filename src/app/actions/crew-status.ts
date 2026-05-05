@@ -34,7 +34,6 @@ export async function updateCrewStatusAction(args: {
   });
 
   revalidatePath(`/bookings/${bookingId}`);
-  revalidatePath('/crew-bookings');
-  revalidatePath('/crew-bookings/calendar');
+  revalidatePath('/bookings');
   return { ok: true };
 }

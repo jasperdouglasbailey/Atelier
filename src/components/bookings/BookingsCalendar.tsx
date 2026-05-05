@@ -92,7 +92,12 @@ function computeWeekBars(weekDays: Date[], shoots: CalendarShoot[]): ShootBar[] 
   return bars;
 }
 
-export default function CrewCalendar({ shoots }: Props) {
+/**
+ * Month-grid calendar of bookings. Each shoot is a coloured bar showing the
+ * booking ref, state, and any attached crew. Clicking a bar opens that
+ * booking's detail page. Used by /bookings?view=calendar.
+ */
+export default function BookingsCalendar({ shoots }: Props) {
   const today = new Date();
   const [cursor, setCursor] = useState<{ year: number; month0: number }>({
     year: today.getUTCFullYear(),

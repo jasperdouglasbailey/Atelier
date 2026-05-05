@@ -26,7 +26,6 @@ const SECTION_LABELS: Record<string, string> = {
   costs: 'Costs',
   audit: 'Audit',
   settings: 'Settings',
-  'crew-bookings': 'Crew Bookings',
 };
 
 /**
@@ -50,11 +49,6 @@ function inferBackLink(pathname: string): { href: string; label: string } | null
   if (segments.length === 3 && segments[2] === 'edit') {
     const sectionLabel = SECTION_LABELS[segments[0]] ?? segments[0];
     return { href: `/${segments[0]}/${segments[1]}`, label: sectionLabel.replace(/s$/, '') };
-  }
-
-  // /crew-bookings/calendar → /crew-bookings ("Crew Bookings")
-  if (segments[0] === 'crew-bookings' && segments[1] === 'calendar') {
-    return { href: '/crew-bookings', label: 'Crew Bookings' };
   }
 
   return null;
