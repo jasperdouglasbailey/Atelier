@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import type { Approval, ApprovalStatus } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
@@ -18,7 +19,7 @@ export async function listApprovals(status?: ApprovalStatus): Promise<Approval[]
   if (status) query = query.eq('status', status);
 
   const { data, error } = await query;
-  if (error) { console.error('[approvals] list', error.message); return []; }
+  if (error) { reportDataError('[approvals] list', error); return []; }
   return (data ?? []) as Approval[];
 }
 
@@ -52,7 +53,7 @@ export async function decideApproval(
     .select()
     .single();
 
-  if (error) { console.error('[approvals] decide', error.message); return null; }
+  if (error) { reportDataError('[approvals] decide', error); return null; }
 
   const approval = data as Approval;
 
@@ -102,6 +103,6 @@ export async function createApproval(input: {
     .select()
     .single();
 
-  if (error) { console.error('[approvals] create', error.message); return null; }
+  if (error) { reportDataError('[approvals] create', error); return null; }
   return data as Approval;
 }

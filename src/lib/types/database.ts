@@ -1,6 +1,17 @@
 // =============================================================
-// Atelier — Auto-generated-style types matching Supabase schema
+// Atelier — Hand-curated database types
 // =============================================================
+//
+// This file defines the application-facing shape of each table.
+// It is HAND-MAINTAINED so we can express joins, narrow optional fields,
+// and add JSDoc. To verify it stays in sync with the live schema, the
+// canonical machine-generated types live next to it as
+// `database.generated.ts` (regenerate with `npm run db:types`).
+//
+// `database.compat.test.ts` cross-checks the hand types against the
+// generated ones — if Supabase adds/renames a column, the next CI run
+// flags it instead of letting a runtime PostgREST error slip through
+// (the working_name → name mismatch on listBookings was that exact bug).
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 

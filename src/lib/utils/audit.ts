@@ -31,6 +31,38 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
   }
 }
 
+/**
+ * Audit-log a failed mutation or tool call. Same row shape as logAudit but
+ * the action is suffixed with `_failed`, the recordId is optional, and the
+ * `new_value` carries the input payload + error message so we can replay or
+ * triage. Use this from server actions and integrations that fail
+ * gracefully — without it, those failures vanish into Vercel logs and
+ * never surface in the in-app /audit view.
+ */
+export async function logAuditFailure(input: {
+  userId: string | null;
+  /** What you were trying to do, e.g. 'update_booking', 'send_email'. */
+  action: string;
+  /** Target table or integration name (e.g. 'gmail', 'xero'). */
+  tableName: string;
+  recordId?: string | null;
+  /** What was attempted (FormData snapshot, payload, etc.). */
+  attempted?: Json | null;
+  /** Error message — pass error.message or stringified error. */
+  error: string;
+}): Promise<void> {
+  await logAudit({
+    userId: input.userId,
+    action: `${input.action}_failed`,
+    tableName: input.tableName,
+    recordId: input.recordId ?? null,
+    newValue: ({
+      attempted: input.attempted ?? null,
+      error: input.error,
+    } as unknown) as Json,
+  });
+}
+
 export type AuditFilters = {
   fromDate?: string;
   toDate?: string;

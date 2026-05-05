@@ -113,26 +113,36 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
                   </td>
                 </tr>
               )}
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t" style={{ borderColor: '#262626' }}>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: '#8b8b8b' }}>
-                    {formatDateTime(r.created_at)}
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>
-                    {r.user_id ?? <span style={{ color: '#6b6b6b' }}>system</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    <code style={{ color: '#6c8aff' }}>{r.action}</code>
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>{r.table_name}</td>
-                  <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#8b8b8b' }}>
-                    {r.record_id ?? '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ChangeSummary oldValue={r.old_value} newValue={r.new_value} />
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const isFailure = r.action.endsWith('_failed');
+                return (
+                  <tr
+                    key={r.id}
+                    className="border-t"
+                    style={{
+                      borderColor: '#262626',
+                      background: isFailure ? 'rgba(248,113,113,0.06)' : undefined,
+                    }}
+                  >
+                    <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: '#8b8b8b' }}>
+                      {formatDateTime(r.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>
+                      {r.user_id ?? <span style={{ color: '#6b6b6b' }}>system</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <code style={{ color: isFailure ? '#f87171' : '#6c8aff' }}>{r.action}</code>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>{r.table_name}</td>
+                    <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#8b8b8b' }}>
+                      {r.record_id ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ChangeSummary oldValue={r.old_value} newValue={r.new_value} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

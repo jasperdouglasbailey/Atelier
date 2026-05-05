@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { reportDataError } from '@/lib/utils/data-errors';
 import type { Client, Brand, Talent, Crew, Campaign, CrewTier, ArtistDiscipline } from '@/lib/types/database';
 
 // ============================================================
@@ -10,7 +11,7 @@ export async function listClients(search?: string): Promise<Client[]> {
   let query = supabase.from('atelier_clients').select('*').order('name');
   if (search) query = query.ilike('name', `%${search}%`);
   const { data, error } = await query;
-  if (error) { console.error('[clients]', error.message); return []; }
+  if (error) { reportDataError('[clients]', error); return []; }
   return (data ?? []) as Client[];
 }
 
@@ -27,7 +28,7 @@ export async function createClientRecord(input: {
 }): Promise<Client | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_clients').insert(input).select().single();
-  if (error) { console.error('[clients] create', error.message); return null; }
+  if (error) { reportDataError('[clients] create', error); return null; }
   return data as Client;
 }
 
@@ -36,7 +37,7 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
   delete (updates as Record<string, unknown>).id;
   delete (updates as Record<string, unknown>).created_at;
   const { data, error } = await supabase.from('atelier_clients').update(updates).eq('id', id).select().single();
-  if (error) { console.error('[clients] update', error.message); return null; }
+  if (error) { reportDataError('[clients] update', error); return null; }
   return data as Client;
 }
 
@@ -53,7 +54,7 @@ export async function listBrands(): Promise<Brand[]> {
 export async function createBrand(input: { name: string; industry?: string; notes?: string }): Promise<Brand | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_brands').insert(input).select().single();
-  if (error) { console.error('[brands] create', error.message); return null; }
+  if (error) { reportDataError('[brands] create', error); return null; }
   return data as Brand;
 }
 
@@ -87,7 +88,7 @@ export async function createTalentRecord(input: {
 }): Promise<Talent | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_talent').insert(input).select().single();
-  if (error) { console.error('[talent] create', error.message); return null; }
+  if (error) { reportDataError('[talent] create', error); return null; }
   return data as Talent;
 }
 
@@ -96,7 +97,7 @@ export async function updateTalent(id: string, updates: Partial<Talent>): Promis
   delete (updates as Record<string, unknown>).id;
   delete (updates as Record<string, unknown>).created_at;
   const { data, error } = await supabase.from('atelier_talent').update(updates).eq('id', id).select().single();
-  if (error) { console.error('[talent] update', error.message); return null; }
+  if (error) { reportDataError('[talent] update', error); return null; }
   return data as Talent;
 }
 
@@ -126,7 +127,7 @@ export async function createCrewRecord(input: {
 }): Promise<Crew | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_crew').insert(input).select().single();
-  if (error) { console.error('[crew] create', error.message); return null; }
+  if (error) { reportDataError('[crew] create', error); return null; }
   return data as Crew;
 }
 
@@ -135,7 +136,7 @@ export async function updateCrew(id: string, updates: Partial<Crew>): Promise<Cr
   delete (updates as Record<string, unknown>).id;
   delete (updates as Record<string, unknown>).created_at;
   const { data, error } = await supabase.from('atelier_crew').update(updates).eq('id', id).select().single();
-  if (error) { console.error('[crew] update', error.message); return null; }
+  if (error) { reportDataError('[crew] update', error); return null; }
   return data as Crew;
 }
 
@@ -155,6 +156,6 @@ export async function createCampaign(input: {
 }): Promise<Campaign | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('atelier_campaigns').insert(input).select().single();
-  if (error) { console.error('[campaigns] create', error.message); return null; }
+  if (error) { reportDataError('[campaigns] create', error); return null; }
   return data as Campaign;
 }

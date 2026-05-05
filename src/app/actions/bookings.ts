@@ -16,6 +16,8 @@ import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { callLLM } from '@/lib/integrations/anthropic';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { createClient as createSupabaseServer } from '@/lib/supabase/server';
+import { logAuditFailure } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 import type { BookingState } from '@/lib/types/database';
 
 /**
@@ -104,7 +106,16 @@ export async function createBookingAction(formData: FormData) {
   };
 
   const booking = await createBooking(input);
-  if (!booking) return { error: 'Failed to create booking' };
+  if (!booking) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'create_booking',
+      tableName: 'atelier_bookings',
+      attempted: ({ title: input.title, tier: input.tier, client_id: input.client_id } as unknown) as import('@/lib/types/database').Json,
+      error: 'createBooking returned null (see server log for Supabase error detail)',
+    });
+    return { error: 'Failed to create booking' };
+  }
 
   // Link the primary artist immediately so the booking shows the artist on creation.
   // Role defaults to the artist's discipline (e.g. "photographer").
@@ -179,7 +190,17 @@ export async function updateBookingAction(id: string, formData: FormData) {
   }
 
   const result = await updateBooking(id, updates);
-  if (!result) return { error: 'Failed to update booking' };
+  if (!result) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'update_booking',
+      tableName: 'atelier_bookings',
+      recordId: id,
+      attempted: (updates as unknown) as import('@/lib/types/database').Json,
+      error: 'updateBooking returned null (see server log for Supabase error detail)',
+    });
+    return { error: 'Failed to update booking' };
+  }
 
   // Primary artist swap: when the edit form changed the primary_talent_id we
   // replace the existing booking_talent row(s) with the new artist. This is a
@@ -220,7 +241,17 @@ export async function transitionBookingAction(
   meta?: { reason?: string; releasedTo?: string; cancellationFee?: number },
 ) {
   const result = await transitionState(id, newState, meta);
-  if (!result.ok) return { error: result.error };
+  if (!result.ok) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'transition_booking',
+      tableName: 'atelier_bookings',
+      recordId: id,
+      attempted: ({ newState, meta } as unknown) as import('@/lib/types/database').Json,
+      error: result.error,
+    });
+    return { error: result.error };
+  }
 
   // Auto-trigger crew hold requests when quote is sent.
   // Runs deterministically — no LLM, no external call.
