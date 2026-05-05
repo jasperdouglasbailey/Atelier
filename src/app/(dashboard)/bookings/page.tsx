@@ -2,7 +2,9 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import ListSearchBar from '@/components/layout/ListSearchBar';
 import BookingsBoard from '@/components/bookings/BookingsBoard';
+import BookingsCalendar from '@/components/bookings/BookingsCalendar';
 import { listBookings } from '@/lib/data/bookings';
+import { getCalendarShoots } from '@/lib/data/crew-bookings';
 import { BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import type { BookingState, ShootTier } from '@/lib/types/database';
@@ -19,18 +21,24 @@ type SearchParams = Promise<{
 export default async function BookingsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
-  const view = params.view === 'board' ? 'board' : 'list';
+  const view: 'list' | 'board' | 'calendar' =
+    params.view === 'board' ? 'board' : params.view === 'calendar' ? 'calendar' : 'list';
   const group = params.group || 'active';
 
-  // Board view fetches all active bookings (no pagination needed — small N)
-  const { bookings, total, pageSize } = await listBookings({
-    state: params.state as BookingState | undefined,
-    stateGroup: view === 'board' ? 'active' : (params.group as 'active' | 'completed' | 'lost') || 'active',
-    tier: params.tier as ShootTier | undefined,
-    search: params.search,
-    page: view === 'board' ? 1 : page,
-    pageSize: view === 'board' ? 200 : 20,
-  });
+  // Calendar uses its own data source (one row per booking with attached crew + dates).
+  // Board fetches all active bookings (no pagination needed — small N).
+  const calendarShoots = view === 'calendar' ? await getCalendarShoots() : [];
+
+  const { bookings, total, pageSize } = view === 'calendar'
+    ? { bookings: [], total: 0, pageSize: 20 }
+    : await listBookings({
+        state: params.state as BookingState | undefined,
+        stateGroup: view === 'board' ? 'active' : (params.group as 'active' | 'completed' | 'lost') || 'active',
+        tier: params.tier as ShootTier | undefined,
+        search: params.search,
+        page: view === 'board' ? 1 : page,
+        pageSize: view === 'board' ? 200 : 20,
+      });
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -72,6 +80,14 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
             ⊞
           </Link>
           <Link
+            href="/bookings?view=calendar"
+            className="rounded-md px-3 py-2 text-xs font-medium"
+            style={{ background: view === 'calendar' ? PALETTE.border : 'transparent', color: view === 'calendar' ? PALETTE.text : PALETTE.muted }}
+            title="Calendar view"
+          >
+            ▦
+          </Link>
+          <Link
             href="/bookings/new"
             className="rounded-md px-4 py-2 text-xs font-medium ml-1"
             style={{ background: PALETTE.accent, color: PALETTE.bg }}
@@ -80,7 +96,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
           </Link>
         </div>
 
-        {view === 'board' ? (
+        {view === 'calendar' ? (
+          <BookingsCalendar shoots={calendarShoots} />
+        ) : view === 'board' ? (
           <BookingsBoard bookings={bookings} />
         ) : (
           <>

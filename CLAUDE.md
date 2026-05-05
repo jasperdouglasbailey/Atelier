@@ -55,7 +55,7 @@ src/
 ## Build status (updated 2026-05-05, session 3)
 
 ### Fully built
-- Booking pipeline: all 13 states, list + kanban board, detail, edit, new
+- Booking pipeline: all 13 states, list + kanban board + month calendar, detail, edit, new
 - Quote builder: versioned (v1, v2…), photographer + videographer templates, artist/outgoing split, live total preview, inline row editing
 - Usage licences: media × territory × duration, BUR auto-calculator
 - Fee engine: 20% commission, 15% ASF, 12/15% super, 10% GST — passes AJE #3579 canonical test
@@ -66,7 +66,8 @@ src/
 - Dashboard: KPI cards, attention queue (morning decisions)
 - Reports: 12-month revenue bars, state/tier breakdown, top clients, top artists, win rate / quote conversion
 - Talent: list, detail (stats + booking history + default day rate), edit (default rate field), archive
-- Crew: list, detail, edit + crew calendar
+- Crew: list, detail (per-person booking history), edit
+- Bookings calendar: month grid view at `/bookings?view=calendar` showing all shoots with attached crew (consolidated from former `/crew-bookings` route)
 - Clients: list, detail (revenue KPIs, frequent artists, booking history), edit
 - Print templates: quote, invoice, artist brief, crew brief
 - Send Quote to Client: compose panel, Gmail draft/send, clipboard fallback, state transition quote_drafted → quote_sent
