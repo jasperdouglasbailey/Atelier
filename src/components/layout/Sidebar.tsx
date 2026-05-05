@@ -24,6 +24,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         { label: 'Crew Bookings', href: '/crew-bookings' },
         { label: 'Clients', href: '/clients' },
         { label: 'Locations', href: '/locations' },
+        { label: 'Grid Planner', href: '/grid-planner' },
       ],
     },
     {
