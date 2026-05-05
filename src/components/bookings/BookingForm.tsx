@@ -28,7 +28,10 @@ export default function BookingForm(props: Props) {
         return { ok: true, id: result.id };
       }}
       onSuccessRedirect={(id) => {
-        if (id) router.push(`/bookings/${id}`);
+        if (id) {
+          router.push(`/bookings/${id}`);
+          router.refresh();
+        }
       }}
     />
   );

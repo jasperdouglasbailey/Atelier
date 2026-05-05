@@ -26,7 +26,11 @@ export default function ClientEditForm({ client }: Props) {
       setError(result.error);
       return;
     }
+    // router.push alone won't refetch the destination's server data when the
+    // route is in the cache. router.refresh() forces the server components to
+    // re-render with the latest data so saved changes appear without a reload.
     router.push(`/clients/${client.id}`);
+    router.refresh();
   }
 
   const inputStyle = {
