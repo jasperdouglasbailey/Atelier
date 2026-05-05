@@ -159,6 +159,28 @@ export default function TalentEditForm({ talent }: Props) {
         </div>
       </section>
 
+      {/* Rates */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Rates</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Default Day Rate (AUD, ex. GST)</label>
+            <input
+              name="default_day_rate"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={talent.default_day_rate ?? ''}
+              style={inputStyle}
+              placeholder="e.g. 3500"
+            />
+            <p className="mt-1" style={{ fontSize: 10, color: PALETTE.muted }}>
+              Pre-fills the day rate input when adding this artist to a booking.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Business */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
