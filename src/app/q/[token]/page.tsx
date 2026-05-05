@@ -6,7 +6,7 @@
  */
 import { notFound } from 'next/navigation';
 import { getBookingByQuoteToken } from '@/lib/data/bookings';
-import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes';
+import { getLatestQuoteVersionPublic, listFeeLinesPublic } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -57,10 +57,8 @@ export default async function PublicQuotePage({ params }: Props) {
   const booking = await getBookingByQuoteToken(token);
   if (!booking) notFound();
 
-  const [qv, lines] = await Promise.all([
-    getLatestQuoteVersion(booking.id),
-    listFeeLinesForBooking(booking.id),
-  ]);
+  const qv = await getLatestQuoteVersionPublic(booking.id);
+  const lines = qv ? await listFeeLinesPublic(qv.id) : [];
 
   const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || null;

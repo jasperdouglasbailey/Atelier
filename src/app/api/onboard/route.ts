@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    // Service client — this is a public (no-auth) route, so we bypass RLS.
+    // Writes here are restricted by application logic (onboarding form only).
+    const supabase = createServiceClient();
 
     if (type === 'talent') {
       const { error } = await supabase.from('atelier_talent').insert({

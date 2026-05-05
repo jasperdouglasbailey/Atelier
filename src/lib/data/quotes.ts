@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { logAudit } from '@/lib/utils/audit';
@@ -505,4 +506,36 @@ export async function listTalentBookingHistory(talentId: string): Promise<Talent
       confirmed: r.confirmed as boolean,
     };
   });
+}
+
+// ============================================================
+// Service-role (public) variants — bypasses RLS for unauthenticated routes
+// ============================================================
+
+/** Used by /q/[token] public quote viewer — no user session. */
+export async function getLatestQuoteVersionPublic(bookingId: string): Promise<QuoteVersion | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as QuoteVersion;
+}
+
+/** Used by /q/[token] public quote viewer — no user session. */
+export async function listFeeLinesPublic(quoteVersionId: string): Promise<FeeLine[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from(LINE_TABLE)
+    .select('*')
+    .eq('quote_version_id', quoteVersionId)
+    .order('sort_order', { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as FeeLine[];
 }

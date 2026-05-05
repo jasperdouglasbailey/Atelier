@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import type { Booking, BookingState, ShootTier } from '@/lib/types/database';
 import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
 import { emitEvent } from '@/lib/utils/events';
@@ -119,8 +120,13 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
  * Look up a booking by its public quote token.
  * Used by the /q/[token] client-facing route (no auth required).
  */
+/**
+ * Public variant — uses service role to bypass RLS.
+ * Called from the unauthenticated /q/[token] route; the UUID token is
+ * the secret that authorises access to this specific booking.
+ */
 export async function getBookingByQuoteToken(token: string): Promise<BookingDetailRow | null> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from(TABLE)
     .select(
