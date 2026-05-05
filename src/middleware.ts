@@ -14,12 +14,13 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   - /login
  *   - /api/auth/* (magic-link confirm, sign-out, OAuth callbacks)
  *   - /api/health (uptime monitors)
+ *   - /api/cron/* (server-to-server; protected by CRON_SECRET Bearer token)
  *   - /onboard/* (talent/crew secure-URL onboarding — has its own token gate)
  *   - /q/* (FUTURE: tokenized public quote viewer for clients)
  *   - Static asset paths (matcher excludes _next/static, _next/image, favicon)
  */
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/onboard', '/q'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/api/cron', '/onboard', '/q'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
