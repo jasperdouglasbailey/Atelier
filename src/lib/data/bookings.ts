@@ -282,6 +282,14 @@ export async function transitionState(
     patch.ot_expenses_locked = true;
     patch.final_delivery_at = new Date().toISOString();
   }
+  // Record when invoice is issued — used to compute DOI (days outstanding invoice)
+  if (newState === 'invoice_issued') {
+    patch.invoice_issued_at = new Date().toISOString();
+  }
+  // Record when payment clears — used to compute actual DOI and flag fast/slow payers
+  if (newState === 'paid') {
+    patch.paid_at = new Date().toISOString();
+  }
 
   const { data, error } = await supabase
     .from(TABLE)

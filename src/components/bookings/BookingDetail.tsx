@@ -15,6 +15,13 @@ import {
 } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
+/** Days between two ISO date strings (or from one ISO date string to now). */
+function daysBetween(from: string, to?: string | null): number {
+  const start = new Date(from).getTime();
+  const end = to ? new Date(to).getTime() : Date.now();
+  return Math.round((end - start) / 86_400_000);
+}
+
 /** Parses a Postgres daterange string and returns a human-readable date span. */
 function formatShootDates(range: string | null): string | null {
   if (!range) return null;
@@ -288,6 +295,43 @@ export default function BookingDetail({ booking, margin = null, licences, google
               }
             />
           </>
+        )}
+        {booking.invoice_issued_at && (() => {
+          const doi = booking.paid_at
+            ? daysBetween(booking.invoice_issued_at!, booking.paid_at)
+            : daysBetween(booking.invoice_issued_at!);
+          const overdue = !booking.paid_at && doi > 30; // flag if > 30 days and not paid
+          return (
+            <>
+              <Field
+                label="Invoice Issued"
+                value={
+                  <span style={{ color: PALETTE.text }}>
+                    {formatDate(booking.invoice_issued_at!.slice(0, 10))}
+                  </span>
+                }
+              />
+              <Field
+                label={booking.paid_at ? 'Days to Pay (DOI)' : 'Days Outstanding'}
+                value={
+                  <span style={{ color: overdue ? PALETTE.danger : booking.paid_at ? PALETTE.success : PALETTE.warning, fontWeight: 600 }}>
+                    {doi} {doi === 1 ? 'day' : 'days'}
+                    {overdue ? ' — overdue' : ''}
+                  </span>
+                }
+              />
+            </>
+          );
+        })()}
+        {booking.paid_at && (
+          <Field
+            label="Paid"
+            value={
+              <span style={{ color: PALETTE.success }}>
+                {formatDate(booking.paid_at.slice(0, 10))}
+              </span>
+            }
+          />
         )}
       </Section>
 
