@@ -14,7 +14,7 @@ export type BookingListRow = Booking & {
 
 /** Booking row with full relations for the detail page. */
 export type BookingDetailRow = Booking & {
-  client?: { id: string; name: string; company: string | null } | null;
+  client?: { id: string; name: string; company: string | null; email: string | null } | null;
   brand?: { id: string; name: string } | null;
 };
 
@@ -106,7 +106,7 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
     )
     .eq('id', id)
     .maybeSingle();

@@ -7,6 +7,7 @@ import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState, UsageLicence } from '@/lib/types/database';
 import type { AgencyMargin } from '@/lib/utils/fee-engine';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
+import SendQuotePanel from '@/components/bookings/SendQuotePanel';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
@@ -30,7 +31,7 @@ function formatShootDates(range: string | null): string | null {
   return formatDate(start);
 }
 
-type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null; licences: UsageLicence[] };
+type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null; licences: UsageLicence[]; googleConfigured: boolean };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -51,7 +52,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking, margin = null, licences }: Props) {
+export default function BookingDetail({ booking, margin = null, licences, googleConfigured }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -147,6 +148,16 @@ export default function BookingDetail({ booking, margin = null, licences }: Prop
           >
             ↗ Invoice
           </Link>
+          <SendQuotePanel
+            bookingId={booking.id}
+            clientEmail={booking.client?.email ?? null}
+            clientName={booking.client?.company || booking.client?.name || ''}
+            bookingRef={booking.booking_ref}
+            title={booking.title}
+            grandTotal={booking.grand_total ?? 0}
+            currentState={booking.state}
+            googleConfigured={googleConfigured}
+          />
         </div>
 
         {/* State transitions */}

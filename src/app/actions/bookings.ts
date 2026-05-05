@@ -8,6 +8,8 @@ import { extractBriefFields } from '@/lib/automation/brief-intake';
 import { buildDateRange } from '@/lib/utils/daterange';
 import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
+import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
+import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import type { BookingState } from '@/lib/types/database';
 
@@ -264,4 +266,88 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
   return { ok: true };
+}
+
+// ============================================================
+// Send quote to client
+// ============================================================
+
+function formatCurrencyAU(n: number): string {
+  return n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 });
+}
+
+function buildQuoteEmailHtml(opts: {
+  bookingRef: string;
+  title: string;
+  clientName: string;
+  tier: string;
+  grandTotal: number;
+  shootDates: string | null;
+}): string {
+  const lines: string[] = [
+    `<p>Hi ${opts.clientName || 'there'},</p>`,
+    `<p>Please find our quote for <strong>${opts.title}</strong> (${opts.bookingRef}) below.</p>`,
+    '<table style="border-collapse:collapse;margin:16px 0;font-size:14px">',
+    `  <tr><td style="padding:4px 12px 4px 0;color:#666">Project</td><td style="padding:4px 0"><strong>${opts.title}</strong></td></tr>`,
+    `  <tr><td style="padding:4px 12px 4px 0;color:#666">Reference</td><td style="padding:4px 0">${opts.bookingRef}</td></tr>`,
+    `  <tr><td style="padding:4px 12px 4px 0;color:#666">Tier</td><td style="padding:4px 0">${opts.tier}</td></tr>`,
+  ];
+  if (opts.shootDates) {
+    lines.push(`  <tr><td style="padding:4px 12px 4px 0;color:#666">Shoot</td><td style="padding:4px 0">${opts.shootDates}</td></tr>`);
+  }
+  if (opts.grandTotal > 0) {
+    lines.push(`  <tr><td style="padding:8px 12px 4px 0;color:#666;font-weight:600">Total (inc. GST)</td><td style="padding:8px 0;font-weight:600;font-size:16px">${formatCurrencyAU(opts.grandTotal)}</td></tr>`);
+  }
+  lines.push('</table>');
+  lines.push('<p>To confirm, please reply to this email. We\'ll hold the dates and issue paperwork once we hear from you.</p>');
+  lines.push('<p style="margin-top:24px">Jasper Bailey<br>Saunders &amp; Co<br><a href="mailto:info@saundersandco.com.au">info@saundersandco.com.au</a></p>');
+  return lines.join('\n');
+}
+
+/**
+ * Send or draft a quote email to the booking's client.
+ * mode='draft' creates a Gmail draft for Jasper to review; mode='send' sends immediately.
+ * Transitions state quote_drafted → quote_sent on a successful send.
+ */
+export async function sendQuoteEmailAction(
+  bookingId: string,
+  mode: 'draft' | 'send' = 'draft',
+  overrides?: { to?: string; subject?: string; body?: string },
+) {
+  const booking = await getBooking(bookingId);
+  if (!booking) return { error: 'Booking not found' };
+
+  const toEmail = overrides?.to ?? booking.client?.email ?? null;
+  if (!toEmail) return { error: 'No client email address. Add one on the client profile first.' };
+
+  const clientName = booking.client?.company || booking.client?.name || '';
+  const defaultSubject = `[${booking.booking_ref ?? bookingId.slice(0, 8)}] Quote — ${booking.title}`;
+  const subject = overrides?.subject ?? defaultSubject;
+
+  const body = overrides?.body ?? buildQuoteEmailHtml({
+    bookingRef: booking.booking_ref ?? '',
+    title: booking.title,
+    clientName,
+    tier: booking.tier,
+    grandTotal: booking.grand_total ?? 0,
+    shootDates: booking.shoot_date_notes ?? null,
+  });
+
+  if (!isGoogleConfigured()) {
+    return { ok: true, mode: 'no_google' as const, to: toEmail, subject, body };
+  }
+
+  if (mode === 'send') {
+    const result = await sendEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
+    if (booking.state === 'quote_drafted') {
+      await transitionState(bookingId, 'quote_sent');
+    }
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath('/bookings');
+    return { ok: true, mode: 'sent' as const, messageId: result.messageId };
+  } else {
+    const result = await draftEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true, mode: 'drafted' as const, draftId: result.draftId };
+  }
 }

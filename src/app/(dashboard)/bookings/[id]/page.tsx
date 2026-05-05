@@ -79,7 +79,7 @@ export default async function BookingDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <BookingDetail booking={booking} margin={margin} licences={usageLicences} />
+            <BookingDetail booking={booking} margin={margin} licences={usageLicences} googleConfigured={isGoogleConfigured()} />
             {/* Brief parser — show when raw text is present and state is early */}
             {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
               <BriefParser
