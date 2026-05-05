@@ -12,7 +12,7 @@ import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
-import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
+import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 import { searchInbox } from '@/lib/integrations/gmail';
@@ -67,6 +67,12 @@ export default async function BookingDetailPage({ params }: Props) {
     listCrew(),
   ]);
 
+  // Rate precedents for the primary artist (if any) — helps Jasper price consistently
+  const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
+  const ratePrecedents: RatePrecedent[] = primaryTalentId
+    ? await getTalentRatePrecedents(primaryTalentId, id)
+    : [];
+
   // Agency margin: commission + ASF + super spread. Computed from fee lines
   // because the booking row doesn't store commission/super totals separately.
   const margin = feeLines.length > 0
@@ -119,6 +125,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 quoteVersions={quoteVersions}
                 feeLines={feeLines}
                 bookingTalent={bookingTalent}
+                ratePrecedents={ratePrecedents}
               />
             </div>
             <BookingTeam

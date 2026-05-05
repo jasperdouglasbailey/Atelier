@@ -435,6 +435,50 @@ export type TalentBookingHistoryRow = {
   confirmed: boolean;
 };
 
+export type RatePrecedent = {
+  bookingId: string;
+  bookingRef: string | null;
+  tier: string;
+  dayRate: number;
+  state: string;
+};
+
+/**
+ * Returns up to 5 most recent day rates for a talent on past bookings,
+ * excluding the booking identified by exceptBookingId.
+ * Used by QuoteBuilder to show rate context when setting the shoot fee.
+ */
+export async function getTalentRatePrecedents(
+  talentId: string,
+  exceptBookingId: string,
+): Promise<RatePrecedent[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(BT_TABLE)
+    .select('booking_id, day_rate, booking:atelier_bookings(booking_ref, state, tier)')
+    .eq('talent_id', talentId)
+    .neq('booking_id', exceptBookingId)
+    .not('day_rate', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (error || !data) return [];
+
+  return ((data as unknown[]) as Array<{
+    booking_id: string;
+    day_rate: number;
+    booking: { booking_ref: string | null; state: string; tier: string } | null;
+  }>)
+    .filter((r) => r.day_rate > 0 && r.booking)
+    .map((r) => ({
+      bookingId: r.booking_id,
+      bookingRef: r.booking?.booking_ref ?? null,
+      tier: r.booking?.tier ?? 'content',
+      dayRate: r.day_rate,
+      state: r.booking?.state ?? '',
+    }));
+}
+
 export async function listTalentBookingHistory(talentId: string): Promise<TalentBookingHistoryRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

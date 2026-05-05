@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent } from '@/lib/types/database';
+import type { RatePrecedent } from '@/lib/data/quotes';
 import { computeQuoteTotals, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
@@ -17,6 +18,7 @@ type Props = {
   quoteVersions: QuoteVersion[];
   feeLines: FeeLine[]; // fee lines for the latest version (initial server render)
   bookingTalent?: BookingTalent[];
+  ratePrecedents?: RatePrecedent[];
 };
 
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
@@ -34,7 +36,7 @@ const OUTGOING_TYPES = new Set<FeeLineType>([
   'casting', 'location_fee', 'permits', 'insurance',
 ]);
 
-export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [] }: Props) {
+export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [], ratePrecedents = [] }: Props) {
   const router = useRouter();
   const [showAddLine, setShowAddLine] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -291,6 +293,31 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
               style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
             />
           </div>
+          {ratePrecedents.length > 0 && (
+            <div className="rounded border px-3 py-2 space-y-1" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+                Rate history for this artist
+              </div>
+              {ratePrecedents.map((p) => (
+                <div key={p.bookingId} className="flex items-center gap-2 text-[11px]">
+                  <span className="font-medium" style={{ color: PALETTE.text }}>
+                    {formatCurrency(p.dayRate)}
+                  </span>
+                  <span style={{ color: PALETTE.muted }}>
+                    {p.bookingRef ?? p.bookingId.slice(0, 8)} · {p.tier}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShootFeeInput(String(p.dayRate))}
+                    className="text-[10px] rounded px-1.5 py-0.5"
+                    style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}
+                  >
+                    Use
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <p className="text-[10px]" style={{ color: PALETTE.muted }}>
             {selectedTemplate === 'photographer'
               ? 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'
