@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { KillSwitchState } from '@/lib/types/database';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
@@ -67,6 +68,23 @@ export default function SettingsPanel({ killSwitch, agency, integrations }: Prop
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Quick links */}
+      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
+          Admin
+        </h2>
+        <Link
+          href="/settings/partners"
+          className="text-xs underline"
+          style={{ color: PALETTE.accent }}
+        >
+          Partner & user roles →
+        </Link>
+        <p className="text-[10px] mt-1" style={{ color: PALETTE.muted }}>
+          Provision partner (Jemma, Gary), talent and crew accounts.
+        </p>
+      </section>
+
       {/* Kill Switch */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h2 className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
