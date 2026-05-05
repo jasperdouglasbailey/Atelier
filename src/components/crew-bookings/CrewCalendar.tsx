@@ -200,7 +200,7 @@ export default function CrewCalendar({ shoots }: Props) {
                     className={colIdx < 6 ? 'border-r' : ''}
                     style={{
                       borderColor: PALETTE.border,
-                      background: inMonth ? 'transparent' : `${PALETTE.bg}cc`,
+                      background: inMonth ? 'transparent' : PALETTE.bgHigh,
                     }}
                   >
                     <div

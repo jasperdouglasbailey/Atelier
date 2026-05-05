@@ -178,7 +178,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
           {clarifyResult.mode === 'no_google' && (
             <>
               <p>Google not connected — copy the draft below:</p>
-              <pre className="text-[10px] whitespace-pre-wrap rounded p-2" style={{ background: `${PALETTE.bg}88`, color: PALETTE.text, fontFamily: 'monospace' }}>
+              <pre className="text-[10px] whitespace-pre-wrap rounded p-2" style={{ background: PALETTE.bgSoft, color: PALETTE.text, fontFamily: 'monospace' }}>
                 {clarifyResult.body}
               </pre>
             </>
