@@ -6,13 +6,12 @@ import type { QuoteVersion, FeeLine, FeeLineType } from '@/lib/types/database';
 import { computeQuoteTotals, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import {
   FEE_LINE_TYPE_LABELS, PALETTE,
-  DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE,
-  SUPER_RATE_CHARGED, SUPER_RATE_PAID,
+  DEFAULT_ASF_RATE,
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import {
   createQuoteVersionAction,
-  addFeeLineAction, removeFeeLineAction,
+  addFeeLineAction, removeFeeLineAction, updateFeeLineAction,
 } from '@/app/actions/quotes';
 
 type Props = {
@@ -35,8 +34,57 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines }: Pro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Inline editing state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{
+    description: string;
+    quantity: string;
+    unit_price: string;
+  } | null>(null);
+
   const latestVersion = quoteVersions[0] ?? null;
-  const totals = computeQuoteTotals(feeLines);
+
+  // Compute totals with live preview when a row is being edited
+  const previewLines = feeLines.map((l) => {
+    if (l.id !== editingId || !editValues) return l;
+    const qty = parseFloat(editValues.quantity) || l.quantity;
+    const price = parseFloat(editValues.unit_price) || l.unit_price;
+    return { ...l, quantity: qty, unit_price: price, subtotal: qty * price };
+  });
+  const totals = computeQuoteTotals(previewLines);
+
+  function startEdit(line: FeeLine) {
+    setEditingId(line.id);
+    setEditValues({
+      description: line.description,
+      quantity: String(line.quantity),
+      unit_price: String(line.unit_price),
+    });
+    setShowAddLine(false);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditValues(null);
+  }
+
+  async function commitEdit(line: FeeLine) {
+    if (!editValues) return;
+    setBusy(true);
+    const fd = new FormData();
+    fd.set('description', editValues.description);
+    fd.set('quantity', editValues.quantity);
+    fd.set('unit_price', editValues.unit_price);
+    fd.set('booking_id', bookingId);
+    const result = await updateFeeLineAction(line.id, fd);
+    if ('error' in result) {
+      setError(result.error ?? 'Failed to save');
+    } else {
+      cancelEdit();
+      router.refresh();
+    }
+    setBusy(false);
+  }
 
   async function handleCreateVersion() {
     setBusy(true);
@@ -82,7 +130,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines }: Pro
         <div className="flex gap-2">
           {latestVersion && (
             <button
-              onClick={() => setShowAddLine(true)}
+              onClick={() => { setShowAddLine(true); cancelEdit(); }}
               disabled={busy}
               className="rounded px-2.5 py-1 text-[11px] font-medium disabled:opacity-50"
               style={{ background: PALETTE.accent, color: PALETTE.bg }}
@@ -143,15 +191,118 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines }: Pro
             </thead>
             <tbody>
               {feeLines.map((line, i) => {
-                const computed = totals.lines[i];
+                const computed: ComputedFeeLine | undefined = totals.lines[i];
+                const isEditing = editingId === line.id;
+
+                if (isEditing && editValues) {
+                  const previewQty = parseFloat(editValues.quantity) || line.quantity;
+                  const previewPrice = parseFloat(editValues.unit_price) || line.unit_price;
+                  const previewComputed = totals.lines[i];
+
+                  return (
+                    <tr key={line.id} className="border-t" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
+                      <td className="px-3 py-2">
+                        <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
+                          {FEE_LINE_TYPE_LABELS[line.line_type]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          autoFocus
+                          value={editValues.description}
+                          onChange={(e) => setEditValues((v) => v && { ...v, description: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitEdit(line);
+                            if (e.key === 'Escape') cancelEdit();
+                          }}
+                          className="w-full rounded border px-2 py-1 text-xs"
+                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editValues.quantity}
+                          onChange={(e) => setEditValues((v) => v && { ...v, quantity: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitEdit(line);
+                            if (e.key === 'Escape') cancelEdit();
+                          }}
+                          className="w-16 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editValues.unit_price}
+                          onChange={(e) => setEditValues((v) => v && { ...v, unit_price: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitEdit(line);
+                            if (e.key === 'Escape') cancelEdit();
+                          }}
+                          className="w-24 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.accent }}>
+                        {formatCurrency(previewQty * previewPrice)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>
+                        {formatCurrency(previewComputed?.asfAmount ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>
+                        {formatCurrency(previewComputed?.gstAmount ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {formatCurrency(previewComputed?.lineTotal ?? 0)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-0.5 items-end">
+                          <button
+                            onClick={() => commitEdit(line)}
+                            disabled={busy}
+                            className="text-[10px] font-medium hover:underline disabled:opacity-50"
+                            style={{ color: PALETTE.accent }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="text-[10px] hover:underline"
+                            style={{ color: PALETTE.muted }}
+                          >
+                            Esc
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
-                  <tr key={line.id} className="border-t" style={{ borderColor: PALETTE.border }}>
+                  <tr
+                    key={line.id}
+                    className="border-t group cursor-pointer hover:bg-white/5"
+                    style={{ borderColor: PALETTE.border }}
+                    onClick={() => startEdit(line)}
+                    title="Click to edit"
+                  >
                     <td className="px-3 py-2">
                       <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
                         {FEE_LINE_TYPE_LABELS[line.line_type]}
                       </span>
                     </td>
-                    <td className="px-3 py-2">{line.description}</td>
+                    <td className="px-3 py-2">
+                      <span>{line.description}</span>
+                      <span className="ml-1.5 opacity-0 group-hover:opacity-100 text-[9px] transition-opacity" style={{ color: PALETTE.muted }}>
+                        edit
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">{line.quantity}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(line.unit_price)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.subtotal ?? line.subtotal)}</td>
@@ -160,12 +311,12 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines }: Pro
                     <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(computed?.lineTotal ?? 0)}</td>
                     <td className="px-3 py-2">
                       <button
-                        onClick={() => handleRemoveLine(line.id)}
-                        className="text-[10px] hover:underline"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveLine(line.id); }}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] hover:underline transition-opacity"
                         style={{ color: PALETTE.danger }}
                         disabled={busy}
                       >
-                        x
+                        ×
                       </button>
                     </td>
                   </tr>
@@ -187,7 +338,10 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines }: Pro
           </div>
           <div className="mt-3 flex items-baseline justify-between border-t pt-3" style={{ borderColor: PALETTE.border }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total</span>
-            <span className="text-lg font-bold tabular-nums" style={{ color: PALETTE.text }}>
+            <span
+              className="text-lg font-bold tabular-nums transition-colors"
+              style={{ color: editingId ? PALETTE.accent : PALETTE.text }}
+            >
               {formatCurrency(totals.grandTotal)}
             </span>
           </div>
