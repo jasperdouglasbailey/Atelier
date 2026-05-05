@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createLocation, updateLocation } from '@/lib/data/locations';
-import type { StudioType } from '@/lib/types/database';
+import { createLocationFolder } from '@/lib/integrations/drive';
+import type { StudioType, StudioRoom } from '@/lib/types/database';
 
 const TEXT_FIELDS = [
   'name', 'alias', 'address', 'suburb', 'state', 'postcode',
@@ -34,6 +35,12 @@ function formToLocationInput(fd: FormData) {
     try { out.facilities = JSON.parse(facilitiesRaw as string); } catch { out.facilities = null; }
   }
 
+  // Studio rooms — JSON array from the form
+  const roomsRaw = fd.get('studio_rooms');
+  if (roomsRaw) {
+    try { out.studio_rooms = JSON.parse(roomsRaw as string) as StudioRoom[]; } catch { out.studio_rooms = null; }
+  }
+
   return out;
 }
 
@@ -44,6 +51,19 @@ export async function createLocationAction(formData: FormData) {
 
   const result = await createLocation({ ...input, name });
   if (!result) return { error: 'Failed to create location' };
+
+  // Auto-create Google Drive folder (non-blocking — failure doesn't abort creation)
+  try {
+    const driveFolder = await createLocationFolder(name);
+    if (driveFolder) {
+      await updateLocation(result.id, {
+        drive_folder_id: driveFolder.id,
+        drive_folder_link: driveFolder.webViewLink,
+      });
+    }
+  } catch (err) {
+    console.error('[locations] Drive folder creation failed (non-fatal):', err);
+  }
 
   revalidatePath('/locations');
   return { ok: true, id: result.id };

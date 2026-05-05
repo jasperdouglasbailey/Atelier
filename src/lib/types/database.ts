@@ -379,6 +379,19 @@ export type StudioType =
   | 'photo_studio' | 'film_studio' | 'outdoor' | 'retail'
   | 'residential' | 'venue' | 'other';
 
+/** Individual room within a multi-room studio location. */
+export interface StudioRoom {
+  id: string;
+  name: string;
+  half_day_rate: number | null;
+  full_day_rate: number | null;
+  weekend_surcharge_pct: number | null;
+  square_metres: number | null;
+  max_capacity: number | null;
+  features: string[];
+  notes: string | null;
+}
+
 export interface Location {
   id: string;
   created_at: string;
@@ -411,6 +424,12 @@ export interface Location {
 
   notes: string | null;
   is_active: boolean;
+  /** Individual room specs for multi-room studios (photo_studio / film_studio). */
+  studio_rooms: StudioRoom[] | null;
+  /** Google Drive folder ID for this location (auto-created on save). */
+  drive_folder_id: string | null;
+  /** Shareable Drive link shown in the location detail view. */
+  drive_folder_link: string | null;
 }
 
 export interface KillSwitchState {

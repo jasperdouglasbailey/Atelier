@@ -46,9 +46,9 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   return (
     <aside
       className="hidden h-screen w-56 flex-col border-r md:flex"
-      style={{ background: '#141414', borderColor: '#262626' }}
+      style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
     >
-      <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: '#262626' }}>
+      <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: 'var(--p-border)' }}>
         <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: '#6c8aff' }}>
           Atelier
         </span>
@@ -60,7 +60,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
             {section.title && (
               <div
                 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest"
-                style={{ color: '#6b6b6b' }}
+                style={{ color: 'var(--p-muted)' }}
               >
                 {section.title}
               </div>
@@ -74,15 +74,15 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
                       href={href}
                       className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
                       style={{
-                        color: active ? '#ededed' : '#8b8b8b',
-                        background: active ? '#262626' : 'transparent',
+                        color: active ? 'var(--p-text)' : 'var(--p-muted)',
+                        background: active ? 'var(--p-border)' : 'transparent',
                       }}
                     >
                       <span>{label}</span>
                       {badge != null && badge > 0 && (
                         <span
                           className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                          style={{ background: '#6c8aff', color: '#0a0a0a', minWidth: 18, textAlign: 'center' }}
+                          style={{ background: '#6c8aff', color: 'var(--p-bg)', minWidth: 18, textAlign: 'center' }}
                         >
                           {badge > 99 ? '99+' : badge}
                         </span>
@@ -100,11 +100,11 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         <form
           action={signOutAction}
           className="border-t px-3 py-3"
-          style={{ borderColor: '#262626' }}
+          style={{ borderColor: 'var(--p-border)' }}
         >
           <div
             className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest truncate"
-            style={{ color: '#6b6b6b' }}
+            style={{ color: 'var(--p-muted)' }}
             title={userEmail}
           >
             {userEmail}
@@ -112,7 +112,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
           <button
             type="submit"
             className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/5"
-            style={{ color: '#8b8b8b', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            style={{ color: 'var(--p-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
           >
             Sign out
           </button>

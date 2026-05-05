@@ -137,14 +137,14 @@ export default function SendQuotePanel({
 
               <div>
                 <label className="block text-[10px] font-semibold uppercase mb-1" style={{ color: PALETTE.muted }}>Subject</label>
-                <div className="rounded border px-3 py-2 text-sm" style={{ background: `${PALETTE.bg}88`, borderColor: PALETTE.border, color: PALETTE.muted }}>
+                <div className="rounded border px-3 py-2 text-sm" style={{ background: PALETTE.bgSoft, borderColor: PALETTE.border, color: PALETTE.muted }}>
                   [{bookingRef}] Quote — {title}
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] font-semibold uppercase mb-1" style={{ color: PALETTE.muted }}>Preview</label>
-                <div className="rounded border px-3 py-2 text-xs space-y-1 leading-relaxed" style={{ background: `${PALETTE.bg}88`, borderColor: PALETTE.border, color: PALETTE.muted }}>
+                <div className="rounded border px-3 py-2 text-xs space-y-1 leading-relaxed" style={{ background: PALETTE.bgSoft, borderColor: PALETTE.border, color: PALETTE.muted }}>
                   <p>Hi {clientName || 'there'},</p>
                   <p>Please find our quote for <span style={{ color: PALETTE.text }}>{title}</span> ({bookingRef}) below.</p>
                   {grandTotal > 0 && (

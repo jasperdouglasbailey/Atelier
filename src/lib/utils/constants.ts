@@ -209,13 +209,18 @@ export const CREW_STATUS_LABELS: Record<CrewStatus, string> = {
 // Refined editorial dark — true blacks, neutral grays, accent used sparingly.
 // References: prodn.com, art-direction-led fashion sites.
 export const PALETTE = {
-  bg: '#0a0a0a',         // true near-black
-  surface: '#141414',    // subtle elevation, no blue tint
-  border: '#262626',     // neutral gray
-  accent: '#6c8aff',     // KEEP — action signature, use sparingly
-  text: '#ededed',       // cleaner white
-  muted: '#8b8b8b',      // neutral gray, no purple
-  danger: '#f87171',
+  // Themed via CSS vars (dark/light toggle swaps :root values)
+  bg:      'var(--p-bg)',
+  surface: 'var(--p-surface)',
+  border:  'var(--p-border)',
+  text:    'var(--p-text)',
+  muted:   'var(--p-muted)',
+  // Opacity variants — pre-computed in CSS, always up-to-date with theme
+  bgSoft:  'var(--p-bg-soft)',   // bg at ~53% (subtle overlay / pre-code blocks)
+  bgHigh:  'var(--p-bg-high)',   // bg at ~80% (dim out-of-month cells)
+  // State / brand colours — constant across themes
+  accent:  '#6c8aff',
+  danger:  '#f87171',
   warning: '#fbbf24',
   success: '#4ade80',
 } as const;

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { KillSwitchState } from '@/lib/utils/kill-switch';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
+import ThemeToggle from '@/components/layout/ThemeToggle';
 
 type Props = {
   title: string;
@@ -122,29 +123,31 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
     <>
       <header
         className="flex h-14 items-center gap-3 border-b px-4 sm:px-6"
-        style={{ background: '#141414', borderColor: '#262626' }}
+        style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
       >
         {back && (
           <Link
             href={back.href}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-white/5"
-            style={{ color: '#8b8b8b' }}
+            style={{ color: 'var(--p-muted)' }}
           >
             <span aria-hidden>←</span>
             <span>{back.label}</span>
           </Link>
         )}
-        <h1 className="flex-1 truncate text-sm font-medium" style={{ color: '#ededed' }}>
+        <h1 className="flex-1 truncate text-sm font-medium" style={{ color: 'var(--p-text)' }}>
           {title}
         </h1>
+
+        <ThemeToggle />
 
         <button
           onClick={togglePauseOutbound}
           disabled={isPending}
           className="hidden rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 sm:inline-flex"
           style={{
-            borderColor: isPaused ? '#fbbf24' : '#262626',
-            color: isPaused ? '#fbbf24' : '#8b8b8b',
+            borderColor: isPaused ? '#fbbf24' : 'var(--p-border)',
+            color: isPaused ? '#fbbf24' : 'var(--p-muted)',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
           aria-pressed={isPaused}
@@ -168,14 +171,14 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
       </header>
 
       {/* Mobile-only pause-outbound row, since we hide it from the header above */}
-      <div className="flex border-b px-4 py-2 sm:hidden" style={{ background: '#141414', borderColor: '#262626' }}>
+      <div className="flex border-b px-4 py-2 sm:hidden" style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}>
         <button
           onClick={togglePauseOutbound}
           disabled={isPending}
           className="w-full rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50"
           style={{
-            borderColor: isPaused ? '#fbbf24' : '#262626',
-            color: isPaused ? '#fbbf24' : '#8b8b8b',
+            borderColor: isPaused ? '#fbbf24' : 'var(--p-border)',
+            color: isPaused ? '#fbbf24' : 'var(--p-muted)',
             background: isPaused ? '#3d2e0f' : 'transparent',
           }}
         >
@@ -194,12 +197,12 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           <div
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-lg border p-6 shadow-2xl"
-            style={{ background: '#141414', borderColor: '#262626', color: '#ededed' }}
+            style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)', color: 'var(--p-text)' }}
           >
             <h2 className="mb-2 text-base font-semibold">
               {isActive ? 'Disable kill switch?' : 'Enable kill switch?'}
             </h2>
-            <p className="mb-5 text-sm" style={{ color: '#8b8b8b' }}>
+            <p className="mb-5 text-sm" style={{ color: 'var(--p-muted)' }}>
               {isActive
                 ? 'Agents will resume processing and outbound sends will be allowed (subject to the pause-outbound flag).'
                 : 'Are you sure? This will freeze ALL agent activity. Drafts will not be generated and nothing will send externally.'}
@@ -208,7 +211,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
               <button
                 onClick={() => setConfirmOpen(false)}
                 className="rounded-md border px-4 py-2 text-sm"
-                style={{ borderColor: '#262626', color: '#8b8b8b' }}
+                style={{ borderColor: 'var(--p-border)', color: 'var(--p-muted)' }}
               >
                 Cancel
               </button>
