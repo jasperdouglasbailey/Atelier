@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { parseBriefAction, applyBriefSuggestionsAction } from '@/app/actions/bookings';
+import { parseBriefAction, applyBriefSuggestionsAction, draftClarifyingEmailAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
 import type { BriefIntakeResult } from '@/lib/automation/brief-intake';
 
@@ -26,13 +26,25 @@ const FIELD_LABELS = {
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
+// Key fields that warrant clarification if missing
+const KEY_FIELDS: Record<string, string> = {
+  shoot_location: 'shoot_location',
+  shoot_date_start: 'shoot_dates',
+  shoot_date_notes: 'shoot_dates',
+  talent_spec: 'talent_spec',
+  deliverables_type: 'deliverables_type',
+  usage_duration_months: 'usage_duration_months',
+};
+
 export default function BriefParser({ bookingId, hasBriefText, currentState }: Props) {
   const [parsing, setParsing] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [suggestions, setSuggestions] = useState<BriefIntakeResult | null>(null);
   const [selected, setSelected] = useState<Set<FieldKey>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [clarifyResult, setClarifyResult] = useState<{ mode: string; body?: string } | null>(null);
 
   async function handleParse() {
     setParsing(true);
@@ -80,6 +92,19 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     setSuggestions(null);
   }
 
+  async function handleDraftClarify(missingFields: string[]) {
+    setDrafting(true);
+    setClarifyResult(null);
+    setError(null);
+    const result = await draftClarifyingEmailAction(bookingId, missingFields);
+    setDrafting(false);
+    if ('error' in result) {
+      setError(result.error ?? 'Unknown error');
+      return;
+    }
+    setClarifyResult(result);
+  }
+
   if (!hasBriefText) return null;
 
   const META_KEYS = new Set(['source', 'confidence', 'llmAvailable']);
@@ -87,6 +112,22 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     ? (Object.keys(suggestions) as FieldKey[]).filter((k) => !META_KEYS.has(k))
     : [];
   const hasSuggestions = suggestions && dataKeys.some((k) => (suggestions as Record<string, unknown>)[k] != null);
+
+  // Detect which key fields the parser could NOT extract — these are candidates for a clarifying email
+  const missingKeyFields = suggestions
+    ? (() => {
+        const seen = new Set<string>();
+        const missing: string[] = [];
+        for (const [field, clarifyKey] of Object.entries(KEY_FIELDS)) {
+          if (seen.has(clarifyKey)) continue;
+          if ((suggestions as Record<string, unknown>)[field] == null) {
+            missing.push(clarifyKey);
+            seen.add(clarifyKey);
+          }
+        }
+        return missing;
+      })()
+    : [];
 
   return (
     <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
@@ -124,6 +165,22 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
       {success && (
         <div className="rounded px-3 py-2 text-xs" style={{ color: PALETTE.success, background: `${PALETTE.success}11` }}>
           ✓ Suggestions applied to booking.{currentState === 'brief_received' && ' State advanced to Brief Parsed.'}
+        </div>
+      )}
+
+      {clarifyResult && (
+        <div className="rounded px-3 py-2 text-xs space-y-2" style={{ color: PALETTE.success, background: `${PALETTE.success}11` }}>
+          {clarifyResult.mode === 'drafted' && (
+            <p>✓ Clarifying email saved as Gmail draft. Open Gmail to review and send.</p>
+          )}
+          {clarifyResult.mode === 'no_google' && (
+            <>
+              <p>Google not connected — copy the draft below:</p>
+              <pre className="text-[10px] whitespace-pre-wrap rounded p-2" style={{ background: `${PALETTE.bg}88`, color: PALETTE.text, fontFamily: 'monospace' }}>
+                {clarifyResult.body}
+              </pre>
+            </>
+          )}
         </div>
       )}
 
@@ -168,7 +225,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                   ))}
               </div>
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   onClick={handleApply}
                   disabled={applying || selected.size === 0}
@@ -177,8 +234,18 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                 >
                   {applying ? 'Applying…' : `Apply ${selected.size} field${selected.size !== 1 ? 's' : ''}`}
                 </button>
+                {missingKeyFields.length > 0 && !clarifyResult && (
+                  <button
+                    onClick={() => handleDraftClarify(missingKeyFields)}
+                    disabled={drafting}
+                    className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-40"
+                    style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning, border: `1px solid ${PALETTE.warning}44`, cursor: 'pointer' }}
+                  >
+                    {drafting ? 'Drafting…' : `✉ Draft Clarifying Email (${missingKeyFields.length} gap${missingKeyFields.length !== 1 ? 's' : ''})`}
+                  </button>
+                )}
                 <button
-                  onClick={() => { setSuggestions(null); setError(null); }}
+                  onClick={() => { setSuggestions(null); setError(null); setClarifyResult(null); }}
                   className="rounded px-4 py-1.5 text-xs font-medium"
                   style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}`, cursor: 'pointer' }}
                 >

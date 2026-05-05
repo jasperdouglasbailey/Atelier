@@ -10,6 +10,7 @@ import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
 import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { callLLM } from '@/lib/integrations/anthropic';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import type { BookingState } from '@/lib/types/database';
 
@@ -363,4 +364,96 @@ export async function sendQuoteEmailAction(
     revalidatePath(`/bookings/${bookingId}`);
     return { ok: true, mode: 'drafted' as const, draftId: result.draftId };
   }
+}
+
+// ============================================================
+// Clarifying email auto-draft
+// ============================================================
+
+/**
+ * Missing-field labels for the clarifying email generator.
+ * Maps field name → human-readable question phrasing.
+ */
+const CLARIFYING_QUESTIONS: Record<string, string> = {
+  shoot_location: 'the shoot location (studio, outdoor venue, suburb)',
+  shoot_dates: 'the preferred shoot date(s)',
+  talent_spec: 'the talent spec (number of models, look, gender, age range)',
+  deliverables_type: 'the deliverables required (e.g. stills, video, BTS)',
+  deliverables_count: 'the number of final images/selects you need',
+  usage_duration_months: 'the intended usage period (in months or years)',
+};
+
+/**
+ * Draft a polite clarifying email to the client asking about missing brief fields.
+ * Uses LLM when ANTHROPIC_API_KEY is set; falls back to a template.
+ * When Google is not configured, returns the body for clipboard copy.
+ */
+export async function draftClarifyingEmailAction(
+  bookingId: string,
+  missingFields: string[],
+): Promise<
+  | { ok: true; mode: 'drafted'; draftId: string | undefined }
+  | { ok: true; mode: 'no_google'; body: string }
+  | { error: string }
+> {
+  const booking = await getBooking(bookingId);
+  if (!booking) return { error: 'Booking not found' };
+
+  const clientEmail = booking.client?.email ?? null;
+  if (!clientEmail) return { error: 'No client email on this booking — add one to the client profile first.' };
+
+  const clientName = booking.client?.company || booking.client?.name || 'there';
+  const ref = booking.booking_ref ?? bookingId.slice(0, 8);
+
+  // Build the list of questions
+  const questions = missingFields
+    .map((f) => CLARIFYING_QUESTIONS[f])
+    .filter(Boolean);
+
+  if (questions.length === 0) return { error: 'No missing fields to ask about.' };
+
+  let body: string;
+
+  // Try LLM first
+  const llmResult = await callLLM({
+    purpose: 'brief_clarify',
+    bookingId,
+    maxTokens: 400,
+    messages: [{
+      role: 'user',
+      content: `Write a short, friendly email from Jasper Bailey at Saunders & Co to ${clientName} (client).
+Reference: ${ref} — ${booking.title}
+
+We received their brief but need clarification on these points:
+${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+
+Write only the email body (no subject line). Keep it under 120 words. End with:
+Jasper Bailey
+Saunders & Co
+info@saundersandco.com.au`,
+    }],
+  }).catch(() => null);
+
+  if (llmResult?.ok) {
+    body = llmResult.text;
+  } else {
+    // Template fallback
+    const questionList = questions.map((q, i) => `${i + 1}. Could you please confirm ${q}?`).join('\n');
+    body = `Hi ${clientName},\n\nThank you for the brief on ${booking.title} (${ref}). To get started on your quote, could you please clarify a few points:\n\n${questionList}\n\nOnce we have these details we can get a quote to you quickly.\n\nJasper Bailey\nSaunders & Co\ninfo@saundersandco.com.au`;
+  }
+
+  const subject = `[${ref}] Brief follow-up — ${booking.title}`;
+
+  if (!isGoogleConfigured()) {
+    return { ok: true, mode: 'no_google', body };
+  }
+
+  const draft = await draftEmail({
+    to: [clientEmail],
+    subject,
+    body: body.replace(/\n/g, '<br>'),
+    bookingRef: ref,
+  });
+
+  return { ok: true, mode: 'drafted', draftId: draft.draftId };
 }
