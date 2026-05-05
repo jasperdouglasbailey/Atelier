@@ -139,6 +139,18 @@ export default function BookingDetail({ booking, margin = null, licences, google
           >
             ↗ Quote
           </Link>
+          {booking.quote_token && (
+            <Link
+              href={`/q/${booking.quote_token}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md px-3 py-1.5 text-xs font-medium"
+              title="Public client-facing quote link"
+              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              ↗ Client View
+            </Link>
+          )}
           <Link
             href={`/print/bookings/${booking.id}/invoice`}
             target="_blank"
