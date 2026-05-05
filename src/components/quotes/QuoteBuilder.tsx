@@ -47,6 +47,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | 'videographer' | null>(null);
   // Pre-fill shoot fee from first talent's confirmed day rate, fallback to template default
   const primaryTalentDayRate = bookingTalent[0]?.day_rate ?? null;
+  // Detected discipline from the attached primary artist (for template auto-select)
+  const primaryDiscipline = bookingTalent[0]?.talent?.discipline ?? null;
   const [shootFeeInput, setShootFeeInput] = useState<string>('');
 
   // Version navigation
@@ -346,22 +348,36 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       {!latestVersion && !showTemplatePanel && (
         <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: PALETTE.border }}>
           <p className="text-xs font-medium" style={{ color: PALETTE.text }}>Start this quote:</p>
+          {/* Auto-suggest based on attached artist discipline */}
+          {(primaryDiscipline === 'photographer' || primaryDiscipline === 'videographer') && (
+            <div className="rounded border px-3 py-2 text-xs" style={{ borderColor: `${PALETTE.accent}44`, background: `${PALETTE.accent}08`, color: PALETTE.accent }}>
+              Primary artist is a {primaryDiscipline} — suggested template below.
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => openTemplate('photographer')}
               disabled={busy}
               className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
-              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              style={{
+                background: primaryDiscipline === 'photographer' ? PALETTE.accent : `${PALETTE.accent}18`,
+                color: primaryDiscipline === 'photographer' ? PALETTE.bg : PALETTE.accent,
+                border: `1px solid ${PALETTE.accent}44`,
+              }}
             >
-              📷 Photographer template
+              Photographer template
             </button>
             <button
               onClick={() => openTemplate('videographer')}
               disabled={busy}
               className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
-              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              style={{
+                background: primaryDiscipline === 'videographer' ? PALETTE.accent : `${PALETTE.accent}18`,
+                color: primaryDiscipline === 'videographer' ? PALETTE.bg : PALETTE.accent,
+                border: `1px solid ${PALETTE.accent}44`,
+              }}
             >
-              🎬 Videographer template
+              Videographer template
             </button>
             <button
               onClick={handleCreateVersion}

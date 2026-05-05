@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createBooking, getBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
+import { createQuoteVersion, addFeeLine } from '@/lib/data/quotes';
+import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
@@ -50,6 +52,69 @@ export async function createBookingAction(formData: FormData) {
 
   const booking = await createBooking(input);
   if (!booking) return { error: 'Failed to create booking' };
+
+  // Link the primary artist immediately so the booking shows the artist on creation.
+  // Role defaults to the artist's discipline (e.g. "photographer").
+  const primaryTalentId = (formData.get('primary_talent_id') as string) || null;
+  const discipline = (formData.get('primary_talent_discipline') as string) || '';
+
+  if (primaryTalentId) {
+    const { createClient: createSupabase } = await import('@/lib/supabase/server');
+    const supabase = await createSupabase();
+
+    // Get talent's default day rate to pre-fill the shoot fee
+    const { data: talentRow } = await supabase
+      .from('atelier_talent')
+      .select('default_day_rate')
+      .eq('id', primaryTalentId)
+      .single();
+
+    await supabase.from('atelier_booking_talent').insert({
+      booking_id: booking.id,
+      talent_id: primaryTalentId,
+      role_on_booking: discipline || 'photographer',
+      day_rate: talentRow?.default_day_rate ?? null,
+      confirmed: false,
+    });
+
+    // Auto-generate Quote V1 from the artist's discipline template.
+    // Only photographer and videographer have standard templates — other
+    // disciplines (stylist, HMU etc.) are typically not the lead artist.
+    if (discipline === 'photographer' || discipline === 'videographer') {
+      const shootFeeOverride = talentRow?.default_day_rate ?? undefined;
+      const qv = await createQuoteVersion(booking.id);
+      if (qv) {
+        const lines = TEMPLATE_LINES_MAP[discipline];
+        for (let i = 0; i < lines.length; i++) {
+          const tl = lines[i];
+          const unitPrice =
+            tl.line_type === 'artist_fee' && shootFeeOverride != null && shootFeeOverride > 0
+              ? shootFeeOverride
+              : tl.unit_price;
+          const subtotal = Math.round(tl.quantity * unitPrice * 100) / 100;
+          const asfAmount = Math.round(subtotal * tl.asf_rate * 100) / 100;
+          await addFeeLine({
+            quote_version_id: qv.id,
+            booking_id: booking.id,
+            line_type: tl.line_type,
+            description: tl.description,
+            quantity: tl.quantity,
+            unit_price: unitPrice,
+            subtotal,
+            asf_rate: tl.asf_rate,
+            asf_amount: asfAmount,
+            is_gst_exempt: false,
+            is_super_bearing: tl.is_super_bearing,
+            super_rate_charged: tl.super_rate_charged,
+            super_rate_paid: tl.super_rate_paid,
+            is_commissionable: tl.is_commissionable,
+            commission_rate: tl.commission_rate,
+            sort_order: i,
+          });
+        }
+      }
+    }
+  }
 
   revalidatePath('/bookings');
   revalidatePath('/');
