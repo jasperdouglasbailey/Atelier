@@ -184,7 +184,22 @@ export default async function ClientDetailPage({ params }: Props) {
             <Field label="Phone" value={client.phone} />
             <Field label="ABN" value={client.abn} />
             <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
-            <Field label="Avg DOI" value={client.avg_doi_days ? `${client.avg_doi_days} days` : null} />
+            {client.avg_doi_days ? (
+              (() => {
+                const isSlowPayer = client.payment_terms_days != null
+                  ? client.avg_doi_days > client.payment_terms_days
+                  : client.avg_doi_days > 30;
+                return (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Avg DOI</div>
+                    <div className="mt-0.5 text-sm font-semibold" style={{ color: isSlowPayer ? PALETTE.danger : PALETTE.success }}>
+                      {client.avg_doi_days} days
+                      {isSlowPayer ? ' — slow payer' : ' — on time'}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : null}
           </div>
         </section>
 

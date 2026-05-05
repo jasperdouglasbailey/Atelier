@@ -302,6 +302,13 @@ export async function transitionState(
 
   const booking = data as Booking;
 
+  // Fire-and-forget: recompute avg_doi_days for the client when payment clears
+  if (newState === 'paid' && current.client_id) {
+    refreshClientAvgDoi(current.client_id).catch((err) =>
+      console.error('[transitionState] avg_doi refresh failed', err),
+    );
+  }
+
   await emitEvent('booking.state_changed', {
     from: current.state,
     to: newState,
@@ -319,6 +326,49 @@ export async function transitionState(
   });
 
   return { ok: true, booking };
+}
+
+// ============================================================
+// Client DOI maintenance
+// ============================================================
+
+/**
+ * Recomputes the client's average days-to-pay (avg_doi_days) from all
+ * paid bookings that have both invoice_issued_at and paid_at recorded.
+ * Called asynchronously when a booking transitions to "paid".
+ */
+async function refreshClientAvgDoi(clientId: string): Promise<void> {
+  const supabase = await createClient();
+
+  // Fetch all paid bookings for this client with both timestamps
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('invoice_issued_at, paid_at')
+    .eq('client_id', clientId)
+    .eq('state', 'paid')
+    .not('invoice_issued_at', 'is', null)
+    .not('paid_at', 'is', null);
+
+  if (error || !data || data.length === 0) return;
+
+  const rows = data as { invoice_issued_at: string; paid_at: string }[];
+
+  const totalDays = rows.reduce((sum, r) => {
+    const doi = Math.max(
+      0,
+      Math.round(
+        (new Date(r.paid_at).getTime() - new Date(r.invoice_issued_at).getTime()) / 86_400_000,
+      ),
+    );
+    return sum + doi;
+  }, 0);
+
+  const avgDoi = Math.round(totalDays / rows.length);
+
+  await supabase
+    .from('atelier_clients')
+    .update({ avg_doi_days: avgDoi })
+    .eq('id', clientId);
 }
 
 // ============================================================
