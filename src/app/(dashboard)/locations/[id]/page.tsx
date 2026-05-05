@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
+import RetryDriveFolderButton from '@/components/locations/RetryDriveFolderButton';
 import { getLocation } from '@/lib/data/locations';
 import { PALETTE } from '@/lib/utils/constants';
 import type { StudioType, StudioRoom } from '@/lib/types/database';
@@ -149,7 +150,8 @@ export default async function LocationDetailPage({ params }: Props) {
           </Link>
         </div>
 
-        {/* Drive folder link — prominent at top so Jasper can jump to images */}
+        {/* Drive folder — link if linked, retry button if not */}
+        {!loc.drive_folder_link && <RetryDriveFolderButton locationId={loc.id} />}
         {loc.drive_folder_link && (
           <a
             href={loc.drive_folder_link}

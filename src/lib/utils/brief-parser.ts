@@ -15,6 +15,8 @@
  *  - "Social" alone in a media context does NOT set deliverables_type to "Social".
  */
 
+import type { UsageMedia, UsageTerritory } from '@/lib/types/database';
+
 export type ParsedBrief = {
   shoot_location: string | null;
   shoot_date_start: string | null;   // YYYY-MM-DD
@@ -407,4 +409,162 @@ export function parseBrief(text: string): ParsedBrief {
     usage_media_raw: usageMediaRaw,
     budget_indication: budget,
   };
+}
+
+// ============================================================
+// Raw → enum mappers (for usage_territory[] and usage_media[])
+// ============================================================
+//
+// These are forgiving lookups: tokenise on common separators, normalise
+// (lowercase, strip non-alpha), then look up against a synonym table.
+// Anything that doesn't match comes back as `unmatched` so the caller can
+// store the residue in usage_notes if it's worth keeping.
+
+const TERRITORY_LOOKUP: Record<string, UsageTerritory> = {
+  // Worldwide / Global
+  worldwide: 'worldwide', global: 'worldwide', ww: 'worldwide', world: 'worldwide',
+  allterritories: 'worldwide', allregions: 'worldwide',
+  // Australia
+  australia: 'australia', au: 'australia', aus: 'australia', aussie: 'australia',
+  // Oceania (incl. NZ)
+  oceania: 'oceania', nz: 'oceania', newzealand: 'oceania', anz: 'oceania', aunz: 'oceania',
+  // North America
+  usa: 'usa', us: 'usa', unitedstates: 'usa', america: 'usa',
+  northamerica: 'north_america', na: 'north_america',
+  // UK
+  uk: 'uk', unitedkingdom: 'uk', britain: 'uk', greatbritain: 'uk', gb: 'uk', england: 'uk',
+  // Europe
+  europe: 'europe_all', eu: 'europe_eu', europeanunion: 'europe_eu', europeall: 'europe_all',
+  europenoneu: 'europe_non_eu', noneueurope: 'europe_non_eu',
+  nordics: 'nordics', scandinavia: 'nordics',
+  cee: 'cee',
+  // Asia
+  asia: 'asia_incl_japan', asiainclujapan: 'asia_incl_japan', asiainc: 'asia_incl_japan',
+  asiaexclujapan: 'asia_excl_japan', asiaexc: 'asia_excl_japan',
+  japan: 'asia_incl_japan',
+  // Middle East / Africa
+  middleeast: 'middle_east', me: 'middle_east',
+  mea: 'mea', emea: 'emea', amet: 'amet',
+  africa: 'africa',
+  uae: 'uae', dubai: 'uae',
+  gcc: 'gcc',
+  // Latin / Central / South America
+  southamerica: 'south_america', sa: 'south_america',
+  centralamerica: 'central_america',
+  caribbean: 'caribbean',
+  latinamerica: 'latin_america', latam: 'latin_america',
+};
+
+const MEDIA_LOOKUP: Record<string, UsageMedia> = {
+  // Catch-alls
+  allmedia: 'all_media', everymedia: 'all_media',
+  allprint: 'all_print', print: 'all_print', printcollateral: 'all_print',
+  alldigital: 'all_digital', digital: 'all_digital', alldigitalmedia: 'all_digital',
+  // Print
+  ooh: 'ooh', outofhome: 'ooh', billboards: 'ooh', billboard: 'ooh',
+  press: 'press', magazines: 'press', magazine: 'press', newspaper: 'press',
+  brochures: 'brochures', brochure: 'brochures',
+  packaging: 'packaging', packaged: 'packaging',
+  pos: 'pos', pointofsale: 'pos', frontofstore: 'pos', instore: 'pos', incentre: 'pos',
+  posstand: 'pos', windows: 'pos', gates: 'pos',
+  directmail: 'direct_mail', dm: 'direct_mail',
+  posters: 'posters', poster: 'posters',
+  collateral: 'collateral',
+  prprint: 'pr_print',
+  // Digital
+  social: 'social_media', socialmedia: 'social_media', paidsocial: 'social_media',
+  organicsocial: 'social_media', socials: 'social_media',
+  companywebsite: 'company_website', website: 'company_website', web: 'company_website',
+  regionalwebsite: 'regional_website',
+  internetadvertising: 'internet_advertising', internetads: 'internet_advertising',
+  displayads: 'internet_advertising', programmatic: 'internet_advertising',
+  digitalposters: 'digital_posters',
+  digitaldirectmail: 'digital_direct_mail', edm: 'digital_direct_mail', email: 'digital_direct_mail',
+  mobile: 'mobile', mobileads: 'mobile',
+  intranet: 'intranet',
+  prdigital: 'pr_digital',
+  tv: 'tv', broadcast: 'tv', television: 'tv',
+  // Other
+  ambient: 'ambient',
+  marketingaids: 'marketing_aids',
+};
+
+function normaliseToken(s: string): string {
+  return s.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function tokeniseRaw(raw: string): string[] {
+  return raw
+    .split(/[,;/&\n]|\s+(?:and|plus)\s+/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+export type EnumMapResult<T> = {
+  matched: T[];
+  /** Tokens that did not map to any known enum value. */
+  unmatched: string[];
+};
+
+/**
+ * For a single token, find ALL known keys that appear as substrings of the
+ * normalised form, prefering longer keys first (so "frontofstore" wins over
+ * "front" if both existed). Returns the matched enum values in order.
+ */
+function matchTokenSubstrings<T extends string>(
+  token: string,
+  lookup: Record<string, T>,
+  keysByLengthDesc: string[],
+): T[] {
+  const normalised = normaliseToken(token);
+  if (normalised.length === 0) return [];
+
+  // Whole-token exact hit is the cheapest path
+  const exact = lookup[normalised];
+  if (exact) return [exact];
+
+  // Otherwise consume substrings greedily, longest first
+  const hits: T[] = [];
+  let remaining = normalised;
+  for (const key of keysByLengthDesc) {
+    const idx = remaining.indexOf(key);
+    if (idx === -1) continue;
+    const value = lookup[key];
+    if (!hits.includes(value)) hits.push(value);
+    // Remove this key from the remaining pool so we don't double-count
+    remaining = remaining.slice(0, idx) + remaining.slice(idx + key.length);
+    if (remaining.length === 0) break;
+  }
+  return hits;
+}
+
+const TERRITORY_KEYS_DESC = Object.keys(TERRITORY_LOOKUP).sort((a, b) => b.length - a.length);
+const MEDIA_KEYS_DESC = Object.keys(MEDIA_LOOKUP).sort((a, b) => b.length - a.length);
+
+/** Map free-text territory like "Australia & NZ" → ['australia', 'oceania']. */
+export function mapTerritoryRaw(raw: string | null | undefined): EnumMapResult<UsageTerritory> {
+  if (!raw) return { matched: [], unmatched: [] };
+  const tokens = tokeniseRaw(raw);
+  const matched = new Set<UsageTerritory>();
+  const unmatched: string[] = [];
+  for (const token of tokens) {
+    const hits = matchTokenSubstrings(token, TERRITORY_LOOKUP, TERRITORY_KEYS_DESC);
+    if (hits.length > 0) hits.forEach((h) => matched.add(h));
+    else unmatched.push(token);
+  }
+  return { matched: [...matched], unmatched };
+}
+
+/** Map free-text media list like "Front of store POS, Paid social" → ['pos', 'social_media']. */
+export function mapMediaRaw(raw: string | null | undefined): EnumMapResult<UsageMedia> {
+  if (!raw) return { matched: [], unmatched: [] };
+  const tokens = tokeniseRaw(raw);
+  const matched = new Set<UsageMedia>();
+  const unmatched: string[] = [];
+  for (const token of tokens) {
+    const hits = matchTokenSubstrings(token, MEDIA_LOOKUP, MEDIA_KEYS_DESC);
+    if (hits.length > 0) hits.forEach((h) => matched.add(h));
+    else unmatched.push(token);
+  }
+  return { matched: [...matched], unmatched };
 }

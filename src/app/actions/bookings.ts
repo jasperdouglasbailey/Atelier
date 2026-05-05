@@ -2,11 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { createBooking, getBooking, updateBooking, transitionState, type CreateBookingInput } from '@/lib/data/bookings';
-import { createQuoteVersion, addFeeLine } from '@/lib/data/quotes';
+import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent } from '@/lib/data/quotes';
 import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
+import { mapTerritoryRaw, mapMediaRaw } from '@/lib/utils/brief-parser';
 import { buildDateRange } from '@/lib/utils/daterange';
 import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
@@ -14,7 +15,59 @@ import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { callLLM } from '@/lib/integrations/anthropic';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
+import { createClient as createSupabaseServer } from '@/lib/supabase/server';
 import type { BookingState } from '@/lib/types/database';
+
+/**
+ * Build Quote V1 from a discipline template. Used by both create-booking flow
+ * (when a primary artist is set) and the manual "Regenerate Quote V1" button
+ * for legacy bookings that didn't have an artist when first created.
+ *
+ * Pure server-side helper — no FormData, no revalidation. Caller decides
+ * what to revalidate.
+ *
+ * Returns the new quote_version id, or null if the booking already has lines
+ * (we never overwrite manual work).
+ */
+async function generateQuoteV1FromTemplate(
+  bookingId: string,
+  discipline: 'photographer' | 'videographer',
+  defaultDayRate: number | null,
+): Promise<string | null> {
+  const qv = await createQuoteVersion(bookingId);
+  if (!qv) return null;
+
+  const lines = TEMPLATE_LINES_MAP[discipline];
+  const shootFeeOverride = defaultDayRate != null && defaultDayRate > 0 ? defaultDayRate : null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const tl = lines[i];
+    const unitPrice = tl.line_type === 'artist_fee' && shootFeeOverride != null
+      ? shootFeeOverride
+      : tl.unit_price;
+    const subtotal = Math.round(tl.quantity * unitPrice * 100) / 100;
+    const asfAmount = Math.round(subtotal * tl.asf_rate * 100) / 100;
+    await addFeeLine({
+      quote_version_id: qv.id,
+      booking_id: bookingId,
+      line_type: tl.line_type,
+      description: tl.description,
+      quantity: tl.quantity,
+      unit_price: unitPrice,
+      subtotal,
+      asf_rate: tl.asf_rate,
+      asf_amount: asfAmount,
+      is_gst_exempt: false,
+      is_super_bearing: tl.is_super_bearing,
+      super_rate_charged: tl.super_rate_charged,
+      super_rate_paid: tl.super_rate_paid,
+      is_commissionable: tl.is_commissionable,
+      commission_rate: tl.commission_rate,
+      sort_order: i,
+    });
+  }
+  return qv.id;
+}
 
 export async function createBookingAction(formData: FormData) {
   const shootStart = (formData.get('shoot_date_start') as string) || null;
@@ -59,8 +112,7 @@ export async function createBookingAction(formData: FormData) {
   const discipline = (formData.get('primary_talent_discipline') as string) || '';
 
   if (primaryTalentId) {
-    const { createClient: createSupabase } = await import('@/lib/supabase/server');
-    const supabase = await createSupabase();
+    const supabase = await createSupabaseServer();
 
     // Get talent's default day rate to pre-fill the shoot fee
     const { data: talentRow } = await supabase
@@ -78,41 +130,8 @@ export async function createBookingAction(formData: FormData) {
     });
 
     // Auto-generate Quote V1 from the artist's discipline template.
-    // Only photographer and videographer have standard templates — other
-    // disciplines (stylist, HMU etc.) are typically not the lead artist.
     if (discipline === 'photographer' || discipline === 'videographer') {
-      const shootFeeOverride = talentRow?.default_day_rate ?? undefined;
-      const qv = await createQuoteVersion(booking.id);
-      if (qv) {
-        const lines = TEMPLATE_LINES_MAP[discipline];
-        for (let i = 0; i < lines.length; i++) {
-          const tl = lines[i];
-          const unitPrice =
-            tl.line_type === 'artist_fee' && shootFeeOverride != null && shootFeeOverride > 0
-              ? shootFeeOverride
-              : tl.unit_price;
-          const subtotal = Math.round(tl.quantity * unitPrice * 100) / 100;
-          const asfAmount = Math.round(subtotal * tl.asf_rate * 100) / 100;
-          await addFeeLine({
-            quote_version_id: qv.id,
-            booking_id: booking.id,
-            line_type: tl.line_type,
-            description: tl.description,
-            quantity: tl.quantity,
-            unit_price: unitPrice,
-            subtotal,
-            asf_rate: tl.asf_rate,
-            asf_amount: asfAmount,
-            is_gst_exempt: false,
-            is_super_bearing: tl.is_super_bearing,
-            super_rate_charged: tl.super_rate_charged,
-            super_rate_paid: tl.super_rate_paid,
-            is_commissionable: tl.is_commissionable,
-            commission_rate: tl.commission_rate,
-            sort_order: i,
-          });
-        }
-      }
+      await generateQuoteV1FromTemplate(booking.id, discipline, talentRow?.default_day_rate ?? null);
     }
   }
 
@@ -161,6 +180,34 @@ export async function updateBookingAction(id: string, formData: FormData) {
 
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to update booking' };
+
+  // Primary artist swap: when the edit form changed the primary_talent_id we
+  // replace the existing booking_talent row(s) with the new artist. This is a
+  // destructive op (loses confirmation status / day rate edits on the old
+  // record) — the form warns the user before submitting.
+  const primaryChanged = formData.get('primary_talent_changed') === '1';
+  const newPrimaryId = (formData.get('primary_talent_id') as string) || null;
+  const newDiscipline = (formData.get('primary_talent_discipline') as string) || '';
+
+  if (primaryChanged && newPrimaryId) {
+    const supabase = await createSupabaseServer();
+    // Pull new artist's default day rate so the booking_talent row is sensible
+    const { data: talentRow } = await supabase
+      .from('atelier_talent')
+      .select('default_day_rate')
+      .eq('id', newPrimaryId)
+      .single();
+
+    // Remove existing rows then insert one for the new artist
+    await supabase.from('atelier_booking_talent').delete().eq('booking_id', id);
+    await supabase.from('atelier_booking_talent').insert({
+      booking_id: id,
+      talent_id: newPrimaryId,
+      role_on_booking: newDiscipline || 'photographer',
+      day_rate: talentRow?.default_day_rate ?? null,
+      confirmed: false,
+    });
+  }
 
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
@@ -343,21 +390,29 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     updates.shoot_dates = buildDateRange(shootStart, shootEnd ?? shootStart);
   }
 
-  // Media and territory land in usage_notes (freetext) as a parser extract.
-  // Jasper reviews and selects the structured enum values from the booking form.
+  // Media and territory: try to map to structured enum values first.
+  // Anything that maps confidently sets the enum array directly.
+  // Anything left over (unrecognised tokens) falls into usage_notes as a hint
+  // for Jasper, but we never overwrite existing notes.
   const mediaRaw = formData.get('usage_media_raw') as string | null;
   const territoryRaw = formData.get('usage_territory_raw') as string | null;
   if (mediaRaw || territoryRaw) {
-    const noteParts: string[] = [];
-    if (mediaRaw) noteParts.push(`Media (parser): ${mediaRaw}`);
-    if (territoryRaw) noteParts.push(`Territory (parser): ${territoryRaw}`);
-    // Append to existing notes rather than overwrite
-    const existing = await getBooking(id);
-    const existingNotes = existing?.usage_notes ?? null;
-    const newNotes = existingNotes
-      ? `${existingNotes}\n${noteParts.join('\n')}`
-      : noteParts.join('\n');
-    updates.usage_notes = newNotes;
+    const territoryMap = mapTerritoryRaw(territoryRaw);
+    const mediaMap = mapMediaRaw(mediaRaw);
+
+    if (territoryMap.matched.length > 0) updates.usage_territory = territoryMap.matched;
+    if (mediaMap.matched.length > 0) updates.usage_media = mediaMap.matched;
+
+    // Only the tokens we couldn't map become notes — keeps the field readable.
+    const residue: string[] = [];
+    if (territoryMap.unmatched.length > 0) residue.push(`Territory (unmapped): ${territoryMap.unmatched.join(', ')}`);
+    if (mediaMap.unmatched.length > 0) residue.push(`Media (unmapped): ${mediaMap.unmatched.join(', ')}`);
+
+    if (residue.length > 0) {
+      const existing = await getBooking(id);
+      const existingNotes = existing?.usage_notes ?? null;
+      updates.usage_notes = existingNotes ? `${existingNotes}\n${residue.join('\n')}` : residue.join('\n');
+    }
   }
 
   const result = await updateBooking(id, updates);
@@ -640,4 +695,187 @@ export async function markCrewPaidAction(
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
+}
+
+// ============================================================
+// Regenerate Quote V1 from artist's discipline template
+// ============================================================
+//
+// Used by the "Generate Quote V1" button on bookings that don't yet have
+// a quote — typically legacy bookings created before the auto-quote
+// feature, or bookings whose primary artist was set later.
+//
+// Refuses to run if the booking already has any quote versions, to avoid
+// overwriting manual work. Jasper can delete versions via the UI first
+// if he really wants a clean V1.
+
+export async function regenerateQuoteV1Action(bookingId: string) {
+  const existing = await listQuoteVersions(bookingId);
+  if (existing.length > 0) {
+    return { error: 'Quote already exists. Delete existing versions first to regenerate.' };
+  }
+
+  const bookingTalent = await listBookingTalent(bookingId);
+  const primary = bookingTalent[0] as (typeof bookingTalent[0] & { talent?: { discipline: string; default_day_rate: number | null } | null }) | undefined;
+  if (!primary?.talent) {
+    return { error: 'No primary artist on this booking. Add an artist first.' };
+  }
+
+  const discipline = primary.talent.discipline;
+  if (discipline !== 'photographer' && discipline !== 'videographer') {
+    return { error: `No template for ${discipline}. Templates exist for photographer and videographer only.` };
+  }
+
+  const qvId = await generateQuoteV1FromTemplate(
+    bookingId,
+    discipline,
+    primary.talent.default_day_rate ?? primary.day_rate ?? null,
+  );
+  if (!qvId) return { error: 'Quote generation failed.' };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true, quoteVersionId: qvId };
+}
+
+// ============================================================
+// Clone an existing booking
+// ============================================================
+//
+// Creates a fresh booking row with the same client, brand, tier, deliverables,
+// usage media/territory/duration, post-production ownership, and primary
+// artist as the source. Dates are offset by 30 days from the source's start
+// (or null if the source had no shoot dates). Title gets " (Copy)" appended.
+//
+// Quote, fee lines, events, and confirmations are NOT copied — the new
+// booking starts fresh in `brief_received`.
+
+export async function cloneBookingAction(sourceId: string) {
+  const source = await getBooking(sourceId);
+  if (!source) return { error: 'Source booking not found' };
+
+  // Offset dates by 30 days. The original source.shoot_dates is a Postgres
+  // daterange; we already have buildDateRange + dateRangeToInputs to convert.
+  const inputs = dateRangeToInputs(source.shoot_dates);
+  let newDates: string | null = null;
+  if (inputs.start) {
+    const startDate = new Date(inputs.start);
+    startDate.setDate(startDate.getDate() + 30);
+    const endDate = inputs.end ? new Date(inputs.end) : new Date(inputs.start);
+    if (inputs.end) endDate.setDate(endDate.getDate() + 30);
+    newDates = buildDateRange(
+      startDate.toISOString().slice(0, 10),
+      endDate.toISOString().slice(0, 10),
+    );
+  }
+
+  const cloneInput: CreateBookingInput = {
+    title: `${source.title} (Copy)`,
+    tier: source.tier,
+    client_id: source.client_id,
+    brand_id: source.brand_id,
+    creative_agency_id: source.creative_agency_id,
+    shoot_location: source.shoot_location,
+    shoot_date_notes: null, // Don't copy "TBD pending client" — fresh booking
+    shoot_dates: newDates,
+    talent_count: source.talent_count,
+    talent_spec: source.talent_spec,
+    deliverables_type: source.deliverables_type,
+    deliverables_count: source.deliverables_count,
+    usage_duration_months: source.usage_duration_months,
+    usage_notes: source.usage_notes,
+    post_production_ownership: source.post_production_ownership,
+    agency_notes: null,
+    brief_raw_text: null, // Fresh brief expected
+    usage_media: source.usage_media,
+    usage_territory: source.usage_territory,
+  };
+
+  const newBooking = await createBooking(cloneInput);
+  if (!newBooking) return { error: 'Failed to clone booking' };
+
+  // Copy the primary artist (first booking_talent row) to the new booking.
+  // We don't copy day_rate from the old row — instead pull the artist's
+  // current default_day_rate, which may have changed since.
+  const sourceTalent = await listBookingTalent(sourceId);
+  const primary = sourceTalent[0] as (typeof sourceTalent[0] & { talent?: { default_day_rate: number | null; discipline: string } | null }) | undefined;
+
+  if (primary?.talent_id) {
+    const supabase = await createSupabaseServer();
+    await supabase.from('atelier_booking_talent').insert({
+      booking_id: newBooking.id,
+      talent_id: primary.talent_id,
+      role_on_booking: primary.role_on_booking || primary.talent?.discipline || 'photographer',
+      day_rate: primary.talent?.default_day_rate ?? null,
+      confirmed: false,
+    });
+
+    // Auto-generate Quote V1 if it's a photographer/videographer
+    const discipline = primary.talent?.discipline ?? '';
+    if (discipline === 'photographer' || discipline === 'videographer') {
+      await generateQuoteV1FromTemplate(newBooking.id, discipline, primary.talent?.default_day_rate ?? null);
+    }
+  }
+
+  revalidatePath('/bookings');
+  revalidatePath(`/clients/${source.client_id}`);
+  return { id: newBooking.id, ref: newBooking.booking_ref };
+}
+
+// ============================================================
+// Client usage defaults — autofill on new booking
+// ============================================================
+//
+// Returns the most-frequently-used media, territory, and duration values
+// from the client's last 3 bookings. Used by BookingFormFields to pre-tick
+// checkboxes when a client is selected on the new-booking form.
+//
+// A value must appear in at least ceil(n/2) of the n recent bookings to be
+// included (majority threshold). Duration uses the modal value; ties go to
+// the most recent booking.
+
+export async function getClientDefaultsAction(clientId: string): Promise<{
+  media: string[];
+  territories: string[];
+  durationMonths: number | null;
+}> {
+  const supabase = await createSupabaseServer();
+  const { data } = await supabase
+    .from('atelier_bookings')
+    .select('usage_media, usage_territory, usage_duration_months')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (!data || data.length === 0) return { media: [], territories: [], durationMonths: null };
+
+  const n = data.length;
+  const threshold = Math.ceil(n / 2);
+
+  const mediaCounts: Record<string, number> = {};
+  const territoryCounts: Record<string, number> = {};
+  const durations: number[] = [];
+
+  for (const b of data) {
+    for (const m of (b.usage_media ?? [])) mediaCounts[m] = (mediaCounts[m] ?? 0) + 1;
+    for (const t of (b.usage_territory ?? [])) territoryCounts[t] = (territoryCounts[t] ?? 0) + 1;
+    if (b.usage_duration_months != null) durations.push(b.usage_duration_months);
+  }
+
+  const media = Object.entries(mediaCounts)
+    .filter(([, count]) => count >= threshold)
+    .map(([key]) => key);
+
+  const territories = Object.entries(territoryCounts)
+    .filter(([, count]) => count >= threshold)
+    .map(([key]) => key);
+
+  let durationMonths: number | null = null;
+  if (durations.length > 0) {
+    const durationCounts: Record<number, number> = {};
+    for (const d of durations) durationCounts[d] = (durationCounts[d] ?? 0) + 1;
+    durationMonths = durations.reduce((best, d) =>
+      (durationCounts[d] > durationCounts[best]) ? d : best, durations[0]);
+  }
+
+  return { media, territories, durationMonths };
 }

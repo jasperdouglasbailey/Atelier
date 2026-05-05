@@ -80,6 +80,9 @@ export interface Client {
   avg_doi_days: number | null;
   /** How this client prefers to be contacted. */
   preferred_comms: string | null;
+  /** Auto-created Drive folder for client material (signed letters, invoices). */
+  drive_folder_id: string | null;
+  drive_folder_link: string | null;
 }
 
 export interface Brand {
@@ -134,6 +137,9 @@ export interface Talent {
   notes: string | null;
   onboarding_completed: boolean;
   onboarding_token: string | null;
+  /** Auto-created Drive folder for portfolio + non-PII material. */
+  drive_folder_id: string | null;
+  drive_folder_link: string | null;
 }
 
 export interface Crew {
@@ -162,6 +168,9 @@ export interface Crew {
   notes: string | null;
   onboarding_completed: boolean;
   onboarding_token: string | null;
+  /** Auto-created Drive folder for portfolio + non-PII material. */
+  drive_folder_id: string | null;
+  drive_folder_link: string | null;
 }
 
 export interface Campaign {

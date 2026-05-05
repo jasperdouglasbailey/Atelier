@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { proposeHoldRequestsAction } from '@/app/actions/hold-requests';
 import { PALETTE } from '@/lib/utils/constants';
 
@@ -75,9 +76,9 @@ export default function HoldRequestsTrigger({ bookingId, pendingCrewCount, booki
               {result.skipped ? ` · ${result.skipped} already in inbox` : ''}
               {result.reason === 'no_pending_holds' && ' · nothing to do'}
               .{' '}
-              <a href="/inbox" className="underline">
+              <Link href="/inbox" className="underline">
                 View in inbox →
-              </a>
+              </Link>
             </>
           )}
         </div>

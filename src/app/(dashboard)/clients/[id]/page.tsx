@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
+import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
@@ -212,9 +213,14 @@ export default async function ClientDetailPage({ params }: Props) {
 
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-            Bookings ({bookings.length})
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+              Bookings ({bookings.length})
+            </h3>
+            {bookings.length > 0 && (
+              <CloneBookingButton sourceBookingId={bookings[0].id} label="Repeat last booking" />
+            )}
+          </div>
           {bookings.length === 0 ? (
             <p className="text-xs" style={{ color: PALETTE.muted }}>No bookings for this client yet.</p>
           ) : (

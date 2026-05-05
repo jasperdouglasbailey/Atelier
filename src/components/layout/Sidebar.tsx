@@ -49,7 +49,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
       style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
     >
       <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: 'var(--p-border)' }}>
-        <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: '#6c8aff' }}>
+        <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: 'var(--p-accent)' }}>
           Atelier
         </span>
       </div>
@@ -82,7 +82,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
                       {badge != null && badge > 0 && (
                         <span
                           className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                          style={{ background: '#6c8aff', color: 'var(--p-bg)', minWidth: 18, textAlign: 'center' }}
+                          style={{ background: 'var(--p-accent)', color: 'var(--p-bg)', minWidth: 18, textAlign: 'center' }}
                         >
                           {badge > 99 ? '99+' : badge}
                         </span>

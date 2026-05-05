@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent } from '@/lib/types/database';
 import type { RatePrecedent } from '@/lib/data/quotes';
 import { computeQuoteTotals, type ComputedFeeLine } from '@/lib/utils/fee-engine';
@@ -350,10 +351,17 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       {!latestVersion && !showTemplatePanel && (
         <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: PALETTE.border }}>
           <p className="text-xs font-medium" style={{ color: PALETTE.text }}>Start this quote:</p>
-          {/* Auto-suggest based on attached artist discipline */}
+          {/* One-click auto-generate when artist + discipline are known (legacy bookings) */}
           {(primaryDiscipline === 'photographer' || primaryDiscipline === 'videographer') && (
-            <div className="rounded border px-3 py-2 text-xs" style={{ borderColor: `${PALETTE.accent}44`, background: `${PALETTE.accent}08`, color: PALETTE.accent }}>
-              Primary artist is a {primaryDiscipline} — suggested template below.
+            <div className="rounded border p-3 space-y-2" style={{ borderColor: `${PALETTE.accent}44`, background: `${PALETTE.accent}08` }}>
+              <p className="text-xs" style={{ color: PALETTE.accent }}>
+                Primary artist is a {primaryDiscipline}. One-click generate or use a template:
+              </p>
+              <RegenerateQuoteV1Button
+                bookingId={bookingId}
+                discipline={primaryDiscipline}
+                dayRate={bookingTalent[0]?.day_rate ?? bookingTalent[0]?.talent?.default_day_rate ?? null}
+              />
             </div>
           )}
           <div className="flex flex-wrap gap-2">

@@ -150,7 +150,7 @@ export default function KeyboardShortcuts() {
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-lg border p-6 shadow-2xl"
-        style={{ background: '#141414', borderColor: '#262626', color: PALETTE.text }}
+        style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)', color: PALETTE.text }}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">Keyboard shortcuts</h2>

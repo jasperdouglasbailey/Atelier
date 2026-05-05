@@ -281,35 +281,35 @@ export async function listFiles(folderId: string): Promise<{
   return result.files;
 }
 
-const LOCATIONS_FOLDER_NAME = 'Locations';
-
 /**
- * Create (or find) a Drive folder for a location under a shared "Locations"
- * parent. The parent itself lives under the app Drive root.
+ * Generic helper: create-or-find a Drive folder for an entity under a shared
+ * parent folder ("Locations", "Clients", "Talent", "Crew", etc.). The parent
+ * itself lives under the app Drive root.
  *
- * Returns { id, webViewLink } for the location-specific folder,
- * or null when Google Drive credentials are not configured.
+ * Per Rule 9: these Drive folders are for portfolio / reference material only.
+ * Sensitive PII (banking details, ID scans, WWCC scans) lives in Supabase
+ * Storage, never in Drive.
+ *
+ * Idempotent — re-saving the same entity returns the existing folder.
  */
-export async function createLocationFolder(
-  locationName: string,
+export async function createEntityFolder(
+  parentName: 'Locations' | 'Clients' | 'Talent' | 'Crew',
+  entityName: string,
 ): Promise<{ id: string; webViewLink: string } | null> {
   if (!isGoogleConfigured()) {
-    console.log('[drive] CREATE LOCATION FOLDER (stub — no credentials)', locationName);
+    console.log(`[drive] CREATE ${parentName.toUpperCase()} FOLDER (stub — no credentials)`, entityName);
     return null;
   }
 
   try {
     const token = await getAccessToken();
 
-    // Resolve Drive root (same logic as booking folders)
     const envRootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
     const rootId = envRootId ?? await findOrCreateFolder(token, ROOT_FOLDER_NAME);
 
-    // Shared "Locations" parent folder
-    const locationsParentId = await findOrCreateFolder(token, LOCATIONS_FOLDER_NAME, rootId);
+    const parentFolderId = await findOrCreateFolder(token, parentName, rootId);
 
-    // Individual location folder — find first to avoid duplicates on re-save
-    const existingId = await findFolder(token, locationName, locationsParentId);
+    const existingId = await findFolder(token, entityName, parentFolderId);
     if (existingId) {
       const file = await driveGet<{ webViewLink: string }>(
         `${DRIVE_BASE}/${existingId}?fields=webViewLink`,
@@ -318,11 +318,14 @@ export async function createLocationFolder(
       return { id: existingId, webViewLink: file.webViewLink };
     }
 
-    const folder = await createFolder(token, locationName, locationsParentId);
-    console.log('[drive] CREATED LOCATION FOLDER', locationName, folder.id);
+    const folder = await createFolder(token, entityName, parentFolderId);
+    console.log(`[drive] CREATED ${parentName.toUpperCase()} FOLDER`, entityName, folder.id);
     return folder;
   } catch (err) {
-    console.error('[drive] createLocationFolder failed', err);
+    console.error(`[drive] createEntityFolder(${parentName}, ${entityName}) failed`, err);
     return null;
   }
 }
+
+/** Backwards-compat alias for existing callers. */
+export const createLocationFolder = (name: string) => createEntityFolder('Locations', name);

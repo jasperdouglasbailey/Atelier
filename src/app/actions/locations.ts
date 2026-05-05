@@ -1,8 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createLocation, updateLocation } from '@/lib/data/locations';
+import { createLocation, getLocation, updateLocation } from '@/lib/data/locations';
 import { createLocationFolder } from '@/lib/integrations/drive';
+import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import type { StudioType, StudioRoom } from '@/lib/types/database';
 
 const TEXT_FIELDS = [
@@ -77,4 +78,30 @@ export async function updateLocationAction(id: string, formData: FormData) {
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);
   return { ok: true };
+}
+
+/**
+ * Retry creating the Google Drive folder for a location whose initial create
+ * skipped Drive (no credentials at the time, or transient API error).
+ * Idempotent — `createLocationFolder` finds an existing folder by name first.
+ */
+export async function retryLocationDriveFolderAction(id: string) {
+  if (!isGoogleConfigured()) {
+    return { error: 'Google Drive is not configured. Set GOOGLE_REFRESH_TOKEN first.' };
+  }
+
+  const loc = await getLocation(id);
+  if (!loc) return { error: 'Location not found' };
+
+  const folder = await createLocationFolder(loc.name);
+  if (!folder) return { error: 'Drive folder creation failed. Check server logs.' };
+
+  await updateLocation(id, {
+    drive_folder_id: folder.id,
+    drive_folder_link: folder.webViewLink,
+  });
+
+  revalidatePath(`/locations/${id}`);
+  revalidatePath('/locations');
+  return { ok: true, link: folder.webViewLink };
 }
