@@ -107,7 +107,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
 
   if (!hasBriefText) return null;
 
-  const META_KEYS = new Set(['source', 'confidence', 'llmAvailable']);
+  const META_KEYS = new Set(['source', 'confidence', 'llmAvailable', 'uncertainty_sources', 'critique']);
   const dataKeys = suggestions
     ? (Object.keys(suggestions) as FieldKey[]).filter((k) => !META_KEYS.has(k))
     : [];
@@ -186,6 +186,21 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
 
       {suggestions && !success && (
         <>
+          {/* Critique / uncertainty warnings */}
+          {(suggestions.critique?.length > 0 || suggestions.uncertainty_sources?.length > 0) && (
+            <div className="rounded px-3 py-2 text-xs space-y-1" style={{ background: `${PALETTE.warning}11`, borderLeft: `2px solid ${PALETTE.warning}` }}>
+              <div className="font-semibold text-[10px] uppercase tracking-wide" style={{ color: PALETTE.warning }}>
+                Extraction concerns
+              </div>
+              {suggestions.uncertainty_sources?.map((s, i) => (
+                <div key={`u-${i}`} style={{ color: PALETTE.warning }}>· {s}</div>
+              ))}
+              {suggestions.critique?.map((c, i) => (
+                <div key={`c-${i}`} style={{ color: PALETTE.text }}>{c}</div>
+              ))}
+            </div>
+          )}
+
           {!hasSuggestions ? (
             <p className="text-xs" style={{ color: PALETTE.muted }}>
               No structured fields could be extracted from this brief. Try editing the text or entering fields manually.

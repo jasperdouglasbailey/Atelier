@@ -17,7 +17,7 @@
  */
 
 import { parseBrief, type ParsedBrief } from '@/lib/utils/brief-parser';
-import { callLLMJson } from '@/lib/integrations/anthropic';
+import { callLLMJson, callLLM } from '@/lib/integrations/anthropic';
 
 // ============================================================
 // Types
@@ -27,6 +27,10 @@ export type BriefIntakeResult = ParsedBrief & {
   source: 'heuristic' | 'llm' | 'merged';
   confidence: number; // 0–100
   llmAvailable: boolean;
+  /** Specific fields or aspects the extraction is uncertain about. */
+  uncertainty_sources: string[];
+  /** LLM critique: things that might be wrong or need verification. */
+  critique: string[];
 };
 
 // ============================================================
@@ -97,8 +101,78 @@ async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMB
 }
 
 // ============================================================
+// Critique pass
+// ============================================================
+
+const CRITIQUE_SYSTEM_PROMPT = `You are a QA reviewer for a commercial photography agency booking system.
+Given a raw brief and an extraction result, identify potential issues: fields that might be wrong,
+dates that seem implausible, or important information that was missed.
+
+Return a JSON array of short concern strings (max 5 items, max 80 chars each).
+If no concerns, return an empty array [].
+
+Example: ["shoot_date_start may be ambiguous — 'next Tuesday' could be Jun 3 or Jun 10",
+          "talent_count not found — brief mentions 'models' without a number"]`;
+
+async function critiqueBriefExtraction(
+  rawText: string,
+  extraction: Partial<LLMBriefOutput>,
+  bookingId?: string,
+): Promise<string[]> {
+  const summary = Object.entries(extraction)
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ') || 'No fields extracted';
+
+  const result = await callLLM({
+    purpose: 'brief_intake_critique',
+    systemPrompt: CRITIQUE_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: `Brief:\n---\n${rawText.slice(0, 3000)}\n---\n\nExtracted: ${summary}\n\nWhat might be wrong?`,
+      },
+    ],
+    maxTokens: 256,
+    model: 'claude-haiku-3-5',
+    bookingId,
+  });
+
+  if (!result.ok || !result.text) return [];
+
+  try {
+    const parsed = JSON.parse(result.text.trim());
+    if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === 'string');
+  } catch {
+    // Not valid JSON — extract lines as concerns
+    return result.text
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 5 && s.length < 120)
+      .slice(0, 5);
+  }
+  return [];
+}
+
+// ============================================================
 // Merge heuristic + LLM results
 // ============================================================
+
+/**
+ * Identify which key fields are missing from the extraction.
+ * These become uncertainty_sources surfaced in the UI.
+ */
+function computeUncertaintySources(merged: ParsedBrief): string[] {
+  const KEY_FIELDS: Array<[keyof ParsedBrief, string]> = [
+    ['shoot_date_start', 'shoot dates unclear'],
+    ['shoot_location', 'location not specified'],
+    ['talent_count', 'talent count missing'],
+    ['deliverables_type', 'deliverables type not specified'],
+  ];
+  return KEY_FIELDS
+    .filter(([field]) => merged[field] == null)
+    .map(([, label]) => label);
+}
 
 function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): BriefIntakeResult {
   if (!llm) {
@@ -109,6 +183,8 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
       source: 'heuristic',
       confidence: Math.min(40 + fieldsFound * 8, 75),
       llmAvailable: false,
+      uncertainty_sources: computeUncertaintySources(heuristic),
+      critique: [],
     };
   }
 
@@ -127,11 +203,15 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
   };
 
   const fieldsFound = Object.values(merged).filter((v) => v != null).length;
+  const uncertainty_sources = computeUncertaintySources(merged);
+
   return {
     ...merged,
     source: 'merged',
     confidence: Math.min(60 + fieldsFound * 5, 95),
     llmAvailable: true,
+    uncertainty_sources,
+    critique: [], // Populated separately in extractBriefFields
   };
 }
 
@@ -147,6 +227,9 @@ function validateDateStr(d: string | undefined | null): string | null {
 /**
  * Run the full brief intake pipeline.
  * Falls back gracefully to heuristic-only if LLM is unavailable.
+ *
+ * When LLM is available, runs a second critique pass that asks the model to
+ * flag potential extraction issues — e.g. ambiguous dates, missing fields.
  */
 export async function extractBriefFields(
   rawText: string,
@@ -156,11 +239,22 @@ export async function extractBriefFields(
   const heuristic = parseBrief(rawText);
 
   // Run LLM extraction if API key is available
-  // Errors are caught inside callLLMJson — null means LLM unavailable
   const llm = await extractWithLLM(rawText, bookingId).catch((err) => {
     console.error('[brief-intake] LLM extraction failed', err);
     return null;
   });
 
-  return mergeResults(heuristic, llm);
+  const base = mergeResults(heuristic, llm);
+
+  // Critique pass: only when LLM succeeded. Runs non-blocking — if it fails,
+  // we return the base result with an empty critique list.
+  if (llm) {
+    const critique = await critiqueBriefExtraction(rawText, llm, bookingId).catch((err) => {
+      console.error('[brief-intake] critique failed', err);
+      return [] as string[];
+    });
+    return { ...base, critique };
+  }
+
+  return base;
 }

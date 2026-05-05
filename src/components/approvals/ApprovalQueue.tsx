@@ -68,12 +68,35 @@ export default function ApprovalQueue({ approvals }: Props) {
               </div>
               <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
 
-              {/* Confidence & uncertainty */}
+              {/* Confidence bar + uncertainty */}
               {a.confidence != null && (
-                <div className="mt-2 flex items-center gap-3 text-[11px]" style={{ color: PALETTE.muted }}>
-                  <span>Confidence: {a.confidence}%</span>
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: PALETTE.border }}>
+                      <div
+                        className="absolute left-0 top-0 h-full rounded-full transition-all"
+                        style={{
+                          width: `${a.confidence}%`,
+                          background: a.confidence >= 80 ? PALETTE.success : a.confidence >= 55 ? PALETTE.warning : PALETTE.danger,
+                        }}
+                      />
+                    </div>
+                    <span className="flex-shrink-0 text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
+                      {a.confidence}% confidence
+                    </span>
+                  </div>
                   {a.uncertainty_sources && a.uncertainty_sources.length > 0 && (
-                    <span>Uncertainty: {a.uncertainty_sources.join(', ')}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {a.uncertainty_sources.map((s, i) => (
+                        <span
+                          key={i}
+                          className="rounded px-1.5 py-0.5 text-[10px]"
+                          style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
