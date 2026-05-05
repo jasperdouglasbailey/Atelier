@@ -278,6 +278,23 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     updates.shoot_dates = buildDateRange(shootStart, shootEnd ?? shootStart);
   }
 
+  // Media and territory land in usage_notes (freetext) as a parser extract.
+  // Jasper reviews and selects the structured enum values from the booking form.
+  const mediaRaw = formData.get('usage_media_raw') as string | null;
+  const territoryRaw = formData.get('usage_territory_raw') as string | null;
+  if (mediaRaw || territoryRaw) {
+    const noteParts: string[] = [];
+    if (mediaRaw) noteParts.push(`Media (parser): ${mediaRaw}`);
+    if (territoryRaw) noteParts.push(`Territory (parser): ${territoryRaw}`);
+    // Append to existing notes rather than overwrite
+    const existing = await getBooking(id);
+    const existingNotes = existing?.usage_notes ?? null;
+    const newNotes = existingNotes
+      ? `${existingNotes}\n${noteParts.join('\n')}`
+      : noteParts.join('\n');
+    updates.usage_notes = newNotes;
+  }
+
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to apply suggestions' };
 

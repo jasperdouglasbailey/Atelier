@@ -47,13 +47,14 @@ describe('parseBrief — dates', () => {
     expect(r.shoot_date_start).toBe('2026-05-15');
   });
 
-  it('captures "TBC" as date_notes when dates unparseable', () => {
+  it('captures TBC note with context when dates unparseable', () => {
     const r = parseBrief('Shoot date: TBC, likely mid-May');
     expect(r.shoot_date_start).toBeNull();
-    expect(r.shoot_date_notes).toBe('TBC');
+    // Full note preserved — more context is better than truncating to "TBC"
+    expect(r.shoot_date_notes).toBe('TBC, likely mid-May');
   });
 
-  it('falls back to scanning whole text when no "Date:" label', () => {
+  it('extracts date when "photography on" trigger precedes date', () => {
     const r = parseBrief('We need photography on 20 June 2026 in Sydney.');
     expect(r.shoot_date_start).toBe('2026-06-20');
   });

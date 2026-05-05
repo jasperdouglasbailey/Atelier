@@ -47,6 +47,8 @@ type LLMBriefOutput = Partial<{
   deliverables_type: string;
   deliverables_count: number;
   usage_duration_months: number;
+  usage_territory_raw: string; // e.g. "Australia"
+  usage_media_raw: string;     // e.g. "POS, social media, digital display"
   budget_indication: number;
 }>;
 
@@ -60,25 +62,34 @@ Extract structured fields from the incoming brief or email text.
 Return a JSON object with these fields (only include fields you can confidently extract):
 {
   "shoot_location": string or null,      // venue, studio name, suburb — brief and specific
-  "shoot_date_start": string or null,    // YYYY-MM-DD format
-  "shoot_date_end": string or null,      // YYYY-MM-DD format (same as start for single day)
-  "shoot_date_notes": string or null,    // free-text if dates are unclear (e.g. "TBC", "mid-May")
+  "shoot_date_start": string or null,    // YYYY-MM-DD — the date photography/filming HAPPENS
+  "shoot_date_end": string or null,      // YYYY-MM-DD — end of multi-day shoot (same as start for 1 day)
+  "shoot_date_notes": string or null,    // free-text if dates unclear (e.g. "TBC", "mid-May")
   "talent_count": number or null,        // number of models/talent required
   "talent_spec": string or null,         // brief description of talent needed
   "deliverables_type": string or null,   // e.g. "Stills + BTS Video", "eComm stills"
   "deliverables_count": number or null,  // number of final selects/images
-  "usage_duration_months": number or null, // usage period in months (convert years to months)
+  "usage_duration_months": number or null, // usage/licence period in months (convert weeks/years)
+  "usage_territory_raw": string or null, // territory as written, e.g. "Australia" or "AU, NZ"
+  "usage_media_raw": string or null,     // media as written, e.g. "POS, social, digital display"
   "budget_indication": number or null    // numeric amount in AUD (strip currency symbols)
 }
 
-Rules:
-- Today's date is ${new Date().toISOString().slice(0, 10)}
-- Only include fields you can extract with reasonable confidence
-- For dates: if a range is mentioned, set shoot_date_start and shoot_date_end
-- For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice
-- For talent: "3 models" → talent_count: 3, talent_spec: "3 models"
-- Convert all durations to months (1 year = 12 months, 2 years = 24 months)
-- If a field is unclear or absent, omit it from the response (don't include nulls)`;
+CRITICAL RULES — read carefully:
+1. TODAY is ${new Date().toISOString().slice(0, 10)}.
+2. LIVE DATE ≠ SHOOT DATE. "Live Date", "Go Live", "Launch Date", "Publication Date", "OOH Date",
+   "In-store from", "Air Date", "Campaign Live" ALL describe when the finished images go public —
+   they are NEVER the shoot date. Do not put live dates into shoot_date_start.
+3. The SHOOT DATE is when the actual photography or filming takes place. Look for phrases like
+   "lock in", "confirmed for", "pencilled for", "shoot on", "we're looking at [date] for the shoot",
+   "Shoot Date:", "Date:" (if clearly about the shoot), "schedule", "booked for".
+4. If you find a date but cannot confidently determine it is the shoot date (vs a live/publish date),
+   put it in shoot_date_notes with context, not shoot_date_start.
+5. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
+6. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief where it
+   appears after "Territory:" or "Media:" labels.
+7. Only include fields you can extract with confidence. Omit nulls entirely.
+8. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.`;
 
 async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMBriefOutput | null> {
   return callLLMJson<LLMBriefOutput>(
@@ -177,11 +188,12 @@ function computeUncertaintySources(merged: ParsedBrief): string[] {
 function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): BriefIntakeResult {
   if (!llm) {
     // No LLM — use heuristic alone
-    const fieldsFound = Object.values(heuristic).filter((v) => v != null).length;
+    const baseFields = Object.entries(heuristic)
+      .filter(([, v]) => v != null);
     return {
       ...heuristic,
       source: 'heuristic',
-      confidence: Math.min(40 + fieldsFound * 8, 75),
+      confidence: Math.min(40 + baseFields.length * 7, 72),
       llmAvailable: false,
       uncertainty_sources: computeUncertaintySources(heuristic),
       critique: [],
@@ -199,6 +211,8 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     deliverables_type: llm.deliverables_type ?? heuristic.deliverables_type,
     deliverables_count: typeof llm.deliverables_count === 'number' ? llm.deliverables_count : heuristic.deliverables_count,
     usage_duration_months: typeof llm.usage_duration_months === 'number' ? llm.usage_duration_months : heuristic.usage_duration_months,
+    usage_territory_raw: llm.usage_territory_raw ?? heuristic.usage_territory_raw,
+    usage_media_raw: llm.usage_media_raw ?? heuristic.usage_media_raw,
     budget_indication: typeof llm.budget_indication === 'number' ? llm.budget_indication : heuristic.budget_indication,
   };
 

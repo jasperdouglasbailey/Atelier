@@ -23,6 +23,8 @@ const FIELD_LABELS = {
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
   usage_duration_months: 'Usage Duration (months)',
+  usage_territory_raw: 'Territory (raw — review)',
+  usage_media_raw: 'Media (raw — review)',
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
@@ -64,7 +66,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     setSuggestions(s);
 
     // Auto-select all non-null data fields (excluding meta fields)
-    const META = new Set(['source', 'confidence', 'llmAvailable']);
+    const META = new Set(['source', 'confidence', 'llmAvailable', 'uncertainty_sources', 'critique']);
     const nonNull = (Object.keys(s) as FieldKey[]).filter((k) => !META.has(k) && (s as Record<string, unknown>)[k] != null);
     setSelected(new Set(nonNull));
   }
