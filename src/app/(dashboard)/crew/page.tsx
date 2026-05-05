@@ -5,6 +5,7 @@ import { listCrew } from '@/lib/data/entities';
 import { PALETTE, CREW_TIER_LABELS } from '@/lib/utils/constants';
 import type { CrewTier } from '@/lib/types/database';
 import CreateCrewDialog from '@/components/entities/CreateCrewDialog';
+import CSVImportExport from '@/components/csv/CSVImportExport';
 
 type SearchParams = Promise<{ search?: string; tier?: string }>;
 
@@ -44,7 +45,12 @@ export default async function CrewPage({ searchParams }: { searchParams: SearchP
           }
           count={crew.length}
           countLabel="crew member"
-          rightSlot={<CreateCrewDialog />}
+          rightSlot={
+            <div className="flex items-center gap-2">
+              <CSVImportExport type="crew" />
+              <CreateCrewDialog />
+            </div>
+          }
         />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
