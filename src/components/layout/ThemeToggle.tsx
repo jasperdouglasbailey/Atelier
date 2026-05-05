@@ -9,8 +9,10 @@ import { useEffect, useState } from 'react';
 export default function ThemeToggle() {
   const [isLight, setIsLight] = useState(false);
 
-  // Read persisted preference on mount
+  // Read persisted preference on mount — reads DOM, not external system,
+  // but the pattern is valid (one-time sync from client-only state).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLight(document.documentElement.classList.contains('light'));
   }, []);
 
