@@ -511,3 +511,51 @@ info@saundersandco.com.au`,
 
   return { ok: true, mode: 'drafted', draftId: draft.draftId };
 }
+
+// ============================================================
+// Pay-on-paid — mark artist / crew payment
+// ============================================================
+
+/**
+ * Stamps artist_paid_at on a booking_talent row.
+ * Should only be called once the client has paid (booking.state === 'paid').
+ */
+export async function markTalentPaidAction(
+  bookingTalentId: string,
+  bookingId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('atelier_booking_talent')
+    .update({ artist_paid_at: new Date().toISOString() })
+    .eq('id', bookingTalentId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Stamps artist_paid_at on a booking_crew row.
+ * Should only be called once the client has paid (booking.state === 'paid').
+ */
+export async function markCrewPaidAction(
+  bookingCrewId: string,
+  bookingId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('atelier_booking_crew')
+    .update({ artist_paid_at: new Date().toISOString() })
+    .eq('id', bookingCrewId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}

@@ -265,6 +265,8 @@ export interface BookingTalent {
   usage_fee: number | null;
   confirmed: boolean;
   notes: string | null;
+  /** Set when Atelier pays this artist. Null = not yet paid. */
+  artist_paid_at: string | null;
   // Joined
   talent?: Talent;
 }
@@ -279,6 +281,8 @@ export interface BookingCrew {
   status: string;
   confirmed_at: string | null;
   notes: string | null;
+  /** Set when Atelier pays this crew member. Null = not yet paid. */
+  artist_paid_at: string | null;
   // Joined
   crew?: Crew;
 }

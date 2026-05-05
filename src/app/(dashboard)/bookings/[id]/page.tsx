@@ -18,6 +18,7 @@ import { listTalent, listCrew } from '@/lib/data/entities';
 import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
+import PayrollPanel from '@/components/bookings/PayrollPanel';
 import { PALETTE } from '@/lib/utils/constants';
 import { computeQuoteTotals, computeAgencyMargin } from '@/lib/utils/fee-engine';
 import type { FeeLine } from '@/lib/types/database';
@@ -128,6 +129,14 @@ export default async function BookingDetailPage({ params }: Props) {
                 ratePrecedents={ratePrecedents}
               />
             </div>
+            {/* Pay-on-paid tracker — show once we're invoicing or paid */}
+            {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
+              <PayrollPanel
+                bookingId={id}
+                bookingTalent={bookingTalent as import('@/lib/types/database').BookingTalent[]}
+                bookingCrew={bookingCrew as import('@/lib/types/database').BookingCrew[]}
+              />
+            )}
             <BookingTeam
               bookingId={id}
               bookingTalent={bookingTalent}
