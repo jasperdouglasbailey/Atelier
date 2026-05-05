@@ -103,6 +103,19 @@ export default async function LocationsPage() {
                       <div className="text-[11px]" style={{ color: PALETTE.muted }}>Contact: {loc.contact_name}</div>
                     )}
                   </div>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                    {loc.studio_rooms && loc.studio_rooms.length > 0 && (
+                      <span className="rounded-full px-2 py-0.5" style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent }}>
+                        {loc.studio_rooms.length} room{loc.studio_rooms.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {loc.drive_folder_link && (
+                      <span className="rounded-full px-2 py-0.5" style={{ background: `${PALETTE.success}18`, color: PALETTE.success }}>
+                        Drive folder
+                      </span>
+                    )}
+                  </div>
                 </Link>
               );
             })}
