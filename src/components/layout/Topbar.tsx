@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { KillSwitchState } from '@/lib/utils/kill-switch';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import ThemeToggle from '@/components/layout/ThemeToggle';
+import { PALETTE } from '@/lib/utils/constants';
 
 type Props = {
   title: string;
@@ -142,7 +143,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           style={{
             borderColor: isPaused ? 'var(--p-warning)' : 'var(--p-border)',
             color: isPaused ? 'var(--p-warning)' : 'var(--p-muted)',
-            background: isPaused ? '#3d2e0f' : 'transparent',
+            background: isPaused ? PALETTE.warningFillDim : 'transparent',
           }}
           aria-pressed={isPaused}
         >
@@ -154,9 +155,9 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           disabled={isPending}
           className="rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-50"
           style={{
-            background: isActive ? '#7f1d1d' : 'transparent',
+            background: isActive ? PALETTE.dangerFill : 'transparent',
             color: isActive ? '#fff' : 'var(--p-danger)',
-            border: `1px solid ${isActive ? '#7f1d1d' : '#5c2626'}`,
+            border: `1px solid ${isActive ? PALETTE.dangerFill : PALETTE.dangerFillBorder}`,
           }}
           aria-pressed={isActive}
         >
@@ -173,7 +174,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
           style={{
             borderColor: isPaused ? 'var(--p-warning)' : 'var(--p-border)',
             color: isPaused ? 'var(--p-warning)' : 'var(--p-muted)',
-            background: isPaused ? '#3d2e0f' : 'transparent',
+            background: isPaused ? PALETTE.warningFillDim : 'transparent',
           }}
         >
           {isPaused ? 'Outbound paused — tap to resume' : 'Pause outbound'}
@@ -212,7 +213,7 @@ export default function Topbar({ title, initialKillSwitch = null, backHref, back
               <button
                 onClick={confirmKillSwitch}
                 className="rounded-md px-4 py-2 text-sm font-semibold"
-                style={{ background: isActive ? 'var(--p-border)' : '#7f1d1d', color: '#fff' }}
+                style={{ background: isActive ? 'var(--p-border)' : PALETTE.dangerFill, color: '#fff' }}
               >
                 {isActive ? 'Disable kill switch' : 'Enable kill switch'}
               </button>

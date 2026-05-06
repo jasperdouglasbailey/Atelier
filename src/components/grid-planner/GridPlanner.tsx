@@ -6,6 +6,17 @@
  * Phone mockup of @saundersandcoagency's Instagram grid.
  * 3 columns × N rows at 9:16 (portrait) per slot — matching Reels/portrait post format.
  * Stats are fetched live from /api/instagram/profile on mount.
+ *
+ * COLOUR CONVENTION
+ * -----------------
+ * The phone mockup (lines ~60-145) uses literal Instagram brand colours
+ * (#fafafa, #dbdbdb, #262626, #8e8e8e, #e1306c, #000). Those are
+ * INTENTIONAL — they make the preview look like Instagram. Do NOT
+ * migrate them to PALETTE.* as the audit suggests; PALETTE is the
+ * dark-mode Atelier shell, and using it here would break the mock.
+ *
+ * The right-side controls (selected-slot panel, all-slots list) use
+ * PALETTE.* as expected.
  */
 
 import { useRef, useState, useEffect, DragEvent, ChangeEvent } from 'react';
@@ -224,12 +235,12 @@ function SlotCell({
 
       {/* Selection border */}
       {isSelected && (
-        <div style={{ position: 'absolute', inset: 0, border: '2px solid #6c8aff', pointerEvents: 'none', zIndex: 2 }} />
+        <div style={{ position: 'absolute', inset: 0, border: `2px solid ${PALETTE.accent}`, pointerEvents: 'none', zIndex: 2 }} />
       )}
 
       {/* Live dot */}
       {slot.imageUrl && slot.status === 'live' && (
-        <div style={{ position: 'absolute', top: 4, right: 4, background: '#4ade80', borderRadius: 9999, width: 7, height: 7, zIndex: 3 }} />
+        <div style={{ position: 'absolute', top: 4, right: 4, background: PALETTE.success, borderRadius: 9999, width: 7, height: 7, zIndex: 3 }} />
       )}
 
       {/* Drag-over overlay */}
@@ -423,7 +434,7 @@ export default function GridPlanner() {
                       className="flex-1 rounded py-1 text-xs font-medium"
                       style={{
                         background: selectedSlot.status === s ? (s === 'live' ? PALETTE.success : PALETTE.accent) : PALETTE.border,
-                        color: selectedSlot.status === s ? '#0a0a0a' : PALETTE.muted,
+                        color: selectedSlot.status === s ? PALETTE.bg : PALETTE.muted,
                       }}
                     >
                       {s === 'live' ? 'Live' : 'Planned'}

@@ -223,6 +223,15 @@ export const PALETTE = {
   danger:  '#f87171',
   warning: '#fbbf24',
   success: '#4ade80',
+  // Dim opaque fills used for active kill-switch banners and similar
+  // attention states. Avoid alpha overlays here because the banners sit
+  // over multiple stacked surfaces — opaque dim hex reads cleaner.
+  dangerFill:        '#7f1d1d',  // intense red used on Active-state buttons
+  dangerFillDim:     '#3d1a1a',  // banner background when Red is active
+  dangerFillBorder:  '#5c2626',  // banner border when Red is active
+  warningFill:       '#854d0e',  // intense amber used on Active-state buttons
+  warningFillDim:    '#3d2e0f',  // banner background when Amber is active
+  warningFillBorder: '#6b4f1a',  // banner border when Amber is active
 } as const;
 
 // State colours for badges

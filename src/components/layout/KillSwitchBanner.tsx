@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { KillSwitchState } from '@/lib/utils/kill-switch';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
+import { PALETTE } from '@/lib/utils/constants';
 
 type Props = { initialState: KillSwitchState | null };
 
@@ -40,8 +41,8 @@ export default function KillSwitchBanner({ initialState }: Props) {
   // Banner backgrounds intentionally deep — alert states must read clearly
   // in both dark and light themes. Text uses the themed danger/warning vars.
   const palette = isRed
-    ? { bg: '#3d1a1a', border: '#5c2626', text: 'var(--p-danger)',  btn: '#7f1d1d' }
-    : { bg: '#3d2e0f', border: '#6b4f1a', text: 'var(--p-warning)', btn: '#854d0e' };
+    ? { bg: PALETTE.dangerFillDim,  border: PALETTE.dangerFillBorder,  text: 'var(--p-danger)',  btn: PALETTE.dangerFill  }
+    : { bg: PALETTE.warningFillDim, border: PALETTE.warningFillBorder, text: 'var(--p-warning)', btn: PALETTE.warningFill };
 
   const message = isRed
     ? 'KILL SWITCH ACTIVE — All agents paused, outbound held'

@@ -10,10 +10,16 @@ import {
   CartesianGrid,
 } from 'recharts';
 import type { DailySpend } from '@/lib/utils/llm-costs';
-import { USD_TO_AUD } from '@/lib/utils/constants';
+import { USD_TO_AUD, PALETTE } from '@/lib/utils/constants';
 
 type Props = { data: DailySpend[] };
 
+/**
+ * Spend-over-time line chart. Recharts forwards `stroke` and `style`
+ * onto SVG elements; CSS custom properties (e.g. `var(--p-border)`)
+ * resolve correctly in those positions, so this chart re-themes
+ * automatically with the rest of the app.
+ */
 export default function SpendChart({ data }: Props) {
   const chartData = data.map((d) => ({
     date: d.date.slice(5), // MM-DD
@@ -23,33 +29,33 @@ export default function SpendChart({ data }: Props) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={PALETTE.border} vertical={false} />
         <XAxis
           dataKey="date"
-          stroke="#6b6b6b"
+          stroke={PALETTE.muted}
           fontSize={11}
           tickLine={false}
-          axisLine={{ stroke: '#262626' }}
+          axisLine={{ stroke: PALETTE.border }}
         />
         <YAxis
-          stroke="#6b6b6b"
+          stroke={PALETTE.muted}
           fontSize={11}
           tickLine={false}
-          axisLine={{ stroke: '#262626' }}
+          axisLine={{ stroke: PALETTE.border }}
           tickFormatter={(v) => `A$${v}`}
         />
         <Tooltip
-          contentStyle={{ background: '#0a0a0a', border: '1px solid #262626', borderRadius: 6, fontSize: 12 }}
-          labelStyle={{ color: '#8b8b8b' }}
-          itemStyle={{ color: '#ededed' }}
+          contentStyle={{ background: PALETTE.bg, border: `1px solid ${PALETTE.border}`, borderRadius: 6, fontSize: 12 }}
+          labelStyle={{ color: PALETTE.muted }}
+          itemStyle={{ color: PALETTE.text }}
           formatter={(value) => [`A$${Number(value).toFixed(2)}`, 'Spend']}
         />
         <Line
           type="monotone"
           dataKey="aud"
-          stroke="#6c8aff"
+          stroke={PALETTE.accent}
           strokeWidth={2}
-          dot={{ r: 2, fill: '#6c8aff' }}
+          dot={{ r: 2, fill: PALETTE.accent }}
           activeDot={{ r: 4 }}
         />
       </LineChart>

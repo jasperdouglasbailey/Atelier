@@ -78,8 +78,9 @@ export async function listAudit(filters: AuditFilters = {}): Promise<{
   page: number;
   pageSize: number;
 }> {
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 25;
+  // Clamp pagination params (URL-borne, untrusted)
+  const page = Math.max(1, Math.floor(filters.page ?? 1));
+  const pageSize = Math.min(Math.max(1, Math.floor(filters.pageSize ?? 25)), 100);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
