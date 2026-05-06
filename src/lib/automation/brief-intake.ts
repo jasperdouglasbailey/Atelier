@@ -18,6 +18,7 @@
 
 import { parseBrief, type ParsedBrief } from '@/lib/utils/brief-parser';
 import { callLLMJson, callLLM } from '@/lib/integrations/anthropic';
+import { buildConfidenceContract, type ConfidenceContract } from './agent-primitives';
 
 // ============================================================
 // Types
@@ -31,7 +32,39 @@ export type BriefIntakeResult = ParsedBrief & {
   uncertainty_sources: string[];
   /** LLM critique: things that might be wrong or need verification. */
   critique: string[];
+  /**
+   * Doctrine confidence contract — populated alongside the legacy flat
+   * fields above so existing callers don't break. New callers should
+   * read this for the canonical shape (output, confidence, top 2
+   * uncertainties, optional bestNextQuestion when confidence < 85).
+   */
+  contract: ConfidenceContract<ParsedBrief>;
 };
+
+/**
+ * Generate the single best follow-up question Jasper could ask the client
+ * to most raise extraction confidence. Returns null when nothing useful
+ * is missing.
+ */
+function bestNextQuestion(parsed: ParsedBrief, missing: string[]): string | null {
+  if (missing.length === 0) return null;
+  // Pick the most actionable single question — shoot dates first, then
+  // location, then deliverables. Order matters: knowing the date unblocks
+  // crew availability checks; location unblocks travel costs.
+  if (parsed.shoot_date_start == null) {
+    return 'Can you confirm the shoot date(s)? The brief mentions timing but no firm date.';
+  }
+  if (parsed.shoot_location == null) {
+    return 'Where will the shoot take place — studio, location, or both?';
+  }
+  if (parsed.deliverables_type == null) {
+    return 'What deliverables are you expecting (stills, BTS video, both)?';
+  }
+  if (parsed.talent_count == null) {
+    return 'How many talent will you need on set?';
+  }
+  return null;
+}
 
 // ============================================================
 // LLM-powered extraction
@@ -190,13 +223,21 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     // No LLM — use heuristic alone
     const baseFields = Object.entries(heuristic)
       .filter(([, v]) => v != null);
+    const confidence = Math.min(40 + baseFields.length * 7, 72);
+    const uncertainties = computeUncertaintySources(heuristic);
     return {
       ...heuristic,
       source: 'heuristic',
-      confidence: Math.min(40 + baseFields.length * 7, 72),
+      confidence,
       llmAvailable: false,
-      uncertainty_sources: computeUncertaintySources(heuristic),
+      uncertainty_sources: uncertainties,
       critique: [],
+      contract: buildConfidenceContract<ParsedBrief>({
+        output: heuristic,
+        confidence,
+        uncertainties,
+        bestNextQuestion: bestNextQuestion(heuristic, uncertainties),
+      }),
     };
   }
 
@@ -218,14 +259,21 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
 
   const fieldsFound = Object.values(merged).filter((v) => v != null).length;
   const uncertainty_sources = computeUncertaintySources(merged);
+  const confidence = Math.min(60 + fieldsFound * 5, 95);
 
   return {
     ...merged,
     source: 'merged',
-    confidence: Math.min(60 + fieldsFound * 5, 95),
+    confidence,
     llmAvailable: true,
     uncertainty_sources,
     critique: [], // Populated separately in extractBriefFields
+    contract: buildConfidenceContract<ParsedBrief>({
+      output: merged,
+      confidence,
+      uncertainties: uncertainty_sources,
+      bestNextQuestion: bestNextQuestion(merged, uncertainty_sources),
+    }),
   };
 }
 
