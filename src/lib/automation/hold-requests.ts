@@ -195,6 +195,35 @@ export async function proposeHoldRequests(bookingId: string): Promise<{
   let created = 0;
   let skipped = 0;
 
+  // Doctrine: agents that recommend booking decisions should cite 1-3
+  // prior bookings. Pull each crew member's last 3 confirmed bookings so
+  // Jasper sees "we've used Mason on AJE-2024, AJE-2023, …" context when
+  // reviewing the approval. The precedent_refs land on the approval row
+  // and surface in the inbox UI.
+  const supabase = await createClient();
+  const crewIds = proposals.map((p) => p.crewId);
+  const precedentMap = new Map<string, string[]>();
+  if (crewIds.length > 0) {
+    const { data: priorBookings } = await supabase
+      .from('atelier_booking_crew')
+      .select('crew_id, status, booking:atelier_bookings(booking_ref, created_at)')
+      .in('crew_id', crewIds)
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    for (const row of priorBookings ?? []) {
+      const r = row as unknown as {
+        crew_id: string;
+        booking: { booking_ref: string | null } | null;
+      };
+      const ref = r.booking?.booking_ref;
+      if (!ref) continue;
+      const list = precedentMap.get(r.crew_id) ?? [];
+      if (list.length < 3) list.push(ref);
+      precedentMap.set(r.crew_id, list);
+    }
+  }
+
   // Idempotency: pass the key directly into the insert so two concurrent
   // calls collide on the unique constraint atomically. The previous
   // "check-then-update" pattern had a TOCTOU race window.
@@ -219,6 +248,7 @@ export async function proposeHoldRequests(bookingId: string): Promise<{
       },
       confidence: p.autoApprovable ? 95 : 70,
       uncertainty_sources: p.reasonsBlocked,
+      precedent_refs: precedentMap.get(p.crewId) ?? [],
       idempotency_key: p.idempotencyKey,
     });
 
