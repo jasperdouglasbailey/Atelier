@@ -32,6 +32,9 @@ export async function applyApprovalDecisionEffects(approval: Approval, decision:
     case 'client_chase_email':
       await applyClientChaseEmailEffect(approval, decision);
       return;
+    case 'client_quote_chase_email':
+      await applyClientQuoteChaseEmailEffect(approval, decision);
+      return;
     case 'compliance_renewal_ping':
       await applyComplianceRenewalPingEffect(approval, decision);
       return;
@@ -188,6 +191,34 @@ async function applyClientChaseEmailEffect(approval: Approval, decision: Decisio
     subject: draft.subject,
     body: draft.body,
     auditAction: 'client_chase_email_send',
+  });
+}
+
+async function applyClientQuoteChaseEmailEffect(approval: Approval, decision: Decision) {
+  if (decision !== 'approved') return;
+
+  const draft = approval.draft_content;
+  if (!isEmailDraftContent(draft)) {
+    console.warn('[approval-effects] client_quote_chase_email missing/invalid draft_content');
+    return;
+  }
+  if (draft.to.length === 0) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'client_quote_chase_email_send',
+      tableName: 'atelier_approvals',
+      recordId: approval.id,
+      error: 'recipient_missing',
+    }).catch(() => {});
+    return;
+  }
+
+  await sendApprovedEmail({
+    approval,
+    recipients: draft.to,
+    subject: draft.subject,
+    body: draft.body,
+    auditAction: 'client_quote_chase_email_send',
   });
 }
 
