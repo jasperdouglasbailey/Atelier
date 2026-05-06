@@ -20,7 +20,7 @@
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from './constants';
 import type { FeeLineType } from '@/lib/types/database';
 
-export type QuoteTemplate = 'photographer' | 'videographer';
+export type QuoteTemplate = 'photographer' | 'videographer' | 'stylist' | 'hmu';
 
 export type TemplateLine = {
   line_type: FeeLineType;
@@ -173,6 +173,82 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       quantity: 1, unit_price: 750,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+  ],
+  stylist: [
+    {
+      line_type: 'artist_fee',
+      description: 'Wardrobe stylist — shoot day rate',
+      quantity: 1, unit_price: 1800,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'artist_fee',
+      description: 'Pre-pro / styling days — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'artist_fee',
+      description: 'Stylist kit fee — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'wardrobe',
+      description: 'Wardrobe pull / return / steaming — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: false, commission_rate: 0,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'travel',
+      description: 'Travel / couriers — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: false, commission_rate: 0,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+  ],
+  hmu: [
+    {
+      line_type: 'artist_fee',
+      description: 'Hair & makeup — shoot day rate',
+      quantity: 1, unit_price: 1400,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'artist_fee',
+      description: 'Pre-pro / test day — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'artist_fee',
+      description: 'Kit fee — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
+      asf_rate: DEFAULT_ASF_RATE,
+    },
+    {
+      line_type: 'travel',
+      description: 'Travel — TBD',
+      quantity: 1, unit_price: 0,
+      is_commissionable: false, commission_rate: 0,
+      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
       asf_rate: DEFAULT_ASF_RATE,
     },
   ],

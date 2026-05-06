@@ -92,6 +92,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 7. **Phase 6 — talent / crew portals.** ✅ Shipped (PR ##  — `/portal/talent`, `/portal/crew`, role-based redirect from dashboard).
 8. **Phase 7 — production polish.** ⏳ Performance, monitoring, edge cases — ongoing.
 9. **Compliance dashboard (PR#27).** ✅ `/settings/compliance` aggregates passport / licence / WWCC / visa expiry + missing ABN/super/emergency contact across all active talent and crew. Red ≤30d, amber ≤90d, green OK, muted = not provided. Linked from Sidebar → System.
+10. **Stylist + HMU templates + compliance auto-ping cron (PR#28).** ✅ Quote builder now has 4 templates (photographer / videographer / stylist / hmu) with discipline-aware auto-suggest. New cron at `/api/cron/compliance-pings` queues an approval-gated draft email for any active talent whose passport / licence / WWCC / visa expires in ≤30 days, idempotent on (talent, doc, expiry) so renewals re-trigger.
 
 ## Build status (updated 2026-05-05, session 5)
 
@@ -148,10 +149,10 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 What's actually still ahead, in priority order:
 
 1. **Pay-on-paid tracking** — flip a flag when client invoice marked paid in Xero, kick off artist + crew remittance workflow. Depends on Phase 2 (Xero invoice push). Blocked.
-2. **Quote template expansion** — stylist / HMU / wardrobe templates alongside existing photographer + videographer.
+2. ~~**Quote template expansion**~~ — stylist + HMU shipped PR#28; further expansion (manicurist-specific, prop stylist, set design) only if Jasper books those disciplines often enough.
 3. **Comms agent expansion** — beyond the existing post-shoot chase cron: chase cadences for unanswered quotes, tone variants, brief-clarify follow-ups.
 4. **Insurance / BAS reminders dashboard** — pairs with the compliance dashboard but tracks agency-level renewals (public liability, indemnity, BAS lodgement dates).
-5. **Talent / crew expiry-renewal automated pings** (passport, licence, WWCC) — surface on compliance dashboard already; auto-email the talent when ≤30 days out is the next step.
+5. ~~**Talent / crew expiry-renewal automated pings**~~ (passport, licence, WWCC, visa) — shipped PR#28 as `/api/cron/compliance-pings` (daily 22:00 UTC). Drafts approval-gated emails to talent with documents expiring ≤30d.
 6. **Data export / right-to-be-forgotten** (Australian Privacy Principles 12 / 13 compliance).
 7. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build).
 8. **Full agent prompt suite** — confidence contracts wired into every agent (currently only brief-clarify); precedent requirement enforcement (cite 1-3 prior bookings).
