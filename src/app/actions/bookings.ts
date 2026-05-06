@@ -8,6 +8,7 @@ import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
+import { autoQueueBriefClarifyIfNeeded } from '@/lib/automation/brief-clarify';
 import { mapTerritoryRaw, mapMediaRaw } from '@/lib/utils/brief-parser';
 import { buildDateRange } from '@/lib/utils/daterange';
 import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
@@ -403,6 +404,16 @@ export async function parseBriefAction(id: string) {
 
   // extractBriefFields uses the heuristic parser + LLM (when API key is set)
   const suggestions = await extractBriefFields(booking.brief_raw_text, id);
+
+  // Auto-trigger: if the parse came back with low confidence (<70),
+  // queue an approval-gated clarifying email so Jasper doesn't have to
+  // remember to chase. Fire-and-forget — never blocks the response.
+  // Idempotent on `brief_clarify_auto_{bookingId}` so re-parses don't
+  // duplicate the approval.
+  void autoQueueBriefClarifyIfNeeded(id, suggestions).catch((err) => {
+    console.error('[parseBriefAction] auto-queue clarify failed', err);
+  });
+
   return { ok: true, suggestions };
 }
 
