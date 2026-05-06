@@ -15,15 +15,20 @@ authored in this repo (style, file layout, gotchas) — not domain doctrine.
 
 ```
 src/
-├── app/(dashboard)/        # owner-facing UI; everything visible
-├── app/(portal)/           # FUTURE: artist + crew portals (no client portal — doctrine)
-├── app/print/              # print-only quote/invoice templates
-├── app/api/                # health + OAuth callbacks (Google, Xero)
+├── app/(dashboard)/        # owner-facing UI; gated by app_users role check
+├── app/portal/             # talent + crew portals (no parens — public route group)
+│   ├── talent/             # /portal/talent — own profile, own bookings, own rate
+│   └── crew/               # /portal/crew  — own profile, own bookings, own role
+├── app/onboard/            # /onboard (open self-service) + /onboard/[token] (magic-link)
+├── app/q/[token]/          # public quote viewer (no auth, token-gated)
+├── app/print/              # print-only templates: quote, invoice, artist brief, crew brief, call sheet
+├── app/api/                # health, OAuth callbacks (Google, Xero), cron, sign-out, /api/onboard, /api/instagram, import/export
+├── app/login/              # magic-link sign-in
 ├── components/             # client + server React, grouped by domain
 ├── lib/data/               # one file per table; Supabase queries only
-├── lib/integrations/       # Anthropic, Xero, Google (auth/gmail/drive/calendar)
-├── lib/automation/         # brief intake, hold requests, approval effects
-└── lib/utils/              # fee engine, brief parser, daterange, kill switch...
+├── lib/integrations/       # anthropic, xero, gmail, google-auth, drive, calendar
+├── lib/automation/         # brief-intake, hold-requests, approval-effects, agent-primitives
+└── lib/utils/              # fee engine, brief parser, daterange, kill switch, audit, health, etc.
 ```
 
 ## Code style
@@ -42,7 +47,13 @@ src/
 3. `grep -rn "TODO\|FIXME\|XXX" src/` for anything new I left behind
 4. Search for hardcoded user names / fake data — should be `getCurrentActor()` or env
 5. If touching the fee engine, the AJE eComm #3579 canonical example must still pass
-6. **Memory sync** — every PR that ships, before declaring done: re-read this file's "Build status" + "Phase order" + "Deferred / blocked" sections, update them to match what just shipped. Same for any other tracking file the change is relevant to (master CLAUDE.md if doctrine touched, ATELIER-HANDOFF.md if onboarding/handoff details, build-spec if scope changed). Skipping this is how the doc drifts from reality.
+6. **Memory sync — non-negotiable.** Every PR that ships, before declaring done, re-read all of these files and update anything that's now wrong:
+   - This file (worktree `CLAUDE.md`) — Build status, Phase order, Deferred / blocked, Forward roadmap, Project layout
+   - Master `~/Documents/Claude/Projects/Beetle/CLAUDE.md` — if doctrine, agent topology, integration list, signal library, or scope changed
+   - `~/Documents/Claude/Projects/Beetle/ATELIER-HANDOFF.md` — if integration status, agents, or handoff details changed
+   - `~/Documents/Claude/Projects/Beetle/atelier-phase-1-build-spec.md` — if scope changed (use strikethrough + dated note rather than rewriting history)
+
+   The user has caught me twice on doc-vs-reality drift. This rule blocks "done" the same way tsc and tests do. Drift is a real bug, not a minor footnote.
 
 ## Continuous improvement posture
 
@@ -74,7 +85,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 
 1. **Phase 1a — parity + small wins.** ✅ Shipped.
 2. **Phase 1b — entity expansion + resilience.** ✅ Shipped (PRs #14, #15, #17 + auto-Drive earlier).
-3. **Phase 3 — corpus + Tier 2.** ✅ First slice shipped (PR #18 — precedent signals on booking detail). Tier-2 #13 / #15 still pending clarification.
+3. **Phase 3 — corpus + signal surfacing.** ✅ Shipped. The "Tier 2 #13/#15" line in earlier notes referenced PR #13 (agency margin clarity, per-line ASF toggle, print bg, save refresh) and PR #15 (hard delete + anonymised corpus archival) — both already in main. Plus PR #18 (precedent signals panel on booking detail).
 4. **Phase 4 — agent automation.** ✅ First pass shipped (PR #19 — agent primitives, critique pass on brief-clarify, auto call sheet). Full agent prompt suite (confidence contracts wired into every agent, precedent requirement enforcement) still pending.
 5. **Phase 2 — Xero.** ⏳ Blocked on credentials.
 6. **Phase 5 — RLS + partner accounts.** ✅ Shipped end-to-end. PR #20 brought the infrastructure (app_users, role helpers, partner UI). Migrations 0018 + 0019 then dropped the legacy `auth_full_access` AND the pre-existing wide-open `*_anon_all` policies (which would have bypassed every other policy — caught during this session), replacing with `is_owner_or_partner()` for admin tables and self-scoped read policies for talent / crew. Owner + partner accounts seeded; Mason and Patrick provisioned as live crew test accounts. Health probes switched to service-role client so monitor uptime checks still work post-lockdown.
@@ -123,9 +134,36 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 
 ### Deferred to follow-up PRs
 - **RLS lockdown (Phase 5b)** — the `atelier_app_users` infrastructure is live and roles are seeded, but the existing `auth_full_access` RLS policy is intentionally not yet replaced. Once Jasper has confirmed talent/crew portals work end-to-end (we'd need to provision a real talent/crew test account first), the lockdown migration drops `auth_full_access` and replaces it with `is_owner_or_partner()` for full access plus per-table scoped policies for talent (own row + own booking_talent + own bookings) and crew (mirror).
-- **Tier-2 features #13 / #15** — numbered list reference unclear; needs a quick sync with Jasper.
-- **Phase 2 (Xero)** — blocked on credentials.
+- ~~Tier-2 features #13 / #15~~ — resolved 2026-05-06: those numbers referred to PR #13 (already shipped previous session: agency margin clarity, per-line ASF toggle, print bg, save refresh) and PR #15 (shipped this session: hard delete + corpus archival). Not pending features.
+- **Phase 2 (Xero)** — blocked on credentials. Three env vars needed:
+  `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_REDIRECT_URI`
+  (must match `https://atelier.saundersandco.com.au/api/auth/callback/xero`).
+  After OAuth flow runs once, `XERO_REFRESH_TOKEN` and `XERO_TENANT_ID`
+  are persisted automatically.
 - **Phase 7 (production polish)** — performance, monitoring, edge cases. Standing checklist: tsc clean, tests green, no TODO/FIXME left behind, no hardcoded names/data, AJE eComm #3579 canonical test still passes.
+
+## Forward roadmap (clean — descoped items removed)
+
+What's actually still ahead, in priority order:
+
+1. **Pay-on-paid tracking** — flip a flag when client invoice marked paid in Xero, kick off artist + crew remittance workflow. Depends on Phase 2 (Xero invoice push). Blocked.
+2. **Quote template expansion** — usage / grading / equipment line types alongside existing photographer + videographer templates.
+3. **Repeat-client autofill** — pre-tick media/territory/duration on the new-booking form when ≥3 prior bookings exist with this client.
+4. **Brief → Quote → Send single screen at /inbox/[bookingId]** — focused workspace combining the parser, builder, and send panel into one flow.
+5. **Comms agent expansion** — chase cadences, tone variants, post-job client image chase.
+6. **Insurance / BAS reminders + compliance dashboard.**
+7. **Talent / crew expiry-renewal pings** (passport, licence, WWCC).
+8. **Data export / right-to-be-forgotten** (Australian Privacy Principles 12 / 13 compliance).
+9. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build).
+10. **Full agent prompt suite** — confidence contracts wired into every agent (currently only brief-clarify); precedent requirement enforcement (cite 1-3 prior bookings).
+11. **Column-level RLS** — talent / crew portals currently get row-scoped reads but the row contains columns they shouldn't see (e.g. `client_id`). Not a leak in the rendered UI, but a leak via raw API. Future work.
+
+**Explicitly NOT on the roadmap:**
+
+- Marketing agent / Planoly emulation / Klaviyo (descoped — Grid Planner is built, that's all)
+- Client portal (doctrine — clients never get logins; they get tokenised URLs only)
+- Squarespace integration (still skipped)
+- Microsoft Teams integration (out of scope)
 
 ## When in doubt
 
