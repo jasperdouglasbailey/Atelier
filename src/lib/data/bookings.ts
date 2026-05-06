@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { reportDataError } from '@/lib/utils/data-errors';
 import { createServiceClient } from '@/lib/supabase/service';
 import type { Booking, BookingState, ShootTier } from '@/lib/types/database';
-import { STATE_TRANSITIONS, ACTIVE_STATES } from '@/lib/utils/constants';
+import { STATE_TRANSITIONS, ACTIVE_STATES, QUERY_LIMITS } from '@/lib/utils/constants';
 import { emitEvent } from '@/lib/utils/events';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
@@ -78,7 +78,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
       .from('atelier_clients')
       .select('id')
       .or(`name.ilike.%${filters.search}%,company.ilike.%${filters.search}%`)
-      .limit(50);
+      .limit(QUERY_LIMITS.bookings_client_search);
     const clientIds = (matchedClients ?? []).map((c: { id: string }) => c.id);
 
     const orParts = [
@@ -314,7 +314,7 @@ export async function transitionState(
   // Fire-and-forget: recompute avg_doi_days for the client when payment clears
   if (newState === 'paid' && current.client_id) {
     refreshClientAvgDoi(current.client_id).catch((err) =>
-      console.error('[transitionState] avg_doi refresh failed', err),
+      reportDataError('[transitionState] avg_doi refresh failed', err),
     );
   }
 
@@ -558,7 +558,11 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
  * lost_post_quote  → cancelled after quote_sent (client saw the number and walked)
  * cancelled        → any other terminal state we don't have a sharper label for
  */
-function deriveOutcome(
+/**
+ * Map a booking's terminal state to a corpus outcome value. Exported
+ * for unit testing (also used by deleteBookingWithCorpus internally).
+ */
+export function deriveOutcome(
   state: BookingState,
   quoteWasSent: boolean,
 ): 'won' | 'lost_pre_quote' | 'lost_post_quote' | 'cancelled' {
@@ -626,7 +630,7 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
     .select('new_value')
     .eq('record_id', bookingId)
     .eq('action', 'transition')
-    .limit(50);
+    .limit(QUERY_LIMITS.booking_events);
 
   const quoteWasSent = (auditRows ?? []).some((row: { new_value: unknown }) => {
     const nv = row.new_value as Record<string, unknown> | null;
@@ -665,8 +669,9 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
     .insert(corpusRow);
 
   if (corpusError) {
-    // Log but don't abort — corpus write failure should not block the delete
-    console.error('[bookings] corpus insert failed', corpusError.message);
+    // Log but don't abort — corpus write failure should not block the delete.
+    // reportDataError throws in dev so we'd notice during testing.
+    reportDataError('[bookings] corpus insert failed', corpusError);
   }
 
   // 5. Audit the deletion before it happens

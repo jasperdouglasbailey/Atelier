@@ -18,6 +18,10 @@ import { createServiceClient } from '@/lib/supabase/service';
  *
  * For talent/crew roles, requires a linkage to the domain entity.
  */
+// Permissive but cheap email check — server doesn't care about every RFC
+// edge case, just wants to fail loud on obvious typos.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function provisionAppUserAction(input: {
   email: string;
   role: AppRole;
@@ -26,23 +30,37 @@ export async function provisionAppUserAction(input: {
   crew_id?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!input.email) return { ok: false, error: 'Email is required.' };
-
-  const supabase = createServiceClient();
-
-  // Look up the auth user by email
-  const { data: authResp, error: authErr } = await supabase.auth.admin.listUsers();
-  if (authErr) {
-    await logAuditFailure({
-      userId: await getCurrentActor(),
-      action: 'provision_app_user',
-      tableName: 'atelier_app_users',
-      attempted: { email: input.email, role: input.role } as unknown as import('@/lib/types/database').Json,
-      error: authErr.message,
-    });
-    return { ok: false, error: authErr.message };
+  if (!EMAIL_RE.test(input.email)) {
+    return { ok: false, error: 'That email address looks invalid.' };
   }
 
-  const target = authResp.users.find((u) => u.email?.toLowerCase() === input.email.toLowerCase());
+  const supabase = createServiceClient();
+  const normalisedEmail = input.email.trim().toLowerCase();
+
+  // Look up the auth user by email. We can't filter listUsers() server-side
+  // (Supabase doesn't expose that), but we can iterate page-by-page and stop
+  // on first match instead of fetching every user. perPage 200 is the API max.
+  let target: { id: string; email?: string } | undefined;
+  let page = 1;
+  while (!target) {
+    const { data: authResp, error: authErr } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    if (authErr) {
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'provision_app_user',
+        tableName: 'atelier_app_users',
+        attempted: { email: input.email, role: input.role } as unknown as import('@/lib/types/database').Json,
+        error: authErr.message,
+      });
+      return { ok: false, error: authErr.message };
+    }
+    target = authResp.users.find((u) => u.email?.toLowerCase() === normalisedEmail);
+    if (target) break;
+    if (authResp.users.length < 200) break; // last page
+    page += 1;
+    if (page > 25) break; // hard guard: 25 * 200 = 5000 users is plenty
+  }
+
   if (!target) {
     return {
       ok: false,

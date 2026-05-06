@@ -5,7 +5,29 @@ import { createClientRecord, updateClient, createBrand } from '@/lib/data/entiti
 import { createTalentRecord, updateTalent } from '@/lib/data/entities';
 import { createCrewRecord, updateCrew } from '@/lib/data/entities';
 import { createEntityFolder } from '@/lib/integrations/drive';
-import type { CrewTier, ArtistDiscipline } from '@/lib/types/database';
+import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
+import { reportDataError } from '@/lib/utils/data-errors';
+import type { CrewTier, ArtistDiscipline, Json } from '@/lib/types/database';
+
+/**
+ * Compact entity-mutation audit log helper. Centralised so create/update
+ * actions don't drift in shape — every entity write goes through here.
+ */
+async function auditEntityMutation(args: {
+  table: 'atelier_clients' | 'atelier_talent' | 'atelier_crew' | 'atelier_brands';
+  recordId: string | null;
+  action: 'create' | 'update' | 'archive' | 'reactivate';
+  payload?: Record<string, unknown> | null;
+}): Promise<void> {
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: args.action,
+    tableName: args.table,
+    recordId: args.recordId,
+    newValue: (args.payload ?? null) as unknown as Json,
+  });
+}
 
 /**
  * Best-effort Drive folder creation for any entity. Called after the entity
@@ -29,7 +51,7 @@ async function attachEntityDriveFolder(
       drive_folder_link: folder.webViewLink,
     }).eq('id', entityId);
   } catch (err) {
-    console.error(`[entities] attachEntityDriveFolder(${parent}, ${entityName}) failed`, err);
+    reportDataError(`[entities] attachEntityDriveFolder(${parent}, ${entityName}) failed`, err);
   }
 }
 
@@ -45,6 +67,7 @@ export async function createClientAction(formData: FormData) {
     notes: (formData.get('notes') as string) || undefined,
   });
   if (!result) return { error: 'Failed to create client' };
+  await auditEntityMutation({ table: 'atelier_clients', recordId: result.id, action: 'create', payload: { name: result.name } });
   // Auto-create Drive folder using the company name when present, else contact name
   const folderLabel = (formData.get('company') as string) || result.name;
   await attachEntityDriveFolder('Clients', result.id, folderLabel, 'atelier_clients');
@@ -61,6 +84,7 @@ export async function updateClientAction(id: string, formData: FormData) {
   }
   const result = await updateClient(id, updates);
   if (!result) return { error: 'Failed to update client' };
+  await auditEntityMutation({ table: 'atelier_clients', recordId: id, action: 'update', payload: updates });
   revalidatePath('/clients');
   revalidatePath(`/clients/${id}`);
   return { ok: true };
@@ -73,6 +97,7 @@ export async function createBrandAction(formData: FormData) {
     notes: (formData.get('notes') as string) || undefined,
   });
   if (!result) return { error: 'Failed to create brand' };
+  await auditEntityMutation({ table: 'atelier_brands', recordId: result.id, action: 'create', payload: { name: result.name } });
   revalidatePath('/clients');
   return { id: result.id, name: result.name };
 }
@@ -99,6 +124,7 @@ export async function createTalentAction(formData: FormData) {
     notes: (formData.get('notes') as string) || undefined,
   });
   if (!result) return { error: 'Failed to create talent' };
+  await auditEntityMutation({ table: 'atelier_talent', recordId: result.id, action: 'create', payload: { working_name: result.working_name, discipline } });
   await attachEntityDriveFolder('Talent', result.id, result.working_name, 'atelier_talent');
   revalidatePath('/talent');
   return { id: result.id };
@@ -117,6 +143,7 @@ export async function createCrewAction(formData: FormData) {
     notes: (formData.get('notes') as string) || undefined,
   });
   if (!result) return { error: 'Failed to create crew member' };
+  await auditEntityMutation({ table: 'atelier_crew', recordId: result.id, action: 'create', payload: { name: result.name, tier: result.tier } });
   await attachEntityDriveFolder('Crew', result.id, result.name, 'atelier_crew');
   revalidatePath('/crew');
   return { id: result.id };
@@ -139,6 +166,7 @@ export async function updateCrewAction(id: string, formData: FormData) {
   }
   const result = await updateCrew(id, updates);
   if (!result) return { error: 'Failed to update crew member' };
+  await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: 'update', payload: updates });
   revalidatePath('/crew');
   revalidatePath(`/crew/${id}`);
   return { ok: true };
@@ -151,6 +179,7 @@ export async function updateCrewAction(id: string, formData: FormData) {
 export async function setTalentActiveAction(id: string, active: boolean) {
   const result = await updateTalent(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} talent` };
+  await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: active ? 'reactivate' : 'archive' });
   revalidatePath('/talent');
   revalidatePath(`/talent/${id}`);
   return { ok: true };
@@ -160,6 +189,7 @@ export async function setTalentActiveAction(id: string, active: boolean) {
 export async function setCrewActiveAction(id: string, active: boolean) {
   const result = await updateCrew(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} crew member` };
+  await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: active ? 'reactivate' : 'archive' });
   revalidatePath('/crew');
   revalidatePath(`/crew/${id}`);
   return { ok: true };
@@ -179,6 +209,7 @@ export async function updateTalentAction(id: string, formData: FormData) {
   }
   const result = await updateTalent(id, updates);
   if (!result) return { error: 'Failed to update talent' };
+  await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: 'update', payload: updates });
   revalidatePath('/talent');
   revalidatePath(`/talent/${id}`);
   return { ok: true };
