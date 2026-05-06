@@ -91,6 +91,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 6. **Phase 5 — RLS + partner accounts.** ✅ Shipped end-to-end. PR #20 brought the infrastructure (app_users, role helpers, partner UI). Migrations 0018 + 0019 then dropped the legacy `auth_full_access` AND the pre-existing wide-open `*_anon_all` policies (which would have bypassed every other policy — caught during this session), replacing with `is_owner_or_partner()` for admin tables and self-scoped read policies for talent / crew. Owner + partner accounts seeded; Mason and Patrick provisioned as live crew test accounts. Health probes switched to service-role client so monitor uptime checks still work post-lockdown.
 7. **Phase 6 — talent / crew portals.** ✅ Shipped (PR ##  — `/portal/talent`, `/portal/crew`, role-based redirect from dashboard).
 8. **Phase 7 — production polish.** ⏳ Performance, monitoring, edge cases — ongoing.
+9. **Compliance dashboard (PR#27).** ✅ `/settings/compliance` aggregates passport / licence / WWCC / visa expiry + missing ABN/super/emergency contact across all active talent and crew. Red ≤30d, amber ≤90d, green OK, muted = not provided. Linked from Sidebar → System.
 
 ## Build status (updated 2026-05-05, session 5)
 
@@ -147,16 +148,19 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 What's actually still ahead, in priority order:
 
 1. **Pay-on-paid tracking** — flip a flag when client invoice marked paid in Xero, kick off artist + crew remittance workflow. Depends on Phase 2 (Xero invoice push). Blocked.
-2. **Quote template expansion** — usage / grading / equipment line types alongside existing photographer + videographer templates.
-3. **Repeat-client autofill** — pre-tick media/territory/duration on the new-booking form when ≥3 prior bookings exist with this client.
-4. **Brief → Quote → Send single screen at /inbox/[bookingId]** — focused workspace combining the parser, builder, and send panel into one flow.
-5. **Comms agent expansion** — chase cadences, tone variants, post-job client image chase.
-6. **Insurance / BAS reminders + compliance dashboard.**
-7. **Talent / crew expiry-renewal pings** (passport, licence, WWCC).
-8. **Data export / right-to-be-forgotten** (Australian Privacy Principles 12 / 13 compliance).
-9. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build).
-10. **Full agent prompt suite** — confidence contracts wired into every agent (currently only brief-clarify); precedent requirement enforcement (cite 1-3 prior bookings).
-11. **Column-level RLS** — talent / crew portals currently get row-scoped reads but the row contains columns they shouldn't see (e.g. `client_id`). Not a leak in the rendered UI, but a leak via raw API. Future work.
+2. **Quote template expansion** — stylist / HMU / wardrobe templates alongside existing photographer + videographer.
+3. **Comms agent expansion** — beyond the existing post-shoot chase cron: chase cadences for unanswered quotes, tone variants, brief-clarify follow-ups.
+4. **Insurance / BAS reminders dashboard** — pairs with the compliance dashboard but tracks agency-level renewals (public liability, indemnity, BAS lodgement dates).
+5. **Talent / crew expiry-renewal automated pings** (passport, licence, WWCC) — surface on compliance dashboard already; auto-email the talent when ≤30 days out is the next step.
+6. **Data export / right-to-be-forgotten** (Australian Privacy Principles 12 / 13 compliance).
+7. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build).
+8. **Full agent prompt suite** — confidence contracts wired into every agent (currently only brief-clarify); precedent requirement enforcement (cite 1-3 prior bookings).
+9. **Column-level RLS** — talent / crew portals currently get row-scoped reads but the row contains columns they shouldn't see (e.g. `client_id`). Not a leak in the rendered UI, but a leak via raw API. Future work.
+
+**Roadmap items already shipped (removed 2026-05-06):**
+- ~~Repeat-client autofill~~ → `getClientDefaultsAction()` + `BookingFormFields` autofill is already live (majority threshold over last 3 bookings).
+- ~~Brief → Quote → Send single screen~~ → `/inbox/[bookingId]` page is already shipped (3-step progress strip, BriefParser + QuoteBuilder + SendQuotePanel in one view).
+- ~~Compliance dashboard (was inside #6)~~ → `/settings/compliance` shipped PR#27.
 
 **Explicitly NOT on the roadmap:**
 
