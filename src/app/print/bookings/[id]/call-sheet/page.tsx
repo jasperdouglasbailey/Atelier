@@ -44,16 +44,16 @@ export default async function CallSheetPage({ params }: Props) {
 
   const [talentRows, crewRows] = await Promise.all([
     talentIds.length === 0
-      ? Promise.resolve({ data: [] as Array<{ id: string; working_name: string; mobile: string | null }> })
+      ? Promise.resolve({ data: [] as Array<{ id: string; working_name: string; mobile: string | null; dietary: string | null; drink_order: string | null }> })
       : supabase
           .from('atelier_talent')
-          .select('id, working_name, mobile')
+          .select('id, working_name, mobile, dietary, drink_order')
           .in('id', talentIds),
     crewIds.length === 0
-      ? Promise.resolve({ data: [] as Array<{ id: string; name: string; mobile: string | null; primary_role: string | null }> })
+      ? Promise.resolve({ data: [] as Array<{ id: string; name: string; mobile: string | null; primary_role: string | null; dietary: string | null; drink_order: string | null }> })
       : supabase
           .from('atelier_crew')
-          .select('id, name, mobile, primary_role')
+          .select('id, name, mobile, primary_role, dietary, drink_order')
           .in('id', crewIds),
   ]);
 
@@ -96,67 +96,53 @@ export default async function CallSheetPage({ params }: Props) {
         <div className="text-sm whitespace-pre-line">{booking.shoot_location ?? '—'}</div>
       </section>
 
-      {/* Talent */}
+      {/* Talent — Jasper's house format: stacked Role / Name / Phone / Dietary / Drink */}
       <section className="mb-5">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: '#666' }}>Talent</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: '#666' }}>Artists</h2>
         {bookingTalent.length === 0 ? (
-          <div className="text-sm" style={{ color: '#999' }}>No talent attached.</div>
+          <div className="text-sm" style={{ color: '#999' }}>No artists attached.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ color: '#666', borderBottom: '1px solid #ddd' }}>
-                <th className="py-1 text-left">Name</th>
-                <th className="py-1 text-left">Role</th>
-                <th className="py-1 text-left">Mobile</th>
-                <th className="py-1 text-left">Confirmed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookingTalent.map((bt) => {
-                const t = talentLookup.get(bt.talent_id);
-                return (
-                  <tr key={bt.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td className="py-1">{t?.working_name ?? '—'}</td>
-                    <td className="py-1">{bt.role_on_booking ?? '—'}</td>
-                    <td className="py-1 font-mono text-[12px]">{t?.mobile ?? '—'}</td>
-                    <td className="py-1">{bt.confirmed ? '✓' : '–'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="space-y-3">
+            {bookingTalent.map((bt) => {
+              const t = talentLookup.get(bt.talent_id);
+              return (
+                <PersonBlock
+                  key={bt.id}
+                  role={(bt.role_on_booking ?? t?.working_name?.split(' ')[0] ? bt.role_on_booking : null) ?? bt.role_on_booking ?? 'Artist'}
+                  name={t?.working_name ?? '—'}
+                  phone={t?.mobile ?? null}
+                  dietary={t?.dietary ?? null}
+                  drink={t?.drink_order ?? null}
+                  confirmed={bt.confirmed}
+                />
+              );
+            })}
+          </div>
         )}
       </section>
 
-      {/* Crew */}
+      {/* Crew — same stacked format */}
       <section className="mb-5">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: '#666' }}>Crew</h2>
         {bookingCrew.length === 0 ? (
           <div className="text-sm" style={{ color: '#999' }}>No crew attached.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ color: '#666', borderBottom: '1px solid #ddd' }}>
-                <th className="py-1 text-left">Name</th>
-                <th className="py-1 text-left">Role</th>
-                <th className="py-1 text-left">Mobile</th>
-                <th className="py-1 text-left">Confirmed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookingCrew.map((bc) => {
-                const c = crewLookup.get(bc.crew_id);
-                return (
-                  <tr key={bc.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td className="py-1">{c?.name ?? '—'}</td>
-                    <td className="py-1">{bc.role_on_booking ?? c?.primary_role ?? '—'}</td>
-                    <td className="py-1 font-mono text-[12px]">{c?.mobile ?? '—'}</td>
-                    <td className="py-1">{bc.confirmed ? '✓' : '–'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="space-y-3">
+            {bookingCrew.map((bc) => {
+              const c = crewLookup.get(bc.crew_id);
+              return (
+                <PersonBlock
+                  key={bc.id}
+                  role={bc.role_on_booking ?? c?.primary_role ?? 'Crew'}
+                  name={c?.name ?? '—'}
+                  phone={c?.mobile ?? null}
+                  dietary={c?.dietary ?? null}
+                  drink={c?.drink_order ?? null}
+                  confirmed={bc.confirmed}
+                />
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -200,6 +186,47 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div>
       <div className="text-[10px] uppercase tracking-wide" style={{ color: '#999' }}>{label}</div>
       <div>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Stacked person block — Jasper's house format for artist + crew on call sheets:
+ *
+ *   Role
+ *   Full Name           [confirmed checkmark]
+ *   Phone number
+ *   Dietary requirements
+ *   Drink order
+ */
+function PersonBlock({
+  role, name, phone, dietary, drink, confirmed,
+}: {
+  role: string | null;
+  name: string;
+  phone: string | null;
+  dietary: string | null;
+  drink: string | null;
+  confirmed: boolean;
+}) {
+  // Skip "NIL" / empty dietary so the block doesn't get noisy
+  const dietaryLabel = dietary && !/^nil( diet)?$/i.test(dietary.trim()) ? dietary.trim() : null;
+  return (
+    <div className="text-sm" style={{ lineHeight: 1.5 }}>
+      {role && (
+        <div className="text-[10px] uppercase tracking-wider" style={{ color: '#999' }}>
+          {role.replace(/_/g, ' ')}
+        </div>
+      )}
+      <div className="font-semibold flex items-center gap-2">
+        {name}
+        {!confirmed && (
+          <span className="text-[10px]" style={{ color: '#b45309' }}>(unconfirmed)</span>
+        )}
+      </div>
+      {phone && <div className="font-mono text-[12px]">{phone}</div>}
+      {dietaryLabel && <div className="text-[12px]">Dietary: {dietaryLabel}</div>}
+      {drink && <div className="text-[12px]">Drink: {drink}</div>}
     </div>
   );
 }

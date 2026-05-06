@@ -8,6 +8,8 @@ import { createEntityFolder } from '@/lib/integrations/drive';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { reportDataError } from '@/lib/utils/data-errors';
+import { createClient } from '@/lib/supabase/server';
+import { titleCaseName } from '@/lib/utils/name-format';
 import type { CrewTier, ArtistDiscipline, Json } from '@/lib/types/database';
 
 /**
@@ -17,7 +19,7 @@ import type { CrewTier, ArtistDiscipline, Json } from '@/lib/types/database';
 async function auditEntityMutation(args: {
   table: 'atelier_clients' | 'atelier_talent' | 'atelier_crew' | 'atelier_brands';
   recordId: string | null;
-  action: 'create' | 'update' | 'archive' | 'reactivate';
+  action: 'create' | 'update' | 'archive' | 'reactivate' | 'delete';
   payload?: Record<string, unknown> | null;
 }): Promise<void> {
   await logAudit({
@@ -107,8 +109,8 @@ export async function createTalentAction(formData: FormData) {
   if (!discipline) return { error: 'Discipline is required' };
 
   const result = await createTalentRecord({
-    legal_name: formData.get('legal_name') as string,
-    working_name: formData.get('working_name') as string,
+    legal_name: titleCaseName(formData.get('legal_name') as string),
+    working_name: titleCaseName(formData.get('working_name') as string),
     discipline,
     specialty: (formData.get('specialty') as string) || undefined,
     preferred_comms: (formData.get('preferred_comms') as string) || undefined,
@@ -132,7 +134,7 @@ export async function createTalentAction(formData: FormData) {
 
 export async function createCrewAction(formData: FormData) {
   const result = await createCrewRecord({
-    name: formData.get('name') as string,
+    name: titleCaseName(formData.get('name') as string),
     email: (formData.get('email') as string) || undefined,
     mobile: (formData.get('mobile') as string) || undefined,
     primary_role: (formData.get('primary_role') as string) || undefined,
@@ -151,8 +153,14 @@ export async function createCrewAction(formData: FormData) {
 
 export async function updateCrewAction(id: string, formData: FormData) {
   const updates: Record<string, unknown> = {};
-  const textFields = ['name', 'email', 'mobile', 'preferred_comms', 'primary_role', 'tier', 'abn',
-    'super_fund_name', 'super_member_number', 'super_usi', 'notes'];
+  // Title-case the name on save (manual entry safety net)
+  const rawName = formData.get('name');
+  if (rawName !== null) updates.name = titleCaseName((rawName as string) || '') || null;
+
+  const textFields = ['email', 'mobile', 'preferred_comms', 'primary_role', 'tier', 'abn',
+    'city', 'dietary', 'drink_order', 'home_address',
+    'super_fund_name', 'super_member_number', 'super_usi',
+    'kit_list', 'xero_contact_id', 'notes'];
   for (const f of textFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = (val as string) || null;
@@ -160,15 +168,85 @@ export async function updateCrewAction(id: string, formData: FormData) {
   if (formData.get('gst_registered') !== null) {
     updates.gst_registered = formData.get('gst_registered') === 'true';
   }
+  if (formData.get('bank_setup_in_xero') !== null) {
+    updates.bank_setup_in_xero = formData.get('bank_setup_in_xero') === 'true';
+  }
   if (formData.get('default_day_rate') !== null) {
     const v = formData.get('default_day_rate') as string;
     updates.default_day_rate = v ? Number(v) : null;
+  }
+  if (formData.get('dob') !== null) {
+    const v = formData.get('dob') as string;
+    updates.dob = v || null;
+  }
+  // Comma-separated lists → arrays (certifications, secondary_roles)
+  if (formData.get('certifications') !== null) {
+    const v = (formData.get('certifications') as string)?.trim();
+    updates.certifications = v ? v.split(',').map((s) => s.trim()).filter(Boolean) : null;
+  }
+  if (formData.get('secondary_roles') !== null) {
+    const v = (formData.get('secondary_roles') as string)?.trim();
+    updates.secondary_roles = v ? v.split(',').map((s) => s.trim()).filter(Boolean) : null;
   }
   const result = await updateCrew(id, updates);
   if (!result) return { error: 'Failed to update crew member' };
   await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: 'update', payload: updates });
   revalidatePath('/crew');
   revalidatePath(`/crew/${id}`);
+  return { ok: true };
+}
+
+/**
+ * Hard delete a crew member.
+ *
+ * Refuses if the crew member has any booking_crew assignments — Jasper must
+ * archive (set is_active=false) to preserve the audit trail in those cases.
+ * Removing crew with no booking history is safe (e.g. a CSV import duplicate).
+ */
+export async function deleteCrewAction(id: string) {
+  const supabase = await createClient();
+  // Check for booking references
+  const { count } = await supabase
+    .from('atelier_booking_crew')
+    .select('*', { count: 'exact', head: true })
+    .eq('crew_id', id);
+
+  if ((count ?? 0) > 0) {
+    return {
+      error: `Cannot delete: this crew member is assigned to ${count} booking${count === 1 ? '' : 's'}. Archive instead to preserve the audit trail.`,
+    };
+  }
+
+  await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: 'delete' });
+
+  const { error } = await supabase.from('atelier_crew').delete().eq('id', id);
+  if (error) return { error: error.message };
+  revalidatePath('/crew');
+  return { ok: true };
+}
+
+/**
+ * Hard delete a talent. Same rules as crew — refuses if there are booking_talent
+ * rows. The doctrine path for archiving is `setTalentActiveAction(id, false)`.
+ */
+export async function deleteTalentAction(id: string) {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from('atelier_booking_talent')
+    .select('*', { count: 'exact', head: true })
+    .eq('talent_id', id);
+
+  if ((count ?? 0) > 0) {
+    return {
+      error: `Cannot delete: this talent is assigned to ${count} booking${count === 1 ? '' : 's'}. Archive instead to preserve the audit trail.`,
+    };
+  }
+
+  await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: 'delete' });
+
+  const { error } = await supabase.from('atelier_talent').delete().eq('id', id);
+  if (error) return { error: error.message };
+  revalidatePath('/talent');
   return { ok: true };
 }
 
@@ -197,15 +275,39 @@ export async function setCrewActiveAction(id: string, active: boolean) {
 
 export async function updateTalentAction(id: string, formData: FormData) {
   const updates: Record<string, unknown> = {};
-  const textFields = ['legal_name', 'working_name', 'email', 'mobile', 'pronouns',
+  // Title-case names on save
+  const rawWorking = formData.get('working_name');
+  if (rawWorking !== null) updates.working_name = titleCaseName((rawWorking as string) || '') || null;
+  const rawLegal = formData.get('legal_name');
+  if (rawLegal !== null) updates.legal_name = titleCaseName((rawLegal as string) || '') || null;
+
+  const textFields = ['email', 'mobile', 'pronouns',
     'discipline', 'specialty', 'preferred_comms',
-    'abn', 'entity_type', 'representation_status', 'instagram', 'website', 'notes'];
+    'city', 'dietary', 'drink_order', 'home_address',
+    'abn', 'entity_type', 'representation_status', 'instagram', 'website', 'notes',
+    'super_fund_name', 'super_member_number', 'super_usi',
+    'emergency_name', 'emergency_relationship', 'emergency_mobile', 'emergency_email',
+    'work_rights', 'wwcc_number', 'xero_contact_id'];
   for (const f of textFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = (val as string) || null;
   }
+  // Date fields — empty string means clear
+  for (const dateField of ['dob', 'visa_expiry', 'passport_expiry', 'drivers_licence_expiry', 'wwcc_expiry']) {
+    if (formData.get(dateField) !== null) {
+      const v = formData.get(dateField) as string;
+      updates[dateField] = v || null;
+    }
+  }
+  if (formData.get('default_day_rate') !== null) {
+    const v = formData.get('default_day_rate') as string;
+    updates.default_day_rate = v ? Number(v) : null;
+  }
   if (formData.get('gst_registered') !== null) {
     updates.gst_registered = formData.get('gst_registered') === 'true';
+  }
+  if (formData.get('bank_setup_in_xero') !== null) {
+    updates.bank_setup_in_xero = formData.get('bank_setup_in_xero') === 'true';
   }
   const result = await updateTalent(id, updates);
   if (!result) return { error: 'Failed to update talent' };

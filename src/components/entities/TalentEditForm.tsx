@@ -107,7 +107,7 @@ export default function TalentEditForm({ talent }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label style={labelStyle}>Pronouns</label>
             <input name="pronouns" defaultValue={talent.pronouns ?? ''} style={inputStyle} placeholder="they/them" />
@@ -119,6 +119,52 @@ export default function TalentEditForm({ talent }: Props) {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label style={labelStyle}>City / Home Base</label>
+            <input
+              name="city"
+              defaultValue={talent.city ?? ''}
+              list="talent-cities"
+              style={inputStyle}
+              placeholder="Sydney, Melbourne, …"
+            />
+            <datalist id="talent-cities">
+              {['Sydney','Melbourne','Byron Bay/Gold Coast','Brisbane','Adelaide','Perth','Paris','London','New York','Los Angeles'].map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+      </section>
+
+      {/* Call sheet */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet Preferences</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Dietary Requirements</label>
+            <input name="dietary" defaultValue={talent.dietary ?? ''} style={inputStyle} placeholder="NIL, vegan, GF, no chicken, …" />
+          </div>
+          <div>
+            <label style={labelStyle}>Drink Order</label>
+            <input name="drink_order" defaultValue={talent.drink_order ?? ''} style={inputStyle} placeholder="Long black, oat cap, …" />
+          </div>
+        </div>
+        <p className="text-[11px]" style={{ color: PALETTE.muted }}>These appear on the artist call sheet sent to clients.</p>
+      </section>
+
+      {/* Personal */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Personal</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Date of Birth</label>
+            <input name="dob" type="date" defaultValue={talent.dob ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Home Address</label>
+            <input name="home_address" defaultValue={talent.home_address ?? ''} style={inputStyle} placeholder="Unit / street, suburb, postcode" />
           </div>
         </div>
       </section>
@@ -205,6 +251,83 @@ export default function TalentEditForm({ talent }: Props) {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Superannuation */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Superannuation</h3>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label style={labelStyle}>Fund Name</label>
+            <input name="super_fund_name" defaultValue={talent.super_fund_name ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Member Number</label>
+            <input name="super_member_number" defaultValue={talent.super_member_number ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>USI</label>
+            <input name="super_usi" defaultValue={talent.super_usi ?? ''} style={inputStyle} />
+          </div>
+        </div>
+      </section>
+
+      {/* Emergency Contact */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Emergency Contact</h3>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label style={labelStyle}>Name</label>
+            <input name="emergency_name" defaultValue={talent.emergency_name ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Relationship</label>
+            <input name="emergency_relationship" defaultValue={talent.emergency_relationship ?? ''} style={inputStyle} placeholder="partner / parent / friend" />
+          </div>
+          <div>
+            <label style={labelStyle}>Mobile</label>
+            <input name="emergency_mobile" defaultValue={talent.emergency_mobile ?? ''} style={inputStyle} />
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input name="emergency_email" type="email" defaultValue={talent.emergency_email ?? ''} style={inputStyle} />
+        </div>
+      </section>
+
+      {/* Documents & Compliance */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Documents & Compliance</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Work Rights</label>
+            <input name="work_rights" defaultValue={talent.work_rights ?? ''} style={inputStyle} placeholder="Citizen, PR, 482, 408, …" />
+          </div>
+          <div>
+            <label style={labelStyle}>Visa Expiry</label>
+            <input name="visa_expiry" type="date" defaultValue={talent.visa_expiry ?? ''} style={inputStyle} />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Passport Expiry</label>
+            <input name="passport_expiry" type="date" defaultValue={talent.passport_expiry ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Drivers Licence Expiry</label>
+            <input name="drivers_licence_expiry" type="date" defaultValue={talent.drivers_licence_expiry ?? ''} style={inputStyle} />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>WWCC Number</label>
+            <input name="wwcc_number" defaultValue={talent.wwcc_number ?? ''} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>WWCC Expiry</label>
+            <input name="wwcc_expiry" type="date" defaultValue={talent.wwcc_expiry ?? ''} style={inputStyle} />
           </div>
         </div>
       </section>

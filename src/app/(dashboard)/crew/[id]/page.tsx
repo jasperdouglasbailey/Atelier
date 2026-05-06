@@ -4,6 +4,7 @@ import Topbar from '@/components/layout/Topbar';
 import { getCrewMember } from '@/lib/data/entities';
 import { listCrewBookings } from '@/lib/data/crew-bookings';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
+import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import { PALETTE, CREW_TIER_LABELS, CREW_STATUS_LABELS, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
@@ -102,6 +103,7 @@ export default async function CrewDetailPage({ params }: Props) {
                 ✏ Edit
               </Link>
               <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
+              <DeleteEntityButton type="crew" id={crew.id} name={crew.name} size="sm" />
             </div>
           </div>
         </section>
@@ -127,12 +129,33 @@ export default async function CrewDetailPage({ params }: Props) {
           </section>
         )}
 
-        {/* Contact + Business */}
+        {/* Contact */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact & Business</h3>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Email" value={crew.email} />
             <Field label="Mobile" value={crew.mobile} />
+            <Field label="City / Home Base" value={crew.city} />
+            <Field label="Date of Birth" value={crew.dob ? formatDate(crew.dob) : null} />
+            <Field label="Home Address" value={crew.home_address} />
+          </div>
+        </section>
+
+        {/* Call sheet preferences */}
+        {(crew.dietary || crew.drink_order) && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Dietary" value={crew.dietary} />
+              <Field label="Drink Order" value={crew.drink_order} />
+            </div>
+          </section>
+        )}
+
+        {/* Business */}
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="ABN" value={crew.abn} />
             <Field label="GST Registered" value={crew.gst_registered ? 'Yes' : 'No'} />
             <Field label="Default Day Rate" value={crew.default_day_rate != null ? formatCurrency(crew.default_day_rate) : null} />

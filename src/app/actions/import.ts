@@ -3,6 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { parseCsv } from '@/lib/utils/csv';
+import {
+  titleCaseName, normaliseEmail, normalisePhoneForMatch, parseDietaryDrinkFromNotes,
+} from '@/lib/utils/name-format';
 import type { ArtistDiscipline, CrewTier } from '@/lib/types/database';
 
 export type ImportResult = {
@@ -20,16 +23,58 @@ const VALID_CREW_TIERS = new Set<string>([
 ]);
 
 /**
+ * Build a fast in-memory duplicate index over existing rows.
+ * A row is considered a duplicate if any of:
+ *   - Same lowercased name
+ *   - Same lowercased email (when both provided)
+ *   - Same digits-only mobile (when both provided)
+ */
+type DupIndex = {
+  byName: Set<string>;
+  byEmail: Set<string>;
+  byPhone: Set<string>;
+};
+
+function buildDupIndex(existing: Array<{ name?: string | null; working_name?: string | null; email: string | null; mobile: string | null }>): DupIndex {
+  const byName = new Set<string>();
+  const byEmail = new Set<string>();
+  const byPhone = new Set<string>();
+  for (const row of existing) {
+    const n = (row.name ?? row.working_name ?? '').trim().toLowerCase();
+    if (n) byName.add(n);
+    const e = normaliseEmail(row.email);
+    if (e) byEmail.add(e);
+    const p = normalisePhoneForMatch(row.mobile);
+    if (p) byPhone.add(p);
+  }
+  return { byName, byEmail, byPhone };
+}
+
+function findDuplicate(
+  index: DupIndex,
+  name: string,
+  email: string | null,
+  mobile: string | null,
+): string | null {
+  const n = name.trim().toLowerCase();
+  if (n && index.byName.has(n)) return 'name';
+  const e = normaliseEmail(email);
+  if (e && index.byEmail.has(e)) return 'email';
+  const p = normalisePhoneForMatch(mobile);
+  if (p && index.byPhone.has(p)) return 'mobile';
+  return null;
+}
+
+/**
  * Import talent from a CSV string.
  * Required columns: (working_name OR name), discipline.
- * Other columns optional. Skips rows where the name field is blank.
- * Does NOT upsert — always inserts new rows. Duplicates will result in DB
- * errors which are counted as "errors" in the result.
  *
- * Accepts `name` as a fallback for `working_name` so a crew-style CSV
- * doesn't silently drop every row. If the CSV looks like crew (has names
- * but no discipline column at all), returns an early redirect-style error
- * pointing the user at the Crew Import button.
+ * Names are title-cased on insert ("MASON MACKENZIE WOOD" → "Mason Mackenzie Wood").
+ * If a CSV row matches an existing record by name, email, or mobile, the row is
+ * flagged as duplicate and skipped (NOT inserted).
+ *
+ * If the CSV has no `discipline` column at all, returns a single redirect-style
+ * error pointing the user at the Crew Import button.
  */
 export async function importTalentAction(csvText: string): Promise<ImportResult> {
   const rows = parseCsv(csvText);
@@ -39,7 +84,6 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
   let skipped = 0;
   const errors: string[] = [];
 
-  // Detect "this looks like crew, not talent" — every row has a name, no row has a discipline
   if (rows.length > 0) {
     const hasAnyName = rows.some((r) => (r['working_name'] || r['name'])?.trim());
     const hasAnyDiscipline = rows.some((r) => r['discipline']?.trim());
@@ -55,15 +99,22 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
     }
   }
 
+  // Pre-load existing talent for duplicate detection
+  const { data: existing } = await supabase
+    .from('atelier_talent')
+    .select('working_name, email, mobile');
+  const dupIndex = buildDupIndex(existing ?? []);
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowNum = i + 2; // 1-indexed, +1 for header
+    const rowNum = i + 2;
 
-    // Accept either `working_name` or `name` as the artist name column
-    const workingName = (row['working_name'] || row['name'])?.trim();
+    const rawName = (row['working_name'] || row['name'])?.trim();
     const discipline = row['discipline']?.trim()?.toLowerCase();
 
-    if (!workingName) { skipped++; continue; }
+    if (!rawName) { skipped++; continue; }
+
+    const workingName = titleCaseName(rawName);
 
     if (!discipline || !VALID_DISCIPLINES.has(discipline)) {
       const expected = Array.from(VALID_DISCIPLINES).join(' | ');
@@ -74,17 +125,38 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
       continue;
     }
 
+    const email = row['email']?.trim() || null;
+    const mobile = row['mobile']?.trim() || null;
+    const dup = findDuplicate(dupIndex, workingName, email, mobile);
+    if (dup) {
+      errors.push(`Row ${rowNum} "${workingName}": duplicate ${dup} — already exists in talent. Skipped.`);
+      skipped++;
+      continue;
+    }
+
     const gstRaw = row['gst_registered']?.toLowerCase();
     const activeRaw = row['is_active']?.toLowerCase();
     const dayRateRaw = row['default_day_rate'];
 
+    // Parse Dietary: / Drink: out of the notes if dedicated columns aren't provided
+    const rawNotes = row['notes']?.trim() || null;
+    const explicitDietary = row['dietary']?.trim() || null;
+    const explicitDrink = (row['drink_order'] || row['drink'])?.trim() || null;
+    const parsed = parseDietaryDrinkFromNotes(rawNotes);
+    const dietary = explicitDietary ?? parsed.dietary;
+    const drink_order = explicitDrink ?? parsed.drink_order;
+    const notes = (explicitDietary || explicitDrink) ? rawNotes : parsed.remainder;
+
     const record = {
       working_name: workingName,
-      legal_name: row['legal_name']?.trim() || workingName,
+      legal_name: titleCaseName(row['legal_name']?.trim() || workingName),
       discipline: discipline as ArtistDiscipline,
       specialty: row['specialty']?.trim() || null,
-      email: row['email']?.trim() || null,
-      mobile: row['mobile']?.trim() || null,
+      email,
+      mobile,
+      city: row['city']?.trim() || null,
+      dietary,
+      drink_order,
       instagram: row['instagram']?.trim() || null,
       website: row['website']?.trim() || null,
       abn: row['abn']?.trim() || null,
@@ -93,7 +165,7 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
       representation_status: row['representation_status']?.trim() || 'exclusive',
       default_day_rate: dayRateRaw ? Number(dayRateRaw) || null : null,
       is_active: activeRaw ? (activeRaw === 'yes' || activeRaw === 'true' || activeRaw === '1') : true,
-      notes: row['notes']?.trim() || null,
+      notes,
     };
 
     const { error } = await supabase.from('atelier_talent').insert(record);
@@ -101,6 +173,10 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
       errors.push(`Row ${rowNum} "${workingName}": ${error.message}`);
     } else {
       inserted++;
+      // Add to in-memory dup index so subsequent rows in the same CSV detect intra-CSV dupes too
+      dupIndex.byName.add(workingName.toLowerCase());
+      if (email) dupIndex.byEmail.add(email.toLowerCase());
+      if (mobile) dupIndex.byPhone.add(normalisePhoneForMatch(mobile));
     }
   }
 
@@ -111,10 +187,12 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
 /**
  * Import crew from a CSV string.
  * Required column: name (or working_name as fallback).
- * Tier defaults to 'regular_freelance' if blank/invalid.
  *
- * Accepts `working_name` as a fallback for `name` so an artist-style CSV
- * doesn't silently drop every row.
+ * Names are title-cased on insert. Duplicate detection runs on name, email,
+ * and mobile against existing crew. Dietary / Drink fields are extracted from
+ * the notes column when present in "Dietary: X | Drink: Y" form.
+ *
+ * Tier defaults to 'regular_freelance' if blank/invalid.
  */
 export async function importCrewAction(csvText: string): Promise<ImportResult> {
   const rows = parseCsv(csvText);
@@ -124,13 +202,29 @@ export async function importCrewAction(csvText: string): Promise<ImportResult> {
   let skipped = 0;
   const errors: string[] = [];
 
+  // Pre-load existing crew for duplicate detection
+  const { data: existing } = await supabase
+    .from('atelier_crew')
+    .select('name, email, mobile');
+  const dupIndex = buildDupIndex(existing ?? []);
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowNum = i + 2;
 
-    // Accept either `name` or `working_name` as the crew name column
-    const name = (row['name'] || row['working_name'])?.trim();
-    if (!name) { skipped++; continue; }
+    const rawName = (row['name'] || row['working_name'])?.trim();
+    if (!rawName) { skipped++; continue; }
+
+    const name = titleCaseName(rawName);
+    const email = row['email']?.trim() || null;
+    const mobile = row['mobile']?.trim() || null;
+
+    const dup = findDuplicate(dupIndex, name, email, mobile);
+    if (dup) {
+      errors.push(`Row ${rowNum} "${name}": duplicate ${dup} — already exists in crew. Skipped.`);
+      skipped++;
+      continue;
+    }
 
     const tierRaw = row['tier']?.trim()?.toLowerCase();
     const tier = VALID_CREW_TIERS.has(tierRaw) ? (tierRaw as CrewTier) : 'regular_freelance';
@@ -139,17 +233,28 @@ export async function importCrewAction(csvText: string): Promise<ImportResult> {
     const activeRaw = row['is_active']?.toLowerCase();
     const dayRateRaw = row['default_day_rate'];
 
+    const rawNotes = row['notes']?.trim() || null;
+    const explicitDietary = row['dietary']?.trim() || null;
+    const explicitDrink = (row['drink_order'] || row['drink'])?.trim() || null;
+    const parsed = parseDietaryDrinkFromNotes(rawNotes);
+    const dietary = explicitDietary ?? parsed.dietary;
+    const drink_order = explicitDrink ?? parsed.drink_order;
+    const notes = (explicitDietary || explicitDrink) ? rawNotes : parsed.remainder;
+
     const record = {
       name,
-      email: row['email']?.trim() || null,
-      mobile: row['mobile']?.trim() || null,
+      email,
+      mobile,
+      city: row['city']?.trim() || null,
+      dietary,
+      drink_order,
       primary_role: row['primary_role']?.trim() || null,
       tier,
       abn: row['abn']?.trim() || null,
       gst_registered: gstRaw === 'yes' || gstRaw === 'true' || gstRaw === '1',
       default_day_rate: dayRateRaw ? Number(dayRateRaw) || null : null,
       is_active: activeRaw ? (activeRaw === 'yes' || activeRaw === 'true' || activeRaw === '1') : true,
-      notes: row['notes']?.trim() || null,
+      notes,
     };
 
     const { error } = await supabase.from('atelier_crew').insert(record);
@@ -157,6 +262,9 @@ export async function importCrewAction(csvText: string): Promise<ImportResult> {
       errors.push(`Row ${rowNum} "${name}": ${error.message}`);
     } else {
       inserted++;
+      dupIndex.byName.add(name.toLowerCase());
+      if (email) dupIndex.byEmail.add(email.toLowerCase());
+      if (mobile) dupIndex.byPhone.add(normalisePhoneForMatch(mobile));
     }
   }
 

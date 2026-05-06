@@ -7,6 +7,7 @@ import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, ARTIST_DISCIPLINE_LABELS, 
 import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 import ArchiveTalentButton from '@/components/entities/ArchiveTalentButton';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
+import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
 
@@ -110,6 +111,7 @@ export default async function TalentDetailPage({ params }: Props) {
               </Link>
               <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
               <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />
+              <DeleteEntityButton type="talent" id={talent.id} name={talent.working_name} size="sm" />
             </div>
           </div>
         </section>
@@ -143,10 +145,23 @@ export default async function TalentDetailPage({ params }: Props) {
             <Field label="Mobile" value={talent.mobile} />
             <Field label="Pronouns" value={talent.pronouns} />
             <Field label="Date of Birth" value={talent.dob ? formatDate(talent.dob) : null} />
+            <Field label="City / Home Base" value={talent.city} />
+            <Field label="Home Address" value={talent.home_address} />
             <Field label="Instagram" value={talent.instagram} />
             <Field label="Website" value={talent.website} />
           </div>
         </section>
+
+        {/* Call sheet */}
+        {(talent.dietary || talent.drink_order) && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Dietary" value={talent.dietary} />
+              <Field label="Drink Order" value={talent.drink_order} />
+            </div>
+          </section>
+        )}
 
         {/* Business */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
