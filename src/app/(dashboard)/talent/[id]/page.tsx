@@ -8,6 +8,7 @@ import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 import ArchiveTalentButton from '@/components/entities/ArchiveTalentButton';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
+import DataRightsControls from '@/components/entities/DataRightsControls';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
 
@@ -222,6 +223,8 @@ export default async function TalentDetailPage({ params }: Props) {
             <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{talent.notes}</p>
           </section>
         )}
+
+        <DataRightsControls type="talent" id={talent.id} name={talent.working_name} />
 
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

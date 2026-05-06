@@ -254,6 +254,131 @@ export async function deleteTalentAction(id: string) {
   return { ok: true };
 }
 
+// ============================================================
+// Right to be forgotten — Australian Privacy Principle 11 / 12 / 13
+// ============================================================
+//
+// "Anonymise" — preserve the row + its operational/financial history,
+// but null out / replace every PII column. The booking_talent and
+// fee_lines references stay intact (so financial reports don't break),
+// but the row no longer identifies the person.
+//
+// This is a one-way operation: the original PII is gone. Only call it
+// after a verified APP 12 access request has been fulfilled (the
+// person has their data export) AND they've explicitly asked for
+// erasure under APP 13.
+//
+// We don't fully delete because:
+//   - Tax records (super, ABN-linked invoices) must be retained for 7 yrs
+//   - Audit log integrity (record_id references stay queryable)
+//   - Financial reports (revenue/cost attribution) stay accurate
+//
+// What gets nulled / replaced:
+//   - working_name, legal_name → "Anonymised <random8>"
+//   - email, mobile, instagram, website, abn, home_address, dob,
+//     emergency_*, super_*, passport_*, drivers_licence_*, wwcc_*,
+//     visa_*, xero_contact_id, dietary, drink_order, city, notes
+//   - is_active → false
+//   - onboarding_completed → false (token wiped)
+//
+// The row itself stays so booking_talent / fee_lines / audit_log keep
+// working. Anyone reading those rows sees "Anonymised ab12cd34" instead
+// of the real name.
+
+function randomAnonId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export async function anonymiseTalentAction(id: string) {
+  const anonId = randomAnonId();
+  const updates = {
+    working_name: `Anonymised ${anonId}`,
+    legal_name: `Anonymised ${anonId}`,
+    specialty: null,
+    preferred_comms: null,
+    pronouns: null,
+    dob: null,
+    mobile: null,
+    email: null,
+    home_address: null,
+    city: null,
+    dietary: null,
+    drink_order: null,
+    emergency_name: null,
+    emergency_relationship: null,
+    emergency_mobile: null,
+    emergency_email: null,
+    abn: null,
+    super_fund_name: null,
+    super_member_number: null,
+    super_usi: null,
+    passport_expiry: null,
+    drivers_licence_expiry: null,
+    wwcc_number: null,
+    wwcc_expiry: null,
+    visa_expiry: null,
+    work_rights: null,
+    instagram: null,
+    website: null,
+    xero_contact_id: null,
+    drive_folder_id: null,
+    drive_folder_link: null,
+    notes: null,
+    onboarding_completed: false,
+    onboarding_token: null,
+    onboarding_token_expires_at: null,
+    is_active: false,
+  };
+
+  const result = await updateTalent(id, updates as never);
+  if (!result) return { error: 'Anonymise failed' };
+
+  await auditEntityMutation({
+    table: 'atelier_talent',
+    recordId: id,
+    action: 'archive',
+    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+  });
+
+  revalidatePath('/talent');
+  revalidatePath(`/talent/${id}`);
+  return { ok: true, anonId };
+}
+
+export async function anonymiseClientAction(id: string) {
+  const supabase = await createClient();
+  const anonId = randomAnonId();
+
+  const { error } = await supabase
+    .from('atelier_clients')
+    .update({
+      name: `Anonymised ${anonId}`,
+      company: null,
+      email: null,
+      phone: null,
+      abn: null,
+      notes: null,
+      preferred_comms: null,
+      drive_folder_id: null,
+      drive_folder_link: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+
+  await auditEntityMutation({
+    table: 'atelier_clients',
+    recordId: id,
+    action: 'archive',
+    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+  });
+
+  revalidatePath('/clients');
+  revalidatePath(`/clients/${id}`);
+  return { ok: true, anonId };
+}
+
 /**
  * Soft-archive a talent: sets is_active=false. Doctrine: never hard-delete,
  * preserve audit trail. Reactivate via setTalentActiveAction(id, true).
