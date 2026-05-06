@@ -10,8 +10,8 @@ type Props = {
 };
 
 const TEMPLATE_COLUMNS = {
-  talent: 'working_name,legal_name,discipline,specialty,email,mobile,instagram,website,abn,gst_registered,entity_type,representation_status,default_day_rate,is_active,notes',
-  crew: 'name,email,mobile,primary_role,tier,abn,gst_registered,default_day_rate,is_active,notes',
+  talent: 'working_name,legal_name,discipline,specialty,email,mobile,city,dietary,drink_order,instagram,website,abn,gst_registered,entity_type,representation_status,default_day_rate,is_active,notes',
+  crew: 'name,email,mobile,city,dietary,drink_order,primary_role,tier,abn,gst_registered,default_day_rate,is_active,notes',
 };
 
 const VALID_DISCIPLINES = 'photographer | videographer | wardrobe_stylist | hair | makeup | hair_and_makeup | manicurist';

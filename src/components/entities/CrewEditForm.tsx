@@ -14,6 +14,12 @@ const TIER_OPTIONS = [
   { value: 'never_again', label: 'Never Again' },
 ];
 
+// Common AU + international cities Jasper books from. Free-text fallback.
+const COMMON_CITIES = [
+  'Sydney', 'Melbourne', 'Byron Bay/Gold Coast', 'Brisbane', 'Adelaide', 'Perth',
+  'Paris', 'London', 'New York', 'Los Angeles',
+];
+
 export default function CrewEditForm({ crew }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -69,7 +75,7 @@ export default function CrewEditForm({ crew }: Props) {
           <input name="name" required defaultValue={crew.name} style={inputStyle} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label style={labelStyle}>Primary Role</label>
             <select name="primary_role" defaultValue={crew.primary_role ?? ''} style={inputStyle}>
@@ -87,6 +93,29 @@ export default function CrewEditForm({ crew }: Props) {
               ))}
             </select>
           </div>
+          <div>
+            <label style={labelStyle}>City / Home Base</label>
+            <input
+              name="city"
+              defaultValue={crew.city ?? ''}
+              list="crew-cities"
+              style={inputStyle}
+              placeholder="Sydney, Melbourne, …"
+            />
+            <datalist id="crew-cities">
+              {COMMON_CITIES.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Secondary Roles (comma separated)</label>
+          <input
+            name="secondary_roles"
+            defaultValue={(crew.secondary_roles ?? []).join(', ')}
+            style={inputStyle}
+            placeholder="e.g. 1AC, drone op"
+          />
         </div>
       </section>
 
@@ -105,22 +134,52 @@ export default function CrewEditForm({ crew }: Props) {
           </div>
         </div>
 
-        <div>
-          <label style={labelStyle}>Preferred Comms</label>
-          <select name="preferred_comms" defaultValue={crew.preferred_comms ?? ''} style={{ ...inputStyle, maxWidth: 240 }}>
-            <option value="">— Not set —</option>
-            {PREFERRED_COMMS_OPTIONS.map((c) => (
-              <option key={c} value={c}>{PREFERRED_COMMS_LABELS[c]}</option>
-            ))}
-          </select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Preferred Comms</label>
+            <select name="preferred_comms" defaultValue={crew.preferred_comms ?? ''} style={inputStyle}>
+              <option value="">— Not set —</option>
+              {PREFERRED_COMMS_OPTIONS.map((c) => (
+                <option key={c} value={c}>{PREFERRED_COMMS_LABELS[c]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Date of Birth</label>
+            <input name="dob" type="date" defaultValue={crew.dob ?? ''} style={inputStyle} />
+          </div>
         </div>
+
+        <div>
+          <label style={labelStyle}>Home Address</label>
+          <input name="home_address" defaultValue={crew.home_address ?? ''} style={inputStyle} placeholder="Unit / street, suburb, postcode" />
+        </div>
+      </section>
+
+      {/* Call sheet — Dietary + Drink */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet Preferences</h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Dietary Requirements</label>
+            <input name="dietary" defaultValue={crew.dietary ?? ''} style={inputStyle} placeholder="NIL, GF & DF, no chicken, …" />
+          </div>
+          <div>
+            <label style={labelStyle}>Drink Order</label>
+            <input name="drink_order" defaultValue={crew.drink_order ?? ''} style={inputStyle} placeholder="Long black, oat cap, …" />
+          </div>
+        </div>
+        <p className="text-[11px]" style={{ color: PALETTE.muted }}>
+          These appear on the crew call sheet sent to clients.
+        </p>
       </section>
 
       {/* Business / Finance */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business & Finance</h3>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label style={labelStyle}>ABN</label>
             <input name="abn" defaultValue={crew.abn ?? ''} style={inputStyle} placeholder="XX XXX XXX XXX" />
@@ -132,19 +191,32 @@ export default function CrewEditForm({ crew }: Props) {
               <option value="true">Yes</option>
             </select>
           </div>
+          <div>
+            <label style={labelStyle}>Default Day Rate (AUD)</label>
+            <input
+              name="default_day_rate"
+              type="number"
+              min={0}
+              step={50}
+              defaultValue={crew.default_day_rate ?? ''}
+              style={inputStyle}
+              placeholder="e.g. 800"
+            />
+          </div>
         </div>
 
-        <div>
-          <label style={labelStyle}>Default Day Rate (AUD)</label>
-          <input
-            name="default_day_rate"
-            type="number"
-            min={0}
-            step={50}
-            defaultValue={crew.default_day_rate ?? ''}
-            style={{ ...inputStyle, width: 160 }}
-            placeholder="e.g. 800"
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Xero Contact ID</label>
+            <input name="xero_contact_id" defaultValue={crew.xero_contact_id ?? ''} style={inputStyle} placeholder="UUID from Xero" />
+          </div>
+          <div>
+            <label style={labelStyle}>Bank Setup in Xero</label>
+            <select name="bank_setup_in_xero" defaultValue={crew.bank_setup_in_xero ? 'true' : 'false'} style={inputStyle}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -165,6 +237,31 @@ export default function CrewEditForm({ crew }: Props) {
             <label style={labelStyle}>USI</label>
             <input name="super_usi" defaultValue={crew.super_usi ?? ''} style={inputStyle} />
           </div>
+        </div>
+      </section>
+
+      {/* Equipment + certifications */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Equipment & Certifications</h3>
+
+        <div>
+          <label style={labelStyle}>Kit List</label>
+          <textarea
+            name="kit_list"
+            defaultValue={crew.kit_list ?? ''}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical' }}
+            placeholder="e.g. Sony FX6 + 24-70 GM, 2x Aputure 600d, DJI RS3 Pro"
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Certifications (comma separated)</label>
+          <input
+            name="certifications"
+            defaultValue={(crew.certifications ?? []).join(', ')}
+            style={inputStyle}
+            placeholder="e.g. White Card, RPL drone, RSA"
+          />
         </div>
       </section>
 

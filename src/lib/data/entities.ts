@@ -105,13 +105,29 @@ export async function updateTalent(id: string, updates: Partial<Talent>): Promis
 // Crew
 // ============================================================
 
-export async function listCrew(filters?: { tier?: CrewTier; search?: string }): Promise<Crew[]> {
+export async function listCrew(filters?: { tier?: CrewTier; search?: string; city?: string }): Promise<Crew[]> {
   const supabase = await createClient();
   let query = supabase.from('atelier_crew').select('*').order('name');
   if (filters?.tier) query = query.eq('tier', filters.tier);
+  if (filters?.city) query = query.eq('city', filters.city);
   if (filters?.search) query = query.ilike('name', `%${filters.search}%`);
   const { data } = await query;
   return (data ?? []) as Crew[];
+}
+
+/** Returns the distinct list of cities currently assigned to crew, alphabetised. */
+export async function listCrewCities(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('atelier_crew')
+    .select('city')
+    .not('city', 'is', null);
+  const cities = new Set<string>();
+  for (const row of data ?? []) {
+    const c = (row as { city: string | null }).city;
+    if (c) cities.add(c);
+  }
+  return Array.from(cities).sort();
 }
 
 export async function getCrewMember(id: string): Promise<Crew | null> {

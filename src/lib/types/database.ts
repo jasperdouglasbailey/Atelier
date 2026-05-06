@@ -120,6 +120,12 @@ export interface Talent {
   dob: string | null;
   mobile: string | null;
   email: string | null;
+  /** Home base — used by talent list city filter. */
+  city: string | null;
+  /** Free text. Surfaced on call sheets. */
+  dietary: string | null;
+  /** Free text. Surfaced on call sheets. */
+  drink_order: string | null;
   home_address: string | null;
   emergency_name: string | null;
   emergency_relationship: string | null;
@@ -162,6 +168,14 @@ export interface Crew {
   mobile: string | null;
   /** How this crew member prefers to be contacted. */
   preferred_comms: string | null;
+  /** Home base — used by the crew list city filter (Sydney, Melbourne, ...). */
+  city: string | null;
+  /** Free text. "NIL", "VEGAN", "GF & DF", "No chicken". Surfaced on call sheets. */
+  dietary: string | null;
+  /** Free text. "Long black", "Strong oat cap". Surfaced on call sheets. */
+  drink_order: string | null;
+  home_address: string | null;
+  dob: string | null;
   abn: string | null;
   gst_registered: boolean;
   primary_role: string | null;
@@ -179,6 +193,7 @@ export interface Crew {
   notes: string | null;
   onboarding_completed: boolean;
   onboarding_token: string | null;
+  onboarding_token_expires_at: string | null;
   /** Auto-created Drive folder for portfolio + non-PII material. */
   drive_folder_id: string | null;
   drive_folder_link: string | null;
