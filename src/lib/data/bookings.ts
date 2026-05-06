@@ -283,6 +283,10 @@ export async function transitionState(
     patch.cancellation_reason = meta?.reason ?? null;
     patch.cancellation_fee = meta?.cancellationFee ?? null;
   }
+  // Record when the quote was sent — drives the quote-chase cron's day-counter
+  if (newState === 'quote_sent') {
+    patch.quote_sent_at = new Date().toISOString();
+  }
   // Set OT window when shoot wraps
   if (newState === 'morning_after_check') {
     const windowEnd = new Date();

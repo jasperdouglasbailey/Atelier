@@ -284,6 +284,8 @@ export interface Booking {
   calendar_event_id: string | null;
   /** Opaque UUID for the /q/[token] public quote link sent to clients. */
   quote_token: string;
+  /** Set automatically when the booking transitions to quote_sent. */
+  quote_sent_at: string | null;
   /** Set automatically when the booking transitions to invoice_issued. */
   invoice_issued_at: string | null;
   /** Set automatically when the booking transitions to paid. */

@@ -9,6 +9,10 @@
       "schedule": "0 21 * * *"
     },
     {
+      "path": "/api/cron/quote-chase",
+      "schedule": "30 21 * * *"
+    },
+    {
       "path": "/api/cron/compliance-pings",
       "schedule": "0 22 * * *"
     }
