@@ -47,11 +47,36 @@ type _BookingCrewCheck   = _assertCompat<Pick<BookingCrew, 'id' | 'booking_id' |
 type _BrandCheck         = _assertCompat<Pick<Brand, 'id' | 'name'>, Tables['atelier_brands']['Row']>;
 type _LocationCheck      = _assertCompat<Pick<Location, 'id' | 'name' | 'is_active'>, Tables['atelier_locations']['Row']>;
 
+// === Newer tables — added after the original compat-test file ===
+// These don't have hand-typed interfaces in database.ts (they're consumed
+// via the generated types directly), so we just inline the columns we
+// actually rely on. If any of these get renamed or dropped, the type-level
+// check fails at compile time.
+type _AppUsersCheck = _assertCompat<
+  { user_id: string; role: string; talent_id: string | null; crew_id: string | null; is_active: boolean },
+  Tables['atelier_app_users']['Row']
+>;
+type _CorpusCheck = _assertCompat<
+  { id: string; outcome: string; tier: string | null; client_hash: string | null; talent_hash: string | null; grand_total: number | null },
+  Tables['atelier_corpus_bookings']['Row']
+>;
+// Onboarding token columns — magic-link flow depends on these
+type _OnboardingTalentCheck = _assertCompat<
+  { onboarding_token: string | null; onboarding_token_expires_at: string | null; home_address: string | null; dob: string | null },
+  Tables['atelier_talent']['Row']
+>;
+type _OnboardingCrewCheck = _assertCompat<
+  { onboarding_token: string | null; onboarding_token_expires_at: string | null; home_address: string | null; dob: string | null },
+  Tables['atelier_crew']['Row']
+>;
+
 // Suppress unused-type warnings — the assertions above are the test.
 type _Used =
   | _BookingCheck | _ClientCheck | _TalentCheck | _CrewCheck
   | _FeeLineCheck | _BookingTalentCheck | _BookingCrewCheck
-  | _BrandCheck | _LocationCheck;
+  | _BrandCheck | _LocationCheck
+  | _AppUsersCheck | _CorpusCheck
+  | _OnboardingTalentCheck | _OnboardingCrewCheck;
 const _used: _Used | null = null;
 void _used;
 

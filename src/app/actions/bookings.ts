@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { reportDataError } from '@/lib/utils/data-errors';
 import { createBooking, getBooking, updateBooking, transitionState, deleteBookingWithCorpus, type CreateBookingInput } from '@/lib/data/bookings';
 import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent } from '@/lib/data/quotes';
 import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
@@ -261,9 +262,13 @@ export async function transitionBookingAction(
   if (newState === 'quote_sent') {
     const ks = await checkKillSwitch();
     if (ks.canProceed) {
-      proposeHoldRequests(id).catch((err) =>
-        console.error('[transitionBookingAction] auto hold-request failed', err),
-      );
+      proposeHoldRequests(id)
+        .then(() => {
+          // Hold-request rows surface in the inbox count + booking team panel
+          revalidatePath(`/bookings/${id}`);
+          revalidatePath('/inbox');
+        })
+        .catch((err) => reportDataError('[transitionBookingAction] auto hold-request failed', err));
     }
   }
 
@@ -277,15 +282,18 @@ export async function transitionBookingAction(
       // Drive folders
       if (booking.booking_ref) {
         createBookingFolders(booking.booking_ref, year)
-          .then((driveIds) => {
+          .then(async (driveIds) => {
             if (!driveIds) return;
-            return updateBooking(id, {
+            await updateBooking(id, {
               drive_root_id: driveIds.root_id,
               drive_folder_ids: driveIds.folder_ids,
               drive_root_link: driveIds.root_link,
             });
+            // Folder links surface on the booking detail page; bust the cache
+            // so Jasper's next view picks them up without a manual reload.
+            revalidatePath(`/bookings/${id}`);
           })
-          .catch((err) => console.error('[transitionBookingAction] Drive folder creation failed', err));
+          .catch((err) => reportDataError('[transitionBookingAction] Drive folder creation failed', err));
       }
 
       // Auto-draft confirmation email to client — always a draft (never auto-sent).
@@ -307,7 +315,7 @@ export async function transitionBookingAction(
           body: confirmBody,
           bookingRef: booking.booking_ref ?? undefined,
         }).catch((err) =>
-          console.error('[transitionBookingAction] confirmation email draft failed', err),
+          reportDataError('[transitionBookingAction] confirmation email draft failed', err),
         );
       }
 
@@ -328,11 +336,14 @@ export async function transitionBookingAction(
           ].filter(Boolean).join('\n'),
           bookingRef: booking.booking_ref ?? undefined,
         })
-          .then((result) => {
+          .then(async (result) => {
             if (!result) return;
-            return updateBooking(id, { calendar_event_id: result.eventId });
+            await updateBooking(id, { calendar_event_id: result.eventId });
+            // calendar_event_id is read on the booking detail page to render
+            // the Calendar link affordance; bust cache so it shows up
+            revalidatePath(`/bookings/${id}`);
           })
-          .catch((err) => console.error('[transitionBookingAction] Calendar event creation failed', err));
+          .catch((err) => reportDataError('[transitionBookingAction] Calendar event creation failed', err));
       }
     }
   }
@@ -342,7 +353,7 @@ export async function transitionBookingAction(
     const booking = await getBooking(id);
     if (booking?.calendar_event_id) {
       deleteCalendarEvent(booking.calendar_event_id).catch((err) =>
-        console.error('[transitionBookingAction] Calendar event deletion failed', err),
+        reportDataError('[transitionBookingAction] Calendar event deletion failed', err),
       );
     }
   }
@@ -353,19 +364,20 @@ export async function transitionBookingAction(
     const finalsId = (booking?.drive_folder_ids as { finals?: string } | null)?.finals;
     if (finalsId) {
       createSharedLink(finalsId)
-        .then((link) => {
+        .then(async (link) => {
           if (!link) return;
           // Persist the Finals shared link in agency_notes as a reference until
           // we have a dedicated delivery_link column.
           const existingNotes = booking?.agency_notes ?? '';
           const noteEntry = `[Drive Finals] ${link}`;
           if (!existingNotes.includes(noteEntry)) {
-            return updateBooking(id, {
+            await updateBooking(id, {
               agency_notes: existingNotes ? `${existingNotes}\n${noteEntry}` : noteEntry,
             });
+            revalidatePath(`/bookings/${id}`);
           }
         })
-        .catch((err) => console.error('[transitionBookingAction] Drive shared link failed', err));
+        .catch((err) => reportDataError('[transitionBookingAction] Drive shared link failed', err));
     }
   }
 

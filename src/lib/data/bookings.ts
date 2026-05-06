@@ -42,8 +42,11 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   page: number;
   pageSize: number;
 }> {
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 20;
+  // Defensive bounds — `page` and `pageSize` flow in from URL params and
+  // could be 0, negative, or absurdly large. Clamp before computing the
+  // Supabase range so a `?page=-5&pageSize=99999` URL can't break things.
+  const page = Math.max(1, Math.floor(filters.page ?? 1));
+  const pageSize = Math.min(Math.max(1, Math.floor(filters.pageSize ?? 20)), 100);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
