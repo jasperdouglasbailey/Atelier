@@ -469,6 +469,18 @@ export interface Location {
   drive_folder_link: string | null;
 }
 
+export interface BusinessRenewal {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  type: string;
+  label: string;
+  expires_at: string;
+  notes: string | null;
+  reminder_queued_at: string | null;
+  is_archived: boolean;
+}
+
 export interface KillSwitchState {
   id: string;
   is_active: boolean;

@@ -156,5 +156,80 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ============================================================
+  // Business renewals sweep (PR#34) — agency-side reminders to Jasper.
+  // ============================================================
+  const agencyEmail = process.env.NEXT_PUBLIC_AGENCY_EMAIL ?? 'info@saundersandco.com.au';
+
+  const { data: renewals, error: renewalsErr } = await supabase
+    .from('atelier_business_renewals')
+    .select('id, type, label, expires_at, notes')
+    .eq('is_archived', false);
+
+  if (renewalsErr) {
+    console.error('[cron/compliance-pings] business renewals fetch error', renewalsErr.message);
+    await logAudit({
+      userId: null,
+      action: 'cron_business_renewals_failed',
+      tableName: 'atelier_business_renewals',
+      newValue: { error: renewalsErr.message },
+    }).catch(() => {});
+  }
+
+  for (const r of renewals ?? []) {
+    const expiresAt = r.expires_at as string;
+    const days = daysUntil(expiresAt);
+    if (days < 0 || days > PING_THRESHOLD_DAYS) continue;
+
+    const expiryReadable = new Date(expiresAt).toLocaleDateString('en-AU', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+    const subject = `Reminder: ${r.label} expires ${expiryReadable}`;
+    const body = `Hi Jasper,
+
+Quick reminder — ${r.label} is due on ${expiryReadable} (${days} day${days === 1 ? '' : 's'} from now).
+
+${r.notes ? `Notes on file: ${r.notes}\n\n` : ''}Action this before the expiry to avoid lapsing.
+
+— Atelier`;
+
+    const key = `business_renewal_${r.id}_${expiresAt}`;
+    const { error: insertErr } = await supabase.from('atelier_approvals').insert({
+      agent: 'comms',
+      action_type: 'business_renewal_reminder',
+      booking_id: null,
+      summary: `${r.label} expires in ${days}d`,
+      draft_content: {
+        to: [agencyEmail],
+        subject,
+        body,
+        renewal_id: r.id,
+        renewal_type: r.type,
+        expiry_date: expiresAt,
+        days_until_expiry: days,
+      },
+      confidence: 100,
+      uncertainty_sources: [],
+      idempotency_key: key,
+      status: 'pending',
+    });
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        skipped.push(key);
+      } else {
+        console.error('[cron/compliance-pings] business insert error', key, insertErr.message);
+      }
+    } else {
+      // Mark the row so the dashboard can show "reminder queued"
+      await supabase
+        .from('atelier_business_renewals')
+        .update({ reminder_queued_at: new Date().toISOString() })
+        .eq('id', r.id);
+      queued++;
+      console.log('[cron/compliance-pings] business queued', key);
+    }
+  }
+
   return NextResponse.json({ queued, skipped: skipped.length });
 }

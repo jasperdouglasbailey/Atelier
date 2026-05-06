@@ -41,6 +41,9 @@ export async function applyApprovalDecisionEffects(approval: Approval, decision:
     case 'compliance_renewal_ping':
       await applyComplianceRenewalPingEffect(approval, decision);
       return;
+    case 'business_renewal_reminder':
+      await applyBusinessRenewalReminderEffect(approval, decision);
+      return;
     default:
       // Unknown action_type — no side effects yet. Logged for visibility.
       console.warn('[approval-effects] no handler for', approval.action_type);
@@ -222,6 +225,34 @@ async function applyClientQuoteChaseEmailEffect(approval: Approval, decision: De
     subject: draft.subject,
     body: draft.body,
     auditAction: 'client_quote_chase_email_send',
+  });
+}
+
+async function applyBusinessRenewalReminderEffect(approval: Approval, decision: Decision) {
+  if (decision !== 'approved') return;
+
+  const draft = approval.draft_content;
+  if (!isEmailDraftContent(draft)) {
+    console.warn('[approval-effects] business_renewal_reminder missing/invalid draft_content');
+    return;
+  }
+  if (draft.to.length === 0) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'business_renewal_reminder_send',
+      tableName: 'atelier_approvals',
+      recordId: approval.id,
+      error: 'recipient_missing',
+    }).catch(() => {});
+    return;
+  }
+
+  await sendApprovedEmail({
+    approval,
+    recipients: draft.to,
+    subject: draft.subject,
+    body: draft.body,
+    auditAction: 'business_renewal_reminder_send',
   });
 }
 
