@@ -15,6 +15,8 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import { logAudit } from '@/lib/utils/audit';
 
 const CHASE_DAY_MARKS = [7, 14, 22, 30] as const;
 
@@ -52,22 +54,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Doctrine: kill switch RED defers automation. Don't queue chase drafts
+  // when Jasper has paused outbound — they'd just clutter the inbox.
+  const ks = await getKillSwitchState();
+  if (ks?.is_active) {
+    return NextResponse.json({ skipped: 'kill_switch_active' });
+  }
+
   const supabase = createServiceClient();
 
-  // Find bookings past final_delivery with a known delivery timestamp
+  // Time-bound: chasing a delivery older than 90 days is never useful.
+  // Cap result count for safety as the booking history grows.
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Find bookings past final_delivery with a known delivery timestamp.
+  // Pull the client email upfront so the approval handler doesn't need a
+  // second round-trip when Jasper approves the draft.
   const { data: bookings, error: fetchErr } = await supabase
     .from('atelier_bookings')
     .select(`
       id,
       booking_ref,
       final_delivery_at,
-      client:atelier_clients!atelier_bookings_client_id_fkey(name, company)
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email)
     `)
     .not('final_delivery_at', 'is', null)
-    .in('state', ['final_delivery', 'invoice_issued', 'paid']);
+    .gte('final_delivery_at', ninetyDaysAgo)
+    .in('state', ['final_delivery', 'invoice_issued', 'paid'])
+    .limit(500);
 
   if (fetchErr) {
     console.error('[cron/post-shoot-chase] fetch error', fetchErr.message);
+    await logAudit({
+      userId: null,
+      action: 'cron_post_shoot_chase_failed',
+      tableName: 'atelier_bookings',
+      newValue: { error: fetchErr.message },
+    }).catch(() => {});
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
@@ -81,11 +104,20 @@ export async function GET(req: NextRequest) {
     // Supabase join inference returns client as array | object depending on relation.
     // Normalise to a single record before reading.
     const clientRaw = booking.client as unknown as
-      | { name: string; company: string | null }
-      | { name: string; company: string | null }[]
+      | { name: string; company: string | null; email: string | null }
+      | { name: string; company: string | null; email: string | null }[]
       | null;
     const clientObj = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw;
     const clientName = clientObj?.company ?? clientObj?.name ?? 'there';
+    const clientEmail = clientObj?.email ?? null;
+
+    // Doctrine: never queue a chase that can't be sent. If we don't know
+    // where to send it, skip with a warning — Jasper sees the gap on the
+    // booking detail rather than as an unsendable inbox item.
+    if (!clientEmail) {
+      console.warn('[cron/post-shoot-chase] skipping — no client email for', booking.booking_ref);
+      continue;
+    }
 
     for (const mark of CHASE_DAY_MARKS) {
       if (days < mark) continue; // not time yet
@@ -99,14 +131,14 @@ export async function GET(req: NextRequest) {
         booking_id: booking.id,
         summary: `Day-${mark} post-shoot chase — ${booking.booking_ref}`,
         draft_content: {
-          to: [],  // populated from booking.client.email when approved
+          to: [clientEmail],
           subject: draft.subject,
           body: draft.body,
           day_mark: mark,
           booking_ref: booking.booking_ref,
         },
         confidence: 90,
-        uncertainty_sources: ['Client email address must be resolved before send'],
+        uncertainty_sources: [],
         idempotency_key: key,
         status: 'pending',
       });

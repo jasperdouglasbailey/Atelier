@@ -6,14 +6,21 @@
  * keeps that translation in one place — every action_type maps to a
  * concrete update keyed off the approval's draft_content payload.
  *
- * Add a new branch when you add a new action_type. Default = no-op.
+ * Add a new branch when you add a new action_type. Default = no-op,
+ * BUT prefer adding the handler explicitly — silent no-ops on approved
+ * drafts cost real workflow time (we shipped two crons that produced
+ * approvals nothing handled, and Jasper kept clicking approve with no
+ * email going out).
  */
 
 import type { Approval } from '@/lib/types/database';
 import { updateBookingCrewStatusByCrewId } from '@/lib/data/quotes';
-import { logAudit } from '@/lib/utils/audit';
+import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
 import { getCurrentActor } from '@/lib/utils/actor';
+import { sendEmail } from '@/lib/integrations/gmail';
+import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
 
 export type Decision = 'approved' | 'rejected';
 
@@ -22,9 +29,15 @@ export async function applyApprovalDecisionEffects(approval: Approval, decision:
     case 'crew_hold_request':
       await applyCrewHoldRequestEffect(approval, decision);
       return;
+    case 'client_chase_email':
+      await applyClientChaseEmailEffect(approval, decision);
+      return;
+    case 'compliance_renewal_ping':
+      await applyComplianceRenewalPingEffect(approval, decision);
+      return;
     default:
       // Unknown action_type — no side effects yet. Logged for visibility.
-      console.info('[approval-effects] no handler for', approval.action_type);
+      console.warn('[approval-effects] no handler for', approval.action_type);
       return;
   }
 }
@@ -57,5 +70,151 @@ async function applyCrewHoldRequestEffect(approval: Approval, decision: Decision
     recordId: `${bookingId}:${crewId}`,
     oldValue: { status: 'hold_requested' },
     newValue: { status: 'sent', via: 'approval', approval_id: approval.id },
+  });
+}
+
+// ============================================================
+// Client chase email (post-shoot follow-up)
+// ============================================================
+
+type EmailDraftContent = {
+  to: string[];
+  subject: string;
+  body: string;
+};
+
+function isEmailDraftContent(v: unknown): v is EmailDraftContent {
+  if (!v || typeof v !== 'object') return false;
+  const obj = v as Record<string, unknown>;
+  return Array.isArray(obj.to) && typeof obj.subject === 'string' && typeof obj.body === 'string';
+}
+
+async function sendApprovedEmail(input: {
+  approval: Approval;
+  recipients: string[];
+  subject: string;
+  body: string;
+  auditAction: string;
+}): Promise<void> {
+  // Doctrine: kill-switch RED holds outbound. The approval already cleared
+  // human review, but if the switch flipped between queue + approve we
+  // respect that — keep the approval marked approved, but don't send.
+  const ks = await getKillSwitchState();
+  if (ks?.is_active) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: input.auditAction,
+      tableName: 'atelier_approvals',
+      recordId: input.approval.id,
+      error: 'kill_switch_active',
+      attempted: { pause_outbound: ks.pause_outbound },
+    }).catch(() => {});
+    return;
+  }
+
+  if (!isGoogleConfigured()) {
+    // Dev / no-credentials path — sendEmail() returns a stub. We still
+    // log so the timeline shows the handler ran.
+    await logAudit({
+      userId: await getCurrentActor(),
+      action: input.auditAction,
+      tableName: 'atelier_approvals',
+      recordId: input.approval.id,
+      newValue: { stub: true, recipients: input.recipients },
+    });
+    return;
+  }
+
+  try {
+    const result = await sendEmail({
+      to: input.recipients,
+      subject: input.subject,
+      body: input.body,
+      bodyType: 'text',
+      bookingRef: input.approval.booking_id ?? undefined,
+    });
+
+    await logAudit({
+      userId: await getCurrentActor(),
+      action: input.auditAction,
+      tableName: 'atelier_approvals',
+      recordId: input.approval.id,
+      newValue: {
+        message_id: result.messageId,
+        recipients: input.recipients,
+        sent_at: result.sentAt,
+      },
+    });
+  } catch (err) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: input.auditAction,
+      tableName: 'atelier_approvals',
+      recordId: input.approval.id,
+      error: err instanceof Error ? err.message : 'send_failed',
+    }).catch(() => {});
+    // Re-throw so the calling action can surface the failure to the UI —
+    // approving a draft and silently dropping the send is exactly the bug
+    // this whole module was rewritten to prevent.
+    throw err;
+  }
+}
+
+async function applyClientChaseEmailEffect(approval: Approval, decision: Decision) {
+  if (decision !== 'approved') return;
+
+  const draft = approval.draft_content;
+  if (!isEmailDraftContent(draft)) {
+    console.warn('[approval-effects] client_chase_email missing/invalid draft_content');
+    return;
+  }
+  if (draft.to.length === 0) {
+    // Pre-PR-30 chase rows were queued without the recipient. Surface
+    // rather than silently no-op.
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'client_chase_email_send',
+      tableName: 'atelier_approvals',
+      recordId: approval.id,
+      error: 'recipient_missing',
+      attempted: { hint: 'Re-queue the chase via cron — old rows have empty `to`.' },
+    }).catch(() => {});
+    return;
+  }
+
+  await sendApprovedEmail({
+    approval,
+    recipients: draft.to,
+    subject: draft.subject,
+    body: draft.body,
+    auditAction: 'client_chase_email_send',
+  });
+}
+
+async function applyComplianceRenewalPingEffect(approval: Approval, decision: Decision) {
+  if (decision !== 'approved') return;
+
+  const draft = approval.draft_content;
+  if (!isEmailDraftContent(draft)) {
+    console.warn('[approval-effects] compliance_renewal_ping missing/invalid draft_content');
+    return;
+  }
+  if (draft.to.length === 0) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'compliance_renewal_ping_send',
+      tableName: 'atelier_approvals',
+      recordId: approval.id,
+      error: 'recipient_missing',
+    }).catch(() => {});
+    return;
+  }
+
+  await sendApprovedEmail({
+    approval,
+    recipients: draft.to,
+    subject: draft.subject,
+    body: draft.body,
+    auditAction: 'compliance_renewal_ping_send',
   });
 }

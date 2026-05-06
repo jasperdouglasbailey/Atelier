@@ -10,6 +10,8 @@ import {
 import type { FeeLineType, FeeLine } from '@/lib/types/database';
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 import { TEMPLATE_LINES_MAP, type QuoteTemplate } from '@/lib/utils/quote-templates';
+import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 /**
  * Create a new quote version pre-populated with standard template lines.
@@ -133,6 +135,14 @@ export async function addFeeLineAction(formData: FormData) {
   const line = await addFeeLine(input);
   if (!line) return { error: 'Failed to add fee line' };
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'fee_line_add',
+    tableName: 'atelier_fee_lines',
+    recordId: line.id,
+    newValue: { booking_id: bookingId, line_type: lineType, subtotal, asf_amount: asfAmount },
+  }).catch(() => {});
+
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true, id: line.id };
 }
@@ -180,6 +190,14 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
   const result = await updateFeeLine(id, updates);
   if (!result) return { error: 'Failed to update fee line' };
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'fee_line_update',
+    tableName: 'atelier_fee_lines',
+    recordId: id,
+    newValue: updates as never,
+  }).catch(() => {});
+
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
 }
@@ -187,6 +205,14 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
 export async function removeFeeLineAction(id: string, bookingId: string) {
   const ok = await removeFeeLine(id);
   if (!ok) return { error: 'Failed to remove fee line' };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'fee_line_remove',
+    tableName: 'atelier_fee_lines',
+    recordId: id,
+    newValue: { booking_id: bookingId },
+  }).catch(() => {});
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };

@@ -195,21 +195,11 @@ export async function proposeHoldRequests(bookingId: string): Promise<{
   let created = 0;
   let skipped = 0;
 
+  // Idempotency: pass the key directly into the insert so two concurrent
+  // calls collide on the unique constraint atomically. The previous
+  // "check-then-update" pattern had a TOCTOU race window.
   for (const p of proposals) {
-    // Idempotency check via unique constraint
-    const supabase = await createClient();
-    const { data: existing } = await supabase
-      .from('atelier_approvals')
-      .select('id')
-      .eq('idempotency_key', p.idempotencyKey)
-      .maybeSingle();
-
-    if (existing) {
-      skipped++;
-      continue;
-    }
-
-    const approval = await createApproval({
+    const result = await createApproval({
       agent: 'comms',
       action_type: 'crew_hold_request',
       booking_id: bookingId,
@@ -229,14 +219,12 @@ export async function proposeHoldRequests(bookingId: string): Promise<{
       },
       confidence: p.autoApprovable ? 95 : 70,
       uncertainty_sources: p.reasonsBlocked,
+      idempotency_key: p.idempotencyKey,
     });
 
-    if (approval) {
-      // Set idempotency key in a follow-up update — createApproval doesn't pass it through
-      await supabase
-        .from('atelier_approvals')
-        .update({ idempotency_key: p.idempotencyKey })
-        .eq('id', approval.id);
+    if (result.duplicate) {
+      skipped++;
+    } else if (result.approval) {
       created++;
     }
   }

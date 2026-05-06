@@ -93,7 +93,15 @@ export async function createApproval(input: {
   confidence?: number;
   uncertainty_sources?: string[];
   precedent_refs?: string[];
-}): Promise<Approval | null> {
+  /**
+   * Idempotency key — pass directly so the row is inserted with it in
+   * one round trip. Two concurrent calls with the same key will collide
+   * on the unique constraint and the loser gets `duplicate=true`. This
+   * eliminates the TOCTOU race the previous "check-then-update" pattern
+   * had.
+   */
+  idempotency_key?: string;
+}): Promise<{ approval: Approval | null; duplicate: boolean }> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(TABLE)
@@ -104,6 +112,12 @@ export async function createApproval(input: {
     .select()
     .single();
 
-  if (error) { reportDataError('[approvals] create', error); return null; }
-  return data as Approval;
+  if (error) {
+    // 23505 = unique_violation on idempotency_key — this is the "row
+    // already queued" case, not an error.
+    if (error.code === '23505') return { approval: null, duplicate: true };
+    reportDataError('[approvals] create', error);
+    return { approval: null, duplicate: false };
+  }
+  return { approval: data as Approval, duplicate: false };
 }

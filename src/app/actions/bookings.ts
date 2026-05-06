@@ -587,7 +587,22 @@ export async function sendQuoteEmailAction(
   }
 
   if (mode === 'send') {
-    const result = await sendEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
+    // Wrap the send so a Gmail token expiry / network error doesn't leave
+    // the booking transitioned to quote_sent with no email actually out.
+    let result;
+    try {
+      result = await sendEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gmail send failed';
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'send_quote_email',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: msg,
+      }).catch(() => {});
+      return { ok: false as const, error: `Failed to send email: ${msg}. The booking state was not changed.` };
+    }
     if (booking.state === 'quote_drafted') {
       await transitionState(bookingId, 'quote_sent');
     }
@@ -595,9 +610,21 @@ export async function sendQuoteEmailAction(
     revalidatePath('/bookings');
     return { ok: true, mode: 'sent' as const, messageId: result.messageId };
   } else {
-    const result = await draftEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
-    revalidatePath(`/bookings/${bookingId}`);
-    return { ok: true, mode: 'drafted' as const, draftId: result.draftId };
+    try {
+      const result = await draftEmail({ to: [toEmail], subject, body, bookingRef: booking.booking_ref ?? undefined });
+      revalidatePath(`/bookings/${bookingId}`);
+      return { ok: true, mode: 'drafted' as const, draftId: result.draftId };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gmail draft failed';
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'draft_quote_email',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: msg,
+      }).catch(() => {});
+      return { ok: false as const, error: `Failed to create draft: ${msg}` };
+    }
   }
 }
 

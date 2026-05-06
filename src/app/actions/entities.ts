@@ -59,10 +59,10 @@ async function attachEntityDriveFolder(
 
 export async function createClientAction(formData: FormData) {
   const result = await createClientRecord({
-    name: formData.get('name') as string,
+    name: titleCaseName(formData.get('name') as string),
     email: (formData.get('email') as string) || undefined,
     phone: (formData.get('phone') as string) || undefined,
-    company: (formData.get('company') as string) || undefined,
+    company: titleCaseName((formData.get('company') as string) || '') || undefined,
     abn: (formData.get('abn') as string) || undefined,
     is_creative_agency: formData.get('is_creative_agency') === 'true',
     payment_terms_days: formData.get('payment_terms_days') ? Number(formData.get('payment_terms_days')) : undefined,
@@ -82,6 +82,10 @@ export async function updateClientAction(id: string, formData: FormData) {
   for (const [key, val] of formData.entries()) {
     if (key === 'is_creative_agency') updates[key] = val === 'true';
     else if (key === 'payment_terms_days') updates[key] = val ? Number(val) : null;
+    else if (key === 'name' || key === 'company') {
+      // Title-case names + company on save (manual entry safety net)
+      updates[key] = titleCaseName((val as string) || '') || null;
+    }
     else updates[key] = (val as string) || null;
   }
   const result = await updateClient(id, updates);
@@ -94,7 +98,7 @@ export async function updateClientAction(id: string, formData: FormData) {
 
 export async function createBrandAction(formData: FormData) {
   const result = await createBrand({
-    name: formData.get('name') as string,
+    name: titleCaseName(formData.get('name') as string),
     industry: (formData.get('industry') as string) || undefined,
     notes: (formData.get('notes') as string) || undefined,
   });
