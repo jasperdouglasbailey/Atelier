@@ -42,6 +42,22 @@ src/
 3. `grep -rn "TODO\|FIXME\|XXX" src/` for anything new I left behind
 4. Search for hardcoded user names / fake data — should be `getCurrentActor()` or env
 5. If touching the fee engine, the AJE eComm #3579 canonical example must still pass
+6. **Memory sync** — every PR that ships, before declaring done: re-read this file's "Build status" + "Phase order" + "Deferred / blocked" sections, update them to match what just shipped. Same for any other tracking file the change is relevant to (master CLAUDE.md if doctrine touched, ATELIER-HANDOFF.md if onboarding/handoff details, build-spec if scope changed). Skipping this is how the doc drifts from reality.
+
+## Continuous improvement posture
+
+After Phase 1 closes (current trajectory: ~95% done), and again after each subsequent phase, run a **full-app audit** before starting the next phase. Not a triage hardening pass — an actual end-to-end review:
+
+- Every page: UI consistency, empty states, loading, error states, mobile layout, keyboard nav, accessibility
+- Every form: validation, error messaging, labels, autocomplete, save-and-refresh, keyboard shortcuts
+- Every workflow: brief → quote → send → confirm → shoot → invoice → pay; each transition; every reachable screen
+- Every server action: input validation, audit logging, revalidation, error paths, race conditions
+- Every integration: Gmail, Drive, Calendar, Anthropic, Supabase, Xero — failure modes, retries, idempotency, kill-switch coverage
+- Every table: orphaned columns, missing indexes, RLS coverage matching application logic
+- Every cron / background job: what runs when, what happens if it fails
+- Every doctrine line in master CLAUDE.md: verify code actually enforces the rule
+
+Output: ranked findings with file:line, prioritised into a polish PR sequence. Don't skip this in the rush to ship the next feature.
 
 ## Worktree-specific gotchas
 
