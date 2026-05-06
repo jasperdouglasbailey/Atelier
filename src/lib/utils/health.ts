@@ -1,4 +1,10 @@
-import { createClient as createSupabaseServer } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
+
+// Health probes run as the service role on purpose. Their job is to verify
+// that schema + indexes + embedded joins are working, not to test RLS.
+// Running them through the authenticated client would mean unauthenticated
+// monitors hit role-gated tables and always see failures (post Phase 5b
+// RLS lockdown).
 
 /**
  * Critical-query probes used by both `/api/health?probe=1` (for uptime
@@ -30,7 +36,7 @@ async function probe(
 }
 
 export async function runHealthProbes(): Promise<QueryProbe[]> {
-  const supabase = await createSupabaseServer();
+  const supabase = createServiceClient();
 
   return Promise.all([
     probe('listBookings (active)', async () =>

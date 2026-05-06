@@ -8,12 +8,18 @@ import { getCurrentAppUser } from '@/lib/data/app-users';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // Role-based routing: talent/crew users belong in their portal, not the
-  // owner dashboard. Owner/partner (or unprovisioned/no-role users for
-  // backwards compatibility) stay here.
+  // Role-based routing:
+  //   owner/partner → stay (full admin dashboard)
+  //   talent → /portal/talent
+  //   crew   → /portal/crew
+  //   no role → /login?error=not_authorised  (post-RLS lockdown they'd
+  //             see an empty dashboard anyway; this is the friendlier exit)
+  // The middleware has already verified auth.uid() exists; the role check
+  // here is the second gate.
   const appUser = await getCurrentAppUser();
-  if (appUser?.role === 'talent') redirect('/portal/talent');
-  if (appUser?.role === 'crew')   redirect('/portal/crew');
+  if (!appUser)                   redirect('/login?error=not_authorised');
+  if (appUser.role === 'talent')  redirect('/portal/talent');
+  if (appUser.role === 'crew')    redirect('/portal/crew');
 
   const [initialState, inboxCount, userEmail] = await Promise.all([
     getKillSwitchState(),
