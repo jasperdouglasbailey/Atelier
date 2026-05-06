@@ -243,3 +243,39 @@ export const STATE_COLORS: Record<BookingState, string> = {
   released: '#8b8b8b',
   cancelled: '#f87171',
 };
+
+// ============================================================
+// Query limits — central place to tune list-page sizes and
+// auto-complete result caps. Was previously sprinkled as magic
+// numbers (50, 8) across data layer files.
+// ============================================================
+
+export const QUERY_LIMITS = {
+  /** Max approval rows fetched for an inbox view. */
+  approvals_inbox: 50,
+  /** Max client matches when searching by name/company on the bookings list. */
+  bookings_client_search: 50,
+  /** Max events surfaced on a booking detail page. */
+  booking_events: 50,
+  /** Default size for "top N" report sections (top clients, top talent). */
+  reports_top_n: 8,
+  /** Max items returned by a generic typeahead. */
+  typeahead: 20,
+} as const;
+
+// ============================================================
+// Confidence buckets — sample-size doctrine for corpus signals.
+// n < low → 'low', low-1 to strong-1 → 'ok', ≥ strong → 'strong'.
+// Master CLAUDE.md: "<3 = low confidence" — this codifies it.
+// ============================================================
+
+export const CONFIDENCE_THRESHOLDS = {
+  ok: 3,      // n >= 3 graduates from 'low' to 'ok'
+  strong: 10, // n >= 10 graduates from 'ok' to 'strong'
+} as const;
+
+export function bucketConfidence(n: number): 'low' | 'ok' | 'strong' {
+  if (n >= CONFIDENCE_THRESHOLDS.strong) return 'strong';
+  if (n >= CONFIDENCE_THRESHOLDS.ok) return 'ok';
+  return 'low';
+}

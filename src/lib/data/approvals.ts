@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { reportDataError } from '@/lib/utils/data-errors';
+import { QUERY_LIMITS } from '@/lib/utils/constants';
 import type { Approval, ApprovalStatus } from '@/lib/types/database';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
@@ -14,7 +15,7 @@ export async function listApprovals(status?: ApprovalStatus): Promise<Approval[]
     .from(TABLE)
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(QUERY_LIMITS.approvals_inbox);
 
   if (status) query = query.eq('status', status);
 
@@ -77,7 +78,7 @@ export async function decideApproval(
   try {
     await applyApprovalDecisionEffects(approval, decision);
   } catch (err) {
-    console.error('[approvals] decision effects failed', err);
+    reportDataError('[approvals] decision effects failed', err);
   }
 
   return approval;

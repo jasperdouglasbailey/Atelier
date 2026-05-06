@@ -15,6 +15,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { reportDataError } from '@/lib/utils/data-errors';
+import { bucketConfidence } from '@/lib/utils/constants';
 import { createHash } from 'crypto';
 
 export type RateBand = {
@@ -26,7 +27,12 @@ export type RateBand = {
   confidence: 'low' | 'ok' | 'strong';
 };
 
-function bandStats(rates: number[]): RateBand | null {
+/**
+ * Compute distribution stats + confidence bucket for a list of rates.
+ * Confidence buckets are codified in constants.ts (CONFIDENCE_THRESHOLDS).
+ * Exported for unit tests.
+ */
+export function bandStats(rates: number[]): RateBand | null {
   if (rates.length === 0) return null;
   const sorted = [...rates].sort((a, b) => a - b);
   const sum = sorted.reduce((s, n) => s + n, 0);
@@ -34,15 +40,13 @@ function bandStats(rates: number[]): RateBand | null {
   const median = sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];
-  // Confidence buckets per master doctrine: <3 low, 3-9 ok, ≥10 strong
-  const confidence: RateBand['confidence'] = sorted.length >= 10 ? 'strong' : sorted.length >= 3 ? 'ok' : 'low';
   return {
     count: sorted.length,
     min: sorted[0],
     median,
     max: sorted[sorted.length - 1],
     avg: sum / sorted.length,
-    confidence,
+    confidence: bucketConfidence(sorted.length),
   };
 }
 
@@ -235,7 +239,7 @@ export async function getClientCorpusSignal(input: {
       ? (totals[totals.length / 2 - 1] + totals[totals.length / 2]) / 2
       : totals[Math.floor(totals.length / 2)];
 
-  const confidence: RateBand['confidence'] = rows.length >= 10 ? 'strong' : rows.length >= 3 ? 'ok' : 'low';
+  const confidence = bucketConfidence(rows.length);
 
   return { count: rows.length, wonCount, lostCount, medianGrandTotal, confidence };
 }

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { ACTIVE_STATES } from '@/lib/utils/constants';
+import { ACTIVE_STATES, QUERY_LIMITS } from '@/lib/utils/constants';
 
 export type WinRateStat = {
   sent: number;       // quote has been sent (all non-early states)
@@ -189,7 +189,7 @@ export async function getWinRate(): Promise<WinRateStat> {
   return { sent: quoted.length, confirmed, lost, winRate };
 }
 
-export async function getTopTalent(limit = 8): Promise<TalentStat[]> {
+export async function getTopTalent(limit: number = QUERY_LIMITS.reports_top_n): Promise<TalentStat[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -226,7 +226,7 @@ export async function getTopTalent(limit = 8): Promise<TalentStat[]> {
     .slice(0, limit);
 }
 
-export async function getTopClients(limit = 8): Promise<ClientRevenueStat[]> {
+export async function getTopClients(limit: number = QUERY_LIMITS.reports_top_n): Promise<ClientRevenueStat[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase

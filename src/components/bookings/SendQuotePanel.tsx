@@ -102,7 +102,14 @@ export default function SendQuotePanel({
               <h3 className="text-sm font-semibold" style={{ color: PALETTE.text }}>
                 Send Quote — {bookingRef}
               </h3>
-              <button onClick={() => { setOpen(false); setResult(null); }} style={{ color: PALETTE.muted }}>✕</button>
+              <button
+                type="button"
+                aria-label="Close send-quote panel"
+                onClick={() => { setOpen(false); setResult(null); }}
+                style={{ color: PALETTE.muted }}
+              >
+                ✕
+              </button>
             </div>
 
             {result && (
