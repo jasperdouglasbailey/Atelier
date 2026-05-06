@@ -45,7 +45,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
   // Template generation state
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | 'videographer' | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | 'videographer' | 'stylist' | 'hmu' | null>(null);
   // Pre-fill shoot fee from first talent's confirmed day rate, fallback to template default
   const primaryTalentDayRate = bookingTalent[0]?.day_rate ?? null;
   // Detected discipline from the attached primary artist (for template auto-select)
@@ -173,11 +173,13 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     setBusy(false);
   }
 
-  function openTemplate(t: 'photographer' | 'videographer') {
+  function openTemplate(t: 'photographer' | 'videographer' | 'stylist' | 'hmu') {
     setSelectedTemplate(t);
     // Pre-fill shoot fee from talent rate (fallback to template default)
-    const defaultFee = t === 'photographer' ? 4000 : 3000;
-    setShootFeeInput(String(primaryTalentDayRate ?? defaultFee));
+    const defaultFees: Record<typeof t, number> = {
+      photographer: 4000, videographer: 3000, stylist: 1800, hmu: 1400,
+    };
+    setShootFeeInput(String(primaryTalentDayRate ?? defaultFees[t]));
     setShowTemplatePanel(true);
   }
 
@@ -334,9 +336,10 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </div>
           )}
           <p className="text-[10px]" style={{ color: PALETTE.muted }}>
-            {selectedTemplate === 'photographer'
-              ? 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'
-              : 'Creates: shoot fee · 1AC labour ($900) · 1AC kit ($400) · lighting tech ($750). Agency commission + crew fringes auto-computed.'}
+            {selectedTemplate === 'photographer' && 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'}
+            {selectedTemplate === 'videographer' && 'Creates: shoot fee · 1AC labour ($900) · 1AC kit ($400) · lighting tech ($750). Agency commission + crew fringes auto-computed.'}
+            {selectedTemplate === 'stylist' && 'Creates: shoot day rate · pre-pro days · kit fee · wardrobe pull · travel. Lines marked TBD start at $0 — fill them in after.'}
+            {selectedTemplate === 'hmu' && 'Creates: shoot day rate · pre-pro / test day · kit fee · travel. Lines marked TBD start at $0 — fill them in after.'}
           </p>
           <div className="flex gap-2">
             <button
@@ -358,7 +361,25 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         </div>
       )}
 
-      {!latestVersion && !showTemplatePanel && (
+      {!latestVersion && !showTemplatePanel && (() => {
+        // Map artist discipline → suggested template
+        const disciplineToTemplate: Record<string, 'photographer' | 'videographer' | 'stylist' | 'hmu' | null> = {
+          photographer: 'photographer',
+          videographer: 'videographer',
+          wardrobe_stylist: 'stylist',
+          hair: 'hmu',
+          makeup: 'hmu',
+          hair_and_makeup: 'hmu',
+          manicurist: 'hmu',
+        };
+        const suggested = primaryDiscipline ? disciplineToTemplate[primaryDiscipline] ?? null : null;
+        const templateLabel = (t: 'photographer' | 'videographer' | 'stylist' | 'hmu') => ({
+          photographer: 'Photographer template',
+          videographer: 'Videographer template',
+          stylist: 'Stylist template',
+          hmu: 'Hair & Makeup template',
+        }[t]);
+        return (
         <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: PALETTE.border }}>
           <p className="text-xs font-medium" style={{ color: PALETTE.text }}>Start this quote:</p>
           {/* One-click auto-generate when artist + discipline are known (legacy bookings) */}
@@ -375,30 +396,24 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => openTemplate('photographer')}
-              disabled={busy}
-              className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
-              style={{
-                background: primaryDiscipline === 'photographer' ? PALETTE.accent : `${PALETTE.accent}18`,
-                color: primaryDiscipline === 'photographer' ? PALETTE.bg : PALETTE.accent,
-                border: `1px solid ${PALETTE.accent}44`,
-              }}
-            >
-              Photographer template
-            </button>
-            <button
-              onClick={() => openTemplate('videographer')}
-              disabled={busy}
-              className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
-              style={{
-                background: primaryDiscipline === 'videographer' ? PALETTE.accent : `${PALETTE.accent}18`,
-                color: primaryDiscipline === 'videographer' ? PALETTE.bg : PALETTE.accent,
-                border: `1px solid ${PALETTE.accent}44`,
-              }}
-            >
-              Videographer template
-            </button>
+            {(['photographer', 'videographer', 'stylist', 'hmu'] as const).map((t) => {
+              const isSuggested = suggested === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => openTemplate(t)}
+                  disabled={busy}
+                  className="rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50"
+                  style={{
+                    background: isSuggested ? PALETTE.accent : `${PALETTE.accent}18`,
+                    color: isSuggested ? PALETTE.bg : PALETTE.accent,
+                    border: `1px solid ${PALETTE.accent}44`,
+                  }}
+                >
+                  {templateLabel(t)}
+                </button>
+              );
+            })}
             <button
               onClick={handleCreateVersion}
               disabled={busy}
@@ -412,7 +427,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             Templates pre-fill standard crew & rates — you can edit every line after.
           </p>
         </div>
-      )}
+        );
+      })()}
 
       {/* Add line form */}
       {showAddLine && latestVersion && isLatestVersion && (

@@ -146,7 +146,8 @@ export default function CSVImportExport({ type }: Props) {
               </div>
               {result.skipped > 0 && (
                 <div className="text-xs" style={{ color: PALETTE.muted }}>
-                  {result.skipped} row{result.skipped !== 1 ? 's' : ''} skipped (blank name)
+                  {result.skipped} row{result.skipped !== 1 ? 's' : ''} skipped
+                  {result.errors.length === 0 ? ' (blank name)' : ''}
                 </div>
               )}
               {result.errors.length > 0 && (
@@ -155,9 +156,9 @@ export default function CSVImportExport({ type }: Props) {
                     {result.errors.length} error{result.errors.length !== 1 ? 's' : ''}:
                   </div>
                   <ul className="text-[11px] space-y-0.5" style={{ color: PALETTE.warning }}>
-                    {result.errors.slice(0, 5).map((e, i) => <li key={i}>· {e}</li>)}
-                    {result.errors.length > 5 && (
-                      <li style={{ color: PALETTE.muted }}>…and {result.errors.length - 5} more</li>
+                    {result.errors.slice(0, 8).map((e, i) => <li key={i}>· {e}</li>)}
+                    {result.errors.length > 8 && (
+                      <li style={{ color: PALETTE.muted }}>…and {result.errors.length - 8} more</li>
                     )}
                   </ul>
                 </div>

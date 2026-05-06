@@ -36,6 +36,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
     {
       title: 'System',
       items: [
+        { label: 'Compliance', href: '/settings/compliance' },
         { label: 'Audit', href: '/audit' },
         { label: 'Settings', href: '/settings' },
       ],
