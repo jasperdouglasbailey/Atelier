@@ -61,7 +61,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 3. **Phase 3 — corpus + Tier 2.** ✅ First slice shipped (PR #18 — precedent signals on booking detail). Tier-2 #13 / #15 still pending clarification.
 4. **Phase 4 — agent automation.** ✅ First pass shipped (PR #19 — agent primitives, critique pass on brief-clarify, auto call sheet). Full agent prompt suite (confidence contracts wired into every agent, precedent requirement enforcement) still pending.
 5. **Phase 2 — Xero.** ⏳ Blocked on credentials.
-6. **Phase 5 — RLS + partner accounts.** ✅ Infrastructure shipped (PR #20 — app_users table, role helpers, partner UI). Owner + partner accounts seeded. Actual RLS lockdown deferred to a follow-up after talent/crew portal smoke-test.
+6. **Phase 5 — RLS + partner accounts.** ✅ Shipped end-to-end. PR #20 brought the infrastructure (app_users, role helpers, partner UI). Migrations 0018 + 0019 then dropped the legacy `auth_full_access` AND the pre-existing wide-open `*_anon_all` policies (which would have bypassed every other policy — caught during this session), replacing with `is_owner_or_partner()` for admin tables and self-scoped read policies for talent / crew. Owner + partner accounts seeded; Mason and Patrick provisioned as live crew test accounts. Health probes switched to service-role client so monitor uptime checks still work post-lockdown.
 7. **Phase 6 — talent / crew portals.** ✅ Shipped (PR ##  — `/portal/talent`, `/portal/crew`, role-based redirect from dashboard).
 8. **Phase 7 — production polish.** ⏳ Performance, monitoring, edge cases — ongoing.
 
