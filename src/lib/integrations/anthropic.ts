@@ -37,8 +37,15 @@ export type LLMRequest = {
   systemPrompt?: string;
   /** Max tokens to generate. Default 1024. Hard cap: 4096. */
   maxTokens?: number;
-  /** Model to use. Default: claude-haiku-3-5 (cheapest, fastest). */
-  model?: 'claude-haiku-3-5' | 'claude-3-5-sonnet-20241022' | 'claude-opus-4-7';
+  /**
+   * Model to use. Default: claude-3-5-haiku-20241022 (cheapest, fastest).
+   *
+   * Anthropic's convention is `claude-{version}-{name}-{date}`. Undated
+   * aliases like "claude-haiku-3-5" silently 404 once deprecated, so we
+   * pin a dated version on every call. When upgrading, check
+   * https://docs.anthropic.com/en/docs/about-claude/models for current IDs.
+   */
+  model?: 'claude-3-5-haiku-20241022' | 'claude-3-5-sonnet-20241022' | 'claude-opus-4-1-20250805';
   /** Booking ID for event/audit logging. */
   bookingId?: string;
 };
@@ -54,12 +61,13 @@ export type LLMResponse = {
   reason: 'kill_switch' | 'no_api_key' | 'api_error' | 'already_exists';
 };
 
-// Cost per 1M tokens in USD (claude-haiku-3-5: input $0.80, output $4.00)
-// We track in USD, compare to MONTHLY_COST_CAP_USD from constants.
+// Cost per 1M tokens in USD (Haiku 3.5: input $0.80, output $4.00).
+// Update these when Anthropic re-prices. We track in USD, compare to
+// MONTHLY_COST_CAP_USD from constants.
 const TOKEN_COSTS_USD: Record<string, { input: number; output: number }> = {
-  'claude-haiku-3-5': { input: 0.80 / 1_000_000, output: 4.00 / 1_000_000 },
+  'claude-3-5-haiku-20241022': { input: 0.80 / 1_000_000, output: 4.00 / 1_000_000 },
   'claude-3-5-sonnet-20241022': { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-  'claude-opus-4-7': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
+  'claude-opus-4-1-20250805': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
 };
 
 // ============================================================
@@ -110,7 +118,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     }
   }
 
-  const model = request.model ?? 'claude-haiku-3-5';
+  const model = request.model ?? 'claude-3-5-haiku-20241022';
   const maxTokens = Math.min(request.maxTokens ?? 1024, 4096);
 
   // Build the request body

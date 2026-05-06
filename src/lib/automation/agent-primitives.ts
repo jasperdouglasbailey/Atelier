@@ -85,7 +85,7 @@ export async function critiqueDraft(input: {
     bookingId: input.bookingId,
     systemPrompt: CRITIQUE_SYSTEM_PROMPT,
     maxTokens: 200,
-    model: 'claude-haiku-3-5',
+    model: 'claude-3-5-haiku-20241022',
     messages: [
       {
         role: 'user',

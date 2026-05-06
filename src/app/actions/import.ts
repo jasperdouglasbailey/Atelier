@@ -6,6 +6,8 @@ import { parseCsv } from '@/lib/utils/csv';
 import {
   titleCaseName, normaliseEmail, normalisePhoneForMatch, parseDietaryDrinkFromNotes,
 } from '@/lib/utils/name-format';
+import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 import type { ArtistDiscipline, CrewTier } from '@/lib/types/database';
 
 export type ImportResult = {
@@ -181,6 +183,12 @@ export async function importTalentAction(csvText: string): Promise<ImportResult>
   }
 
   if (inserted > 0) revalidatePath('/talent');
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'bulk_import_talent',
+    tableName: 'atelier_talent',
+    newValue: { inserted, skipped, error_count: errors.length, total_rows: rows.length },
+  }).catch(() => {});
   return { inserted, skipped, errors };
 }
 
@@ -269,5 +277,11 @@ export async function importCrewAction(csvText: string): Promise<ImportResult> {
   }
 
   if (inserted > 0) revalidatePath('/crew');
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'bulk_import_crew',
+    tableName: 'atelier_crew',
+    newValue: { inserted, skipped, error_count: errors.length, total_rows: rows.length },
+  }).catch(() => {});
   return { inserted, skipped, errors };
 }

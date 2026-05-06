@@ -18,6 +18,8 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import { logAudit } from '@/lib/utils/audit';
 
 const PING_THRESHOLD_DAYS = 30;
 
@@ -73,15 +75,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Doctrine: kill switch RED defers automation.
+  const ks = await getKillSwitchState();
+  if (ks?.is_active) {
+    return NextResponse.json({ skipped: 'kill_switch_active' });
+  }
+
   const supabase = createServiceClient();
 
   const { data: talent, error: fetchErr } = await supabase
     .from('atelier_talent')
     .select('id, working_name, email, is_active, passport_expiry, drivers_licence_expiry, wwcc_expiry, visa_expiry')
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(500);
 
   if (fetchErr) {
     console.error('[cron/compliance-pings] fetch error', fetchErr.message);
+    await logAudit({
+      userId: null,
+      action: 'cron_compliance_pings_failed',
+      tableName: 'atelier_talent',
+      newValue: { error: fetchErr.message },
+    }).catch(() => {});
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
