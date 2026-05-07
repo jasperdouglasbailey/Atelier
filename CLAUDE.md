@@ -147,7 +147,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 - Repeat-client autofill on new booking: in progress
 
 ### Deferred to follow-up PRs
-- **RLS lockdown (Phase 5b)** — the `atelier_app_users` infrastructure is live and roles are seeded, but the existing `auth_full_access` RLS policy is intentionally not yet replaced. Once Jasper has confirmed talent/crew portals work end-to-end (we'd need to provision a real talent/crew test account first), the lockdown migration drops `auth_full_access` and replaces it with `is_owner_or_partner()` for full access plus per-table scoped policies for talent (own row + own booking_talent + own bookings) and crew (mirror).
+- ~~**RLS lockdown (Phase 5b)**~~ — actually already shipped (migrations 0018 + 0019, see entry #6 above). The earlier wording that this was "intentionally still in place" was stale doc rot. `auth_full_access` was dropped; `is_owner_or_partner()` is the gate on admin tables; self-scoped policies are live for talent + crew. Residual work is portal end-to-end testing, not a migration.
 - ~~Tier-2 features #13 / #15~~ — resolved 2026-05-06: those numbers referred to PR #13 (already shipped previous session: agency margin clarity, per-line ASF toggle, print bg, save refresh) and PR #15 (shipped this session: hard delete + corpus archival). Not pending features.
 - **Phase 2 (Xero)** — blocked on credentials. Three env vars needed:
   `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_REDIRECT_URI`

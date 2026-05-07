@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PALETTE, CREW_ROLES } from '@/lib/utils/constants';
+import { humanise } from '@/lib/utils/humanise';
 
 type PersonType = 'talent' | 'crew';
 type Step = 'type' | 'details' | 'banking' | 'done';
@@ -143,7 +144,7 @@ export default function OnboardingForm() {
           >
             <option value="">Select...</option>
             {CREW_ROLES.map(r => (
-              <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+              <option key={r} value={r}>{humanise(r)}</option>
             ))}
           </select>
         </div>

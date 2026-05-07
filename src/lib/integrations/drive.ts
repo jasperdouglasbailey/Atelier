@@ -329,3 +329,45 @@ export async function createEntityFolder(
 
 /** Backwards-compat alias for existing callers. */
 export const createLocationFolder = (name: string) => createEntityFolder('Locations', name);
+
+/**
+ * Move a Drive folder to the trash. Soft-delete: Drive holds it for 30 days
+ * before permanent deletion, so a mistaken anonymise can be undone in that
+ * window. Used by the right-to-be-forgotten flow so PII portfolios don't
+ * outlive the database row.
+ *
+ * Returns true if the folder was trashed, false if Google credentials are
+ * absent or the folder ID is null/empty. Errors are caught and logged but
+ * never thrown — anonymise should always succeed on the database side
+ * even if Drive is temporarily unavailable; a failed trash is logged in
+ * the audit trail and can be retried by hand.
+ */
+export async function trashDriveFolder(folderId: string | null | undefined): Promise<boolean> {
+  if (!folderId) return false;
+  if (!isGoogleConfigured()) {
+    console.log('[drive] TRASH FOLDER (stub — no credentials)', folderId);
+    return false;
+  }
+
+  try {
+    const token = await getAccessToken();
+    const res = await fetch(`${DRIVE_BASE}/${folderId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => 'unknown');
+      console.error(`[drive] trashDriveFolder ${folderId}: ${res.status} ${body}`);
+      return false;
+    }
+    console.log('[drive] TRASHED FOLDER', folderId);
+    return true;
+  } catch (err) {
+    console.error(`[drive] trashDriveFolder(${folderId}) failed`, err);
+    return false;
+  }
+}

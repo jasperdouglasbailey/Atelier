@@ -12,16 +12,10 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-
-function isAuthorised(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${secret}`;
-}
+import { isCronAuthorised } from '@/lib/utils/cron-auth';
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorised(req)) {
+  if (!isCronAuthorised(req, 'LOCK_OT_WINDOWS')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

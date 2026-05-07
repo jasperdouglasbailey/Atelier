@@ -23,13 +23,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit } from '@/lib/utils/audit';
-
-function isAuthorised(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${secret}`;
-}
+import { isCronAuthorised } from '@/lib/utils/cron-auth';
 
 function daysSince(ts: string): number {
   return Math.floor((Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24));
@@ -59,7 +53,7 @@ Saunders & Co`;
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorised(req)) {
+  if (!isCronAuthorised(req, 'TALENT_GALLERY_PING')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

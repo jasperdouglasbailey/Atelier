@@ -20,6 +20,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit } from '@/lib/utils/audit';
+import { isCronAuthorised } from '@/lib/utils/cron-auth';
 
 const PING_THRESHOLD_DAYS = 30;
 
@@ -31,13 +32,6 @@ const DOC_LABELS: Record<DocType, string> = {
   wwcc: 'Working with Children Check (WWCC)',
   visa: 'visa',
 };
-
-function isAuthorised(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = req.headers.get('authorization') ?? '';
-  return auth === `Bearer ${secret}`;
-}
 
 function daysUntil(iso: string): number {
   return Math.floor((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -71,7 +65,7 @@ info@saundersandco.com.au`;
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorised(req)) {
+  if (!isCronAuthorised(req, 'COMPLIANCE_PINGS')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

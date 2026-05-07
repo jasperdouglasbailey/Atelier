@@ -6,6 +6,7 @@ import { approveAction, rejectAction } from '@/app/actions/approvals';
 import type { Approval } from '@/lib/types/database';
 import { PALETTE } from '@/lib/utils/constants';
 import { formatDateTime } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 
 type Props = { approvals: Approval[] };
 
@@ -13,6 +14,7 @@ const statusColors: Record<string, string> = {
   pending: PALETTE.warning,
   approved: PALETTE.success,
   rejected: PALETTE.danger,
+  expired:  PALETTE.muted,
 };
 
 export default function ApprovalQueue({ approvals }: Props) {
@@ -60,10 +62,10 @@ export default function ApprovalQueue({ approvals }: Props) {
                   {a.status}
                 </span>
                 <span className="text-xs font-medium" style={{ color: PALETTE.accent }}>
-                  {a.agent.replace(/_/g, ' ')}
+                  {humanise(a.agent)}
                 </span>
                 <span className="text-[10px]" style={{ color: PALETTE.muted }}>
-                  {a.action_type.replace(/_/g, ' ')}
+                  {humanise(a.action_type)}
                 </span>
               </div>
               <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>

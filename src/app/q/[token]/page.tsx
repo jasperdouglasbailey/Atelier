@@ -57,6 +57,18 @@ export default async function PublicQuotePage({ params }: Props) {
   const booking = await getBookingByQuoteToken(token);
   if (!booking) notFound();
 
+  // Quote-token expiry (migration 0025). Past expiry, the token is no longer
+  // valid — render a friendly expired page rather than the quote, so a
+  // forwarded email six months later doesn't leak a stale quote / talent
+  // identity / pricing. Owner can regenerate the token + extend the expiry
+  // from the booking record if a fresh client view is needed.
+  if (booking.quote_token_expires_at) {
+    const expiresAt = new Date(booking.quote_token_expires_at);
+    if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      return <ExpiredQuoteView agencyEmail={getAgencyConfig().email ?? null} />;
+    }
+  }
+
   const qv = await getLatestQuoteVersionPublic(booking.id);
   const lines = qv ? await listFeeLinesPublic(qv.id) : [];
 
@@ -285,6 +297,33 @@ function TotalRow({ label, value }: { label: string; value: string }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0', fontSize: 13 }}>
       <span style={{ color: '#666' }}>{label}</span>
       <span style={{ color: '#1a1a1a' }}>{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Rendered when the quote token has passed its expiry date. Plain prose,
+ * no quote details — the link is gone, asking the agency for a fresh one
+ * is the only path forward.
+ */
+function ExpiredQuoteView({ agencyEmail }: { agencyEmail: string | null }) {
+  return (
+    <div style={{ background: '#faf9f7', minHeight: '100vh', padding: '60px 24px', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', background: '#ffffff', border: '1px solid #ebebeb', borderRadius: 8, padding: 40 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>
+          This quote link has expired
+        </h1>
+        <p style={{ fontSize: 14, color: '#525252', marginTop: 16, lineHeight: 1.55 }}>
+          For your protection, public quote links expire after a set period.
+          The pricing and details on this quote may have changed since it was
+          first sent.
+        </p>
+        <p style={{ fontSize: 14, color: '#525252', marginTop: 12, lineHeight: 1.55 }}>
+          {agencyEmail
+            ? <>Please contact <a href={`mailto:${agencyEmail}`} style={{ color: '#6c8aff' }}>{agencyEmail}</a> to receive an updated quote.</>
+            : <>Please contact Saunders &amp; Co to receive an updated quote.</>}
+        </p>
+      </div>
     </div>
   );
 }

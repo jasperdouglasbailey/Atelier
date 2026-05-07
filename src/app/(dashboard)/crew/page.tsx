@@ -3,6 +3,7 @@ import Topbar from '@/components/layout/Topbar';
 import ListSearchBar from '@/components/layout/ListSearchBar';
 import { listCrew, listCrewCities } from '@/lib/data/entities';
 import { PALETTE, CREW_TIER_LABELS } from '@/lib/utils/constants';
+import { humanise } from '@/lib/utils/humanise';
 import type { CrewTier, Crew } from '@/lib/types/database';
 import CreateCrewDialog from '@/components/entities/CreateCrewDialog';
 import CSVImportExport from '@/components/csv/CSVImportExport';
@@ -55,7 +56,7 @@ export default async function CrewPage({ searchParams }: { searchParams: SearchP
             {CREW_TIER_LABELS[c.tier]}
           </span>
         </div>
-        {c.primary_role && <div className="mt-1 text-xs capitalize" style={{ color: PALETTE.accent }}>{c.primary_role.replace(/_/g, ' ')}</div>}
+        {c.primary_role && <div className="mt-1 text-xs" style={{ color: PALETTE.accent }}>{humanise(c.primary_role)}</div>}
         <div className="mt-2 space-y-0.5 text-xs" style={{ color: PALETTE.muted }}>
           {c.city && !groupByCity && <div>{c.city}</div>}
           {c.email && <div className="truncate">{c.email}</div>}

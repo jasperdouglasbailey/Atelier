@@ -293,6 +293,8 @@ export interface Booking {
   calendar_event_id: string | null;
   /** Opaque UUID for the /q/[token] public quote link sent to clients. */
   quote_token: string;
+  /** Public /q/<token> link returns 410 Gone after this timestamp. */
+  quote_token_expires_at: string | null;
   /** Set automatically when the booking transitions to quote_sent. */
   quote_sent_at: string | null;
   /** Set automatically when the booking transitions to invoice_issued. */
