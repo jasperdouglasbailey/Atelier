@@ -6,6 +6,7 @@ import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
+import DataRightsControls from '@/components/entities/DataRightsControls';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -268,6 +269,8 @@ export default async function ClientDetailPage({ params }: Props) {
             </div>
           )}
         </section>
+
+        <DataRightsControls type="client" id={client.id} name={client.name} />
 
         <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
           Created {formatDate(client.created_at)} · Updated {formatDate(client.updated_at)}
