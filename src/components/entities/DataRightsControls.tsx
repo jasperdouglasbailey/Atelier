@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { anonymiseTalentAction, anonymiseClientAction } from '@/app/actions/entities';
+import { anonymiseTalentAction, anonymiseClientAction, anonymiseCrewAction } from '@/app/actions/entities';
 import { PALETTE } from '@/lib/utils/constants';
 
 type Props = {
-  type: 'talent' | 'client';
+  type: 'talent' | 'client' | 'crew';
   id: string;
   name: string;
 };
@@ -31,7 +31,11 @@ export default function DataRightsControls({ type, id, name }: Props) {
   function handleAnonymise() {
     setError(null);
     startTransition(async () => {
-      const action = type === 'talent' ? anonymiseTalentAction : anonymiseClientAction;
+      const action = type === 'talent'
+        ? anonymiseTalentAction
+        : type === 'client'
+        ? anonymiseClientAction
+        : anonymiseCrewAction;
       const result = await action(id);
       if ('error' in result && result.error) {
         setError(result.error);

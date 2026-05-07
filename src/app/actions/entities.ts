@@ -379,6 +379,47 @@ export async function anonymiseClientAction(id: string) {
   return { ok: true, anonId };
 }
 
+export async function anonymiseCrewAction(id: string) {
+  const anonId = randomAnonId();
+  const updates = {
+    name: `Anonymised ${anonId}`,
+    preferred_comms: null,
+    email: null,
+    mobile: null,
+    city: null,
+    dietary: null,
+    drink_order: null,
+    home_address: null,
+    dob: null,
+    abn: null,
+    super_fund_name: null,
+    super_member_number: null,
+    super_usi: null,
+    xero_contact_id: null,
+    drive_folder_id: null,
+    drive_folder_link: null,
+    notes: null,
+    onboarding_completed: false,
+    onboarding_token: null,
+    onboarding_token_expires_at: null,
+    is_active: false,
+  };
+
+  const result = await updateCrew(id, updates as never);
+  if (!result) return { error: 'Anonymise failed' };
+
+  await auditEntityMutation({
+    table: 'atelier_crew',
+    recordId: id,
+    action: 'archive',
+    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+  });
+
+  revalidatePath('/crew');
+  revalidatePath(`/crew/${id}`);
+  return { ok: true, anonId };
+}
+
 /**
  * Soft-archive a talent: sets is_active=false. Doctrine: never hard-delete,
  * preserve audit trail. Reactivate via setTalentActiveAction(id, true).
