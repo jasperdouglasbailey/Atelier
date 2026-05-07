@@ -2,13 +2,12 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
-import BookingTimeline from '@/components/bookings/BookingTimeline';
+import CollapsibleTimeline from '@/components/bookings/CollapsibleTimeline';
 import HoldRequestsTrigger from '@/components/bookings/HoldRequestsTrigger';
 import OTExpenseEntry from '@/components/bookings/OTExpenseEntry';
 import MorningAfterChecklist from '@/components/bookings/MorningAfterChecklist';
 import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
-import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
@@ -21,10 +20,9 @@ import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
 import PayrollPanel from '@/components/bookings/PayrollPanel';
-import Link from 'next/link';
 import { PALETTE } from '@/lib/utils/constants';
-import { computeQuoteTotals, computeAgencyMargin } from '@/lib/utils/fee-engine';
-import type { FeeLine } from '@/lib/types/database';
+import { getStageChecklist, stageOf } from '@/lib/utils/booking-stages';
+import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -88,11 +86,21 @@ export default async function BookingDetailPage({ params }: Props) {
     booking.client_id ? getClientCorpusSignal({ clientId: booking.client_id, tier: booking.tier }) : Promise.resolve(null),
   ]);
 
-  // Agency margin: commission + ASF + super spread. Computed from fee lines
-  // because the booking row doesn't store commission/super totals separately.
-  const margin = feeLines.length > 0
-    ? computeAgencyMargin(computeQuoteTotals(feeLines as Partial<FeeLine>[]))
-    : null;
+  // Stage-aware checklist for the header. Computed server-side so the
+  // client component is presentation-only (no data joins in client land).
+  const checklist = getStageChecklist({
+    booking,
+    bookingTalent: bookingTalent as BookingTalent[],
+    bookingCrew: bookingCrew as BookingCrew[],
+    usageLicences,
+    latestQuote,
+    feeLines,
+  });
+
+  // Show the focused workspace shortcut only while the booking is in the
+  // brief / quote-drafting phase — afterwards the workspace doesn't help.
+  const stage = stageOf(booking.state);
+  const showWorkspaceShortcut = stage === 'brief' || booking.state === 'quote_drafted';
 
   return (
     <>
@@ -100,7 +108,61 @@ export default async function BookingDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            <BookingDetail booking={booking} margin={margin} licences={usageLicences} googleConfigured={isGoogleConfigured()} />
+            {/* 1. HEADER — identity, stage, what's next, action buttons.
+                Owns the brief/usage cards and invoice status (rendered inside). */}
+            <BookingDetail
+              booking={booking}
+              licences={usageLicences}
+              googleConfigured={isGoogleConfigured()}
+              checklist={checklist}
+              showWorkspaceShortcut={showWorkspaceShortcut}
+            />
+
+            {/* 2. BRIEF PARSER — only when the brief hasn't been parsed yet. */}
+            {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
+              <BriefParser
+                bookingId={id}
+                hasBriefText={!!booking.brief_raw_text}
+                currentState={booking.state}
+              />
+            )}
+
+            {/* 3. TEAM — moved up from the bottom. Decisions about who is on
+                the booking precede pricing, so this comes before the quote. */}
+            <BookingTeam
+              bookingId={id}
+              bookingTalent={bookingTalent}
+              bookingCrew={bookingCrew}
+              allTalent={allTalent}
+              allCrew={allCrew}
+            />
+
+            {/* 4. HOLDS — sits between team and quote. Once talent/crew are
+                attached, the agency confirms availability before pricing. */}
+            <HoldRequestsTrigger
+              bookingId={id}
+              bookingState={booking.state}
+              pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
+            />
+
+            {/* 5. QUOTE — fee lines, totals, GST passthrough, agency margin.
+                Now sits inside the themed `surface` so light mode reads cleanly. */}
+            <div
+              className="rounded-lg border p-4"
+              style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+            >
+              <QuoteBuilder
+                bookingId={id}
+                quoteVersions={quoteVersions}
+                feeLines={feeLines}
+                bookingTalent={bookingTalent}
+                bookingCrew={bookingCrew}
+                ratePrecedents={ratePrecedents}
+              />
+            </div>
+
+            {/* 6. PRECEDENT — context for the pricing decision; renders right
+                under the quote so it can inform line edits without scrolling. */}
             <PrecedentSignals
               talentBand={talentBand}
               clientBand={clientBand}
@@ -109,48 +171,14 @@ export default async function BookingDetailPage({ params }: Props) {
               proposedDayRate={proposedDayRate}
               proposedGrandTotal={booking.grand_total}
             />
-            {/* Inbox shortcut — focused Brief→Quote→Send workspace */}
-            {['brief_received', 'brief_parsed', 'quote_drafted'].includes(booking.state) && (
-              <div
-                className="rounded-lg border px-4 py-3 flex items-center justify-between"
-                style={{ background: `${PALETTE.accent}0a`, borderColor: `${PALETTE.accent}33` }}
-              >
-                <p className="text-xs" style={{ color: PALETTE.muted }}>
-                  Focused brief → quote → send workspace
-                </p>
-                <Link
-                  href={`/inbox/${id}`}
-                  className="rounded px-3 py-1.5 text-xs font-medium"
-                  style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-                >
-                  Open in Inbox →
-                </Link>
-              </div>
-            )}
-            {/* Brief parser — show when raw text is present and state is early */}
-            {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
-              <BriefParser
-                bookingId={id}
-                hasBriefText={!!booking.brief_raw_text}
-                currentState={booking.state}
-              />
-            )}
-            <HoldRequestsTrigger
-              bookingId={id}
-              bookingState={booking.state}
-              pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
-            />
-            <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
-              <StreamingComms bookingRef={booking.booking_ref} />
-            </Suspense>
-            {/* Morning-after check workflow */}
+
+            {/* 7. PRODUCTION-CONDITIONAL — morning-after, OT entry, payroll. */}
             {booking.state === 'morning_after_check' && (
               <MorningAfterChecklist
                 bookingId={id}
                 bookingRef={booking.booking_ref}
               />
             )}
-            {/* OT/expense window — show when window is open or recently closed */}
             {booking.ot_expenses_window_end && (
               <OTExpenseEntry
                 bookingId={id}
@@ -160,33 +188,24 @@ export default async function BookingDetailPage({ params }: Props) {
                 bookingCrew={bookingCrew}
               />
             )}
-            <div className="rounded-lg border p-4" style={{ background: '#141414', borderColor: '#262626' }}>
-              <QuoteBuilder
-                bookingId={id}
-                quoteVersions={quoteVersions}
-                feeLines={feeLines}
-                bookingTalent={bookingTalent}
-                ratePrecedents={ratePrecedents}
-              />
-            </div>
-            {/* Pay-on-paid tracker — show once we're invoicing or paid */}
             {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
               <PayrollPanel
                 bookingId={id}
-                bookingTalent={bookingTalent as import('@/lib/types/database').BookingTalent[]}
-                bookingCrew={bookingCrew as import('@/lib/types/database').BookingCrew[]}
+                bookingTalent={bookingTalent as BookingTalent[]}
+                bookingCrew={bookingCrew as BookingCrew[]}
               />
             )}
-            <BookingTeam
-              bookingId={id}
-              bookingTalent={bookingTalent}
-              bookingCrew={bookingCrew}
-              allTalent={allTalent}
-              allCrew={allCrew}
-            />
+
+            {/* 8. COMMS — emails sent / received on this booking. */}
+            <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
+              <StreamingComms bookingRef={booking.booking_ref} />
+            </Suspense>
           </div>
+
+          {/* Right rail — collapsible timeline (audit trail). Hidden by
+              default; available when Jasper wants it. */}
           <div>
-            <BookingTimeline events={events} />
+            <CollapsibleTimeline events={events} />
           </div>
         </div>
       </div>

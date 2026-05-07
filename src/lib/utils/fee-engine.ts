@@ -154,6 +154,74 @@ export function computeAgencyMargin(totals: QuoteTotals): AgencyMargin {
 }
 
 // ============================================================
+// GST passthrough — what the agency owes the ATO on this booking
+// ============================================================
+// The agency is GST-registered, so it:
+//   - charges 10% GST to the client on every line (including commission)
+//   - pays GST on top of fees to GST-registered talent and crew
+//   - claims those payments back as input tax credits at BAS time
+// Net GST liability = collected − input credits.
+//
+// This is presentation-only — the actual BAS is run from Xero, not from
+// this booking. The point of the panel is to make it obvious to Jasper
+// what's a passthrough vs what's actually agency margin.
+
+export interface GstPassthrough {
+  /** GST charged on artist + outgoing fee lines (already in totals.totalGst). */
+  collectedOnLines: number;
+  /** GST charged on agency commission (also collected from client). */
+  collectedOnCommission: number;
+  /** Total GST collected from client this booking. */
+  collectedTotal: number;
+  /** Input credits — GST paid through to GST-registered talent. */
+  artistInputCredits: number;
+  /** Input credits — GST paid through to GST-registered crew. */
+  crewInputCredits: number;
+  /** Total input credits this booking generates. */
+  inputCreditsTotal: number;
+  /** Net liability to the ATO (collected − input credits). */
+  netToAto: number;
+}
+
+/**
+ * Compute the GST passthrough picture for a booking.
+ *
+ * `artistFeeSubtotal` and `crewLabourSubtotal` are the gross labour
+ * subtotals. `artistsGstRegistered` and `crewGstRegisteredCount` /
+ * `crewGstRegisteredSubtotal` describe what fraction of those payouts
+ * actually generates input credits.
+ *
+ * For simplicity we treat GST-registered talent/crew as receiving GST on
+ * their full labour subtotal — the same way the artist payment / crew RCTI
+ * helpers above do. Outgoings (equipment, studio etc.) almost always come
+ * with GST too, but those are billed straight to the agency by external
+ * vendors, not through this fee-line table — they're not modelled here.
+ */
+export function computeGstPassthrough(args: {
+  totals: QuoteTotals;
+  artistFeeSubtotal: number;
+  artistGstRegistered: boolean;
+  crewLabourSubtotalGstRegistered: number;
+}): GstPassthrough {
+  const { totals, artistFeeSubtotal, artistGstRegistered, crewLabourSubtotalGstRegistered } = args;
+
+  const collectedOnLines = totals.totalGst;
+  const collectedOnCommission = totals.totalCommissionGst;
+  const collectedTotal = r2(collectedOnLines + collectedOnCommission);
+
+  const artistInputCredits = artistGstRegistered ? r2(artistFeeSubtotal * GST_RATE) : 0;
+  const crewInputCredits = r2(crewLabourSubtotalGstRegistered * GST_RATE);
+  const inputCreditsTotal = r2(artistInputCredits + crewInputCredits);
+
+  const netToAto = r2(collectedTotal - inputCreditsTotal);
+
+  return {
+    collectedOnLines, collectedOnCommission, collectedTotal,
+    artistInputCredits, crewInputCredits, inputCreditsTotal, netToAto,
+  };
+}
+
+// ============================================================
 // Artist net payment calculator
 // ============================================================
 

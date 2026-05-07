@@ -5,14 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState, UsageLicence } from '@/lib/types/database';
-import type { AgencyMargin } from '@/lib/utils/fee-engine';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import SendQuotePanel from '@/components/bookings/SendQuotePanel';
+import StageStepper from '@/components/bookings/StageStepper';
+import StageChecklist from '@/components/bookings/StageChecklist';
 import { transitionBookingAction } from '@/app/actions/bookings';
+import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
   STATE_TRANSITIONS, PALETTE,
 } from '@/lib/utils/constants';
+import { humanise } from '@/lib/utils/humanise';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
 /** Days between two ISO date strings (or from one ISO date string to now). */
@@ -38,7 +41,15 @@ function formatShootDates(range: string | null): string | null {
   return formatDate(start);
 }
 
-type Props = { booking: BookingDetailRow; margin?: AgencyMargin | null; licences: UsageLicence[]; googleConfigured: boolean };
+type Props = {
+  booking: BookingDetailRow;
+  licences: UsageLicence[];
+  googleConfigured: boolean;
+  /** Pre-computed stage checklist from the server. */
+  checklist: ChecklistData;
+  /** Show the focused workspace shortcut in the header (only for early states). */
+  showWorkspaceShortcut: boolean;
+};
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
@@ -59,7 +70,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking, margin = null, licences, googleConfigured }: Props) {
+export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -97,86 +108,43 @@ export default function BookingDetail({ booking, margin = null, licences, google
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{booking.title}</h2>
-            <span
-              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase"
-              style={{ background: `${STATE_COLORS[booking.state]}22`, color: STATE_COLORS[booking.state] }}
-            >
-              {BOOKING_STATE_LABELS[booking.state]}
-            </span>
-          </div>
-          <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: PALETTE.muted }}>
-            <span>{booking.booking_ref}</span>
-            <span>{SHOOT_TIER_LABELS[booking.tier]}</span>
-            {clientName && (
-              <Link
-                href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
-                className="hover:underline"
-                style={{ color: PALETTE.accent }}
+      {/* ============================================================ */}
+      {/* HEADER — title + identity, then stage stepper + checklist,    */}
+      {/* then a single row of grouped actions. Three layers, one job   */}
+      {/* each: who is this, where is it, what do I do next.            */}
+      {/* ============================================================ */}
+      <div className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        {/* Identity row */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{booking.title}</h2>
+              <span
+                className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase"
+                style={{ background: `${STATE_COLORS[booking.state]}22`, color: STATE_COLORS[booking.state] }}
               >
-                {clientName}
-              </Link>
-            )}
-            {brandName && (
-              <span>{brandName}</span>
-            )}
-            {booking.grand_total > 0 && <span>{formatCurrency(booking.grand_total, 'AUD')}</span>}
+                {BOOKING_STATE_LABELS[booking.state]}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: PALETTE.muted }}>
+              <span>{booking.booking_ref}</span>
+              <span>{SHOOT_TIER_LABELS[booking.tier]}</span>
+              {clientName && (
+                <Link
+                  href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
+                  className="hover:underline"
+                  style={{ color: PALETTE.accent }}
+                >
+                  {clientName}
+                </Link>
+              )}
+              {brandName && (
+                <span>{brandName}</span>
+              )}
+              {booking.grand_total > 0 && <span>{formatCurrency(booking.grand_total, 'AUD')}</span>}
+            </div>
           </div>
-        </div>
-
-        {/* Print / document actions */}
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/bookings/${booking.id}/edit`}
-            className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: PALETTE.surface, color: PALETTE.text, border: `1px solid ${PALETTE.border}` }}
-          >
-            ✏ Edit
-          </Link>
-          <Link
-            href={`/print/bookings/${booking.id}/quote`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: PALETTE.surface, color: PALETTE.accent, border: `1px solid ${PALETTE.border}` }}
-          >
-            ↗ Quote
-          </Link>
-          {booking.quote_token && (
-            <Link
-              href={`/q/${booking.quote_token}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-md px-3 py-1.5 text-xs font-medium"
-              title="Public client-facing quote link"
-              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-            >
-              ↗ Client View
-            </Link>
-          )}
-          <Link
-            href={`/print/bookings/${booking.id}/invoice`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            ↗ Invoice
-          </Link>
-          <Link
-            href={`/print/bookings/${booking.id}/call-sheet`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-3 py-1.5 text-xs font-medium"
-            title="Auto-generated call sheet"
-            style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            ↗ Call Sheet
-          </Link>
+          {/* Send-quote primary CTA stays prominent in the identity row */}
           <SendQuotePanel
             bookingId={booking.id}
             clientEmail={booking.client?.email ?? null}
@@ -189,9 +157,18 @@ export default function BookingDetail({ booking, margin = null, licences, google
           />
         </div>
 
-        {/* State transitions */}
+        {/* Stage stepper — 5 groups */}
+        <StageStepper state={booking.state} />
+
+        {/* Stage checklist — what's left to do at this stage */}
+        <StageChecklist checklist={checklist} />
+
+        {/* Action rows: state transitions on top, navigation links below */}
         {allowedTransitions.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: PALETTE.border }}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1" style={{ color: PALETTE.muted }}>
+              Advance to
+            </span>
             {allowedTransitions.map((state) => {
               const isExit = state === 'released' || state === 'cancelled';
               return (
@@ -212,6 +189,67 @@ export default function BookingDetail({ booking, margin = null, licences, google
             })}
           </div>
         )}
+
+        <div className="flex flex-wrap gap-2 text-xs" style={{ color: PALETTE.muted }}>
+          <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1">Tools</span>
+          <Link
+            href={`/bookings/${booking.id}/edit`}
+            className="rounded-md px-2.5 py-1 text-[11px]"
+            style={{ background: 'transparent', color: PALETTE.text, border: `1px solid ${PALETTE.border}` }}
+          >
+            Edit booking
+          </Link>
+          {showWorkspaceShortcut && (
+            <Link
+              href={`/inbox/${booking.id}`}
+              className="rounded-md px-2.5 py-1 text-[11px]"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              title="Brief → Quote → Send focused workspace"
+            >
+              Open workspace
+            </Link>
+          )}
+          <Link
+            href={`/print/bookings/${booking.id}/quote`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-2.5 py-1 text-[11px]"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            Print quote
+          </Link>
+          {booking.quote_token && (
+            <Link
+              href={`/q/${booking.quote_token}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md px-2.5 py-1 text-[11px]"
+              title="Public client-facing quote link"
+              style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              Client view
+            </Link>
+          )}
+          <Link
+            href={`/print/bookings/${booking.id}/invoice`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-2.5 py-1 text-[11px]"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            Print invoice
+          </Link>
+          <Link
+            href={`/print/bookings/${booking.id}/call-sheet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-2.5 py-1 text-[11px]"
+            title="Auto-generated call sheet"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            Call sheet
+          </Link>
+        </div>
       </div>
 
       {transitionError && (
@@ -236,13 +274,13 @@ export default function BookingDetail({ booking, margin = null, licences, google
       <Section title="Brief">
         {clientName && <Field label="Client" value={clientName} />}
         {brandName && <Field label="Brand" value={brandName} />}
-        <Field label="Shoot Location" value={booking.shoot_location} />
-        <Field label="Shoot Dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-        <Field label="Talent Spec" value={booking.talent_spec} />
-        <Field label="Deliverables Type" value={booking.deliverables_type} />
-        <Field label="Deliverables Count" value={booking.deliverables_count} />
-        <Field label="Post-Production" value={booking.post_production_ownership} />
-        <Field label="Selects Cadence" value={booking.selects_cadence} />
+        <Field label="Shoot location" value={booking.shoot_location} />
+        <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
+        <Field label="Talent spec" value={humanise(booking.talent_spec) || booking.talent_spec} />
+        <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
+        <Field label="Deliverables count" value={booking.deliverables_count} />
+        <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
+        <Field label="Selects cadence" value={booking.selects_cadence} />
       </Section>
 
       {/* Usage brief fields + Usage Licences — shown in one combined panel */}
@@ -250,14 +288,19 @@ export default function BookingDetail({ booking, margin = null, licences, google
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage</h3>
         {(booking.usage_media?.length || booking.usage_territory?.length || booking.usage_duration_months || booking.usage_notes) ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            {booking.usage_duration_months ? <Field label="Duration" value={`${booking.usage_duration_months} months`} /> : null}
+            {booking.usage_duration_months ? (
+              <Field
+                label="Duration"
+                value={`${booking.usage_duration_months} ${booking.usage_duration_months === 1 ? 'month' : 'months'}`}
+              />
+            ) : null}
             {booking.usage_notes ? <Field label="Notes" value={booking.usage_notes} /> : null}
             {booking.usage_media?.length ? (
               <div className="sm:col-span-2">
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Media</div>
                 <div className="flex flex-wrap gap-1">
                   {booking.usage_media.map((m) => (
-                    <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{m.replace(/_/g, ' ')}</span>
+                    <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{humanise(m)}</span>
                   ))}
                 </div>
               </div>
@@ -267,7 +310,7 @@ export default function BookingDetail({ booking, margin = null, licences, google
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Territory</div>
                 <div className="flex flex-wrap gap-1">
                   {booking.usage_territory.map((t) => (
-                    <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{t.replace(/_/g, ' ')}</span>
+                    <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{humanise(t)}</span>
                   ))}
                 </div>
               </div>
@@ -279,71 +322,43 @@ export default function BookingDetail({ booking, margin = null, licences, google
         </div>
       </section>
 
-      <Section title="Financials">
-        <Field label="Subtotal" value={booking.subtotal > 0 ? formatCurrency(booking.subtotal, 'AUD') : null} />
-        <Field label="ASF" value={booking.total_asf > 0 ? formatCurrency(booking.total_asf, 'AUD') : null} />
-        <Field label="GST" value={booking.total_gst > 0 ? formatCurrency(booking.total_gst, 'AUD') : null} />
-        <Field label="Grand Total" value={booking.grand_total > 0 ? formatCurrency(booking.grand_total, 'AUD') : null} />
-        {margin && margin.total > 0 && (
-          <>
+      {/* Invoice & payment status — only meaningful once invoiced.
+          The full financial breakdown (subtotal / ASF / GST / agency margin
+          / GST passthrough) lives on the Quote panel further down so we
+          have a single source of truth. */}
+      {booking.invoice_issued_at && (() => {
+        const doi = booking.paid_at
+          ? daysBetween(booking.invoice_issued_at!, booking.paid_at)
+          : daysBetween(booking.invoice_issued_at!);
+        const overdue = !booking.paid_at && doi > 30;
+        return (
+          <Section title="Invoice & payment">
             <Field
-              label="Agency Margin"
+              label="Invoice issued"
+              value={formatDate(booking.invoice_issued_at!.slice(0, 10))}
+            />
+            <Field
+              label={booking.paid_at ? 'Days to pay (DOI)' : 'Days outstanding'}
               value={
-                <span style={{ color: PALETTE.success, fontWeight: 600 }}>
-                  {formatCurrency(margin.total, 'AUD')}
+                <span style={{ color: overdue ? PALETTE.danger : booking.paid_at ? PALETTE.success : PALETTE.warning, fontWeight: 600 }}>
+                  {doi} {doi === 1 ? 'day' : 'days'}
+                  {overdue ? ' — overdue' : ''}
                 </span>
               }
             />
-            <Field
-              label="Margin Breakdown"
-              value={
-                <span className="text-[11px]" style={{ color: PALETTE.muted }}>
-                  Commission {formatCurrency(margin.commission, 'AUD')}
-                  {margin.asf > 0 ? ` · ASF ${formatCurrency(margin.asf, 'AUD')}` : ''}
-                  {margin.superSpread > 0 ? ` · Super spread ${formatCurrency(margin.superSpread, 'AUD')}` : ''}
-                </span>
-              }
-            />
-          </>
-        )}
-        {booking.invoice_issued_at && (() => {
-          const doi = booking.paid_at
-            ? daysBetween(booking.invoice_issued_at!, booking.paid_at)
-            : daysBetween(booking.invoice_issued_at!);
-          const overdue = !booking.paid_at && doi > 30; // flag if > 30 days and not paid
-          return (
-            <>
+            {booking.paid_at && (
               <Field
-                label="Invoice Issued"
+                label="Paid"
                 value={
-                  <span style={{ color: PALETTE.text }}>
-                    {formatDate(booking.invoice_issued_at!.slice(0, 10))}
+                  <span style={{ color: PALETTE.success }}>
+                    {formatDate(booking.paid_at.slice(0, 10))}
                   </span>
                 }
               />
-              <Field
-                label={booking.paid_at ? 'Days to Pay (DOI)' : 'Days Outstanding'}
-                value={
-                  <span style={{ color: overdue ? PALETTE.danger : booking.paid_at ? PALETTE.success : PALETTE.warning, fontWeight: 600 }}>
-                    {doi} {doi === 1 ? 'day' : 'days'}
-                    {overdue ? ' — overdue' : ''}
-                  </span>
-                }
-              />
-            </>
-          );
-        })()}
-        {booking.paid_at && (
-          <Field
-            label="Paid"
-            value={
-              <span style={{ color: PALETTE.success }}>
-                {formatDate(booking.paid_at.slice(0, 10))}
-              </span>
-            }
-          />
-        )}
-      </Section>
+            )}
+          </Section>
+        );
+      })()}
 
       {(booking.cancellation_reason || booking.release_reason) && (
         <Section title={booking.state === 'cancelled' ? 'Cancellation' : 'Release'}>
