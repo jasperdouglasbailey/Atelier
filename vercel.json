@@ -13,6 +13,10 @@
       "schedule": "30 21 * * *"
     },
     {
+      "path": "/api/cron/talent-gallery-ping",
+      "schedule": "45 21 * * *"
+    },
+    {
       "path": "/api/cron/compliance-pings",
       "schedule": "0 22 * * *"
     }
