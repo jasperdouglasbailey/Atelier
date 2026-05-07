@@ -64,6 +64,7 @@ export default async function PublicQuotePage({ params }: Props) {
   // from the booking record if a fresh client view is needed.
   if (booking.quote_token_expires_at) {
     const expiresAt = new Date(booking.quote_token_expires_at);
+    // eslint-disable-next-line react-hooks/purity -- server component; Date.now() runs once on the server, not during client re-render
     if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
       return <ExpiredQuoteView agencyEmail={getAgencyConfig().email ?? null} />;
     }
