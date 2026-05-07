@@ -370,6 +370,7 @@ export type Database = {
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
           quote_token: string
+          quote_token_expires_at: string | null
           release_reason: string | null
           released_to: string | null
           retouch_note_format: string | null
@@ -432,6 +433,7 @@ export type Database = {
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
           quote_token?: string
+          quote_token_expires_at?: string | null
           release_reason?: string | null
           released_to?: string | null
           retouch_note_format?: string | null
@@ -494,6 +496,7 @@ export type Database = {
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
           quote_token?: string
+          quote_token_expires_at?: string | null
           release_reason?: string | null
           released_to?: string | null
           retouch_note_format?: string | null

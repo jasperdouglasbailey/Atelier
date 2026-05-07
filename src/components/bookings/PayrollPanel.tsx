@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import { markTalentPaidAction, markCrewPaidAction } from '@/app/actions/bookings';
 import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 
@@ -101,7 +102,7 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium" style={{ color: PALETTE.text }}>{name}</span>
                   {discipline && (
-                    <span className="text-[10px]" style={{ color: PALETTE.muted }}>{discipline.replace(/_/g, ' ')}</span>
+                    <span className="text-[10px]" style={{ color: PALETTE.muted }}>{humanise(discipline)}</span>
                   )}
                 </div>
                 <div className="text-[10px]" style={{ color: PALETTE.muted }}>

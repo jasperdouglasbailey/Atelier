@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClientRecord, updateClient, createBrand } from '@/lib/data/entities';
 import { createTalentRecord, updateTalent } from '@/lib/data/entities';
 import { createCrewRecord, updateCrew } from '@/lib/data/entities';
-import { createEntityFolder } from '@/lib/integrations/drive';
+import { createEntityFolder, trashDriveFolder } from '@/lib/integrations/drive';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { reportDataError } from '@/lib/utils/data-errors';
@@ -291,6 +291,18 @@ function randomAnonId(): string {
 
 export async function anonymiseTalentAction(id: string) {
   const anonId = randomAnonId();
+
+  // Fetch the existing Drive folder ID *before* we null it on the row, so
+  // we can move the folder to Drive trash. The folder holds portfolio +
+  // signed paperwork — leaving it would make the anonymise half-true.
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from('atelier_talent')
+    .select('drive_folder_id')
+    .eq('id', id)
+    .maybeSingle();
+  const driveFolderId = existing?.drive_folder_id ?? null;
+
   const updates = {
     working_name: `Anonymised ${anonId}`,
     legal_name: `Anonymised ${anonId}`,
@@ -333,21 +345,39 @@ export async function anonymiseTalentAction(id: string) {
   const result = await updateTalent(id, updates as never);
   if (!result) return { error: 'Anonymise failed' };
 
+  // APP 13: trash the Drive folder so portfolio / signed paperwork doesn't
+  // outlive the database anonymisation. Soft-delete (30-day Drive trash)
+  // gives a window to recover from a mis-click.
+  const driveTrashed = await trashDriveFolder(driveFolderId);
+
   await auditEntityMutation({
     table: 'atelier_talent',
     recordId: id,
     action: 'archive',
-    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+    payload: {
+      reason: 'right_to_be_forgotten',
+      anon_id: anonId,
+      drive_folder_trashed: driveTrashed,
+      drive_folder_id_was: driveFolderId,
+    },
   });
 
   revalidatePath('/talent');
   revalidatePath(`/talent/${id}`);
-  return { ok: true, anonId };
+  return { ok: true, anonId, driveTrashed };
 }
 
 export async function anonymiseClientAction(id: string) {
   const supabase = await createClient();
   const anonId = randomAnonId();
+
+  // Fetch existing Drive folder before null-ing — see talent action above.
+  const { data: existing } = await supabase
+    .from('atelier_clients')
+    .select('drive_folder_id')
+    .eq('id', id)
+    .maybeSingle();
+  const driveFolderId = existing?.drive_folder_id ?? null;
 
   const { error } = await supabase
     .from('atelier_clients')
@@ -367,20 +397,36 @@ export async function anonymiseClientAction(id: string) {
 
   if (error) return { error: error.message };
 
+  const driveTrashed = await trashDriveFolder(driveFolderId);
+
   await auditEntityMutation({
     table: 'atelier_clients',
     recordId: id,
     action: 'archive',
-    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+    payload: {
+      reason: 'right_to_be_forgotten',
+      anon_id: anonId,
+      drive_folder_trashed: driveTrashed,
+      drive_folder_id_was: driveFolderId,
+    },
   });
 
   revalidatePath('/clients');
   revalidatePath(`/clients/${id}`);
-  return { ok: true, anonId };
+  return { ok: true, anonId, driveTrashed };
 }
 
 export async function anonymiseCrewAction(id: string) {
   const anonId = randomAnonId();
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from('atelier_crew')
+    .select('drive_folder_id')
+    .eq('id', id)
+    .maybeSingle();
+  const driveFolderId = existing?.drive_folder_id ?? null;
+
   const updates = {
     name: `Anonymised ${anonId}`,
     preferred_comms: null,
@@ -408,16 +454,23 @@ export async function anonymiseCrewAction(id: string) {
   const result = await updateCrew(id, updates as never);
   if (!result) return { error: 'Anonymise failed' };
 
+  const driveTrashed = await trashDriveFolder(driveFolderId);
+
   await auditEntityMutation({
     table: 'atelier_crew',
     recordId: id,
     action: 'archive',
-    payload: { reason: 'right_to_be_forgotten', anon_id: anonId },
+    payload: {
+      reason: 'right_to_be_forgotten',
+      anon_id: anonId,
+      drive_folder_trashed: driveTrashed,
+      drive_folder_id_was: driveFolderId,
+    },
   });
 
   revalidatePath('/crew');
   revalidatePath(`/crew/${id}`);
-  return { ok: true, anonId };
+  return { ok: true, anonId, driveTrashed };
 }
 
 /**

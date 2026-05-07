@@ -8,6 +8,7 @@ import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import DataRightsControls from '@/components/entities/DataRightsControls';
 import { PALETTE, CREW_TIER_LABELS, CREW_STATUS_LABELS, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import type { BookingState } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
@@ -82,8 +83,8 @@ export default async function CrewDetailPage({ params }: Props) {
             <div>
               <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h2>
               <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
-                {crew.primary_role?.replace(/_/g, ' ')}
-                {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(r => r.replace(/_/g, ' ')).join(', ')}` : ''}
+                {humanise(crew.primary_role)}
+                {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(humanise).join(', ')}` : ''}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -123,7 +124,7 @@ export default async function CrewDetailPage({ params }: Props) {
               />
               <Stat
                 label="Top Role"
-                value={topRole ? topRole.replace(/_/g, ' ') : '—'}
+                value={topRole ? humanise(topRole) : '—'}
                 sublabel={topRole ? 'most assigned' : undefined}
               />
             </div>
@@ -212,7 +213,7 @@ export default async function CrewDetailPage({ params }: Props) {
                       {b.booking_ref ?? b.booking_title}
                     </div>
                     <div className="flex gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
-                      {b.role_on_booking && <span>{b.role_on_booking.replace(/_/g, ' ')}</span>}
+                      {b.role_on_booking && <span>{humanise(b.role_on_booking)}</span>}
                       {b.day_rate != null && <span>{formatCurrency(b.day_rate)}/day</span>}
                       {b.shoot_date_notes && <span>{b.shoot_date_notes}</span>}
                     </div>

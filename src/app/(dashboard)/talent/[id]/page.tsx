@@ -10,6 +10,7 @@ import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLink
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import DataRightsControls from '@/components/entities/DataRightsControls';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import type { BookingState } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
@@ -131,7 +132,7 @@ export default async function TalentDetailPage({ params }: Props) {
               />
               <Stat
                 label="Top Tier"
-                value={topTier ? topTier.replace(/_/g, ' ') : '—'}
+                value={topTier ? humanise(topTier) : '—'}
                 sublabel={topTier ? 'most worked' : undefined}
               />
             </div>

@@ -19,6 +19,7 @@ import { getCrewMember } from '@/lib/data/entities';
 import { computeCrewPayment } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import PrintActions from '../../quote/PrintActions';
 
@@ -102,7 +103,7 @@ export default async function CrewBillPage({ params }: Props) {
             <div style={{ fontWeight: 600 }}>{crew.name}</div>
             {crew.primary_role && (
               <div style={{ fontSize: 12, color: '#666', textTransform: 'capitalize' }}>
-                {crew.primary_role.replace(/_/g, ' ')}
+                {humanise(crew.primary_role)}
               </div>
             )}
             {crew.abn && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>ABN {crew.abn}</div>}

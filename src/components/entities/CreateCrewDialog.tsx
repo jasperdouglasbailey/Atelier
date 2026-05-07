@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createCrewAction } from '@/app/actions/entities';
 import { PALETTE, CREW_TIERS, CREW_TIER_LABELS, CREW_ROLES } from '@/lib/utils/constants';
+import { humanise } from '@/lib/utils/humanise';
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
 const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg };
@@ -47,7 +48,7 @@ export default function CreateCrewDialog() {
           <select name="primary_role" className={inputClass} style={inputStyle}>
             <option value="">— Role —</option>
             {CREW_ROLES.map((r) => (
-              <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+              <option key={r} value={r}>{humanise(r)}</option>
             ))}
           </select>
           <select name="tier" className={inputClass} style={inputStyle} defaultValue="regular_freelance">

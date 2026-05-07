@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/compliance-pings",
       "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/data-retention",
+      "schedule": "30 3 * * *"
     }
   ]
 }

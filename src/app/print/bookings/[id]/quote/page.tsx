@@ -5,6 +5,7 @@ import { listUsageLicences } from '@/lib/data/usage-licences';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import PrintActions from './PrintActions';
@@ -150,7 +151,7 @@ export default async function QuotePrintPage({ params }: Props) {
           {booking.talent_spec && <Row label="Talent Spec" value={booking.talent_spec} />}
           {booking.deliverables_type && <Row label="Deliverables" value={booking.deliverables_type} />}
           {booking.deliverables_count && <Row label="Deliverable Count" value={String(booking.deliverables_count)} />}
-          {booking.post_production_ownership && <Row label="Post-Production" value={booking.post_production_ownership.replace(/_/g, ' ')} />}
+          {booking.post_production_ownership && <Row label="Post-Production" value={humanise(booking.post_production_ownership)} />}
           {booking.selects_cadence && <Row label="Selects Cadence" value={booking.selects_cadence} />}
         </div>
       </div>

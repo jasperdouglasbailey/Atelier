@@ -20,6 +20,7 @@ import { getBooking } from '@/lib/data/bookings';
 import { listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { formatDate } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import PrintActions from '../quote/PrintActions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -215,7 +216,7 @@ function PersonBlock({
     <div className="text-sm" style={{ lineHeight: 1.5 }}>
       {role && (
         <div className="text-[10px] uppercase tracking-wider" style={{ color: '#999' }}>
-          {role.replace(/_/g, ' ')}
+          {humanise(role)}
         </div>
       )}
       <div className="font-semibold flex items-center gap-2">

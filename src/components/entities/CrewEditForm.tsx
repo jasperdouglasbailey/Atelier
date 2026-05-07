@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateCrewAction } from '@/app/actions/entities';
 import { PALETTE, CREW_ROLES, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
+import { humanise } from '@/lib/utils/humanise';
 import type { Crew } from '@/lib/types/database';
 
 type Props = { crew: Crew };
@@ -81,7 +82,7 @@ export default function CrewEditForm({ crew }: Props) {
             <select name="primary_role" defaultValue={crew.primary_role ?? ''} style={inputStyle}>
               <option value="">— Select —</option>
               {CREW_ROLES.map((r) => (
-                <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                <option key={r} value={r}>{humanise(r)}</option>
               ))}
             </select>
           </div>
