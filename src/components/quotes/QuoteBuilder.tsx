@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
-import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent } from '@/lib/types/database';
+import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent, BookingCrew } from '@/lib/types/database';
 import type { RatePrecedent } from '@/lib/data/quotes';
-import { computeQuoteTotals, computeAgencyMargin, type ComputedFeeLine } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, computeGstPassthrough, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import {
@@ -19,6 +19,7 @@ type Props = {
   quoteVersions: QuoteVersion[];
   feeLines: FeeLine[]; // fee lines for the latest version (initial server render)
   bookingTalent?: BookingTalent[];
+  bookingCrew?: BookingCrew[];
   ratePrecedents?: RatePrecedent[];
 };
 
@@ -37,7 +38,7 @@ const OUTGOING_TYPES = new Set<FeeLineType>([
   'casting', 'location_fee', 'permits', 'insurance',
 ]);
 
-export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [], ratePrecedents = [] }: Props) {
+export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [], bookingCrew = [], ratePrecedents = [] }: Props) {
   const router = useRouter();
   const [showAddLine, setShowAddLine] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -633,38 +634,119 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </span>
           </div>
 
-          {/* Agency margin breakdown — what Saunders & Co keeps from this booking.
-              Includes commission on artist labour, ALL ASF (artist + outgoings — no
-              other agency takes the ASF on outgoings, we keep it), and the super
-              spread (15% charged − 12% paid to fund). */}
+          {/* Two separate panels:
+              1. GST passthrough — what's collected vs claimed back vs owed to ATO.
+                 GST is not margin, it flows through us; this panel makes that explicit.
+              2. Agency margin — pure retained revenue (commission + ASF + super spread).
+                 No GST annotations to confuse the picture. */}
           {(() => {
             const margin = computeAgencyMargin(totals);
-            if (margin.total <= 0) return null;
+            if (margin.total <= 0 && totals.totalGst <= 0) return null;
+
+            // Estimate input credits from the booking team's GST status. Artist
+            // GST applies to commissionable artist-side line types; crew GST
+            // applies to crew_labour / overtime lines linked to GST-registered
+            // crew. Equipment / studio / catering vendors invoice the agency
+            // separately and are not modelled here.
+            const primaryArtist = bookingTalent[0]?.talent;
+            const artistGstRegistered = primaryArtist?.gst_registered ?? false;
+            const artistFeeSubtotal = artistTotals.subtotal;
+
+            const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+            const crewLabourSubtotalGstRegistered = previewLines
+              .filter((l) => CREW_LABOUR_LINE_TYPES.has(l.line_type) && l.crew_id != null)
+              .reduce((sum, l) => {
+                const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
+                return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
+              }, 0);
+
+            const gst = computeGstPassthrough({
+              totals,
+              artistFeeSubtotal,
+              artistGstRegistered,
+              crewLabourSubtotalGstRegistered,
+            });
+
             return (
-              <div
-                className="rounded-md border-l-2 px-3 py-2 space-y-1"
-                style={{ borderColor: PALETTE.accent, background: `${PALETTE.accent}08` }}
-              >
-                <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.accent }}>
-                  <span>Agency margin (retained)</span>
-                  <span className="tabular-nums text-sm font-bold normal-case tracking-normal">{formatCurrency(margin.total)}</span>
-                </div>
-                {margin.commission > 0 && (
-                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                    <span>Commission (artist labour)</span>
-                    <span className="tabular-nums">{formatCurrency(margin.commission)}<span className="opacity-60"> + {formatCurrency(totals.totalCommissionGst)} GST</span></span>
+              <div className="space-y-3">
+                {/* GST passthrough */}
+                {gst.collectedTotal > 0 && (
+                  <div
+                    className="rounded-md border-l-2 px-3 py-2 space-y-1"
+                    style={{ borderColor: PALETTE.muted, background: `${PALETTE.muted}10` }}
+                  >
+                    <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>
+                      <span>GST (passthrough — owed to ATO)</span>
+                      <span className="tabular-nums text-sm font-bold normal-case tracking-normal" style={{ color: PALETTE.text }}>
+                        {formatCurrency(gst.netToAto)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                      <span>Collected from client</span>
+                      <span className="tabular-nums">+{formatCurrency(gst.collectedTotal)}</span>
+                    </div>
+                    {gst.collectedOnCommission > 0 && (
+                      <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
+                        <span>· incl. GST on commission</span>
+                        <span className="tabular-nums">{formatCurrency(gst.collectedOnCommission)}</span>
+                      </div>
+                    )}
+                    {gst.inputCreditsTotal > 0 && (
+                      <>
+                        <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                          <span>Input credits (paid through to suppliers)</span>
+                          <span className="tabular-nums">−{formatCurrency(gst.inputCreditsTotal)}</span>
+                        </div>
+                        {gst.artistInputCredits > 0 && (
+                          <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
+                            <span>· artist (GST-registered)</span>
+                            <span className="tabular-nums">{formatCurrency(gst.artistInputCredits)}</span>
+                          </div>
+                        )}
+                        {gst.crewInputCredits > 0 && (
+                          <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
+                            <span>· crew (GST-registered)</span>
+                            <span className="tabular-nums">{formatCurrency(gst.crewInputCredits)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {gst.inputCreditsTotal === 0 && (
+                      <div className="text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+                        No GST-registered talent or crew on this booking — net = collected.
+                      </div>
+                    )}
                   </div>
                 )}
-                {margin.asf > 0 && (
-                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                    <span>ASF (artist + outgoings)</span>
-                    <span className="tabular-nums">{formatCurrency(margin.asf)}</span>
-                  </div>
-                )}
-                {margin.superSpread > 0 && (
-                  <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                    <span>Super spread (15% charged − 12% paid)</span>
-                    <span className="tabular-nums">{formatCurrency(margin.superSpread)}</span>
+
+                {/* Agency margin (retained) */}
+                {margin.total > 0 && (
+                  <div
+                    className="rounded-md border-l-2 px-3 py-2 space-y-1"
+                    style={{ borderColor: PALETTE.accent, background: `${PALETTE.accent}08` }}
+                  >
+                    <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.accent }}>
+                      <span>Agency margin (retained, ex-GST)</span>
+                      <span className="tabular-nums text-sm font-bold normal-case tracking-normal">{formatCurrency(margin.total)}</span>
+                    </div>
+                    {margin.commission > 0 && (
+                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                        <span>Commission (20% on artist labour)</span>
+                        <span className="tabular-nums">{formatCurrency(margin.commission)}</span>
+                      </div>
+                    )}
+                    {margin.asf > 0 && (
+                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                        <span>ASF (15% on artist + outgoings)</span>
+                        <span className="tabular-nums">{formatCurrency(margin.asf)}</span>
+                      </div>
+                    )}
+                    {margin.superSpread > 0 && (
+                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                        <span>Super spread (15% charged − 12% paid)</span>
+                        <span className="tabular-nums">{formatCurrency(margin.superSpread)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
