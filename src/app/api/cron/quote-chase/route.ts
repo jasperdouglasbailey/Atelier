@@ -15,6 +15,9 @@
  * compliance-pings 22:00). Approval-gated like every other agent
  * comm — Jasper reviews before send.
  *
+ * Tone adapts to client.communication_style (formal / casual / terse).
+ * null → casual (Jasper's base voice).
+ *
  * Idempotency: `quote_chase_{bookingId}_{dayMark}` — re-running on
  * the same day doesn't duplicate.
  */
@@ -23,6 +26,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit } from '@/lib/utils/audit';
+import { buildQuoteChaseEmail } from '@/lib/utils/comms-tone';
+import type { CommunicationStyle } from '@/lib/types/database';
 
 const CHASE_DAY_MARKS = [3, 7, 14, 21] as const;
 
@@ -35,48 +40,6 @@ function isAuthorised(req: NextRequest): boolean {
 
 function daysSince(ts: string): number {
   return Math.floor((Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function chaseEmailDraft(
-  dayMark: number,
-  bookingRef: string,
-  bookingTitle: string,
-  clientName: string,
-): { subject: string; body: string } {
-  const subject = `RE: ${bookingTitle} — ${bookingRef}`;
-
-  // Jasper's voice: direct, concrete next step, no exclamation marks,
-  // no "I hope this finds you well", short sentences.
-  const bodies: Record<number, string> = {
-    3: `Hi ${clientName},
-
-Wanted to check the quote we sent through for ${bookingTitle} landed OK. Happy to walk through any line items or talk pricing if that would help.
-
-What's the timeline looking like on your end?
-
-Best,
-Jasper`,
-    7: `Hi ${clientName},
-
-Following up on the ${bookingTitle} quote — happy to hop on a quick call this week if it would help unblock anything. Otherwise let me know if there's a tweak that would get this over the line.
-
-Best,
-Jasper`,
-    14: `Hi ${clientName},
-
-Just checking in on ${bookingTitle}. We've held a few options for crew and dates — let me know if the project is still moving forward or if priorities have shifted.
-
-Best,
-Jasper`,
-    21: `Hi ${clientName},
-
-This is my last follow-up on ${bookingTitle}. If the timing has slipped or the project is on hold, no problem — just let me know and we'll release the holds. Always happy to revisit when you're ready.
-
-Best,
-Jasper`,
-  };
-
-  return { subject, body: bodies[dayMark] ?? bodies[21] };
 }
 
 export async function GET(req: NextRequest) {
@@ -105,7 +68,7 @@ export async function GET(req: NextRequest) {
       booking_ref,
       title,
       quote_sent_at,
-      client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email)
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email, communication_style)
     `)
     .eq('state', 'quote_sent')
     .not('quote_sent_at', 'is', null)
@@ -132,12 +95,13 @@ export async function GET(req: NextRequest) {
 
     const days = daysSince(booking.quote_sent_at as string);
     const clientRaw = booking.client as unknown as
-      | { name: string; company: string | null; email: string | null }
-      | { name: string; company: string | null; email: string | null }[]
+      | { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }
+      | { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }[]
       | null;
     const clientObj = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw;
     const clientName = clientObj?.company ?? clientObj?.name ?? 'there';
     const clientEmail = clientObj?.email ?? null;
+    const commStyle = clientObj?.communication_style ?? null;
 
     if (!clientEmail) {
       console.warn('[cron/quote-chase] skipping — no client email for', booking.booking_ref);
@@ -148,12 +112,13 @@ export async function GET(req: NextRequest) {
       if (days < mark) continue; // not time yet
 
       const key = `quote_chase_${booking.id}_${mark}`;
-      const draft = chaseEmailDraft(
-        mark,
-        booking.booking_ref as string,
-        booking.title as string,
+      const draft = buildQuoteChaseEmail({
+        style: commStyle,
+        dayMark: mark,
+        bookingRef: booking.booking_ref as string,
+        bookingTitle: booking.title as string,
         clientName,
-      );
+      });
 
       const { error: insertErr } = await supabase.from('atelier_approvals').insert({
         agent: 'comms',
@@ -167,6 +132,7 @@ export async function GET(req: NextRequest) {
           day_mark: mark,
           booking_ref: booking.booking_ref,
           booking_title: booking.title,
+          communication_style: commStyle,
         },
         confidence: 90,
         uncertainty_sources: mark >= 21

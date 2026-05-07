@@ -46,6 +46,13 @@ export type ArtistDiscipline =
 /** How this person prefers to be contacted. */
 export type PreferredComms = 'email' | 'sms' | 'imessage' | 'phone' | 'whatsapp';
 
+/**
+ * Tone / register to use in outbound emails to this client.
+ * Separate from preferred_comms (channel).
+ * null → defaults to 'casual' (Jasper's base voice).
+ */
+export type CommunicationStyle = 'formal' | 'casual' | 'terse';
+
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type AgentName = 'orchestrator' | 'brief_intake' | 'booking' | 'comms' | 'finance' | 'client' | 'marketing' | 'security_audit';
 export type UsageMedia =
@@ -91,6 +98,8 @@ export interface Client {
   avg_doi_days: number | null;
   /** How this client prefers to be contacted. */
   preferred_comms: string | null;
+  /** Tone / register to use in outbound emails. null = casual (Jasper's base voice). */
+  communication_style: CommunicationStyle | null;
   /** Auto-created Drive folder for client material (signed letters, invoices). */
   drive_folder_id: string | null;
   drive_folder_link: string | null;

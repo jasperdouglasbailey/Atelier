@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   createBusinessRenewalAction, updateBusinessRenewalAction, deleteBusinessRenewalAction,
 } from '@/app/actions/business-renewals';
-import { RENEWAL_TYPE_OPTIONS, type BusinessRenewalRow, type ExpiryStatus, EXPIRY_DANGER_DAYS, EXPIRY_WARN_DAYS } from '@/lib/data/business-renewals';
+import { RENEWAL_TYPE_OPTIONS, type BusinessRenewalRow, type ExpiryStatus, EXPIRY_DANGER_DAYS, EXPIRY_WARN_DAYS } from '@/lib/data/business-renewals-types';
 import { PALETTE } from '@/lib/utils/constants';
 import { formatDate } from '@/lib/utils/format';
 

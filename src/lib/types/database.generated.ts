@@ -662,6 +662,7 @@ export type Database = {
         Row: {
           abn: string | null
           avg_doi_days: number | null
+          communication_style: string | null
           company: string | null
           created_at: string
           drive_folder_id: string | null
@@ -680,6 +681,7 @@ export type Database = {
         Insert: {
           abn?: string | null
           avg_doi_days?: number | null
+          communication_style?: string | null
           company?: string | null
           created_at?: string
           drive_folder_id?: string | null
@@ -698,6 +700,7 @@ export type Database = {
         Update: {
           abn?: string | null
           avg_doi_days?: number | null
+          communication_style?: string | null
           company?: string | null
           created_at?: string
           drive_folder_id?: string | null

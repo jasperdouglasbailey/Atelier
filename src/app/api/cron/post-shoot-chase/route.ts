@@ -6,6 +6,9 @@
  * chase email in atelier_approvals at days 7, 14, 22, and 30 after
  * final_delivery_at. Jasper reviews and approves before anything sends.
  *
+ * Tone adapts to client.communication_style (formal / casual / terse).
+ * null → casual (Jasper's base voice).
+ *
  * Idempotency key: `chase_{bookingId}_{dayMark}` — safe to run multiple
  * times per day without creating duplicates (the unique constraint on
  * idempotency_key rejects the insert silently).
@@ -17,6 +20,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit } from '@/lib/utils/audit';
+import { buildPostShootChaseEmail } from '@/lib/utils/comms-tone';
+import type { CommunicationStyle } from '@/lib/types/database';
 
 const CHASE_DAY_MARKS = [7, 14, 22, 30] as const;
 
@@ -29,24 +34,6 @@ function isAuthorised(req: NextRequest): boolean {
 
 function daysSince(ts: string): number {
   return Math.floor((Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function chaseEmailDraft(
-  dayMark: number,
-  bookingRef: string,
-  clientName: string,
-): { subject: string; body: string } {
-  const subject = `RE: ${bookingRef} — Final deliverables`;
-
-  // Jasper's voice: direct, no "I hope this finds you well", no exclamation marks
-  const bodies: Record<number, string> = {
-    7: `Hi ${clientName},\n\nFollowing up on the final deliverables for ${bookingRef}. Please let me know if you have any questions or if there's anything you need from our side.\n\nBest,\nJasper`,
-    14: `Hi ${clientName},\n\nJust checking in on ${bookingRef} — wanted to make sure the finals landed OK and that you have everything you need.\n\nIf there's anything outstanding, happy to chat.\n\nBest,\nJasper`,
-    22: `Hi ${clientName},\n\nFollowing up again on ${bookingRef}. If there are any outstanding retouching notes or delivery questions, let's get them resolved.\n\nBest,\nJasper`,
-    30: `Hi ${clientName},\n\nThis is my final follow-up on ${bookingRef}. If you have any outstanding feedback or issues with the deliverables, please reach out directly.\n\nBest,\nJasper`,
-  };
-
-  return { subject, body: bodies[dayMark] ?? bodies[30] };
 }
 
 export async function GET(req: NextRequest) {
@@ -64,19 +51,15 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient();
 
   // Time-bound: chasing a delivery older than 90 days is never useful.
-  // Cap result count for safety as the booking history grows.
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Find bookings past final_delivery with a known delivery timestamp.
-  // Pull the client email upfront so the approval handler doesn't need a
-  // second round-trip when Jasper approves the draft.
   const { data: bookings, error: fetchErr } = await supabase
     .from('atelier_bookings')
     .select(`
       id,
       booking_ref,
       final_delivery_at,
-      client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email)
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email, communication_style)
     `)
     .not('final_delivery_at', 'is', null)
     .gte('final_delivery_at', ninetyDaysAgo)
@@ -101,19 +84,16 @@ export async function GET(req: NextRequest) {
     if (!booking.final_delivery_at || !booking.booking_ref) continue;
 
     const days = daysSince(booking.final_delivery_at as string);
-    // Supabase join inference returns client as array | object depending on relation.
-    // Normalise to a single record before reading.
     const clientRaw = booking.client as unknown as
-      | { name: string; company: string | null; email: string | null }
-      | { name: string; company: string | null; email: string | null }[]
+      | { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }
+      | { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }[]
       | null;
     const clientObj = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw;
     const clientName = clientObj?.company ?? clientObj?.name ?? 'there';
     const clientEmail = clientObj?.email ?? null;
+    const commStyle = clientObj?.communication_style ?? null;
 
-    // Doctrine: never queue a chase that can't be sent. If we don't know
-    // where to send it, skip with a warning — Jasper sees the gap on the
-    // booking detail rather than as an unsendable inbox item.
+    // Doctrine: never queue a chase that can't be sent.
     if (!clientEmail) {
       console.warn('[cron/post-shoot-chase] skipping — no client email for', booking.booking_ref);
       continue;
@@ -123,7 +103,12 @@ export async function GET(req: NextRequest) {
       if (days < mark) continue; // not time yet
 
       const key = `chase_${booking.id}_${mark}`;
-      const draft = chaseEmailDraft(mark, booking.booking_ref as string, clientName);
+      const draft = buildPostShootChaseEmail({
+        style: commStyle,
+        dayMark: mark,
+        bookingRef: booking.booking_ref as string,
+        clientName,
+      });
 
       const { error: insertErr } = await supabase.from('atelier_approvals').insert({
         agent: 'comms',
@@ -136,6 +121,7 @@ export async function GET(req: NextRequest) {
           body: draft.body,
           day_mark: mark,
           booking_ref: booking.booking_ref,
+          communication_style: commStyle,
         },
         confidence: 90,
         uncertainty_sources: [],
