@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateClientAction } from '@/app/actions/entities';
-import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
+import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS, COMMUNICATION_STYLE_OPTIONS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
 import type { Client } from '@/lib/types/database';
 
 type Props = { client: Client };
@@ -110,14 +110,25 @@ export default function ClientEditForm({ client }: Props) {
           </div>
         </div>
 
-        <div>
-          <label style={labelStyle}>Preferred Comms</label>
-          <select name="preferred_comms" defaultValue={client.preferred_comms ?? ''} style={{ ...inputStyle, maxWidth: 240 }}>
-            <option value="">— Not set —</option>
-            {PREFERRED_COMMS_OPTIONS.map((c) => (
-              <option key={c} value={c}>{PREFERRED_COMMS_LABELS[c]}</option>
-            ))}
-          </select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Preferred Comms</label>
+            <select name="preferred_comms" defaultValue={client.preferred_comms ?? ''} style={inputStyle}>
+              <option value="">— Not set —</option>
+              {PREFERRED_COMMS_OPTIONS.map((c) => (
+                <option key={c} value={c}>{PREFERRED_COMMS_LABELS[c]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Email Tone</label>
+            <select name="communication_style" defaultValue={client.communication_style ?? ''} style={inputStyle}>
+              <option value="">— Default (casual) —</option>
+              {COMMUNICATION_STYLE_OPTIONS.map((s) => (
+                <option key={s} value={s}>{COMMUNICATION_STYLE_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 

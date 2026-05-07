@@ -4,7 +4,8 @@ import Topbar from '@/components/layout/Topbar';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
-import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
+import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
+import type { CommunicationStyle } from '@/lib/types/database';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import DataRightsControls from '@/components/entities/DataRightsControls';
 
@@ -185,7 +186,14 @@ export default async function ClientDetailPage({ params }: Props) {
             <Field label="Email" value={client.email} />
             <Field label="Phone" value={client.phone} />
             <Field label="ABN" value={client.abn} />
+            <Field label="Preferred Comms" value={client.preferred_comms ?? null} />
             <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
+            {client.communication_style && (
+              <Field
+                label="Email Tone"
+                value={COMMUNICATION_STYLE_LABELS[client.communication_style as CommunicationStyle] ?? client.communication_style}
+              />
+            )}
             {client.avg_doi_days ? (
               (() => {
                 const isSlowPayer = client.payment_terms_days != null

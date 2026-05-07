@@ -1,4 +1,4 @@
-import type { BookingState, ShootTier, CrewTier, AgentName, FeeLineType, ArtistDiscipline, PreferredComms } from '@/lib/types/database';
+import type { BookingState, ShootTier, CrewTier, AgentName, FeeLineType, ArtistDiscipline, PreferredComms, CommunicationStyle } from '@/lib/types/database';
 
 // Ordered booking states for the state machine
 export const BOOKING_STATES: readonly BookingState[] = [
@@ -124,6 +124,14 @@ export const PREFERRED_COMMS_LABELS: Record<PreferredComms, string> = {
   imessage: 'iMessage',
   phone: 'Phone call',
   whatsapp: 'WhatsApp',
+};
+
+export const COMMUNICATION_STYLE_OPTIONS: CommunicationStyle[] = ['formal', 'casual', 'terse'];
+
+export const COMMUNICATION_STYLE_LABELS: Record<CommunicationStyle, string> = {
+  formal:  'Formal — full prose, professional register',
+  casual:  'Casual — direct, concise (Jasper\'s base voice)',
+  terse:   'Terse — very brief, minimum words',
 };
 
 export const AGENTS: { id: AgentName; label: string }[] = [

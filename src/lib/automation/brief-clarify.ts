@@ -22,7 +22,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { createApproval } from '@/lib/data/approvals';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import { buildBriefClarifyEmail } from '@/lib/utils/comms-tone';
 import type { BriefIntakeResult } from './brief-intake';
+import type { CommunicationStyle } from '@/lib/types/database';
 
 /**
  * Field-level questions to ask the client when fields are missing.
@@ -73,32 +75,7 @@ function pickQuestions(parsed: BriefIntakeResult): string[] {
   return out;
 }
 
-function buildEmailBody(opts: {
-  clientName: string;
-  bookingTitle: string;
-  bookingRef: string | null;
-  questions: string[];
-}): { subject: string; body: string } {
-  const { clientName, bookingTitle, bookingRef, questions } = opts;
-  const ref = bookingRef ?? bookingTitle;
-
-  const subject = `[${bookingRef ?? 'Brief'}] Quick clarifications — ${bookingTitle}`;
-
-  const body = `Hi ${clientName},
-
-Thanks for the brief on ${bookingTitle}${bookingRef ? ` (${bookingRef})` : ''}. Before I get a quote together, a few quick clarifications:
-
-${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
-
-Once we have these I can have a quote across to you within a day or two.
-
-Best,
-Jasper Bailey
-Saunders & Co
-info@saundersandco.com.au`;
-
-  return { subject, body };
-}
+// buildEmailBody removed — replaced by buildBriefClarifyEmail from comms-tone.ts
 
 /**
  * Auto-queue a brief-clarify approval row for low-confidence parses.
@@ -135,24 +112,26 @@ export async function autoQueueBriefClarifyIfNeeded(
   const supabase = await createClient();
   const { data: booking } = await supabase
     .from('atelier_bookings')
-    .select('id, booking_ref, title, client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email)')
+    .select('id, booking_ref, title, client:atelier_clients!atelier_bookings_client_id_fkey(name, company, email, communication_style)')
     .eq('id', bookingId)
     .maybeSingle();
 
   if (!booking) return { queued: false, reason: 'booking_not_found' };
 
   const clientRaw = (booking as unknown as {
-    client: { name: string; company: string | null; email: string | null }
-          | { name: string; company: string | null; email: string | null }[]
+    client: { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }
+          | { name: string; company: string | null; email: string | null; communication_style: CommunicationStyle | null }[]
           | null;
   }).client;
   const clientObj = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw;
   const clientEmail = clientObj?.email ?? null;
   const clientName = clientObj?.company ?? clientObj?.name ?? 'there';
+  const commStyle = clientObj?.communication_style ?? null;
 
   if (!clientEmail) return { queued: false, reason: 'no_client_email' };
 
-  const { subject, body } = buildEmailBody({
+  const { subject, body } = buildBriefClarifyEmail({
+    style: commStyle,
     clientName,
     bookingTitle: (booking as { title: string }).title,
     bookingRef: (booking as { booking_ref: string | null }).booking_ref,
@@ -169,6 +148,7 @@ export async function autoQueueBriefClarifyIfNeeded(
       subject,
       body,
       questions,
+      communication_style: commStyle,
       // Confidence + uncertainty surface in the inbox so Jasper sees
       // why this draft was auto-queued.
       parse_confidence: result.contract.confidence,

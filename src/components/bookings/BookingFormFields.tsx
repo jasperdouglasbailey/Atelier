@@ -499,6 +499,7 @@ export default function BookingFormFields({
                   is_creative_agency: false, parent_company_id: null,
                   payment_terms_days: null, notes: null,
                   avg_doi_days: null, preferred_comms: null,
+                  communication_style: null,
                   drive_folder_id: null, drive_folder_link: null,
                 };
                 setClients((prev) => [...prev, newClient]);
