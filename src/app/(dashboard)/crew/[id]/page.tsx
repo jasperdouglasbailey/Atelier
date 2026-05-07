@@ -5,6 +5,7 @@ import { getCrewMember } from '@/lib/data/entities';
 import { listCrewBookings } from '@/lib/data/crew-bookings';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
+import DataRightsControls from '@/components/entities/DataRightsControls';
 import { PALETTE, CREW_TIER_LABELS, CREW_STATUS_LABELS, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import type { BookingState } from '@/lib/types/database';
@@ -245,6 +246,8 @@ export default async function CrewDetailPage({ params }: Props) {
             </div>
           )}
         </section>
+
+        <DataRightsControls type="crew" id={crew.id} name={crew.name} />
 
         <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
           Created {formatDate(crew.created_at)} · Updated {formatDate(crew.updated_at)}
