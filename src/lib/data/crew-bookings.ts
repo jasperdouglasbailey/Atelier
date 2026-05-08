@@ -83,6 +83,77 @@ export async function listCrewBookings(crewId?: string): Promise<CrewBookingRow[
   });
 }
 
+/**
+ * Returns a Map of crew_id → list of bookings whose shoot dates overlap
+ * the given range. Used by BookingTeam to flag crew who are already
+ * booked elsewhere on the same dates ("availability warning"). The check
+ * is a soft warning — producers can still add the person; sometimes you
+ * intentionally double-book to confirm later.
+ *
+ * Excludes the current booking from the result (so a crew member already
+ * on this booking doesn't flag itself).
+ */
+export async function getCrewBookedOnRange(opts: {
+  startDate: string; // YYYY-MM-DD inclusive
+  endDate: string;   // YYYY-MM-DD inclusive
+  excludeBookingId?: string | null;
+}): Promise<Map<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>> {
+  const supabase = await createClient();
+
+  // Pull booking_crew rows whose linked booking has overlapping shoot_dates.
+  // PostgREST can't filter on embedded fields with overlap operators; we do
+  // a wide pull then filter in JS.
+  const { data, error } = await supabase
+    .from('atelier_booking_crew')
+    .select(`
+      crew_id,
+      booking:atelier_bookings(id, booking_ref, title, shoot_dates, state)
+    `)
+    .neq('status', 'declined')
+    .neq('status', 'released');
+
+  const result = new Map<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>();
+  if (error || !data) return result;
+
+  const startDate = opts.startDate;
+  const endDate = opts.endDate;
+
+  for (const row of (data ?? []) as unknown as Array<{
+    crew_id: string;
+    booking: { id: string; booking_ref: string | null; title: string; shoot_dates: string | null; state: string } | null;
+  }>) {
+    const b = row.booking;
+    if (!b) continue;
+    if (opts.excludeBookingId && b.id === opts.excludeBookingId) continue;
+    if (b.state === 'released' || b.state === 'cancelled') continue;
+    const range = parseDateRange(b.shoot_dates);
+    if (!range.start) continue;
+    // Convert to inclusive end (shoot_dates is exclusive)
+    let endInclusive = range.end;
+    if (range.end) {
+      const d = new Date(range.end + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 1);
+      endInclusive = d.toISOString().slice(0, 10);
+    }
+    const otherStart = range.start;
+    const otherEnd = endInclusive ?? range.start;
+    // Overlap test: ranges [a..b] and [c..d] overlap iff a<=d && c<=b
+    if (otherStart <= endDate && startDate <= otherEnd) {
+      const list = result.get(row.crew_id) ?? [];
+      list.push({
+        bookingId: b.id,
+        bookingRef: b.booking_ref,
+        title: b.title,
+        start: otherStart,
+        end: otherEnd,
+      });
+      result.set(row.crew_id, list);
+    }
+  }
+
+  return result;
+}
+
 export interface CalendarShoot {
   bookingId: string;
   bookingRef: string | null;
@@ -91,6 +162,14 @@ export interface CalendarShoot {
   tier: string;
   start: string;            // YYYY-MM-DD inclusive
   end: string;              // YYYY-MM-DD inclusive (we collapse Postgres' exclusive end here)
+  /** Display name of the client — company falls back to contact name. */
+  clientName: string | null;
+  /** Brand display name. */
+  brandName: string | null;
+  /** Free-text shoot location (used for the city-local hint). */
+  shootLocation: string | null;
+  /** Talent attached to the booking — used for the title format and hover card. */
+  talentNames: string[];
   crew: { id: string; name: string; role: string | null; tier: string }[];
 }
 
@@ -122,6 +201,10 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
         tier: r.booking_tier,
         start: r.shoot_start,
         end: endInclusive ?? r.shoot_start,
+        clientName: null,
+        brandName: null,
+        shootLocation: null,
+        talentNames: [],
         crew: [],
       });
     }
@@ -135,15 +218,43 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
 
   // Also pull bookings that have a shoot_dates set but no crew assigned yet —
   // they should still show on the calendar (Jasper hasn't booked the crew yet).
+  // Same query also enriches every entry with client / brand / talent / location
+  // so the calendar bar can render the agreed title format and hover card.
   const supabase = await createClient();
-  const { data: orphans } = await supabase
+  const { data: enrichRows } = await supabase
     .from('atelier_bookings')
-    .select('id, booking_ref, title, state, tier, shoot_dates')
+    .select(`
+      id, booking_ref, title, state, tier, shoot_dates, shoot_location,
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company),
+      brand:atelier_brands(name),
+      booking_talent:atelier_booking_talent(talent:atelier_talent(working_name))
+    `)
     .not('shoot_dates', 'is', null);
 
-  for (const b of (orphans ?? []) as Record<string, unknown>[] ) {
+  for (const b of (enrichRows ?? []) as Record<string, unknown>[]) {
     const id = b.id as string;
-    if (byBooking.has(id)) continue;
+    const client = b.client as { name?: string; company?: string | null } | null;
+    const brand = b.brand as { name?: string } | null;
+    const bookingTalent = (b.booking_talent ?? []) as Array<{ talent: { working_name?: string } | null }>;
+    const talentNames = bookingTalent
+      .map((bt) => bt.talent?.working_name)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+
+    const clientName = client?.company || client?.name || null;
+    const brandName = brand?.name ?? null;
+    const shootLocation = (b.shoot_location as string) ?? null;
+
+    if (byBooking.has(id)) {
+      // Enrich existing entry (had crew, missing the narrative fields)
+      const entry = byBooking.get(id)!;
+      entry.clientName = clientName;
+      entry.brandName = brandName;
+      entry.shootLocation = shootLocation;
+      entry.talentNames = talentNames;
+      continue;
+    }
+
+    // Booking has no crew — add it with full enrichment
     const range = parseDateRange(b.shoot_dates as string | null);
     if (!range.start) continue;
     let endInclusive = range.end;
@@ -160,6 +271,10 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
       tier: (b.tier as string) ?? 'content',
       start: range.start,
       end: endInclusive ?? range.start,
+      clientName,
+      brandName,
+      shootLocation,
+      talentNames,
       crew: [],
     });
   }

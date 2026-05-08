@@ -19,6 +19,12 @@ type Props = {
   allCrew: Crew[];
   /** Free-text shoot location — used to surface local crew first. */
   shootLocation?: string | null;
+  /**
+   * Map of crew_id → list of conflicting bookings. Crew members in this
+   * map get a soft "already booked on …" warning in both the attached
+   * roster and the add-dropdown.
+   */
+  crewConflictsByCrewId?: Record<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>;
 };
 
 /**
@@ -36,7 +42,7 @@ function isLocalCrew(crewCity: string | null | undefined, shootLocation: string 
     .some((token) => token.trim().length > 0 && haystack.includes(token.trim()));
 }
 
-export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation }: Props) {
+export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {} }: Props) {
   const router = useRouter();
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [showAddCrew, setShowAddCrew] = useState(false);
@@ -240,8 +246,12 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                 const local = isLocalCrew(c.city, shootLocation);
                 const cityHint = c.city ? (local ? ` · ${c.city} (local)` : ` · ${c.city}`) : '';
                 const roleLabel = c.primary_role ? humanise(c.primary_role) : 'General';
+                const conflicts = crewConflictsByCrewId[c.id];
+                const conflictHint = conflicts && conflicts.length > 0
+                  ? ` ⚠ already on ${conflicts[0].bookingRef ?? conflicts[0].title}`
+                  : '';
                 return (
-                  <option key={c.id} value={c.id}>{c.name} — {roleLabel}{cityHint}</option>
+                  <option key={c.id} value={c.id}>{c.name} — {roleLabel}{cityHint}{conflictHint}</option>
                 );
               })}
             </select>
@@ -275,6 +285,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
             {sortedBookingCrew.map((bc) => {
               const c = bc.crew;
               const local = isLocalCrew(c?.city, shootLocation);
+              const conflicts = bc.crew_id ? crewConflictsByCrewId[bc.crew_id] : undefined;
               // Free-text role on this booking takes priority; fall back to the
               // crew member's stored primary role. Both go through humanise so
               // "digital_operator" reads as "Digital operator".
@@ -306,6 +317,15 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       <CrewStatusSelect bookingCrewId={bc.id} bookingId={bookingId} status={bc.status} />
                       {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
                     </div>
+                    {conflicts && conflicts.length > 0 && (
+                      <div
+                        className="mt-1.5 rounded px-2 py-1 text-[10px]"
+                        style={{ background: `${PALETTE.warning}18`, color: PALETTE.warning }}
+                        title={conflicts.map((c) => `${c.bookingRef ?? c.title} (${c.start}${c.end !== c.start ? ' – ' + c.end : ''})`).join('\n')}
+                      >
+                        ⚠ Also on {conflicts.map((c) => c.bookingRef ?? c.title).join(', ')}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <a

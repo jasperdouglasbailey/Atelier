@@ -34,6 +34,10 @@ export type BookingListFilters = {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** When true, also include archived (is_archived=true) rows. Default false. */
+  includeArchived?: boolean;
+  /** When true, ONLY return archived rows. Used by the "Show archived" tab. */
+  archivedOnly?: boolean;
 };
 
 export async function listBookings(filters: BookingListFilters = {}): Promise<{
@@ -70,6 +74,14 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
     query = query.eq('state', 'paid');
   } else if (filters.stateGroup === 'lost') {
     query = query.in('state', ['released', 'cancelled']);
+  }
+
+  // Archived filter — by default we hide archived rows from active lists.
+  // archivedOnly returns ONLY archived rows. includeArchived returns both.
+  if (filters.archivedOnly) {
+    query = query.eq('is_archived', true);
+  } else if (!filters.includeArchived) {
+    query = query.eq('is_archived', false);
   }
 
   if (filters.tier) query = query.eq('tier', filters.tier);

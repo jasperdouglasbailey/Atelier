@@ -26,7 +26,8 @@ export type CronName =
   | 'QUOTE_CHASE'
   | 'TALENT_GALLERY_PING'
   | 'COMPLIANCE_PINGS'
-  | 'DATA_RETENTION';
+  | 'DATA_RETENTION'
+  | 'AUTO_ANONYMISE';
 
 function constantTimeEquals(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

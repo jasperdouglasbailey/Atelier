@@ -3,10 +3,17 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { CalendarShoot } from '@/lib/data/crew-bookings';
-import { PALETTE, STATE_COLORS, BOOKING_STATE_LABELS } from '@/lib/utils/constants';
+import type { BookingRoster } from '@/lib/data/booking-roster';
+import { PALETTE, STATE_COLORS } from '@/lib/utils/constants';
 import type { BookingState } from '@/lib/types/database';
+import { formatBookingTitle } from '@/lib/utils/booking-title';
+import BookingHoverCard from './BookingHoverCard';
 
-type Props = { shoots: CalendarShoot[] };
+type Props = {
+  shoots: CalendarShoot[];
+  /** Booking ID → full talent + crew roster, used for the hover card. */
+  rosterByBookingId: Record<string, BookingRoster>;
+};
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -25,6 +32,44 @@ type ShootBar = {
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Relative luminance of a `#rrggbb` colour (0–1). Used to decide whether
+ * dark or light text reads better on top of the colour.
+ */
+function stateLuma(hex: string): number {
+  const m = hex.match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return 0.5;
+  const r = parseInt(m[1], 16) / 255;
+  const g = parseInt(m[2], 16) / 255;
+  const b = parseInt(m[3], 16) / 255;
+  // Perceptual luminance via the rec. 709 coefficients
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Darken a `#rrggbb` colour by `amount` (0–1) — used for bar borders. */
+function darken(hex: string, amount: number): string {
+  const m = hex.match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return hex;
+  const adjust = (channel: string) =>
+    Math.max(0, Math.round(parseInt(channel, 16) * (1 - amount)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${adjust(m[1])}${adjust(m[2])}${adjust(m[3])}`;
+}
+
+/**
+ * State-group → representative colour, used for the calendar legend.
+ * Maps the 13 booking states down to 5 narrative groups so the legend
+ * stays scannable: Brief → Quote → Production → Finance → Closed.
+ */
+const LEGEND_GROUPS: Array<{ label: string; states: BookingState[]; color: string }> = [
+  { label: 'Brief', states: ['brief_received', 'brief_parsed'], color: STATE_COLORS.brief_received },
+  { label: 'Quote', states: ['quote_drafted', 'quote_sent', 'artists_crew_held', 'quote_confirmed'], color: STATE_COLORS.quote_sent },
+  { label: 'Production', states: ['pre_production', 'shoot_live', 'morning_after_check', 'post_production', 'final_delivery'], color: STATE_COLORS.shoot_live },
+  { label: 'Finance', states: ['invoice_issued', 'paid'], color: STATE_COLORS.invoice_issued },
+  { label: 'Closed', states: ['released', 'cancelled'], color: STATE_COLORS.released },
+];
 
 function startOfMonth(year: number, month0: number) {
   return new Date(Date.UTC(year, month0, 1));
@@ -97,7 +142,7 @@ function computeWeekBars(weekDays: Date[], shoots: CalendarShoot[]): ShootBar[] 
  * booking ref, state, and any attached crew. Clicking a bar opens that
  * booking's detail page. Used by /bookings?view=calendar.
  */
-export default function BookingsCalendar({ shoots }: Props) {
+export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
   const today = new Date();
   const [cursor, setCursor] = useState<{ year: number; month0: number }>({
     year: today.getUTCFullYear(),
@@ -239,9 +284,8 @@ export default function BookingsCalendar({ shoots }: Props) {
 
               {/* Event bars — absolutely positioned below the date-number row */}
               {bars.map(({ shoot, startCol, span, lane }) => {
-                const color =
+                const stateColor =
                   STATE_COLORS[shoot.state as BookingState] ?? PALETTE.accent;
-                const crewNames = shoot.crew.map((c) => c.name).join(', ');
                 const isStart = new Date(shoot.start + 'T00:00:00Z').getTime() >=
                   weekDays[startCol]?.getTime();
                 // Bar starts at the left edge of startCol, spans 'span' columns
@@ -250,47 +294,65 @@ export default function BookingsCalendar({ shoots }: Props) {
                 const top = DAY_NUM_H + lane * BAR_H + 2;
                 const height = BAR_H - 4;
 
+                // Display title — agreed format: "BOOK-0042 - Oliver Begg - AJE, Resort 26".
+                const displayTitle = formatBookingTitle({
+                  bookingRef: shoot.bookingRef,
+                  talentNames: shoot.talentNames,
+                  clientName: shoot.clientName,
+                  title: shoot.title,
+                });
+
+                // Contrast — use a solid bar with bright bg + dark text via
+                // YIQ luma. This keeps every state legible (the old scheme
+                // failed on yellow `shoot_live` because text and bg were
+                // both `#fbbf24`).
+                const luma = stateLuma(stateColor);
+                const textColor = luma > 0.6 ? '#1a1a1a' : '#ffffff';
+                const barBg = stateColor;
+
                 return (
-                  <Link
+                  <BookingHoverCard
                     key={`${shoot.bookingId}-${weekIdx}`}
-                    href={`/bookings/${shoot.bookingId}`}
-                    onClick={(e) => e.stopPropagation()}
-                    title={[
-                      `${shoot.bookingRef ?? shoot.title}`,
-                      BOOKING_STATE_LABELS[shoot.state as BookingState] ?? shoot.state,
-                      crewNames || 'No crew assigned',
-                    ].join(' · ')}
-                    className="absolute flex items-center overflow-hidden transition-opacity hover:opacity-80"
-                    style={{
-                      left: `calc(${leftPct}% + ${isStart ? 4 : 0}px)`,
-                      width: `calc(${widthPct}% - ${isStart ? 8 : 4}px)`,
-                      top,
-                      height,
-                      lineHeight: `${height}px`,
-                      borderRadius: isStart ? 3 : 0,
-                      borderTopLeftRadius: isStart ? 3 : 0,
-                      borderBottomLeftRadius: isStart ? 3 : 0,
-                      borderTopRightRadius: 3,
-                      borderBottomRightRadius: 3,
-                      background: `${color}22`,
-                      color,
-                      borderLeft: isStart ? `2px solid ${color}` : 'none',
-                      paddingLeft: 6,
-                      paddingRight: 4,
-                    }}
+                    bookingRef={shoot.bookingRef}
+                    title={shoot.title}
+                    state={shoot.state as BookingState}
+                    shootDates={
+                      shoot.start === shoot.end
+                        ? new Date(shoot.start + 'T00:00:00Z').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+                        : `${new Date(shoot.start + 'T00:00:00Z').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${new Date(shoot.end + 'T00:00:00Z').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+                    }
+                    shootLocation={shoot.shootLocation}
+                    clientName={shoot.clientName}
+                    brandName={shoot.brandName}
+                    roster={rosterByBookingId[shoot.bookingId] ?? null}
                   >
-                    <span className="truncate text-[10px] font-medium">
-                      {isStart ? (shoot.bookingRef ?? shoot.title) : ''}
-                    </span>
-                    {crewNames && isStart && (
-                      <span
-                        className="ml-1.5 truncate text-[9px] hidden sm:block"
-                        style={{ color: `${color}aa` }}
-                      >
-                        {crewNames}
+                    <Link
+                      href={`/bookings/${shoot.bookingId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute flex items-center overflow-hidden transition-opacity hover:opacity-90"
+                      style={{
+                        left: `calc(${leftPct}% + ${isStart ? 4 : 0}px)`,
+                        width: `calc(${widthPct}% - ${isStart ? 8 : 4}px)`,
+                        top,
+                        height,
+                        lineHeight: `${height}px`,
+                        borderRadius: isStart ? 3 : 0,
+                        borderTopLeftRadius: isStart ? 3 : 0,
+                        borderBottomLeftRadius: isStart ? 3 : 0,
+                        borderTopRightRadius: 3,
+                        borderBottomRightRadius: 3,
+                        background: barBg,
+                        color: textColor,
+                        borderLeft: isStart ? `3px solid ${darken(stateColor, 0.3)}` : 'none',
+                        paddingLeft: 6,
+                        paddingRight: 4,
+                      }}
+                    >
+                      <span className="truncate text-[10px] font-semibold">
+                        {isStart ? displayTitle : ''}
                       </span>
-                    )}
-                  </Link>
+                    </Link>
+                  </BookingHoverCard>
                 );
               })}
             </div>
@@ -298,14 +360,20 @@ export default function BookingsCalendar({ shoots }: Props) {
         })}
       </div>
 
-      {/* Legend */}
+      {/* Legend — colour key for the 5 stage groups, plus interaction hint */}
       <div className="mt-3 flex flex-wrap items-center gap-4 text-[10px]" style={{ color: PALETTE.muted }}>
-        <span>Click a shoot to open the booking. Hover for crew details.</span>
-        {shoots.length > 0 && (
-          <span>
-            Multi-day shoots span across cells.
+        <span style={{ fontWeight: 600 }}>Stage colour:</span>
+        {LEGEND_GROUPS.map((g) => (
+          <span key={g.label} className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-block rounded"
+              style={{ width: 12, height: 12, background: g.color }}
+              aria-hidden
+            />
+            {g.label}
           </span>
-        )}
+        ))}
+        <span style={{ marginLeft: 'auto', opacity: 0.8 }}>Hover a shoot for crew + copy buttons. Click to open the booking.</span>
       </div>
     </div>
   );

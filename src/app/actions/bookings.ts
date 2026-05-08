@@ -12,7 +12,7 @@ import { autoQueueBriefClarifyIfNeeded } from '@/lib/automation/brief-clarify';
 import { mapTerritoryRaw, mapMediaRaw } from '@/lib/utils/brief-parser';
 import { buildDateRange } from '@/lib/utils/daterange';
 import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
-import { createCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
 import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { callLLM } from '@/lib/integrations/anthropic';
@@ -233,6 +233,25 @@ export async function updateBookingAction(id: string, formData: FormData) {
     });
   }
 
+  // Calendar sync — if shoot dates / location changed AND a calendar event
+  // already exists, update it. Google sends "this event has been updated"
+  // emails to all attendees automatically.
+  if ('shoot_dates' in updates || 'shoot_location' in updates) {
+    const refreshed = await getBooking(id);
+    if (refreshed?.calendar_event_id) {
+      const { start, end } = dateRangeToInputs(refreshed.shoot_dates);
+      if (start) {
+        updateCalendarEvent(refreshed.calendar_event_id, {
+          startDate: start,
+          endDate: end || start,
+          location: refreshed.shoot_location ?? undefined,
+        }).catch((err) =>
+          reportDataError('[updateBookingAction] Calendar event update failed', err),
+        );
+      }
+    }
+  }
+
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
   return { ok: true };
@@ -326,6 +345,32 @@ export async function transitionBookingAction(
         const clientName = (booking as { client?: { name: string; company?: string | null } | null }).client?.company
           ?? (booking as { client?: { name: string; company?: string | null } | null }).client?.name;
         const subject = [booking.booking_ref, booking.title, clientName].filter(Boolean).join(' — ');
+
+        // Resolve attendee emails from the booking's roster — talent + crew
+        // who have an email on file get a Google Calendar invite (works
+        // for both Google and Apple Calendar users; Apple Mail parses
+        // Google's invite format natively).
+        const attendees: Array<{ email: string; displayName: string }> = [];
+        const supabase = await createSupabaseServer();
+        const [{ data: btRows }, { data: bcRows }] = await Promise.all([
+          supabase
+            .from('atelier_booking_talent')
+            .select('talent:atelier_talent(working_name, email)')
+            .eq('booking_id', id),
+          supabase
+            .from('atelier_booking_crew')
+            .select('crew:atelier_crew(name, email)')
+            .eq('booking_id', id),
+        ]);
+        for (const row of (btRows ?? []) as Array<{ talent: { working_name?: string; email?: string } | null }>) {
+          const t = row.talent;
+          if (t?.email) attendees.push({ email: t.email, displayName: t.working_name ?? t.email });
+        }
+        for (const row of (bcRows ?? []) as Array<{ crew: { name?: string; email?: string } | null }>) {
+          const c = row.crew;
+          if (c?.email) attendees.push({ email: c.email, displayName: c.name ?? c.email });
+        }
+
         createCalendarEvent({
           subject,
           startDate: start,
@@ -334,8 +379,10 @@ export async function transitionBookingAction(
           description: [
             `Tier: ${booking.tier}`,
             booking.talent_spec ? `Talent: ${booking.talent_spec}` : '',
+            attendees.length > 0 ? `Team: ${attendees.map((a) => a.displayName).join(', ')}` : '',
           ].filter(Boolean).join('\n'),
           bookingRef: booking.booking_ref ?? undefined,
+          attendees,
         })
           .then(async (result) => {
             if (!result) return;
@@ -1016,12 +1063,93 @@ export async function deleteBookingAction(
   bookingId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    // Pull the calendar_event_id BEFORE deleting so we can also remove
+    // the Google Calendar event. Google sends "this event was cancelled"
+    // emails to all attendees automatically.
+    const booking = await getBooking(bookingId);
+    const calendarEventId = booking?.calendar_event_id ?? null;
+
     const ok = await deleteBookingWithCorpus(bookingId);
     if (!ok) {
       return { ok: false, error: 'Delete returned false — check logs for details.' };
     }
+
+    if (calendarEventId) {
+      deleteCalendarEvent(calendarEventId).catch((err) =>
+        reportDataError('[deleteBookingAction] Calendar event delete failed', err),
+      );
+    }
+
     revalidatePath('/bookings');
     revalidatePath('/');
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Archive a booking — hide from active lists but keep all data intact.
+ * Reversible via unarchiveBookingAction. The opposite of delete: this is
+ * for shoots that are over but might still be referenced or recovered.
+ */
+export async function archiveBookingAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createSupabaseServer();
+    const { error } = await supabase
+      .from('atelier_bookings')
+      .update({ is_archived: true, archived_at: new Date().toISOString() })
+      .eq('id', bookingId);
+
+    if (error) {
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'archive_booking',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: error.message,
+      }).catch(() => {});
+      return { ok: false, error: error.message };
+    }
+
+    revalidatePath('/bookings');
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Unarchive a booking — restore it to the active list.
+ */
+export async function unarchiveBookingAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createSupabaseServer();
+    const { error } = await supabase
+      .from('atelier_bookings')
+      .update({ is_archived: false, archived_at: null })
+      .eq('id', bookingId);
+
+    if (error) {
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'unarchive_booking',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: error.message,
+      }).catch(() => {});
+      return { ok: false, error: error.message };
+    }
+
+    revalidatePath('/bookings');
+    revalidatePath(`/bookings/${bookingId}`);
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

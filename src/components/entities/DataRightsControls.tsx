@@ -24,11 +24,16 @@ export default function DataRightsControls({ type, id, name }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const exportUrl = `/api/export/${type}/${id}`;
 
   function handleAnonymise() {
+    if (typed.trim().toUpperCase() !== 'ANONYMISE') {
+      setError('Type ANONYMISE in capital letters to confirm.');
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const action = type === 'talent'
@@ -40,6 +45,7 @@ export default function DataRightsControls({ type, id, name }: Props) {
       if ('error' in result && result.error) {
         setError(result.error);
         setConfirming(false);
+        setTyped('');
         return;
       }
       router.push(`/${type}`);
@@ -74,21 +80,36 @@ export default function DataRightsControls({ type, id, name }: Props) {
 
         {confirming ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px]" style={{ color: PALETTE.danger }}>
-              Anonymise {name}? PII gone forever — you cannot undo this.
-            </span>
+            <label className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
+              <span>Anonymise {name}? PII gone forever. Type ANONYMISE to confirm.</span>
+              <input
+                type="text"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder="ANONYMISE"
+                className="rounded border px-2 py-1 text-xs"
+                style={{
+                  background: PALETTE.bg,
+                  borderColor: PALETTE.danger,
+                  color: PALETTE.text,
+                  fontFamily: 'ui-monospace, monospace',
+                  letterSpacing: '0.1em',
+                }}
+                autoFocus
+              />
+            </label>
             <button
               type="button"
               onClick={handleAnonymise}
-              disabled={pending}
-              className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              disabled={pending || typed.trim().toUpperCase() !== 'ANONYMISE'}
+              className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-40"
               style={{ background: PALETTE.danger, color: '#fff', border: 'none', cursor: 'pointer' }}
             >
               {pending ? 'Anonymising…' : 'Confirm anonymise'}
             </button>
             <button
               type="button"
-              onClick={() => setConfirming(false)}
+              onClick={() => { setConfirming(false); setTyped(''); }}
               className="rounded px-3 py-1.5 text-xs font-medium"
               style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}`, cursor: 'pointer' }}
             >
