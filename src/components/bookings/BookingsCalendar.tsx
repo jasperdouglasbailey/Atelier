@@ -212,11 +212,20 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
       </header>
 
       <div
-        className="overflow-hidden rounded-lg border"
-        style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+        className="overflow-hidden rounded-lg border flex flex-col"
+        style={{
+          background: PALETTE.surface,
+          borderColor: PALETTE.border,
+          // Fill the viewport minus the topbar / toolbar / month nav / legend
+          // so the calendar reads like a real month view rather than a tiny
+          // strip at the top of the page. Falls back to a sensible min-height
+          // on small screens.
+          height: 'calc(100vh - 240px)',
+          minHeight: 620,
+        }}
       >
         {/* Day-of-week header */}
-        <div className="grid grid-cols-7 border-b" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
+        <div className="grid grid-cols-7 border-b flex-none" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
           {DAY_LABELS.map((label) => (
             <div
               key={label}
@@ -228,7 +237,10 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
           ))}
         </div>
 
-        {/* 6 week rows */}
+        {/* Week rows wrapper — each of the 6 weeks shares the remaining
+            vertical space equally via flex:1, so the grid fills the
+            container instead of collapsing to event height. */}
+        <div className="flex-1 flex flex-col">
         {weeks.map((weekDays, weekIdx) => {
           const bars = computeWeekBars(weekDays, shoots);
           const numLanes = bars.length > 0 ? Math.max(...bars.map((b) => b.lane)) + 1 : 0;
@@ -237,7 +249,7 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
           return (
             <div
               key={weekIdx}
-              className="relative grid grid-cols-7 border-b"
+              className="relative grid grid-cols-7 border-b flex-1"
               style={{ borderColor: PALETTE.border, minHeight: rowMinHeight }}
             >
               {/* Day number cells — provide grid structure and column dividers */}
@@ -367,6 +379,7 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Legend — colour key for the 5 stage groups, plus interaction hint */}
