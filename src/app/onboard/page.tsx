@@ -1,4 +1,5 @@
 import OnboardingForm from '@/components/onboarding/OnboardingForm';
+import CollectionNotice from '@/components/onboarding/CollectionNotice';
 import { PALETTE } from '@/lib/utils/constants';
 
 export const metadata = {
@@ -13,6 +14,7 @@ export default function OnboardPage() {
           <h1 className="text-xl font-bold" style={{ color: PALETTE.text }}>Saunders & Co</h1>
           <p className="mt-1 text-sm" style={{ color: PALETTE.muted }}>Artist & Crew Onboarding</p>
         </div>
+        <CollectionNotice />
         <OnboardingForm />
       </div>
     </div>
