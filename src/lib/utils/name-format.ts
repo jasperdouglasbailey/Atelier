@@ -7,10 +7,20 @@
  */
 
 /**
- * Convert a name to title case, preserving:
- *   - Hyphens: "seok-ho yoon" → "Seok-Ho Yoon"
- *   - Apostrophes: "o'brien" → "O'Brien"
- *   - All-caps initials of length ≤2 stay uppercase: "JP Westlake" → "JP Westlake"
+ * Convert a name to title case while RESPECTING the user's intentional
+ * casing decisions. Used for both manual entries and CSV imports.
+ *
+ * Rules per token (whitespace-separated):
+ *   - All-caps abbreviations of length ≤4 stay uppercase: "WPP", "AJE",
+ *     "BBC", "NYC", "JP" — these are almost always brand/agency
+ *     acronyms the user wants preserved.
+ *   - Mixed-case tokens are left ALONE: "iPhone", "MacBook", "PaCkAgE".
+ *     If it has any lowercase letter AND any uppercase letter, the user
+ *     typed it that way deliberately.
+ *   - All-lowercase or all-uppercase tokens of length ≥5 get title-cased
+ *     (catches both "PRODUCTION" and "production" → "Production").
+ *   - Hyphens preserved: "seok-ho yoon" → "Seok-Ho Yoon"
+ *   - Apostrophes preserved: "o'brien" → "O'Brien"
  *
  * Pure function — safe to import from anywhere.
  */
@@ -20,7 +30,6 @@ export function titleCaseName(input: string): string {
   if (!trimmed) return trimmed;
 
   // Title-case a single word, handling hyphens and apostrophes inside it.
-  // "seok-ho" → "Seok-Ho", "o'brien" → "O'Brien", "burian-hodge" → "Burian-Hodge"
   function casePart(word: string): string {
     if (!word) return word;
     return word
@@ -34,16 +43,37 @@ export function titleCaseName(input: string): string {
       .join('-');
   }
 
-  // Split on whitespace only (hyphens stay inside the token)
+  // Step 1: detect whether the WHOLE input is single-case ("messy bulk
+  // data") vs intentionally mixed ("user typed it carefully"). If the
+  // input has both upper and lower letters somewhere across all tokens
+  // combined, we trust the user's intent and only normalise the
+  // lowercase parts. If it's uniformly upper or lower (e.g. CSV import
+  // of "JOHN O'CONNOR" or someone typing "wpp production" in a hurry),
+  // we apply naive title-casing to everything.
+  const allLetters = trimmed.replace(/[^A-Za-z]/g, '');
+  const inputHasUpper = /[A-Z]/.test(allLetters);
+  const inputHasLower = /[a-z]/.test(allLetters);
+  const inputIsMixed = inputHasUpper && inputHasLower;
+
   return trimmed
     .split(/(\s+)/)
     .map((tok) => {
       if (/^\s+$/.test(tok)) return tok;
-      // Preserve all-caps initials of length ≤2 that have no hyphens or apostrophes:
-      //   "JP" → "JP"   (initials kept)
-      //   "DJ" → "DJ"
-      //   "HO" alone → would also stay, but only if it was the original whole word.
-      // We can't distinguish here, so trust: 2-char standalone all-caps tokens stay uppercase.
+
+      const letters = tok.replace(/[^A-Za-z]/g, '');
+      if (!letters) return tok;
+
+      if (inputIsMixed) {
+        // Input is intentionally mixed. Trust it for tokens that aren't
+        // pure lowercase. Only naive-case the all-lowercase tokens.
+        const tokAllLower = letters === letters.toLowerCase();
+        if (!tokAllLower) return tok;            // preserve "WPP", "iPhone", "Begg"
+        return casePart(tok);                     // capitalise "the", "production"
+      }
+
+      // Input is all-upper or all-lower (bulk / sloppy entry) — title-case
+      // everything, but still preserve all-caps initials of length ≤2
+      // (very common in names: "JP", "DJ").
       if (/^[A-Z]{2}$/.test(tok)) return tok;
       return casePart(tok.toLowerCase());
     })

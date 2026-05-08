@@ -77,59 +77,58 @@ export default async function CrewDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6 max-w-3xl space-y-4">
         <Link href="/crew" className="text-xs" style={{ color: PALETTE.accent }}>← Crew</Link>
 
-        {/* Header */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h2>
-              <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
-                {humanise(crew.primary_role)}
-                {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(humanise).join(', ')}` : ''}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${tierColor}22`, color: tierColor }}>
-                {CREW_TIER_LABELS[crew.tier]}
-              </span>
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{
-                background: crew.is_active ? `${PALETTE.success}22` : `${PALETTE.danger}22`,
-                color: crew.is_active ? PALETTE.success : PALETTE.danger,
-              }}>
-                {crew.is_active ? 'Active' : 'Inactive'}
-              </span>
-              <Link
-                href={`/crew/${crew.id}/edit`}
-                className="rounded px-3 py-1 text-xs font-medium"
-                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-              >
-                ✏ Edit
-              </Link>
-              <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
-              <DeleteEntityButton type="crew" id={crew.id} name={crew.name} size="sm" />
+        {/* Header — three tidy rows: identity / status badges / actions */}
+        <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          {/* Row 1 — identity */}
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h2>
+            <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
+              {humanise(crew.primary_role)}
+              {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(humanise).join(', ')}` : ''}
             </div>
           </div>
-        </section>
 
-        {/* Quick stats */}
-        {totalBookings > 0 && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
-            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-              <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
-              <Stat label="Active" value={activeBookings} sublabel="not yet paid" />
-              <Stat
-                label="Avg Day Rate"
-                value={avgDayRate ? formatCurrency(avgDayRate, 'AUD') : '—'}
-                sublabel={ratesPaid.length > 0 ? `over ${ratesPaid.length} confirmed` : undefined}
-              />
-              <Stat
-                label="Top Role"
-                value={topRole ? humanise(topRole) : '—'}
-                sublabel={topRole ? 'most assigned' : undefined}
-              />
-            </div>
-          </section>
-        )}
+          {/* Row 2 — status badges, evenly spaced */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${tierColor}22`, color: tierColor }}>
+              {CREW_TIER_LABELS[crew.tier]}
+            </span>
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{
+              background: crew.is_active ? `${PALETTE.success}22` : `${PALETTE.danger}22`,
+              color: crew.is_active ? PALETTE.success : PALETTE.danger,
+            }}>
+              {crew.is_active ? 'Active' : 'Inactive'}
+            </span>
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{
+              background: crew.gst_registered ? `${PALETTE.success}22` : `${PALETTE.muted}22`,
+              color: crew.gst_registered ? PALETTE.success : PALETTE.muted,
+            }}>
+              {crew.gst_registered ? 'GST Reg' : 'No GST'}
+            </span>
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{
+              background: crew.onboarding_completed ? `${PALETTE.success}22` : `${PALETTE.warning}22`,
+              color: crew.onboarding_completed ? PALETTE.success : PALETTE.warning,
+            }}>
+              {crew.onboarding_completed ? 'Onboarded' : 'Onboarding pending'}
+            </span>
+          </div>
+
+          {/* Row 3 — actions, evenly spaced. Send onboarding link only
+              shows when onboarding is NOT complete. */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            <Link
+              href={`/crew/${crew.id}/edit`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              ✏ Edit
+            </Link>
+            {!crew.onboarding_completed && (
+              <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
+            )}
+            <DeleteEntityButton type="crew" id={crew.id} name={crew.name} size="sm" />
+          </div>
+        </section>
 
         {/* Contact */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
@@ -250,9 +249,30 @@ export default async function CrewDetailPage({ params }: Props) {
 
         <DataRightsControls type="crew" id={crew.id} name={crew.name} />
 
+        {/* Stats — moved to the bottom per session 8 doctrine. Reads as a
+            summary after the booking history detail. */}
+        {totalBookings > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+              <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
+              <Stat label="Active" value={activeBookings} sublabel="not yet paid" />
+              <Stat
+                label="Avg Day Rate"
+                value={avgDayRate ? formatCurrency(avgDayRate, 'AUD') : '—'}
+                sublabel={ratesPaid.length > 0 ? `over ${ratesPaid.length} confirmed` : undefined}
+              />
+              <Stat
+                label="Top Role"
+                value={topRole ? humanise(topRole) : '—'}
+                sublabel={topRole ? 'most assigned' : undefined}
+              />
+            </div>
+          </section>
+        )}
+
         <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
           Created {formatDate(crew.created_at)} · Updated {formatDate(crew.updated_at)}
-          {' · '}Onboarding: {crew.onboarding_completed ? 'Complete' : 'Pending'}
         </div>
       </div>
     </>
