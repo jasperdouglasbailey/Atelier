@@ -22,11 +22,17 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Owner/partner only. Talent themselves have a separate self-service
-  // path via /portal/talent — that's by design (the portal pulls the
-  // same data subset they're entitled to see, scoped via RLS).
+  // APP 12 access — two valid callers:
+  //   1. Owner / partner (operational use, full access to anyone's record)
+  //   2. The talent themselves accessing THEIR OWN record (self-service
+  //      access right under APP 12.1; no charge per APP 12.7)
   const appUser = await getCurrentAppUser();
-  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+  if (!appUser) {
+    return new Response('Forbidden', { status: 403 });
+  }
+  const isOwnerOrPartner = appUser.role === 'owner' || appUser.role === 'partner';
+  const isSelf = appUser.role === 'talent' && appUser.talent_id === id;
+  if (!isOwnerOrPartner && !isSelf) {
     return new Response('Forbidden', { status: 403 });
   }
 
