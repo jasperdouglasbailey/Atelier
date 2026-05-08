@@ -64,7 +64,7 @@ export async function createBrand(input: { name: string; industry?: string; note
 
 export async function listTalent(search?: string): Promise<Talent[]> {
   const supabase = await createClient();
-  let query = supabase.from('atelier_talent').select('*').order('working_name');
+  let query = supabase.from('atelier_talent').select('*').eq('is_active', true).order('working_name');
   if (search) query = query.ilike('working_name', `%${search}%`);
   const { data } = await query;
   return (data ?? []) as Talent[];
@@ -107,7 +107,7 @@ export async function updateTalent(id: string, updates: Partial<Talent>): Promis
 
 export async function listCrew(filters?: { tier?: CrewTier; search?: string; city?: string }): Promise<Crew[]> {
   const supabase = await createClient();
-  let query = supabase.from('atelier_crew').select('*').order('name');
+  let query = supabase.from('atelier_crew').select('*').eq('is_active', true).order('name');
   if (filters?.tier) query = query.eq('tier', filters.tier);
   if (filters?.city) query = query.eq('city', filters.city);
   if (filters?.search) query = query.ilike('name', `%${filters.search}%`);

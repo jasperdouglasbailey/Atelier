@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const stateReceived = searchParams.get('state');
 
   if (error) {
     return NextResponse.redirect(new URL(`/settings?google_error=${encodeURIComponent(error)}`, origin));
@@ -33,6 +34,14 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     return NextResponse.redirect(new URL('/settings?google_error=missing_code', origin));
+  }
+
+  // CSRF protection — validate the state parameter against the cookie set in
+  // /api/auth/start/google. Reject if missing or mismatched. This prevents an
+  // attacker from tricking the operator into completing a forged OAuth flow.
+  const stateExpected = request.cookies.get('oauth_state_google')?.value ?? null;
+  if (!stateExpected || !stateReceived || stateReceived !== stateExpected) {
+    return NextResponse.redirect(new URL('/settings?google_error=invalid_state', origin));
   }
 
   // Use the configured redirect URI if set, otherwise reconstruct from request.
