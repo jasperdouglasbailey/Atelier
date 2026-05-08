@@ -19,8 +19,15 @@ export async function GET(
 ) {
   const { id } = await params;
 
+  // APP 12 access — owner / partner, or the crew member themselves
+  // accessing their own record.
   const appUser = await getCurrentAppUser();
-  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+  if (!appUser) {
+    return new Response('Forbidden', { status: 403 });
+  }
+  const isOwnerOrPartner = appUser.role === 'owner' || appUser.role === 'partner';
+  const isSelf = appUser.role === 'crew' && appUser.crew_id === id;
+  if (!isOwnerOrPartner && !isSelf) {
     return new Response('Forbidden', { status: 403 });
   }
 

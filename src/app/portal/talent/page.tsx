@@ -17,6 +17,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getTalentPortalData } from '@/lib/data/portal';
+import PortalDataRights from '@/components/portal/PortalDataRights';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -136,8 +137,10 @@ export default async function TalentPortalPage() {
         )}
       </section>
 
+      <PortalDataRights type="talent" id={talent.id} name={talent.working_name} />
+
       <p className="text-[10px] text-center" style={{ color: PALETTE.muted }}>
-        Saunders &amp; Co · <Link href="mailto:info@saundersandco.com.au" style={{ color: PALETTE.muted }} className="underline">info@saundersandco.com.au</Link>
+        Saunders &amp; Co · <Link href="mailto:info@saundersandco.com.au" style={{ color: PALETTE.muted }} className="underline">info@saundersandco.com.au</Link> · <Link href="/privacy" style={{ color: PALETTE.muted }} className="underline">Privacy</Link>
       </p>
     </div>
   );
