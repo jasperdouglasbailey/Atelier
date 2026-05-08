@@ -1,11 +1,16 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import Topbar from '@/components/layout/Topbar';
 import ListSearchBar from '@/components/layout/ListSearchBar';
 import BookingsBoard from '@/components/bookings/BookingsBoard';
 import BookingsCalendar from '@/components/bookings/BookingsCalendar';
+import BookingsViewToggle from '@/components/bookings/BookingsViewToggle';
+import BookingHoverCard from '@/components/bookings/BookingHoverCard';
 import { listBookings } from '@/lib/data/bookings';
 import { getCalendarShoots } from '@/lib/data/crew-bookings';
+import { getBookingsRoster } from '@/lib/data/booking-roster';
 import { BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
+import { formatBookingTitle } from '@/lib/utils/booking-title';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import type { BookingState, ShootTier } from '@/lib/types/database';
 
@@ -21,8 +26,21 @@ type SearchParams = Promise<{
 export default async function BookingsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
+
+  // View resolution order:
+  //   1. ?view= URL param wins (sticky link sharing)
+  //   2. bookings_view_pref cookie (last user choice)
+  //   3. Default to 'calendar' (per session 7 doctrine — calendar is the
+  //      primary mental model for a producer's day)
+  const cookieStore = await cookies();
+  const viewCookie = cookieStore.get('bookings_view_pref')?.value;
   const view: 'list' | 'board' | 'calendar' =
-    params.view === 'board' ? 'board' : params.view === 'calendar' ? 'calendar' : 'list';
+    params.view === 'list' ? 'list'
+      : params.view === 'board' ? 'board'
+      : params.view === 'calendar' ? 'calendar'
+      : viewCookie === 'list' ? 'list'
+      : viewCookie === 'board' ? 'board'
+      : 'calendar';
   const group = params.group || 'active';
 
   // Calendar uses its own data source (one row per booking with attached crew + dates).
@@ -40,6 +58,15 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
         pageSize: view === 'board' ? 200 : 20,
       });
 
+  // Roster lookup for hover card. Pulled in one batched query for the
+  // visible bookings — avoids N+1.
+  const visibleIds =
+    view === 'calendar'
+      ? calendarShoots.map((s) => s.bookingId)
+      : bookings.map((b) => b.id);
+  const rosterMap = await getBookingsRoster(visibleIds);
+  const rosterByBookingId = Object.fromEntries(rosterMap);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -51,7 +78,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
           {view === 'list' && (['active', 'completed', 'lost'] as const).map((g) => (
             <Link
               key={g}
-              href={`/bookings?group=${g}`}
+              href={`/bookings?view=list&group=${g}`}
               className="rounded-md px-4 py-2 text-xs font-medium capitalize transition-colors"
               style={{
                 background: group === g ? PALETTE.border : 'transparent',
@@ -62,31 +89,11 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
             </Link>
           ))}
           <div className="flex-1" />
-          {/* View toggle */}
-          <Link
-            href={`/bookings?view=list&group=${group}`}
-            className="rounded-md px-3 py-2 text-xs font-medium"
-            style={{ background: view === 'list' ? PALETTE.border : 'transparent', color: view === 'list' ? PALETTE.text : PALETTE.muted }}
-            title="List view"
-          >
-            ≡
-          </Link>
-          <Link
-            href="/bookings?view=board"
-            className="rounded-md px-3 py-2 text-xs font-medium"
-            style={{ background: view === 'board' ? PALETTE.border : 'transparent', color: view === 'board' ? PALETTE.text : PALETTE.muted }}
-            title="Board view"
-          >
-            ⊞
-          </Link>
-          <Link
-            href="/bookings?view=calendar"
-            className="rounded-md px-3 py-2 text-xs font-medium"
-            style={{ background: view === 'calendar' ? PALETTE.border : 'transparent', color: view === 'calendar' ? PALETTE.text : PALETTE.muted }}
-            title="Calendar view"
-          >
-            ▦
-          </Link>
+          {/* View toggle — Calendar → Board → List, persists choice to cookie */}
+          <BookingsViewToggle
+            current={view}
+            preserveParams={{ group, ...(params.tier ? { tier: params.tier } : {}) }}
+          />
           <Link
             href="/bookings/new"
             className="rounded-md px-4 py-2 text-xs font-medium ml-1"
@@ -97,7 +104,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
         </div>
 
         {view === 'calendar' ? (
-          <BookingsCalendar shoots={calendarShoots} />
+          <BookingsCalendar shoots={calendarShoots} rosterByBookingId={rosterByBookingId} />
         ) : view === 'board' ? (
           <BookingsBoard bookings={bookings} />
         ) : (
@@ -106,7 +113,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
             <ListSearchBar
               searchValue={params.search}
               searchPlaceholder="Search by ref, title or client…"
-              hiddenParams={{ group, ...(params.tier ? { tier: params.tier } : {}) }}
+              hiddenParams={{ group, view: 'list', ...(params.tier ? { tier: params.tier } : {}) }}
               filters={
                 <select
                   name="tier"
@@ -132,9 +139,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
               <table className="min-w-full text-sm">
                 <thead>
                   <tr style={{ background: PALETTE.bg, color: PALETTE.muted }} className="text-left text-xs uppercase tracking-wide">
-                    <th className="px-4 py-3">Ref</th>
-                    <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3">Client</th>
+                    <th className="px-4 py-3">Booking</th>
                     <th className="px-4 py-3">State</th>
                     <th className="px-4 py-3">Tier</th>
                     <th className="px-4 py-3">Total</th>
@@ -144,42 +149,40 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
                 <tbody>
                   {bookings.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
+                      <td colSpan={5} className="px-4 py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
                         {params.search ? 'No bookings match your search.' : 'No bookings yet. Create one to get started.'}
                       </td>
                     </tr>
                   )}
                   {bookings.map((b) => {
                     const clientName = b.client?.company || b.client?.name || null;
+                    const talentNames = (b.booking_talent ?? [])
+                      .map((bt) => bt.talent?.name)
+                      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+                    const displayTitle = formatBookingTitle({
+                      bookingRef: b.booking_ref ?? null,
+                      talentNames,
+                      clientName,
+                      title: b.title,
+                    });
                     return (
                       <tr key={b.id} className="border-t" style={{ borderColor: PALETTE.border }}>
-                        <td className="px-4 py-3">
-                          <Link href={`/bookings/${b.id}`} className="font-mono text-xs" style={{ color: PALETTE.accent }}>
-                            {b.booking_ref ?? '—'}
-                          </Link>
-                        </td>
                         <td className="px-4 py-3" style={{ color: PALETTE.text }}>
-                          <Link href={`/bookings/${b.id}`} className="hover:underline">
-                            {b.title}
-                          </Link>
-                          {(() => {
-                            const primaryArtist = b.booking_talent?.[0]?.talent;
-                            return primaryArtist ? (
-                              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.accent }}>
-                                {primaryArtist.name}
-                                {primaryArtist.discipline && (
-                                  <span className="ml-1" style={{ color: PALETTE.muted }}>· {primaryArtist.discipline}</span>
-                                )}
-                              </div>
-                            ) : b.talent_spec ? (
-                              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
-                                {b.talent_spec}
-                              </div>
-                            ) : null;
-                          })()}
-                        </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: clientName ? PALETTE.muted : '#404560' }}>
-                          {clientName ?? '—'}
+                          <BookingHoverCard
+                            bookingRef={b.booking_ref ?? null}
+                            title={b.title}
+                            state={b.state}
+                            clientName={clientName}
+                            roster={rosterByBookingId[b.id] ?? null}
+                          >
+                            <Link
+                              href={`/bookings/${b.id}`}
+                              className="hover:underline font-medium"
+                              style={{ color: PALETTE.text }}
+                            >
+                              {displayTitle}
+                            </Link>
+                          </BookingHoverCard>
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -214,7 +217,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
               <div className="flex gap-2">
                 {page > 1 && (
                   <Link
-                    href={`/bookings?group=${group}&page=${page - 1}${params.search ? `&search=${params.search}` : ''}`}
+                    href={`/bookings?view=list&group=${group}&page=${page - 1}${params.search ? `&search=${params.search}` : ''}`}
                     className="rounded-md border px-3 py-1.5"
                     style={{ borderColor: PALETTE.border, color: PALETTE.text }}
                   >
@@ -223,7 +226,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
                 )}
                 {page < totalPages && (
                   <Link
-                    href={`/bookings?group=${group}&page=${page + 1}${params.search ? `&search=${params.search}` : ''}`}
+                    href={`/bookings?view=list&group=${group}&page=${page + 1}${params.search ? `&search=${params.search}` : ''}`}
                     className="rounded-md border px-3 py-1.5"
                     style={{ borderColor: PALETTE.border, color: PALETTE.text }}
                   >

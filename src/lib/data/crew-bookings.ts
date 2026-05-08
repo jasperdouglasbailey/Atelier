@@ -91,6 +91,14 @@ export interface CalendarShoot {
   tier: string;
   start: string;            // YYYY-MM-DD inclusive
   end: string;              // YYYY-MM-DD inclusive (we collapse Postgres' exclusive end here)
+  /** Display name of the client — company falls back to contact name. */
+  clientName: string | null;
+  /** Brand display name. */
+  brandName: string | null;
+  /** Free-text shoot location (used for the city-local hint). */
+  shootLocation: string | null;
+  /** Talent attached to the booking — used for the title format and hover card. */
+  talentNames: string[];
   crew: { id: string; name: string; role: string | null; tier: string }[];
 }
 
@@ -122,6 +130,10 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
         tier: r.booking_tier,
         start: r.shoot_start,
         end: endInclusive ?? r.shoot_start,
+        clientName: null,
+        brandName: null,
+        shootLocation: null,
+        talentNames: [],
         crew: [],
       });
     }
@@ -135,15 +147,43 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
 
   // Also pull bookings that have a shoot_dates set but no crew assigned yet —
   // they should still show on the calendar (Jasper hasn't booked the crew yet).
+  // Same query also enriches every entry with client / brand / talent / location
+  // so the calendar bar can render the agreed title format and hover card.
   const supabase = await createClient();
-  const { data: orphans } = await supabase
+  const { data: enrichRows } = await supabase
     .from('atelier_bookings')
-    .select('id, booking_ref, title, state, tier, shoot_dates')
+    .select(`
+      id, booking_ref, title, state, tier, shoot_dates, shoot_location,
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company),
+      brand:atelier_brands(name),
+      booking_talent:atelier_booking_talent(talent:atelier_talent(working_name))
+    `)
     .not('shoot_dates', 'is', null);
 
-  for (const b of (orphans ?? []) as Record<string, unknown>[] ) {
+  for (const b of (enrichRows ?? []) as Record<string, unknown>[]) {
     const id = b.id as string;
-    if (byBooking.has(id)) continue;
+    const client = b.client as { name?: string; company?: string | null } | null;
+    const brand = b.brand as { name?: string } | null;
+    const bookingTalent = (b.booking_talent ?? []) as Array<{ talent: { working_name?: string } | null }>;
+    const talentNames = bookingTalent
+      .map((bt) => bt.talent?.working_name)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+
+    const clientName = client?.company || client?.name || null;
+    const brandName = brand?.name ?? null;
+    const shootLocation = (b.shoot_location as string) ?? null;
+
+    if (byBooking.has(id)) {
+      // Enrich existing entry (had crew, missing the narrative fields)
+      const entry = byBooking.get(id)!;
+      entry.clientName = clientName;
+      entry.brandName = brandName;
+      entry.shootLocation = shootLocation;
+      entry.talentNames = talentNames;
+      continue;
+    }
+
+    // Booking has no crew — add it with full enrichment
     const range = parseDateRange(b.shoot_dates as string | null);
     if (!range.start) continue;
     let endInclusive = range.end;
@@ -160,6 +200,10 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
       tier: (b.tier as string) ?? 'content',
       start: range.start,
       end: endInclusive ?? range.start,
+      clientName,
+      brandName,
+      shootLocation,
+      talentNames,
       crew: [],
     });
   }
