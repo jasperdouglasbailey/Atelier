@@ -22,6 +22,12 @@ export interface CalendarEventInput {
   location?: string;
   description?: string;
   bookingRef?: string;
+  /**
+   * Email addresses to invite. Google sends invitation emails (and update
+   * notifications when the event later moves) automatically. Empty array
+   * means no invitations.
+   */
+  attendees?: Array<{ email: string; displayName?: string }>;
 }
 
 export interface CalendarEventResult {
@@ -59,12 +65,20 @@ export async function createCalendarEvent(input: CalendarEventInput): Promise<Ca
     description: descriptionLines || undefined,
     start: { date: input.startDate },
     end: { date: exclusiveEndStr },
+    ...(input.attendees && input.attendees.length > 0
+      ? { attendees: input.attendees.map((a) => ({ email: a.email, displayName: a.displayName, responseStatus: 'needsAction' })) }
+      : {}),
     ...(input.bookingRef
       ? { extendedProperties: { private: { bookingRef: input.bookingRef } } }
       : {}),
   };
 
-  const res = await fetch(`${CALENDAR_BASE}?fields=id,htmlLink`, {
+  // sendUpdates=all → Google sends invitation emails to all attendees.
+  // Without this, the event would be created but no one would be notified.
+  const params = input.attendees && input.attendees.length > 0
+    ? '?fields=id,htmlLink&sendUpdates=all'
+    : '?fields=id,htmlLink';
+  const res = await fetch(`${CALENDAR_BASE}${params}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -84,6 +98,64 @@ export async function createCalendarEvent(input: CalendarEventInput): Promise<Ca
 }
 
 /**
+ * Update an existing calendar event — used when shoot dates, location, or
+ * the attendee roster change in Atelier. Google sends "this event has
+ * been updated" notifications to attendees automatically when sendUpdates
+ * is set to `all`. Silently no-ops if Google is not configured.
+ *
+ * Pass only the fields that have changed; omitted fields are left alone
+ * server-side via PATCH semantics.
+ */
+export async function updateCalendarEvent(
+  eventId: string,
+  input: Partial<CalendarEventInput>,
+): Promise<CalendarEventResult | null> {
+  if (!isGoogleConfigured()) {
+    console.log('[calendar] UPDATE EVENT (stub — no credentials)', eventId);
+    return null;
+  }
+  const token = await getAccessToken();
+
+  const body: Record<string, unknown> = {};
+  if (input.subject !== undefined) body.summary = input.subject;
+  if (input.location !== undefined) body.location = input.location;
+  if (input.description !== undefined) body.description = input.description;
+  if (input.startDate) body.start = { date: input.startDate };
+  if (input.endDate) {
+    const ex = new Date(input.endDate + 'T00:00:00Z');
+    ex.setUTCDate(ex.getUTCDate() + 1);
+    body.end = { date: ex.toISOString().slice(0, 10) };
+  }
+  if (input.attendees !== undefined) {
+    body.attendees = input.attendees.map((a) => ({
+      email: a.email,
+      displayName: a.displayName,
+      responseStatus: 'needsAction',
+    }));
+  }
+
+  // PATCH preserves fields we don't include. sendUpdates=all so attendees
+  // get the "this event has been updated" email.
+  const res = await fetch(`${CALENDAR_BASE}/${eventId}?sendUpdates=all&fields=id,htmlLink`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => 'unknown');
+    throw new Error(`Calendar UPDATE event ${eventId}: ${res.status} ${errBody}`);
+  }
+
+  const data = await res.json() as { id: string; htmlLink: string };
+  console.log('[calendar] EVENT UPDATED', eventId);
+  return { eventId: data.id, htmlLink: data.htmlLink };
+}
+
+/**
  * Delete a calendar event (e.g. on booking release/cancellation).
  * Silently ignores 404 — safe to call even if the event was already removed.
  */
@@ -94,7 +166,8 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   }
 
   const token = await getAccessToken();
-  const res = await fetch(`${CALENDAR_BASE}/${eventId}`, {
+  // sendUpdates=all → Google emails attendees that the event was cancelled.
+  const res = await fetch(`${CALENDAR_BASE}/${eventId}?sendUpdates=all`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
