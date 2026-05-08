@@ -1156,3 +1156,85 @@ export async function unarchiveBookingAction(
     return { ok: false, error: msg };
   }
 }
+
+/**
+ * Brief auto-detect Option B (PR#52).
+ *
+ * Convert a Gmail message into a `brief_received` booking. Pulls the
+ * email body via Gmail API and stores it as brief_raw_text, sets the
+ * subject as the title, and lands the booking in the early state. The
+ * producer then runs the existing brief parser on it.
+ *
+ * Returns the new booking's id on success so the caller can redirect
+ * straight to its detail page.
+ */
+export async function convertEmailToBookingAction(opts: {
+  messageId: string;
+  subject: string;
+  fromHeader: string;
+}): Promise<{ ok: true; bookingId: string } | { ok: false; error: string }> {
+  try {
+    // Auth — mutation, owner/partner only
+    const appUser = await (await import('@/lib/data/app-users')).getCurrentAppUser();
+    if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+      return { ok: false, error: 'Forbidden' };
+    }
+
+    const { getMessageBody } = await import('@/lib/integrations/gmail');
+    const body = await getMessageBody(opts.messageId);
+    if (!body) {
+      return { ok: false, error: 'Could not fetch the email body. Try opening it in Gmail and copy-pasting into a new booking instead.' };
+    }
+
+    // Title — use the email subject, stripped of common Re:/Fwd: prefixes
+    const title = (opts.subject || 'Untitled brief')
+      .replace(/^(re:|fwd:|fw:)\s*/gi, '')
+      .trim()
+      .slice(0, 200);
+
+    // Default tier — `content` is the safest default for an unspecified
+    // brief. The producer will adjust on the booking detail page.
+    const input: CreateBookingInput = {
+      title,
+      tier: 'content',
+      client_id: null,
+      brand_id: null,
+      creative_agency_id: null,
+      shoot_location: null,
+      shoot_date_notes: null,
+      shoot_dates: null,
+      talent_count: null,
+      talent_spec: null,
+      deliverables_type: null,
+      deliverables_count: null,
+      usage_duration_months: null,
+      usage_notes: null,
+      post_production_ownership: null,
+      agency_notes: `Auto-imported from email (${opts.fromHeader}).`,
+      brief_raw_text: body,
+      usage_media: null,
+      usage_territory: null,
+    };
+
+    const booking = await createBooking(input);
+    if (!booking) {
+      return { ok: false, error: 'createBooking returned null — check server logs.' };
+    }
+
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'convert_email_to_booking',
+      tableName: 'atelier_bookings',
+      recordId: booking.id,
+      attempted: ({ messageId: opts.messageId, subject: opts.subject } as unknown) as import('@/lib/types/database').Json,
+      error: '',
+    }).catch(() => {}); // best-effort log
+
+    revalidatePath('/inbox');
+    revalidatePath('/bookings');
+    return { ok: true, bookingId: booking.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}

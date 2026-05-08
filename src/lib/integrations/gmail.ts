@@ -209,6 +209,73 @@ export async function sendDraft(draftId: string): Promise<EmailResult> {
 }
 
 /**
+ * Fetch the plain-text body of a Gmail message. Used by the brief
+ * auto-detect flow to populate brief_raw_text when converting an
+ * email to a booking. Walks the MIME tree to find a text/plain part;
+ * falls back to a best-effort decode of text/html if that's all there
+ * is. Returns empty string on any failure (caller decides what to do).
+ */
+export async function getMessageBody(messageId: string): Promise<string> {
+  if (!isGoogleConfigured()) return '';
+  try {
+    const token = await getAccessToken();
+    const url = `https://gmail.googleapis.com/gmail/v1/users/${GMAIL_USER}/messages/${messageId}?format=full`;
+    const res = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) return '';
+    const data = await res.json() as {
+      payload?: {
+        mimeType?: string;
+        body?: { data?: string };
+        parts?: Array<{ mimeType?: string; body?: { data?: string }; parts?: unknown[] }>;
+      };
+    };
+    return walkForBody(data.payload);
+  } catch {
+    return '';
+  }
+}
+
+function walkForBody(part: unknown): string {
+  if (!part || typeof part !== 'object') return '';
+  const p = part as { mimeType?: string; body?: { data?: string }; parts?: unknown[] };
+  // Prefer text/plain
+  if (p.mimeType === 'text/plain' && p.body?.data) {
+    return decodeBase64Url(p.body.data);
+  }
+  // Then walk children
+  if (Array.isArray(p.parts)) {
+    for (const child of p.parts) {
+      const text = walkForBody(child);
+      if (text) return text;
+    }
+  }
+  // Fall back to text/html (strip tags very crudely)
+  if (p.mimeType === 'text/html' && p.body?.data) {
+    const html = decodeBase64Url(p.body.data);
+    return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  return '';
+}
+
+function decodeBase64Url(s: string): string {
+  // Gmail uses base64url; convert to base64 then decode as UTF-8.
+  const normalised = s.replace(/-/g, '+').replace(/_/g, '/');
+  try {
+    return Buffer.from(normalised, 'base64').toString('utf-8');
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Search inbox for emails matching a query (booking ref, sender, subject).
  * Uses Gmail's search syntax: `from:foo@bar.com subject:#3579`.
  *
@@ -282,4 +349,59 @@ export async function searchInbox(query: string, limit = 10): Promise<{
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Brief auto-detect (PR#52, Option B).
+ *
+ * Returns recent inbox messages that look like creative briefs — i.e.
+ * candidates the producer might want to convert to a booking. We
+ * deliberately err on the side of *more* candidates and let the human
+ * filter — false positives are easy to dismiss; false negatives mean
+ * lost work.
+ *
+ * Heuristic: subject contains "brief" / "rfp" / "shoot" / "campaign" /
+ * "production" / "request for quote" / "rfq", received in the last 14
+ * days, not from us, not auto-generated. Excludes anything already
+ * linked to an existing booking (by checking for booking refs in the
+ * subject).
+ */
+export async function findPotentialBriefs(opts: {
+  /** Booking refs already in our DB — used to exclude already-converted emails. */
+  existingRefs?: string[];
+  limit?: number;
+} = {}): Promise<Array<{
+  id: string;
+  subject: string;
+  from: string;
+  receivedAt: string;
+  snippet: string;
+}>> {
+  const limit = opts.limit ?? 20;
+  // Gmail OR query — any of these subject keywords, received in last 14d,
+  // not from our own domain (very rough — ‘from:’ negation is a heuristic).
+  const subjectTerms = [
+    'subject:brief',
+    'subject:rfp',
+    'subject:rfq',
+    'subject:shoot',
+    'subject:campaign',
+    'subject:production',
+    'subject:"request for quote"',
+  ];
+  const query = `{${subjectTerms.join(' ')}} newer_than:14d -in:sent -in:drafts -from:me`;
+
+  const results = await searchInbox(query, limit * 2); // over-fetch then filter
+
+  // Drop anything where the subject already contains a known booking ref
+  const refSet = new Set((opts.existingRefs ?? []).map((r) => r.toUpperCase()));
+  const filtered = results.filter((r) => {
+    const upper = r.subject.toUpperCase();
+    for (const ref of refSet) {
+      if (upper.includes(ref)) return false;
+    }
+    return true;
+  });
+
+  return filtered.slice(0, limit);
 }
