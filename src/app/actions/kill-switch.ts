@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { setKillSwitch, getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 export async function toggleKillSwitchAction(field: 'is_active' | 'pause_outbound') {
   const current = await getKillSwitchState();
@@ -10,9 +11,10 @@ export async function toggleKillSwitchAction(field: 'is_active' | 'pause_outboun
   const patch = { [field]: next } as { is_active?: boolean; pause_outbound?: boolean };
 
   const updated = await setKillSwitch(patch);
+  const userId = await getCurrentActor();
 
   await logAudit({
-    userId: null, // wired up once auth lands
+    userId,
     action: next ? `kill_switch.${field}.enable` : `kill_switch.${field}.disable`,
     tableName: 'atelier_kill_switch',
     recordId: updated?.id ?? null,

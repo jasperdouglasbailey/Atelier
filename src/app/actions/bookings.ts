@@ -597,6 +597,15 @@ export async function sendQuoteEmailAction(
     return { ok: true, mode: 'no_google' as const, to: toEmail, subject, body };
   }
 
+  // Kill switch — respect pause_outbound for direct sends.
+  // Drafts are always allowed (they don't go anywhere without Jasper hitting Send).
+  if (mode === 'send') {
+    const ks = await checkKillSwitch();
+    if (!ks.canSendOutbound) {
+      return { ok: false as const, error: `Outbound email is paused (kill switch: ${ks.level}). Switch to Draft or lift the pause in Settings → Kill Switch.` };
+    }
+  }
+
   if (mode === 'send') {
     // Wrap the send so a Gmail token expiry / network error doesn't leave
     // the booking transitioned to quote_sent with no email actually out.

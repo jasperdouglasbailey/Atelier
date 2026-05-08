@@ -1,7 +1,41 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 
-export async function POST(request: Request) {
+// ---------------------------------------------------------------------------
+// Simple in-memory rate limiter — 5 submissions per IP per 10-minute window.
+// Resets on cold starts (intentional for a single-tenant app at this scale).
+// Deters bulk spam; not designed to stop a determined attacker with rotating IPs.
+// ---------------------------------------------------------------------------
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true; // allowed
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false; // blocked
+  entry.count++;
+  return true; // allowed
+}
+
+export async function POST(request: NextRequest) {
+  // Rate limit by IP
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip') ??
+    'unknown';
+
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Too many submissions. Please wait a few minutes and try again.' },
+      { status: 429 },
+    );
+  }
+
   try {
     const body = await request.json();
     const { type, ...fields } = body as Record<string, unknown>;
