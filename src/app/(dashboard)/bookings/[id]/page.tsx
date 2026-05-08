@@ -12,6 +12,8 @@ import BookingTeam from '@/components/bookings/BookingTeam';
 import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
+import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
+import { parseDateRangeRaw } from '@/lib/utils/daterange';
 import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
@@ -98,6 +100,29 @@ export default async function BookingDetailPage({ params }: Props) {
     feeLines,
   });
 
+  // Crew availability — for any crew member already booked elsewhere on the
+  // same dates, BookingTeam flags them with a soft warning so the producer
+  // sees the conflict before adding (sometimes intentional double-book is
+  // OK; this is a heads-up, not a hard block).
+  const shootRange = parseDateRangeRaw(booking.shoot_dates);
+  const crewConflictsByCrewId: Record<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>> = {};
+  if (shootRange.start) {
+    let endInclusive = shootRange.end;
+    if (shootRange.end) {
+      const d = new Date(shootRange.end + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 1);
+      endInclusive = d.toISOString().slice(0, 10);
+    }
+    const conflicts = await getCrewBookedOnRange({
+      startDate: shootRange.start,
+      endDate: endInclusive ?? shootRange.start,
+      excludeBookingId: id,
+    });
+    for (const [crewId, bookings] of conflicts) {
+      crewConflictsByCrewId[crewId] = bookings;
+    }
+  }
+
   // Show the focused workspace shortcut only while the booking is in the
   // brief / quote-drafting phase — afterwards the workspace doesn't help.
   const stage = stageOf(booking.state);
@@ -137,6 +162,7 @@ export default async function BookingDetailPage({ params }: Props) {
               allTalent={allTalent}
               allCrew={allCrew}
               shootLocation={booking.shoot_location}
+              crewConflictsByCrewId={crewConflictsByCrewId}
             />
 
             {/* 4. HOLDS — sits between team and quote. Once talent/crew are

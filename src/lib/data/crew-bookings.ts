@@ -83,6 +83,77 @@ export async function listCrewBookings(crewId?: string): Promise<CrewBookingRow[
   });
 }
 
+/**
+ * Returns a Map of crew_id → list of bookings whose shoot dates overlap
+ * the given range. Used by BookingTeam to flag crew who are already
+ * booked elsewhere on the same dates ("availability warning"). The check
+ * is a soft warning — producers can still add the person; sometimes you
+ * intentionally double-book to confirm later.
+ *
+ * Excludes the current booking from the result (so a crew member already
+ * on this booking doesn't flag itself).
+ */
+export async function getCrewBookedOnRange(opts: {
+  startDate: string; // YYYY-MM-DD inclusive
+  endDate: string;   // YYYY-MM-DD inclusive
+  excludeBookingId?: string | null;
+}): Promise<Map<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>> {
+  const supabase = await createClient();
+
+  // Pull booking_crew rows whose linked booking has overlapping shoot_dates.
+  // PostgREST can't filter on embedded fields with overlap operators; we do
+  // a wide pull then filter in JS.
+  const { data, error } = await supabase
+    .from('atelier_booking_crew')
+    .select(`
+      crew_id,
+      booking:atelier_bookings(id, booking_ref, title, shoot_dates, state)
+    `)
+    .neq('status', 'declined')
+    .neq('status', 'released');
+
+  const result = new Map<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>();
+  if (error || !data) return result;
+
+  const startDate = opts.startDate;
+  const endDate = opts.endDate;
+
+  for (const row of (data ?? []) as unknown as Array<{
+    crew_id: string;
+    booking: { id: string; booking_ref: string | null; title: string; shoot_dates: string | null; state: string } | null;
+  }>) {
+    const b = row.booking;
+    if (!b) continue;
+    if (opts.excludeBookingId && b.id === opts.excludeBookingId) continue;
+    if (b.state === 'released' || b.state === 'cancelled') continue;
+    const range = parseDateRange(b.shoot_dates);
+    if (!range.start) continue;
+    // Convert to inclusive end (shoot_dates is exclusive)
+    let endInclusive = range.end;
+    if (range.end) {
+      const d = new Date(range.end + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 1);
+      endInclusive = d.toISOString().slice(0, 10);
+    }
+    const otherStart = range.start;
+    const otherEnd = endInclusive ?? range.start;
+    // Overlap test: ranges [a..b] and [c..d] overlap iff a<=d && c<=b
+    if (otherStart <= endDate && startDate <= otherEnd) {
+      const list = result.get(row.crew_id) ?? [];
+      list.push({
+        bookingId: b.id,
+        bookingRef: b.booking_ref,
+        title: b.title,
+        start: otherStart,
+        end: otherEnd,
+      });
+      result.set(row.crew_id, list);
+    }
+  }
+
+  return result;
+}
+
 export interface CalendarShoot {
   bookingId: string;
   bookingRef: string | null;

@@ -7,10 +7,10 @@ import { humanise } from '@/lib/utils/humanise';
 import type { CrewTier, Crew } from '@/lib/types/database';
 import CreateCrewDialog from '@/components/entities/CreateCrewDialog';
 import CSVImportExport from '@/components/csv/CSVImportExport';
+import CollapsibleCityGroup from '@/components/entities/CollapsibleCityGroup';
+import { orderCityKeys, NO_CITY_KEY } from '@/lib/utils/city-order';
 
 type SearchParams = Promise<{ search?: string; tier?: string; city?: string; group?: string }>;
-
-const NO_CITY_KEY = '__no_city__';
 
 export default async function CrewPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
@@ -40,12 +40,11 @@ export default async function CrewPage({ searchParams }: { searchParams: SearchP
     }
   }
 
-  // Stable city order: alphabetical, with "No city set" last
-  const groupKeys = Object.keys(grouped).sort((a, b) => {
-    if (a === NO_CITY_KEY) return 1;
-    if (b === NO_CITY_KEY) return -1;
-    return a.localeCompare(b);
-  });
+  // City order: anchors first (Sydney → Melbourne → Byron/Gold Coast →
+  // Adelaide), then by frequency, alphabetical to break ties, NO_CITY last.
+  const groupKeys = orderCityKeys(
+    Object.keys(grouped).map((k) => ({ key: k, count: grouped[k].length })),
+  );
 
   function CrewCard({ c }: { c: Crew }) {
     return (
@@ -156,19 +155,17 @@ export default async function CrewPage({ searchParams }: { searchParams: SearchP
         ) : groupByCity && !params.city ? (
           <div className="space-y-6">
             {groupKeys.map((key) => (
-              <section key={key}>
-                <div className="mb-2 flex items-baseline gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-                    {key === NO_CITY_KEY ? 'No city set' : key}
-                  </h2>
-                  <span className="text-[10px]" style={{ color: PALETTE.muted }}>
-                    {grouped[key].length} member{grouped[key].length === 1 ? '' : 's'}
-                  </span>
-                </div>
+              <CollapsibleCityGroup
+                key={key}
+                storageKey={`crew:${key}`}
+                label={key === NO_CITY_KEY ? 'No city set' : key}
+                count={grouped[key].length}
+                countLabel="member"
+              >
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {grouped[key].map((c) => <CrewCard key={c.id} c={c} />)}
                 </div>
-              </section>
+              </CollapsibleCityGroup>
             ))}
           </div>
         ) : (
