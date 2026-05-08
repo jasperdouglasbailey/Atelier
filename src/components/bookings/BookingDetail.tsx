@@ -187,6 +187,14 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           >
             Print quote
           </Link>
+          <a
+            href={`/api/print/quote/${booking.id}`}
+            className="rounded-md px-2.5 py-1 text-[11px]"
+            title="Download a server-rendered PDF of the quote — for attaching to client emails"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            ⤓ Quote PDF
+          </a>
           {booking.quote_token && (
             <Link
               href={`/q/${booking.quote_token}`}

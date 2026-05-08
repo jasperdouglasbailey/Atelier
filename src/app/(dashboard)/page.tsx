@@ -302,7 +302,7 @@ export default async function DashboardPage() {
               Pipeline at a glance
             </h2>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {/* Active bookings + state breakdown */}
             <Link
               href="/bookings"
@@ -324,6 +324,21 @@ export default async function DashboardPage() {
                 {pipeline.length > 4 && (
                   <span className="text-[10px]" style={{ color: PALETTE.muted }}>+{pipeline.length - 4} more</span>
                 )}
+              </div>
+            </Link>
+
+            {/* Revenue this week — confirmed shoots intersecting Mon-Sun */}
+            <Link
+              href="/bookings?view=calendar"
+              className="rounded-lg border p-4 transition hover:opacity-80"
+              style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+            >
+              <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>Revenue this week</div>
+              <div className="mt-1 text-2xl font-semibold" style={{ color: PALETTE.text }}>
+                {formatCurrency(summary.revenueThisWeek)}
+              </div>
+              <div className="mt-2 text-[11px]" style={{ color: PALETTE.muted }}>
+                Confirmed shoots Mon–Sun
               </div>
             </Link>
 

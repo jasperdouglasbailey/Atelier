@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { updateClientAction } from '@/app/actions/entities';
 import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS, COMMUNICATION_STYLE_OPTIONS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
 import type { Client } from '@/lib/types/database';
+import EmailTonePreview from './EmailTonePreview';
 
 type Props = { client: Client };
 
@@ -128,6 +129,10 @@ export default function ClientEditForm({ client }: Props) {
                 <option key={s} value={s}>{COMMUNICATION_STYLE_LABELS[s]}</option>
               ))}
             </select>
+            <EmailTonePreview
+              initialStyle={client.communication_style}
+              clientName={client.name}
+            />
           </div>
         </div>
       </section>

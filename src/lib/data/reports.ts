@@ -46,6 +46,13 @@ export type ReportSummary = {
   revenueThisYear: number;
   revenueThisMonth: number;
   revenueLastMonth: number;
+  /**
+   * Confirmed revenue from bookings whose shoot dates intersect the
+   * current week (Mon-Sun, agency timezone). "Confirmed" here means
+   * the booking has reached `quote_confirmed` or later — so you're
+   * looking at money already on the books for this week's work.
+   */
+  revenueThisWeek: number;
   avgBookingValue: number;
 };
 
@@ -63,14 +70,14 @@ export async function getReportSummary(): Promise<ReportSummary> {
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select('state, grand_total, created_at');
+    .select('state, grand_total, created_at, shoot_dates');
 
   if (error || !data) return {
     totalActiveBookings: 0, totalRevenueAllTime: 0,
-    revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0, avgBookingValue: 0,
+    revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0, revenueThisWeek: 0, avgBookingValue: 0,
   };
 
-  const rows = data as { state: string; grand_total: number; created_at: string }[];
+  const rows = data as { state: string; grand_total: number; created_at: string; shoot_dates: string | null }[];
 
   const active = rows.filter((r) => ACTIVE_STATES.includes(r.state as never));
   const completed = rows.filter((r) => r.state === 'paid' || r.state === 'invoice_issued');
@@ -97,12 +104,45 @@ export async function getReportSummary(): Promise<ReportSummary> {
     ? withValue.reduce((s, r) => s + r.grand_total, 0) / withValue.length
     : 0;
 
+  // Revenue this week — confirmed bookings whose shoot intersects
+  // Mon-Sun of the current week. Different shape from the month/year
+  // figures (which count by booking creation date) because "this week"
+  // is a forward-looking pulse: what's about to land in our pocket.
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const dow = (todayStart.getDay() + 6) % 7; // Mon = 0
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(todayStart.getDate() - dow);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7); // exclusive
+  const weekStartYmd = weekStart.toISOString().slice(0, 10);
+  const weekEndYmd = weekEnd.toISOString().slice(0, 10);
+
+  const CONFIRMED_OR_LATER = new Set([
+    'quote_confirmed', 'pre_production', 'shoot_live',
+    'morning_after_check', 'post_production', 'final_delivery',
+    'invoice_issued', 'paid',
+  ]);
+  const revenueThisWeek = rows
+    .filter((r) => CONFIRMED_OR_LATER.has(r.state))
+    .filter((r) => {
+      if (!r.shoot_dates) return false;
+      const m = r.shoot_dates.match(/[\[(]([\d-]+),([\d-]+)?[\])]/);
+      if (!m || !m[1]) return false;
+      const start = m[1];
+      const endExclusive = m[2] ?? start;
+      // Range overlap test (lower-inclusive, upper-exclusive on both sides)
+      return start < weekEndYmd && endExclusive > weekStartYmd;
+    })
+    .reduce((s, r) => s + (r.grand_total ?? 0), 0);
+
   return {
     totalActiveBookings: active.length,
     totalRevenueAllTime,
     revenueThisYear,
     revenueThisMonth,
     revenueLastMonth,
+    revenueThisWeek,
     avgBookingValue,
   };
 }
