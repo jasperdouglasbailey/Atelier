@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { findByOnboardingToken } from '@/lib/data/onboarding';
 import { PALETTE } from '@/lib/utils/constants';
 import OnboardingMagicLinkForm from '@/components/onboarding/OnboardingMagicLinkForm';
+import CollectionNotice from '@/components/onboarding/CollectionNotice';
 
 export const metadata = {
   title: 'Saunders & Co — Update your details',
@@ -59,6 +60,7 @@ export default async function OnboardTokenPage({
             Update your details
           </p>
         </div>
+        <CollectionNotice />
         <OnboardingMagicLinkForm token={token} prefill={prefill} />
       </div>
     </div>

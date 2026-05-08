@@ -272,9 +272,14 @@ export default async function PublicQuotePage({ params }: Props) {
             <p style={{ margin: '0 0 4px' }}>
               This quote is valid for {agency.quoteValidityDays} days from issue. All amounts are in Australian Dollars (AUD) and inclusive of GST where applicable.
             </p>
-            <p style={{ margin: 0 }}>
+            <p style={{ margin: '0 0 4px' }}>
               Quote is subject to talent and crew availability. Cancellation terms apply once a booking is confirmed.
               {agency.name} acts as agent on behalf of represented talent.
+            </p>
+            <p style={{ margin: 0 }}>
+              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: '#888' }}>
+                Privacy policy
+              </a>
             </p>
           </div>
         </div>
