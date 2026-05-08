@@ -135,6 +135,7 @@ export default async function BookingDetailPage({ params }: Props) {
               bookingCrew={bookingCrew}
               allTalent={allTalent}
               allCrew={allCrew}
+              shootLocation={booking.shoot_location}
             />
 
             {/* 4. HOLDS — sits between team and quote. Once talent/crew are

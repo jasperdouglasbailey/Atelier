@@ -89,6 +89,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
   } | null>(null);
 
+  // Totals breakdown — collapsed by default so the quote totals panel reads
+  // as just "Grand Total" at a glance. Click to expand the full GST
+  // passthrough + agency margin internals.
+  const [showFullBreakdown, setShowFullBreakdown] = useState(false);
+
   // Compute totals with live preview when a row is being edited
   const previewLines = feeLines.map((l) => {
     if (l.id !== editingId || !editValues) return l;
@@ -594,45 +599,57 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
       {/* Totals */}
       {feeLines.length > 0 && (
-        <div className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          {/* Artist fees subtotal */}
-          {artistLines.length > 0 && outgoingLines.length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>Artist &amp; Licence Fees</div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <TotalField label="Subtotal" value={artistTotals.subtotal} />
-                <TotalField label="ASF" value={artistTotals.totalAsf} />
-                <TotalField label="GST" value={artistTotals.totalGst} />
-                <TotalField label="Commission" value={artistTotals.totalCommission} muted />
-              </div>
-            </div>
-          )}
-
-          {/* Outgoings subtotal */}
-          {outgoingLines.length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.warning }}>
-                Outgoings (crew &amp; production)
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <TotalField label="Subtotal" value={outgoingTotals.subtotal} warn />
-                <TotalField label="ASF" value={outgoingTotals.totalAsf} warn />
-                <TotalField label="GST" value={outgoingTotals.totalGst} warn />
-                <TotalField label="Super (charged)" value={outgoingTotals.totalSuper} warn />
-              </div>
-            </div>
-          )}
-
-          {/* Grand total */}
-          <div className="flex items-baseline justify-between border-t pt-3" style={{ borderColor: PALETTE.border }}>
+        <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          {/* Grand total — always visible, the only number a non-finance reader needs */}
+          <div className="flex items-baseline justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total</span>
             <span
-              className="text-lg font-bold tabular-nums transition-colors"
+              className="text-2xl font-bold tabular-nums transition-colors"
               style={{ color: editingId ? PALETTE.accent : PALETTE.text }}
             >
               {formatCurrency(totals.grandTotal)}
             </span>
           </div>
+
+          {/* Toggle — click to reveal the full breakdown (subtotals, GST passthrough, agency margin) */}
+          <button
+            type="button"
+            onClick={() => setShowFullBreakdown((v) => !v)}
+            className="text-[11px] font-medium underline-offset-2 hover:underline"
+            style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            {showFullBreakdown ? '▴ Hide breakdown' : '▾ Show full breakdown'}
+          </button>
+
+          {showFullBreakdown && (
+            <div className="space-y-4 border-t pt-3" style={{ borderColor: PALETTE.border }}>
+              {/* Artist fees subtotal */}
+              {artistLines.length > 0 && outgoingLines.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>Artist &amp; Licence Fees</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <TotalField label="Subtotal" value={artistTotals.subtotal} />
+                    <TotalField label="ASF" value={artistTotals.totalAsf} />
+                    <TotalField label="GST" value={artistTotals.totalGst} />
+                    <TotalField label="Commission" value={artistTotals.totalCommission} muted />
+                  </div>
+                </div>
+              )}
+
+              {/* Outgoings subtotal */}
+              {outgoingLines.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.warning }}>
+                    Outgoings (crew &amp; production)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <TotalField label="Subtotal" value={outgoingTotals.subtotal} warn />
+                    <TotalField label="ASF" value={outgoingTotals.totalAsf} warn />
+                    <TotalField label="GST" value={outgoingTotals.totalGst} warn />
+                    <TotalField label="Super (charged)" value={outgoingTotals.totalSuper} warn />
+                  </div>
+                </div>
+              )}
 
           {/* Two separate panels:
               1. GST passthrough — what's collected vs claimed back vs owed to ATO.
@@ -752,6 +769,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
               </div>
             );
           })()}
+            </div>
+          )}
         </div>
       )}
 

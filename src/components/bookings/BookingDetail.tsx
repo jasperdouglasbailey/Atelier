@@ -157,39 +157,8 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           />
         </div>
 
-        {/* Stage stepper — 5 groups */}
-        <StageStepper state={booking.state} />
-
-        {/* Stage checklist — what's left to do at this stage */}
-        <StageChecklist checklist={checklist} />
-
-        {/* Action rows: state transitions on top, navigation links below */}
-        {allowedTransitions.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: PALETTE.border }}>
-            <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1" style={{ color: PALETTE.muted }}>
-              Advance to
-            </span>
-            {allowedTransitions.map((state) => {
-              const isExit = state === 'released' || state === 'cancelled';
-              return (
-                <button
-                  key={state}
-                  onClick={() => handleTransition(state)}
-                  disabled={transitioning}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                  style={{
-                    background: isExit ? `${PALETTE.danger}22` : PALETTE.accent,
-                    color: isExit ? PALETTE.danger : PALETTE.bg,
-                    border: isExit ? `1px solid ${PALETTE.danger}44` : 'none',
-                  }}
-                >
-                  → {BOOKING_STATE_LABELS[state]}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
+        {/* Tools — moved up. Edit / workspace / print / call-sheet links sit
+            close to the title so they're always one glance away. */}
         <div className="flex flex-wrap gap-2 text-xs" style={{ color: PALETTE.muted }}>
           <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1">Tools</span>
           <Link
@@ -250,6 +219,40 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
             Call sheet
           </Link>
         </div>
+
+        {/* Stage stepper — 5 groups */}
+        <StageStepper state={booking.state} />
+
+        {/* Stage checklist — what's left to do at this stage */}
+        <StageChecklist checklist={checklist} />
+
+        {/* Action rows: state transitions on top, navigation links below */}
+        {allowedTransitions.length > 0 && (
+          <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: PALETTE.border }}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1" style={{ color: PALETTE.muted }}>
+              Advance to
+            </span>
+            {allowedTransitions.map((state) => {
+              const isExit = state === 'released' || state === 'cancelled';
+              return (
+                <button
+                  key={state}
+                  onClick={() => handleTransition(state)}
+                  disabled={transitioning}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  style={{
+                    background: isExit ? `${PALETTE.danger}22` : PALETTE.accent,
+                    color: isExit ? PALETTE.danger : PALETTE.bg,
+                    border: isExit ? `1px solid ${PALETTE.danger}44` : 'none',
+                  }}
+                >
+                  → {BOOKING_STATE_LABELS[state]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
       </div>
 
       {transitionError && (
@@ -270,53 +273,63 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
         </div>
       )}
 
-      {/* Brief fields */}
-      <Section title="Brief">
-        {clientName && <Field label="Client" value={clientName} />}
-        {brandName && <Field label="Brand" value={brandName} />}
-        <Field label="Shoot location" value={booking.shoot_location} />
-        <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-        <Field label="Talent spec" value={humanise(booking.talent_spec) || booking.talent_spec} />
-        <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
-        <Field label="Deliverables count" value={booking.deliverables_count} />
-        <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
-        <Field label="Selects cadence" value={booking.selects_cadence} />
-      </Section>
-
-      {/* Usage brief fields + Usage Licences — shown in one combined panel */}
+      {/* Brief — combined panel containing the brief fields, usage details
+          (media / territory / duration / notes), and the usage licence builder.
+          Usage is part of the brief: it's a property of the job, not a
+          separate concept. Merging the panels makes that clear. */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief</h3>
+
+        {/* Core brief fields */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {clientName && <Field label="Client" value={clientName} />}
+          {brandName && <Field label="Brand" value={brandName} />}
+          <Field label="Shoot location" value={booking.shoot_location} />
+          <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
+          <Field label="Talent spec" value={humanise(booking.talent_spec) || booking.talent_spec} />
+          <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
+          <Field label="Deliverables count" value={booking.deliverables_count} />
+          <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
+          <Field label="Selects cadence" value={booking.selects_cadence} />
+        </div>
+
+        {/* Usage details — only render the divider + section if there's something to show */}
         {(booking.usage_media?.length || booking.usage_territory?.length || booking.usage_duration_months || booking.usage_notes) ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {booking.usage_duration_months ? (
-              <Field
-                label="Duration"
-                value={`${booking.usage_duration_months} ${booking.usage_duration_months === 1 ? 'month' : 'months'}`}
-              />
-            ) : null}
-            {booking.usage_notes ? <Field label="Notes" value={booking.usage_notes} /> : null}
-            {booking.usage_media?.length ? (
-              <div className="sm:col-span-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Media</div>
-                <div className="flex flex-wrap gap-1">
-                  {booking.usage_media.map((m) => (
-                    <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{humanise(m)}</span>
-                  ))}
+          <div className="border-t pt-3" style={{ borderColor: PALETTE.border }}>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>Usage</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {booking.usage_duration_months ? (
+                <Field
+                  label="Duration"
+                  value={`${booking.usage_duration_months} ${booking.usage_duration_months === 1 ? 'month' : 'months'}`}
+                />
+              ) : null}
+              {booking.usage_notes ? <Field label="Notes" value={booking.usage_notes} /> : null}
+              {booking.usage_media?.length ? (
+                <div className="sm:col-span-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Media</div>
+                  <div className="flex flex-wrap gap-1">
+                    {booking.usage_media.map((m) => (
+                      <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{humanise(m)}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {booking.usage_territory?.length ? (
-              <div className="sm:col-span-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Territory</div>
-                <div className="flex flex-wrap gap-1">
-                  {booking.usage_territory.map((t) => (
-                    <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{humanise(t)}</span>
-                  ))}
+              ) : null}
+              {booking.usage_territory?.length ? (
+                <div className="sm:col-span-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Territory</div>
+                  <div className="flex flex-wrap gap-1">
+                    {booking.usage_territory.map((t) => (
+                      <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{humanise(t)}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         ) : null}
+
+        {/* Usage licences — fee lines linked to media/territory/duration */}
         <div className="border-t pt-4" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>
