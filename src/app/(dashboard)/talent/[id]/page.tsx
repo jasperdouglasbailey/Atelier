@@ -84,60 +84,48 @@ export default async function TalentDetailPage({ params }: Props) {
           <Link href="/talent" className="text-xs" style={{ color: PALETTE.accent }}>← Talent</Link>
         </div>
 
-        {/* Header */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{talent.working_name}</h2>
-              <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
-                {ARTIST_DISCIPLINE_LABELS[talent.discipline as ArtistDiscipline] ?? talent.discipline}
-                {talent.specialty ? ` · ${talent.specialty}` : ''}
-                {' · '}{talent.legal_name}
+        {/* Header — three tidy rows: identity / status badges / actions */}
+        <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          {/* Row 1 — identity */}
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{talent.working_name}</h2>
+            <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
+              {ARTIST_DISCIPLINE_LABELS[talent.discipline as ArtistDiscipline] ?? talent.discipline}
+              {talent.specialty ? ` · ${talent.specialty}` : ''}
+              {' · '}{talent.legal_name}
+            </div>
+            {talent.preferred_comms && (
+              <div className="text-[10px] mt-0.5" style={{ color: PALETTE.muted }}>
+                Prefers: {PREFERRED_COMMS_LABELS[talent.preferred_comms as PreferredComms] ?? talent.preferred_comms}
               </div>
-              {talent.preferred_comms && (
-                <div className="text-[10px] mt-0.5" style={{ color: PALETTE.muted }}>
-                  Prefers: {PREFERRED_COMMS_LABELS[talent.preferred_comms as PreferredComms] ?? talent.preferred_comms}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge label={talent.is_active ? 'Active' : 'Inactive'} active={talent.is_active} />
-              <Badge label={talent.gst_registered ? 'GST Reg' : 'No GST'} active={talent.gst_registered} />
-              <Badge label={talent.onboarding_completed ? 'Onboarded' : 'Pending'} active={talent.onboarding_completed} />
-              <Link
-                href={`/talent/${talent.id}/edit`}
-                className="rounded px-3 py-1 text-xs font-medium"
-                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-              >
-                ✏ Edit
-              </Link>
-              <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
+            )}
+          </div>
+
+          {/* Row 2 — status badges, evenly spaced */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            <Badge label={talent.is_active ? 'Active' : 'Inactive'} active={talent.is_active} />
+            <Badge label={talent.gst_registered ? 'GST Reg' : 'No GST'} active={talent.gst_registered} />
+            <Badge label={talent.onboarding_completed ? 'Onboarded' : 'Onboarding pending'} active={talent.onboarding_completed} />
+          </div>
+
+          {/* Row 3 — actions, evenly spaced. Send onboarding link only
+              shows when onboarding is NOT complete (otherwise it
+              contradicts the Onboarded badge). */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            <Link
+              href={`/talent/${talent.id}/edit`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              ✏ Edit
+            </Link>
+            <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
+            {!talent.onboarding_completed && (
               <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />
-              <DeleteEntityButton type="talent" id={talent.id} name={talent.working_name} size="sm" />
-            </div>
+            )}
+            <DeleteEntityButton type="talent" id={talent.id} name={talent.working_name} size="sm" />
           </div>
         </section>
-
-        {/* Quick stats */}
-        {totalBookings > 0 && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
-            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-              <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
-              <Stat label="Active" value={activeBookings} sublabel="not yet paid" />
-              <Stat
-                label="Avg Day Rate"
-                value={avgDayRate ? formatCurrency(avgDayRate, 'AUD') : '—'}
-                sublabel={ratesPaid.length > 0 ? `over ${ratesPaid.length} confirmed` : undefined}
-              />
-              <Stat
-                label="Top Tier"
-                value={topTier ? humanise(topTier) : '—'}
-                sublabel={topTier ? 'most worked' : undefined}
-              />
-            </div>
-          </section>
-        )}
 
         {/* Contact */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
@@ -278,6 +266,30 @@ export default async function TalentDetailPage({ params }: Props) {
             </div>
           )}
         </section>
+
+        {/* Stats — moved to the bottom per session 8 doctrine. The page
+            reads top-down as identity → contact → operational → booking
+            history → summary stats, which mirrors how a producer scans
+            the page when staffing a shoot. */}
+        {totalBookings > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+              <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
+              <Stat label="Active" value={activeBookings} sublabel="not yet paid" />
+              <Stat
+                label="Avg Day Rate"
+                value={avgDayRate ? formatCurrency(avgDayRate, 'AUD') : '—'}
+                sublabel={ratesPaid.length > 0 ? `over ${ratesPaid.length} confirmed` : undefined}
+              />
+              <Stat
+                label="Top Tier"
+                value={topTier ? humanise(topTier) : '—'}
+                sublabel={topTier ? 'most worked' : undefined}
+              />
+            </div>
+          </section>
+        )}
 
         <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
           Created {formatDate(talent.created_at)} · Updated {formatDate(talent.updated_at)}

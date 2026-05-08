@@ -26,6 +26,24 @@ describe('titleCaseName', () => {
     expect(titleCaseName('JP WESTLAKE')).toBe('JP Westlake');
   });
 
+  it('preserves all-caps brand abbreviations up to 4 letters', () => {
+    expect(titleCaseName('WPP Production')).toBe('WPP Production');
+    expect(titleCaseName('AJE Resort')).toBe('AJE Resort');
+    expect(titleCaseName('BBC News')).toBe('BBC News');
+    expect(titleCaseName('NYC Photography')).toBe('NYC Photography');
+  });
+
+  it('preserves intentional mixed-case tokens', () => {
+    expect(titleCaseName('iPhone Workshop')).toBe('iPhone Workshop');
+    expect(titleCaseName('MacBook Pro')).toBe('MacBook Pro');
+    expect(titleCaseName('Are Media')).toBe('Are Media');
+  });
+
+  it('still title-cases all-caps tokens longer than 4 letters', () => {
+    expect(titleCaseName('PRODUCTION COMPANY')).toBe('Production Company');
+    expect(titleCaseName('MASON')).toBe('Mason');
+  });
+
   it('returns empty string unchanged', () => {
     expect(titleCaseName('')).toBe('');
     expect(titleCaseName('   ')).toBe('');
