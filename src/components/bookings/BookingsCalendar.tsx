@@ -325,27 +325,36 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
                     clientName={shoot.clientName}
                     brandName={shoot.brandName}
                     roster={rosterByBookingId[shoot.bookingId] ?? null}
+                    // Take over the absolute positioning so the bar sizes against
+                    // the week row, not the inline-block wrapper. The inner Link
+                    // fills 100% of this wrapper.
+                    wrapperStyle={{
+                      position: 'absolute',
+                      left: `calc(${leftPct}% + ${isStart ? 4 : 0}px)`,
+                      width: `calc(${widthPct}% - ${isStart ? 8 : 4}px)`,
+                      top,
+                      height,
+                      borderRadius: isStart ? 3 : 0,
+                      borderTopLeftRadius: isStart ? 3 : 0,
+                      borderBottomLeftRadius: isStart ? 3 : 0,
+                      borderTopRightRadius: 3,
+                      borderBottomRightRadius: 3,
+                      background: barBg,
+                      borderLeft: isStart ? `3px solid ${darken(stateColor, 0.3)}` : 'none',
+                    }}
                   >
                     <Link
                       href={`/bookings/${shoot.bookingId}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute flex items-center overflow-hidden transition-opacity hover:opacity-90"
+                      className="flex items-center overflow-hidden transition-opacity hover:opacity-90"
                       style={{
-                        left: `calc(${leftPct}% + ${isStart ? 4 : 0}px)`,
-                        width: `calc(${widthPct}% - ${isStart ? 8 : 4}px)`,
-                        top,
-                        height,
+                        width: '100%',
+                        height: '100%',
                         lineHeight: `${height}px`,
-                        borderRadius: isStart ? 3 : 0,
-                        borderTopLeftRadius: isStart ? 3 : 0,
-                        borderBottomLeftRadius: isStart ? 3 : 0,
-                        borderTopRightRadius: 3,
-                        borderBottomRightRadius: 3,
-                        background: barBg,
                         color: textColor,
-                        borderLeft: isStart ? `3px solid ${darken(stateColor, 0.3)}` : 'none',
                         paddingLeft: 6,
                         paddingRight: 4,
+                        textDecoration: 'none',
                       }}
                     >
                       <span className="truncate text-[10px] font-semibold">
