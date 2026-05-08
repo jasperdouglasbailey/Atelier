@@ -38,11 +38,16 @@ type Props = {
   clientName?: string | null;
   brandName?: string | null;
   roster: BookingRoster | null;
+  /**
+   * Optional style overrides for the wrapper span. Used by the calendar
+   * to take over absolute positioning so the trigger fills the bar.
+   */
+  wrapperStyle?: React.CSSProperties;
 };
 
 export default function BookingHoverCard({
   children, bookingRef, title, state, shootDates, shootLocation,
-  clientName, brandName, roster,
+  clientName, brandName, roster, wrapperStyle,
 }: Props) {
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,9 +67,16 @@ export default function BookingHoverCard({
     closeTimerRef.current = setTimeout(() => setOpen(false), 120);
   }, [cancelClose]);
 
+  // Default wrapper style is inline-block (used by table rows in the list view).
+  // Calendar bars override with `wrapperStyle` to take the absolute positioning
+  // so the bar can size against the week row, not against this wrapper.
+  const finalWrapperStyle: React.CSSProperties = wrapperStyle
+    ? { position: 'relative', ...wrapperStyle }
+    : { position: 'relative', display: 'inline-block' };
+
   return (
     <span
-      style={{ position: 'relative', display: 'inline-block' }}
+      style={finalWrapperStyle}
       onMouseEnter={() => { cancelClose(); setOpen(true); }}
       onMouseLeave={scheduleClose}
     >
