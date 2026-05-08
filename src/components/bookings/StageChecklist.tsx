@@ -6,7 +6,10 @@ type Props = { checklist: ChecklistData };
 const STATUS_STYLES: Record<ChecklistData['items'][number]['status'], { bg: string; fg: string; symbol: string; label: string }> = {
   done:     { bg: PALETTE.success, fg: '#fff',         symbol: '✓', label: 'Done' },
   pending:  { bg: PALETTE.warning, fg: '#1a1a1a',      symbol: '!', label: 'Needed' },
-  optional: { bg: 'transparent',   fg: PALETTE.muted,  symbol: '·', label: 'Optional' },
+  // Optional items — same amber as pending so incomplete things never read as "blank",
+  // but with a softer dot symbol so the difference between "needed" and "optional"
+  // is still legible at a glance.
+  optional: { bg: PALETTE.warning, fg: '#1a1a1a',      symbol: '·', label: 'Optional' },
   blocked:  { bg: PALETTE.muted,   fg: '#fff',         symbol: '×', label: 'Blocked' },
 };
 
@@ -60,11 +63,7 @@ export default function StageChecklist({ checklist }: Props) {
             <li key={idx} className="flex items-start gap-2 text-xs">
               <span
                 className="mt-0.5 inline-flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[9px] font-bold"
-                style={
-                  item.status === 'optional'
-                    ? { color: PALETTE.muted, border: `1px dashed ${PALETTE.border}` }
-                    : { background: style.bg, color: style.fg }
-                }
+                style={{ background: style.bg, color: style.fg }}
                 title={style.label}
               >
                 {style.symbol}
