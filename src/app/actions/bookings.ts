@@ -1028,3 +1028,71 @@ export async function deleteBookingAction(
     return { ok: false, error: msg };
   }
 }
+
+/**
+ * Archive a booking — hide from active lists but keep all data intact.
+ * Reversible via unarchiveBookingAction. The opposite of delete: this is
+ * for shoots that are over but might still be referenced or recovered.
+ */
+export async function archiveBookingAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createSupabaseServer();
+    const { error } = await supabase
+      .from('atelier_bookings')
+      .update({ is_archived: true, archived_at: new Date().toISOString() })
+      .eq('id', bookingId);
+
+    if (error) {
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'archive_booking',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: error.message,
+      }).catch(() => {});
+      return { ok: false, error: error.message };
+    }
+
+    revalidatePath('/bookings');
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Unarchive a booking — restore it to the active list.
+ */
+export async function unarchiveBookingAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createSupabaseServer();
+    const { error } = await supabase
+      .from('atelier_bookings')
+      .update({ is_archived: false, archived_at: null })
+      .eq('id', bookingId);
+
+    if (error) {
+      await logAuditFailure({
+        userId: await getCurrentActor(),
+        action: 'unarchive_booking',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        error: error.message,
+      }).catch(() => {});
+      return { ok: false, error: error.message };
+    }
+
+    revalidatePath('/bookings');
+    revalidatePath(`/bookings/${bookingId}`);
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}

@@ -9,6 +9,7 @@ import MorningAfterChecklist from '@/components/bookings/MorningAfterChecklist';
 import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
+import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
 import { getBooking } from '@/lib/data/bookings';
 import { listEvents } from '@/lib/utils/events';
 import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
@@ -201,6 +202,15 @@ export default async function BookingDetailPage({ params }: Props) {
             <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
               <StreamingComms bookingRef={booking.booking_ref} />
             </Suspense>
+
+            {/* 9. LIFECYCLE — Archive / Delete controls at the bottom so they
+                don't compete with day-to-day actions but are always available. */}
+            <BookingLifecycleControls
+              bookingId={id}
+              bookingRef={booking.booking_ref}
+              bookingState={booking.state}
+              isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+            />
           </div>
 
           {/* Right rail — collapsible timeline (audit trail). Hidden by

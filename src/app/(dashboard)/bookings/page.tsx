@@ -42,6 +42,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
       : viewCookie === 'board' ? 'board'
       : 'calendar';
   const group = params.group || 'active';
+  const showArchived = group === 'archived';
 
   // Calendar uses its own data source (one row per booking with attached crew + dates).
   // Board fetches all active bookings (no pagination needed — small N).
@@ -51,11 +52,14 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
     ? { bookings: [], total: 0, pageSize: 20 }
     : await listBookings({
         state: params.state as BookingState | undefined,
-        stateGroup: view === 'board' ? 'active' : (params.group as 'active' | 'completed' | 'lost') || 'active',
+        stateGroup: showArchived
+          ? undefined
+          : view === 'board' ? 'active' : (params.group as 'active' | 'completed' | 'lost') || 'active',
         tier: params.tier as ShootTier | undefined,
         search: params.search,
         page: view === 'board' ? 1 : page,
         pageSize: view === 'board' ? 200 : 20,
+        archivedOnly: showArchived,
       });
 
   // Roster lookup for hover card. Pulled in one batched query for the
@@ -75,7 +79,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
       <div className="p-4 sm:p-6">
         {/* Toolbar */}
         <div className="mb-4 flex gap-1 rounded-lg p-1" style={{ background: PALETTE.surface }}>
-          {view === 'list' && (['active', 'completed', 'lost'] as const).map((g) => (
+          {view === 'list' && (['active', 'completed', 'lost', 'archived'] as const).map((g) => (
             <Link
               key={g}
               href={`/bookings?view=list&group=${g}`}
