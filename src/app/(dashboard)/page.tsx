@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
-import { getBookingCounts, getUpcomingShoots, getAttentionItems, getOverdueInvoices } from '@/lib/data/bookings';
+import { getUpcomingShoots, getAttentionItems, getOverdueInvoices } from '@/lib/data/bookings';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
 import { getPendingCount } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
 import { describeEvent } from '@/lib/utils/event-descriptions';
-import { getReportSummary, getTopTalent } from '@/lib/data/reports';
+import { getTopTalent } from '@/lib/data/reports';
+import { getCachedBookingCounts, getCachedReportSummary } from '@/lib/data/dashboard-cache';
 import { runHealthProbes } from '@/lib/utils/health';
 import {
   BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS,
@@ -44,12 +45,12 @@ const urgencyColor: Record<string, string> = {
 
 export default async function DashboardPage() {
   const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices, healthProbes, topTalent] = await Promise.all([
-    getBookingCounts(),
+    getCachedBookingCounts(),
     getUpcomingShoots(7),
     getPendingCount(),
     listEvents({ limit: 10 }),
     getAttentionItems(),
-    getReportSummary(),
+    getCachedReportSummary(),
     getOverdueInvoices(),
     runHealthProbes(),
     getTopTalent(8),

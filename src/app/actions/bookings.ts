@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { reportDataError } from '@/lib/utils/data-errors';
 import { createBooking, getBooking, updateBooking, transitionState, deleteBookingWithCorpus, type CreateBookingInput } from '@/lib/data/bookings';
 import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent } from '@/lib/data/quotes';
@@ -150,7 +150,9 @@ export async function createBookingAction(formData: FormData) {
   }
 
   revalidatePath('/bookings');
+  revalidateTag('bookings', {});
   revalidatePath('/');
+  revalidateTag('bookings', {});
   return { id: booking.id, ref: booking.booking_ref };
 }
 
@@ -254,6 +256,7 @@ export async function updateBookingAction(id: string, formData: FormData) {
 
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -431,8 +434,10 @@ export async function transitionBookingAction(
 
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
+  revalidateTag('bookings', {});
   revalidatePath('/inbox');
   revalidatePath('/');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -528,6 +533,7 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
 
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -675,6 +681,7 @@ export async function sendQuoteEmailAction(
     }
     revalidatePath(`/bookings/${bookingId}`);
     revalidatePath('/bookings');
+  revalidateTag('bookings', {});
     return { ok: true, mode: 'sent' as const, messageId: result.messageId };
   } else {
     try {
@@ -982,6 +989,7 @@ export async function cloneBookingAction(sourceId: string) {
   }
 
   revalidatePath('/bookings');
+  revalidateTag('bookings', {});
   revalidatePath(`/clients/${source.client_id}`);
   return { id: newBooking.id, ref: newBooking.booking_ref };
 }
@@ -1081,7 +1089,9 @@ export async function deleteBookingAction(
     }
 
     revalidatePath('/bookings');
+  revalidateTag('bookings', {});
     revalidatePath('/');
+    revalidateTag('bookings', {});
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1116,6 +1126,7 @@ export async function archiveBookingAction(
     }
 
     revalidatePath('/bookings');
+  revalidateTag('bookings', {});
     revalidatePath(`/bookings/${bookingId}`);
     return { ok: true };
   } catch (err) {
@@ -1149,6 +1160,7 @@ export async function unarchiveBookingAction(
     }
 
     revalidatePath('/bookings');
+  revalidateTag('bookings', {});
     revalidatePath(`/bookings/${bookingId}`);
     return { ok: true };
   } catch (err) {
@@ -1232,6 +1244,7 @@ export async function convertEmailToBookingAction(opts: {
 
     revalidatePath('/inbox');
     revalidatePath('/bookings');
+  revalidateTag('bookings', {});
     return { ok: true, bookingId: booking.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

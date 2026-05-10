@@ -404,16 +404,26 @@ async function refreshClientAvgDoi(clientId: string): Promise<void> {
 // ============================================================
 
 export async function getBookingCounts(): Promise<Record<string, number>> {
+  // SQL-side aggregation — avoids pulling every booking row into Node.js just
+  // to count them. Supabase doesn't expose GROUP BY through its query builder
+  // so we use a raw RPC shim. The function is defined in migration 0028.
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('state');
+  const { data, error } = await supabase.rpc('get_booking_state_counts');
 
-  if (error) return {};
+  if (error) {
+    // Fallback to JS aggregation so the dashboard doesn't break if the RPC
+    // doesn't exist yet (e.g. pre-migration local dev).
+    const { data: fallback } = await supabase.from(TABLE).select('state').eq('is_archived', false);
+    const counts: Record<string, number> = {};
+    for (const row of (fallback ?? []) as { state: string }[]) {
+      counts[row.state] = (counts[row.state] ?? 0) + 1;
+    }
+    return counts;
+  }
 
   const counts: Record<string, number> = {};
-  for (const row of (data ?? []) as { state: string }[]) {
-    counts[row.state] = (counts[row.state] ?? 0) + 1;
+  for (const row of (data ?? []) as { state: string; count: number }[]) {
+    counts[row.state] = Number(row.count);
   }
   return counts;
 }
