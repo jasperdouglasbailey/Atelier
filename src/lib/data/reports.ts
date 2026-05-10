@@ -60,54 +60,60 @@ const TABLE = 'atelier_bookings';
 
 export async function getReportSummary(): Promise<ReportSummary> {
   const supabase = await createClient();
-
   const now = new Date();
-  const thisYear = now.getFullYear();
-  const thisMonth = now.getMonth() + 1;
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonth = lastMonthDate.getMonth() + 1;
-  const lastMonthYear = lastMonthDate.getFullYear();
 
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('state, grand_total, created_at, shoot_dates');
+  // Two parallel queries:
+  //   1. SQL-aggregated KPIs via RPC (replaces pulling every row into JS)
+  //   2. Minimal columns needed for the week-revenue JS range-overlap check
+  //      (shoot_dates is a Postgres daterange — cheaper to parse in JS than
+  //      ship a complex overlap expression through PostgREST)
+  const CONFIRMED_OR_LATER_STATES = [
+    'quote_confirmed', 'pre_production', 'shoot_live',
+    'morning_after_check', 'post_production', 'final_delivery',
+    'invoice_issued', 'paid',
+  ] as const;
 
-  if (error || !data) return {
+  const [aggResult, weekResult] = await Promise.all([
+    supabase.rpc('get_report_summary_agg'),
+    supabase
+      .from(TABLE)
+      .select('grand_total, shoot_dates')
+      .in('state', CONFIRMED_OR_LATER_STATES as unknown as string[]),
+  ]);
+
+  const ZERO: ReportSummary = {
     totalActiveBookings: 0, totalRevenueAllTime: 0,
-    revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0, revenueThisWeek: 0, avgBookingValue: 0,
+    revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0,
+    revenueThisWeek: 0, avgBookingValue: 0,
   };
 
-  const rows = data as { state: string; grand_total: number; created_at: string; shoot_dates: string | null }[];
+  // If the RPC errors (e.g. pre-migration local dev), fall back gracefully.
+  let agg = aggResult.data?.[0] as {
+    total_active: number; revenue_all_time: number;
+    revenue_this_year: number; revenue_this_month: number;
+    revenue_last_month: number; avg_booking_value: number;
+  } | null;
 
-  const active = rows.filter((r) => ACTIVE_STATES.includes(r.state as never));
-  const completed = rows.filter((r) => r.state === 'paid' || r.state === 'invoice_issued');
+  if (aggResult.error || !agg) {
+    // Fallback: pull all rows and aggregate in JS (identical to old behaviour)
+    const { data: fallback, error: fbErr } = await supabase
+      .from(TABLE).select('state, grand_total, created_at, shoot_dates');
+    if (fbErr || !fallback) return ZERO;
+    const rows = fallback as { state: string; grand_total: number; created_at: string; shoot_dates: string | null }[];
+    const thisYear = now.getFullYear();
+    const thisMonth = now.getMonth() + 1;
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    agg = {
+      total_active: rows.filter((r) => ACTIVE_STATES.includes(r.state as never)).length,
+      revenue_all_time: rows.reduce((s, r) => s + (r.grand_total ?? 0), 0),
+      revenue_this_year: rows.filter((r) => new Date(r.created_at).getFullYear() === thisYear).reduce((s, r) => s + (r.grand_total ?? 0), 0),
+      revenue_this_month: rows.filter((r) => { const d = new Date(r.created_at); return d.getFullYear() === thisYear && d.getMonth() + 1 === thisMonth; }).reduce((s, r) => s + (r.grand_total ?? 0), 0),
+      revenue_last_month: rows.filter((r) => { const d = new Date(r.created_at); return d.getFullYear() === lastMonthDate.getFullYear() && d.getMonth() + 1 === (lastMonthDate.getMonth() + 1); }).reduce((s, r) => s + (r.grand_total ?? 0), 0),
+      avg_booking_value: (() => { const w = rows.filter((r) => r.grand_total > 0); return w.length > 0 ? w.reduce((s, r) => s + r.grand_total, 0) / w.length : 0; })(),
+    };
+  }
 
-  const totalRevenueAllTime = rows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
-
-  const thisYearRows = rows.filter((r) => new Date(r.created_at).getFullYear() === thisYear);
-  const revenueThisYear = thisYearRows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
-
-  const thisMonthRows = rows.filter((r) => {
-    const d = new Date(r.created_at);
-    return d.getFullYear() === thisYear && d.getMonth() + 1 === thisMonth;
-  });
-  const revenueThisMonth = thisMonthRows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
-
-  const lastMonthRows = rows.filter((r) => {
-    const d = new Date(r.created_at);
-    return d.getFullYear() === lastMonthYear && d.getMonth() + 1 === lastMonth;
-  });
-  const revenueLastMonth = lastMonthRows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
-
-  const withValue = rows.filter((r) => r.grand_total > 0);
-  const avgBookingValue = withValue.length > 0
-    ? withValue.reduce((s, r) => s + r.grand_total, 0) / withValue.length
-    : 0;
-
-  // Revenue this week — confirmed bookings whose shoot intersects
-  // Mon-Sun of the current week. Different shape from the month/year
-  // figures (which count by booking creation date) because "this week"
-  // is a forward-looking pulse: what's about to land in our pocket.
+  // Week revenue: JS range-overlap on shoot_dates (Postgres daterange string)
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const dow = (todayStart.getDay() + 6) % 7; // Mon = 0
@@ -118,32 +124,26 @@ export async function getReportSummary(): Promise<ReportSummary> {
   const weekStartYmd = weekStart.toISOString().slice(0, 10);
   const weekEndYmd = weekEnd.toISOString().slice(0, 10);
 
-  const CONFIRMED_OR_LATER = new Set([
-    'quote_confirmed', 'pre_production', 'shoot_live',
-    'morning_after_check', 'post_production', 'final_delivery',
-    'invoice_issued', 'paid',
-  ]);
-  const revenueThisWeek = rows
-    .filter((r) => CONFIRMED_OR_LATER.has(r.state))
+  const weekRows = (weekResult.data ?? []) as { grand_total: number; shoot_dates: string | null }[];
+  const revenueThisWeek = weekRows
     .filter((r) => {
       if (!r.shoot_dates) return false;
       const m = r.shoot_dates.match(/[\[(]([\d-]+),([\d-]+)?[\])]/);
       if (!m || !m[1]) return false;
       const start = m[1];
       const endExclusive = m[2] ?? start;
-      // Range overlap test (lower-inclusive, upper-exclusive on both sides)
       return start < weekEndYmd && endExclusive > weekStartYmd;
     })
     .reduce((s, r) => s + (r.grand_total ?? 0), 0);
 
   return {
-    totalActiveBookings: active.length,
-    totalRevenueAllTime,
-    revenueThisYear,
-    revenueThisMonth,
-    revenueLastMonth,
+    totalActiveBookings: Number(agg.total_active),
+    totalRevenueAllTime: Number(agg.revenue_all_time),
+    revenueThisYear: Number(agg.revenue_this_year),
+    revenueThisMonth: Number(agg.revenue_this_month),
+    revenueLastMonth: Number(agg.revenue_last_month),
     revenueThisWeek,
-    avgBookingValue,
+    avgBookingValue: Number(agg.avg_booking_value),
   };
 }
 
