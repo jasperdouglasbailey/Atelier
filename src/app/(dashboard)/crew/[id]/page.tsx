@@ -71,10 +71,16 @@ export default async function CrewDetailPage({ params }: Props) {
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   })();
 
+  // Format all roles as "Digital Operator / Assistant" style
+  const allRoles = [
+    crew.primary_role ? humanise(crew.primary_role) : null,
+    ...(crew.secondary_roles ?? []).map(humanise),
+  ].filter(Boolean).join(' / ');
+
   return (
     <>
       <Topbar title={crew.name} />
-      <div className="p-4 sm:p-6 max-w-3xl space-y-4">
+      <div className="p-4 sm:p-6 max-w-6xl space-y-4">
         <Link href="/crew" className="text-xs" style={{ color: PALETTE.accent }}>← Crew</Link>
 
         {/* Header — three tidy rows: identity / status badges / actions */}
@@ -82,13 +88,12 @@ export default async function CrewDetailPage({ params }: Props) {
           {/* Row 1 — identity */}
           <div>
             <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h2>
-            <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>
-              {humanise(crew.primary_role)}
-              {crew.secondary_roles?.length ? ` · ${crew.secondary_roles.map(humanise).join(', ')}` : ''}
-            </div>
+            {allRoles && (
+              <div className="text-xs mt-0.5" style={{ color: PALETTE.accent }}>{allRoles}</div>
+            )}
           </div>
 
-          {/* Row 2 — status badges, evenly spaced */}
+          {/* Row 2 — status badges */}
           <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
             <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${tierColor}22`, color: tierColor }}>
               {CREW_TIER_LABELS[crew.tier]}
@@ -113,8 +118,7 @@ export default async function CrewDetailPage({ params }: Props) {
             </span>
           </div>
 
-          {/* Row 3 — actions, evenly spaced. Send onboarding link only
-              shows when onboarding is NOT complete. */}
+          {/* Row 3 — actions. Send onboarding link hidden once completed. */}
           <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
             <Link
               href={`/crew/${crew.id}/edit`}
@@ -130,68 +134,91 @@ export default async function CrewDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Contact */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Email" value={crew.email} />
-            <Field label="Mobile" value={crew.mobile} />
-            <Field label="City / Home Base" value={crew.city} />
-            <Field label="Date of Birth" value={crew.dob ? formatDate(crew.dob) : null} />
-            <Field label="Home Address" value={crew.home_address} />
-          </div>
-        </section>
+        {/* Two-column grid — all the detail sections sit side-by-side so the
+            page fits on one screen without scrolling on a laptop. */}
+        <div className="grid gap-4 md:grid-cols-2">
 
-        {/* Call sheet preferences */}
-        {(crew.dietary || crew.drink_order) && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Dietary" value={crew.dietary} />
-              <Field label="Drink Order" value={crew.drink_order} />
-            </div>
-          </section>
-        )}
+          {/* LEFT column */}
+          <div className="space-y-4">
 
-        {/* Business */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="ABN" value={crew.abn} />
-            <Field label="GST Registered" value={crew.gst_registered ? 'Yes' : 'No'} />
-            <Field label="Default Day Rate" value={crew.default_day_rate != null ? formatCurrency(crew.default_day_rate) : null} />
-            <Field label="Xero Contact" value={crew.xero_contact_id ? 'Linked' : 'Not linked'} />
-            <Field label="Bank in Xero" value={crew.bank_setup_in_xero ? 'Yes' : 'No'} />
-          </div>
-        </section>
+            {/* Contact */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
+              <div className="grid gap-3 grid-cols-2">
+                <Field label="Email" value={crew.email} />
+                <Field label="Mobile" value={crew.mobile} />
+                <Field label="City / Home Base" value={crew.city} />
+                <Field label="Date of Birth" value={crew.dob ? formatDate(crew.dob) : null} />
+                {crew.home_address && (
+                  <div className="col-span-2">
+                    <Field label="Home Address" value={crew.home_address} />
+                  </div>
+                )}
+              </div>
+            </section>
 
-        {/* Super */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Superannuation</h3>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Fund Name" value={crew.super_fund_name} />
-            <Field label="Member Number" value={crew.super_member_number} />
-            <Field label="USI" value={crew.super_usi} />
-          </div>
-        </section>
+            {/* Business */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
+              <div className="grid gap-3 grid-cols-2">
+                <Field label="ABN" value={crew.abn} />
+                <Field label="GST Registered" value={crew.gst_registered ? 'Yes' : 'No'} />
+                <Field label="Default Day Rate" value={crew.default_day_rate != null ? formatCurrency(crew.default_day_rate) : null} />
+                <Field label="Xero Contact" value={crew.xero_contact_id ? 'Linked' : 'Not linked'} />
+                <Field label="Bank in Xero" value={crew.bank_setup_in_xero ? 'Yes' : 'No'} />
+              </div>
+            </section>
 
-        {/* Kit & Certs */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Equipment & Certifications</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Kit List" value={crew.kit_list} />
-            <Field label="Certifications" value={crew.certifications?.join(', ')} />
-          </div>
-        </section>
+            {/* Call sheet preferences */}
+            {(crew.dietary || crew.drink_order) && (
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
+                <div className="grid gap-3 grid-cols-2">
+                  <Field label="Dietary" value={crew.dietary} />
+                  <Field label="Drink Order" value={crew.drink_order} />
+                </div>
+              </section>
+            )}
 
-        {crew.notes && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Notes</h3>
-            <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{crew.notes}</p>
-          </section>
-        )}
+          </div>{/* /LEFT */}
 
-        {/* Booking history */}
+          {/* RIGHT column */}
+          <div className="space-y-4">
+
+            {/* Super */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Superannuation</h3>
+              <div className="grid gap-3 grid-cols-2">
+                <div className="col-span-2">
+                  <Field label="Fund Name" value={crew.super_fund_name} />
+                </div>
+                <Field label="Member Number" value={crew.super_member_number} />
+                <Field label="USI" value={crew.super_usi} />
+              </div>
+            </section>
+
+            {/* Kit & Certs */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Equipment & Certifications</h3>
+              <div className="space-y-3">
+                <Field label="Kit List" value={crew.kit_list} />
+                <Field label="Certifications" value={crew.certifications?.join(', ')} />
+              </div>
+            </section>
+
+            {/* Notes */}
+            {crew.notes && (
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Notes</h3>
+                <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{crew.notes}</p>
+              </section>
+            )}
+
+          </div>{/* /RIGHT */}
+
+        </div>{/* /grid */}
+
+        {/* Booking history — full width */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
             Booking History ({bookingRows.length})
@@ -249,8 +276,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
         <DataRightsControls type="crew" id={crew.id} name={crew.name} />
 
-        {/* Stats — moved to the bottom per session 8 doctrine. Reads as a
-            summary after the booking history detail. */}
+        {/* Stats */}
         {totalBookings > 0 && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>

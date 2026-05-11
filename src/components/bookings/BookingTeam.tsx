@@ -245,7 +245,9 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
               {sortedAvailableCrew.map(c => {
                 const local = isLocalCrew(c.city, shootLocation);
                 const cityHint = c.city ? (local ? ` · ${c.city} (local)` : ` · ${c.city}`) : '';
-                const roleLabel = c.primary_role ? humanise(c.primary_role) : 'General';
+                const roleLabel = c.primary_role
+                  ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
+                  : 'General';
                 const conflicts = crewConflictsByCrewId[c.id];
                 const conflictHint = conflicts && conflicts.length > 0
                   ? ` ⚠ already on ${conflicts[0].bookingRef ?? conflicts[0].title}`
@@ -291,7 +293,9 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
               // "digital_operator" reads as "Digital operator".
               const roleDisplay = bc.role_on_booking
                 ? humanise(bc.role_on_booking)
-                : (c?.primary_role ? humanise(c.primary_role) : null);
+                : (c?.primary_role
+                  ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
+                  : null);
               return (
                 <div key={bc.id} className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
                   <div>

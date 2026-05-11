@@ -183,14 +183,16 @@ export async function updateCrewAction(id: string, formData: FormData) {
     const v = formData.get('dob') as string;
     updates.dob = v || null;
   }
-  // Comma-separated lists → arrays (certifications, secondary_roles)
+  // Comma-separated text → array (certifications stays as text input)
   if (formData.get('certifications') !== null) {
     const v = (formData.get('certifications') as string)?.trim();
     updates.certifications = v ? v.split(',').map((s) => s.trim()).filter(Boolean) : null;
   }
-  if (formData.get('secondary_roles') !== null) {
-    const v = (formData.get('secondary_roles') as string)?.trim();
-    updates.secondary_roles = v ? v.split(',').map((s) => s.trim()).filter(Boolean) : null;
+  // secondary_roles comes from checkboxes — getAll() collects every checked value.
+  // Always write the field (empty array = no secondary roles) when the form
+  // includes the checkbox group (identified by the primary_role field being present).
+  if (formData.get('primary_role') !== null) {
+    updates.secondary_roles = (formData.getAll('secondary_roles') as string[]).filter(Boolean);
   }
   const result = await updateCrew(id, updates);
   if (!result) return { error: 'Failed to update crew member' };
