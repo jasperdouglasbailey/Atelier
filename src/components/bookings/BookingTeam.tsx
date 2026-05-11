@@ -25,6 +25,14 @@ type Props = {
    * roster and the add-dropdown.
    */
   crewConflictsByCrewId?: Record<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>;
+  /**
+   * Crew IDs preferred by the primary artist on this booking. Surfaced
+   * at the top of the add-crew dropdown with a ★ marker so producers
+   * see the artist's go-to people first.
+   */
+  preferredCrewIds?: string[];
+  /** Primary artist's name — used in the "★ Oliver's preferred" group label. */
+  primaryTalentName?: string | null;
 };
 
 /**
@@ -42,7 +50,8 @@ function isLocalCrew(crewCity: string | null | undefined, shootLocation: string 
     .some((token) => token.trim().length > 0 && haystack.includes(token.trim()));
 }
 
-export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {} }: Props) {
+export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
+  const preferredSet = useMemo(() => new Set(preferredCrewIds), [preferredCrewIds]);
   const router = useRouter();
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [showAddCrew, setShowAddCrew] = useState(false);
@@ -66,17 +75,28 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
     });
   }, [bookingCrew, shootLocation]);
 
-  // Same logic for the "Add Crew" dropdown — surface local crew at the top.
+  // Sort order for the "Add Crew" dropdown:
+  //   1. Primary artist's preferred crew (their go-to people, ★)
+  //   2. Local crew (matches shoot location)
+  //   3. Alphabetical fallback
+  // The picker then renders preferred crew in a labelled <optgroup> so
+  // they're visually separated from everyone else.
   const sortedAvailableCrew = useMemo(() => {
     const filtered = allCrew.filter((c) => c.is_active && c.tier !== 'never_again');
-    if (!shootLocation) return filtered;
     return [...filtered].sort((a, b) => {
+      const aPref = preferredSet.has(a.id) ? 0 : 1;
+      const bPref = preferredSet.has(b.id) ? 0 : 1;
+      if (aPref !== bPref) return aPref - bPref;
       const aLocal = isLocalCrew(a.city, shootLocation) ? 0 : 1;
       const bLocal = isLocalCrew(b.city, shootLocation) ? 0 : 1;
       if (aLocal !== bLocal) return aLocal - bLocal;
       return a.name.localeCompare(b.name);
     });
-  }, [allCrew, shootLocation]);
+  }, [allCrew, shootLocation, preferredSet]);
+
+  // Split for the <optgroup> render — preferred first, the rest below.
+  const preferredCrewList = sortedAvailableCrew.filter((c) => preferredSet.has(c.id));
+  const otherCrewList = sortedAvailableCrew.filter((c) => !preferredSet.has(c.id));
 
   async function handleAddTalent(formData: FormData) {
     setBusy(true);
@@ -242,20 +262,40 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
               }}
             >
               <option value="">Select crew member...</option>
-              {sortedAvailableCrew.map(c => {
-                const local = isLocalCrew(c.city, shootLocation);
-                const cityHint = c.city ? (local ? ` · ${c.city} (local)` : ` · ${c.city}`) : '';
-                const roleLabel = c.primary_role
-                  ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
-                  : 'General';
-                const conflicts = crewConflictsByCrewId[c.id];
-                const conflictHint = conflicts && conflicts.length > 0
-                  ? ` ⚠ already on ${conflicts[0].bookingRef ?? conflicts[0].title}`
-                  : '';
-                return (
-                  <option key={c.id} value={c.id}>{c.name} — {roleLabel}{cityHint}{conflictHint}</option>
-                );
-              })}
+              {preferredCrewList.length > 0 && (
+                <optgroup label={primaryTalentName ? `★ ${primaryTalentName}'s preferred crew` : '★ Preferred crew'}>
+                  {preferredCrewList.map((c) => {
+                    const local = isLocalCrew(c.city, shootLocation);
+                    const cityHint = c.city ? (local ? ` · ${c.city} (local)` : ` · ${c.city}`) : '';
+                    const roleLabel = c.primary_role
+                      ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
+                      : 'General';
+                    const conflicts = crewConflictsByCrewId[c.id];
+                    const conflictHint = conflicts && conflicts.length > 0
+                      ? ` ⚠ already on ${conflicts[0].bookingRef ?? conflicts[0].title}`
+                      : '';
+                    return (
+                      <option key={c.id} value={c.id}>{c.name} — {roleLabel}{cityHint}{conflictHint}</option>
+                    );
+                  })}
+                </optgroup>
+              )}
+              <optgroup label={preferredCrewList.length > 0 ? 'All crew' : 'Crew'}>
+                {otherCrewList.map((c) => {
+                  const local = isLocalCrew(c.city, shootLocation);
+                  const cityHint = c.city ? (local ? ` · ${c.city} (local)` : ` · ${c.city}`) : '';
+                  const roleLabel = c.primary_role
+                    ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
+                    : 'General';
+                  const conflicts = crewConflictsByCrewId[c.id];
+                  const conflictHint = conflicts && conflicts.length > 0
+                    ? ` ⚠ already on ${conflicts[0].bookingRef ?? conflicts[0].title}`
+                    : '';
+                  return (
+                    <option key={c.id} value={c.id}>{c.name} — {roleLabel}{cityHint}{conflictHint}</option>
+                  );
+                })}
+              </optgroup>
             </select>
             <div className="grid grid-cols-2 gap-2">
               <input name="role_on_booking" placeholder="Role on booking" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />

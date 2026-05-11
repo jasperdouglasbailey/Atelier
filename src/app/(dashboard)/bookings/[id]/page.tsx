@@ -19,6 +19,7 @@ import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClient
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
+import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
@@ -72,8 +73,13 @@ export default async function BookingDetailPage({ params }: Props) {
     listCrew(),
   ]);
 
-  // Rate precedents for the primary artist (if any) — helps Jasper price consistently
+  // Rate precedents for the primary artist (if any) — helps Jasper price consistently.
+  // Also pulls in their preferred crew so the BookingTeam picker can surface
+  // them at the top of the add-crew dropdown.
   const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
+  const preferredCrewIds = primaryTalentId
+    ? await listPreferredCrewIds(primaryTalentId)
+    : [];
   const ratePrecedents: RatePrecedent[] = primaryTalentId
     ? await getTalentRatePrecedents(primaryTalentId, id)
     : [];
@@ -163,6 +169,8 @@ export default async function BookingDetailPage({ params }: Props) {
               allCrew={allCrew}
               shootLocation={booking.shoot_location}
               crewConflictsByCrewId={crewConflictsByCrewId}
+              preferredCrewIds={preferredCrewIds}
+              primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
             />
 
             {/* 4. HOLDS — sits between team and quote. Once talent/crew are
