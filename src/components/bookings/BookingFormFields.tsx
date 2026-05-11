@@ -5,21 +5,20 @@
  *
  * Both /bookings/new and /bookings/[id]/edit render this component and supply
  * a different `onSubmit` handler. Field layout, validation, artist/location
- * pickers, and usage checkboxes are defined here once.
+ * pickers are defined here once. Usage is managed via UsageLicenceBuilder on
+ * the booking detail page — not in this form.
  *
  * For edit mode, pass `initial` (the Booking row) and `initialPrimaryTalentId`
  * (the current primary booking_talent talent_id, if any). The submit handler
  * for edit will receive `primary_talent_id` in the FormData if changed.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClientAction, createBrandAction } from '@/app/actions/entities';
-import { getClientDefaultsAction } from '@/app/actions/bookings';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE } from '@/lib/utils/constants';
 import type {
-  Booking, Client, Brand, Talent, Location,
-  UsageMedia, UsageTerritory, ArtistDiscipline,
+  Booking, Client, Brand, Talent, Location, ArtistDiscipline,
 } from '@/lib/types/database';
 
 type Props = {
@@ -69,27 +68,6 @@ const POST_PROD_OPTIONS = [
   { value: 'client_outsourced', label: 'Client outsourced' },
 ];
 
-const USAGE_MEDIA_OPTIONS: { value: UsageMedia; label: string }[] = [
-  { value: 'all_media', label: 'All Media' }, { value: 'all_print', label: 'All Print' }, { value: 'all_digital', label: 'All Digital' },
-  { value: 'ooh', label: 'OOH / Billboards' }, { value: 'press', label: 'Press / Magazines' }, { value: 'brochures', label: 'Brochures' },
-  { value: 'packaging', label: 'Packaging' }, { value: 'pos', label: 'POS / In-store' }, { value: 'posters', label: 'Posters' },
-  { value: 'collateral', label: 'Collateral' }, { value: 'direct_mail', label: 'Direct Mail' }, { value: 'pr_print', label: 'PR (Print)' },
-  { value: 'social_media', label: 'Social Media' }, { value: 'company_website', label: 'Company Website' }, { value: 'regional_website', label: 'Regional Website' },
-  { value: 'internet_advertising', label: 'Internet Advertising' }, { value: 'digital_posters', label: 'Digital Posters' }, { value: 'digital_direct_mail', label: 'Digital Direct Mail' },
-  { value: 'mobile', label: 'Mobile' }, { value: 'intranet', label: 'Intranet' }, { value: 'pr_digital', label: 'PR (Digital)' },
-  { value: 'tv', label: 'TV / Broadcast' }, { value: 'ambient', label: 'Ambient' }, { value: 'marketing_aids', label: 'Marketing Aids' },
-];
-
-const USAGE_TERRITORY_OPTIONS: { value: UsageTerritory; label: string }[] = [
-  { value: 'worldwide', label: 'Worldwide' }, { value: 'australia', label: 'Australia' }, { value: 'oceania', label: 'Oceania' },
-  { value: 'usa', label: 'USA' }, { value: 'north_america', label: 'North America' },
-  { value: 'europe_all', label: 'Europe (all)' }, { value: 'europe_eu', label: 'Europe (EU)' }, { value: 'europe_non_eu', label: 'Europe (non-EU)' },
-  { value: 'uk', label: 'UK' },
-  { value: 'asia_incl_japan', label: 'Asia (incl. Japan)' }, { value: 'asia_excl_japan', label: 'Asia (excl. Japan)' },
-  { value: 'middle_east', label: 'Middle East' }, { value: 'emea', label: 'EMEA' },
-  { value: 'uae', label: 'UAE' }, { value: 'gcc', label: 'GCC' },
-  { value: 'africa', label: 'Africa' }, { value: 'south_america', label: 'South America' }, { value: 'latin_america', label: 'Latin America' },
-];
 
 function suggestTier(discipline: ArtistDiscipline | null): string {
   if (discipline === 'videographer') return 'fashion_film';
@@ -189,42 +167,6 @@ function QuickCreateForm({
   );
 }
 
-function CheckGrid<T extends string>({
-  options,
-  selected,
-  onToggle,
-}: {
-  options: { value: T; label: string }[];
-  selected: Set<T>;
-  onToggle: (v: T) => void;
-}) {
-  return (
-    <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3">
-      {options.map(({ value, label }) => {
-        const active = selected.has(value);
-        return (
-          <label
-            key={value}
-            className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-xs select-none"
-            style={{
-              background: active ? `${PALETTE.accent}18` : 'transparent',
-              color: active ? PALETTE.accent : PALETTE.muted,
-              border: `1px solid ${active ? PALETTE.accent + '44' : PALETTE.border}`,
-            }}
-          >
-            <input
-              type="checkbox"
-              className="accent-blue-400 flex-shrink-0"
-              checked={active}
-              onChange={() => onToggle(value)}
-            />
-            {label}
-          </label>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function BookingFormFields({
   mode,
@@ -260,44 +202,6 @@ export default function BookingFormFields({
   const [locationPickId, setLocationPickId] = useState('');
   const [shootLocationText, setShootLocationText] = useState<string>(initial?.shoot_location ?? '');
 
-  // Usage arrays
-  const [selectedMedia, setSelectedMedia] = useState<Set<UsageMedia>>(new Set(initial?.usage_media ?? []));
-  const [selectedTerritories, setSelectedTerritories] = useState<Set<UsageTerritory>>(new Set(initial?.usage_territory ?? []));
-
-  // Controlled duration so autofill can update it
-  const [durationMonths, setDurationMonths] = useState<string>(
-    initial?.usage_duration_months != null ? String(initial.usage_duration_months) : '',
-  );
-
-  // Autofill badge: true when media/territory/duration were just pre-filled from recent bookings
-  const [autofilled, setAutofilled] = useState(false);
-
-  // Autofill usage fields from client's recent bookings whenever client changes (create mode only)
-  useEffect(() => {
-    if (mode !== 'create' || !selectedClientId) return;
-    let cancelled = false;
-    getClientDefaultsAction(selectedClientId)
-      .then((defaults) => {
-        if (cancelled) return;
-        if (defaults.media.length > 0) setSelectedMedia(new Set(defaults.media as UsageMedia[]));
-        if (defaults.territories.length > 0) setSelectedTerritories(new Set(defaults.territories as UsageTerritory[]));
-        if (defaults.durationMonths != null) setDurationMonths(String(defaults.durationMonths));
-        const hasDefaults = defaults.media.length > 0 || defaults.territories.length > 0 || defaults.durationMonths != null;
-        setAutofilled(hasDefaults);
-      })
-      .catch(() => { /* autofill is best-effort — ignore errors */ });
-    return () => { cancelled = true; };
-  }, [selectedClientId, mode]);
-
-  function toggleMedia(v: UsageMedia) {
-    setAutofilled(false);
-    setSelectedMedia((p) => { const n = new Set(p); if (n.has(v)) n.delete(v); else n.add(v); return n; });
-  }
-  function toggleTerritory(v: UsageTerritory) {
-    setAutofilled(false);
-    setSelectedTerritories((p) => { const n = new Set(p); if (n.has(v)) n.delete(v); else n.add(v); return n; });
-  }
-
   function handleLocationPick(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
     setLocationPickId(id);
@@ -322,19 +226,12 @@ export default function BookingFormFields({
   }
 
   function handleClientChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setAutofilled(false);
     if (e.target.value === QUICK_CREATE_VALUE) {
       setShowNewClient(true);
       setSelectedClientId('');
     } else {
       setShowNewClient(false);
       setSelectedClientId(e.target.value);
-      // Reset usage fields when client changes — useEffect will re-populate from recent bookings
-      if (mode === 'create') {
-        setSelectedMedia(new Set());
-        setSelectedTerritories(new Set());
-        setDurationMonths('');
-      }
     }
   }
 
@@ -359,8 +256,6 @@ export default function BookingFormFields({
     if (selectedClientId) formData.set('client_id', selectedClientId);
     if (selectedBrandId) formData.set('brand_id', selectedBrandId);
     formData.set('tier', tier);
-    formData.set('usage_media', JSON.stringify([...selectedMedia]));
-    formData.set('usage_territory', JSON.stringify([...selectedTerritories]));
 
     const result = await onSubmit(formData);
     setSubmitting(false);
@@ -641,47 +536,6 @@ export default function BookingFormFields({
           <input name="retouch_note_format" defaultValue={initial?.retouch_note_format ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. Lightroom .xmp, Capture One session" />
         </div>
       )}
-
-      {/* ── Usage ──────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} style={labelStyle}>Usage Duration (months)</label>
-          <input
-            name="usage_duration_months"
-            type="number"
-            min="0"
-            value={durationMonths}
-            onChange={(e) => { setDurationMonths(e.target.value); setAutofilled(false); }}
-            className={inputClass}
-            style={inputStyle}
-            placeholder="e.g. 12"
-          />
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>Usage Notes</label>
-          <input name="usage_notes" defaultValue={initial?.usage_notes ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. Digital owned, AU only" />
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <label className={labelClass} style={{ ...labelStyle, marginBottom: 0 }}>Media</label>
-          {autofilled && mode === 'create' && (
-            <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}30` }}
-            >
-              Pre-filled from recent bookings
-            </span>
-          )}
-        </div>
-        <CheckGrid options={USAGE_MEDIA_OPTIONS} selected={selectedMedia} onToggle={toggleMedia} />
-      </div>
-
-      <div>
-        <label className={labelClass} style={labelStyle}>Territory</label>
-        <CheckGrid options={USAGE_TERRITORY_OPTIONS} selected={selectedTerritories} onToggle={toggleTerritory} />
-      </div>
 
       {mode === 'edit' && (
         <div className="grid gap-4 sm:grid-cols-2">
