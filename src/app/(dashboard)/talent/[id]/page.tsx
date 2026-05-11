@@ -123,6 +123,17 @@ export default async function TalentDetailPage({ params }: Props) {
             >
               ✏ Edit
             </Link>
+            {talent.drive_folder_link && (
+              <a
+                href={talent.drive_folder_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive ↗
+              </a>
+            )}
             <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
             {!talent.onboarding_completed && (
               <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />

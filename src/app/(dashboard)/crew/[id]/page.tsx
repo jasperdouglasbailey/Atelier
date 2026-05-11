@@ -127,6 +127,17 @@ export default async function CrewDetailPage({ params }: Props) {
             >
               ✏ Edit
             </Link>
+            {crew.drive_folder_link && (
+              <a
+                href={crew.drive_folder_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive ↗
+              </a>
+            )}
             {!crew.onboarding_completed && (
               <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
             )}

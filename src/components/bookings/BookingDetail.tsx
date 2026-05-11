@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState, UsageLicence } from '@/lib/types/database';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
-import SendQuotePanel from '@/components/bookings/SendQuotePanel';
+import SendQuotePanel, { type PreflightData } from '@/components/bookings/SendQuotePanel';
 import StageStepper from '@/components/bookings/StageStepper';
 import StageChecklist from '@/components/bookings/StageChecklist';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
+import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
   STATE_TRANSITIONS, PALETTE,
@@ -49,6 +50,8 @@ type Props = {
   checklist: ChecklistData;
   /** Show the focused workspace shortcut in the header (only for early states). */
   showWorkspaceShortcut: boolean;
+  /** Pre-flight data for the Send Quote gate. */
+  preflight?: PreflightData;
 };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -70,7 +73,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut }: Props) {
+export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -154,6 +157,7 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
             grandTotal={booking.grand_total ?? 0}
             currentState={booking.state}
             googleConfigured={googleConfigured}
+            preflight={preflight}
           />
         </div>
 
@@ -226,6 +230,22 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           >
             Call sheet
           </Link>
+          <CloneBookingButton
+            sourceBookingId={booking.id}
+            label="Use as template"
+          />
+          {booking.drive_root_link && (
+            <a
+              href={booking.drive_root_link}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md px-2.5 py-1 text-[11px]"
+              title="Open booking Drive folder"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            >
+              Drive ↗
+            </a>
+          )}
         </div>
 
         {/* Stage stepper — 5 groups */}

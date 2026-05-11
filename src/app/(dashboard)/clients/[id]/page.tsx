@@ -113,13 +113,26 @@ export default async function ClientDetailPage({ params }: Props) {
                 </span>
               )}
             </div>
-            <Link
-              href={`/clients/${client.id}/edit`}
-              className="rounded px-3 py-1 text-xs font-medium"
-              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-            >
-              Edit
-            </Link>
+            <div className="flex gap-2">
+              {client.drive_folder_link && (
+                <a
+                  href={client.drive_folder_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded px-3 py-1 text-xs font-medium"
+                  style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+                >
+                  Drive ↗
+                </a>
+              )}
+              <Link
+                href={`/clients/${client.id}/edit`}
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+              >
+                Edit
+              </Link>
+            </div>
           </div>
         </section>
 
