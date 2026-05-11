@@ -21,6 +21,7 @@ import {
   CREW_TIER_LABELS,
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 import type { BookingState } from '@/lib/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,9 @@ export default async function CrewPortalPage() {
           <div>
             <h1 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h1>
             <div className="mt-1 text-xs" style={{ color: PALETTE.muted }}>
-              {crew.primary_role ?? '—'} · {CREW_TIER_LABELS[crew.tier]}
+              {crew.primary_role
+                ? [crew.primary_role, ...(crew.secondary_roles ?? [])].map(humanise).join(' / ')
+                : '—'} · {CREW_TIER_LABELS[crew.tier]}
             </div>
           </div>
           <div className="text-right text-xs" style={{ color: PALETTE.muted }}>

@@ -55,7 +55,11 @@ export default async function CrewPage({ searchParams }: { searchParams: SearchP
             {CREW_TIER_LABELS[c.tier]}
           </span>
         </div>
-        {c.primary_role && <div className="mt-1 text-xs" style={{ color: PALETTE.accent }}>{humanise(c.primary_role)}</div>}
+        {c.primary_role && (
+          <div className="mt-1 text-xs" style={{ color: PALETTE.accent }}>
+            {[c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')}
+          </div>
+        )}
         <div className="mt-2 space-y-0.5 text-xs" style={{ color: PALETTE.muted }}>
           {c.city && !groupByCity && <div>{c.city}</div>}
           {c.email && <div className="truncate">{c.email}</div>}

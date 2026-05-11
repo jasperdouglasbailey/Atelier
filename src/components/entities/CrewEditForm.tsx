@@ -109,14 +109,28 @@ export default function CrewEditForm({ crew }: Props) {
           </div>
         </div>
 
+        {/* Secondary roles — tick all that apply. Stored as string[]. The primary
+            role is the one shown on bookings; secondary roles display as
+            "Primary / Secondary / Secondary" throughout the platform. */}
         <div>
-          <label style={labelStyle}>Secondary Roles (comma separated)</label>
-          <input
-            name="secondary_roles"
-            defaultValue={(crew.secondary_roles ?? []).join(', ')}
-            style={inputStyle}
-            placeholder="e.g. 1AC, drone op"
-          />
+          <label style={labelStyle}>Additional Roles</label>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
+            {CREW_ROLES.filter((r) => r !== (crew.primary_role ?? '')).map((r) => (
+              <label key={r} className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: PALETTE.text }}>
+                <input
+                  type="checkbox"
+                  name="secondary_roles"
+                  value={r}
+                  defaultChecked={(crew.secondary_roles ?? []).includes(r)}
+                  style={{ accentColor: PALETTE.accent }}
+                />
+                {humanise(r)}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
+            Shown as &ldquo;Primary / Additional&rdquo; e.g. &ldquo;Digital Operator / Assistant&rdquo;
+          </p>
         </div>
       </section>
 
