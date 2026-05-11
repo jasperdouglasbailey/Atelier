@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
-import { getTalent } from '@/lib/data/entities';
+import { getTalent, listCrew } from '@/lib/data/entities';
 import { listTalentBookingHistory } from '@/lib/data/quotes';
+import { listPreferredCrew } from '@/lib/data/talent-preferred-crew';
+import PreferredCrewPanel from '@/components/entities/PreferredCrewPanel';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, ARTIST_DISCIPLINE_LABELS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
 import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
 import ArchiveTalentButton from '@/components/entities/ArchiveTalentButton';
@@ -51,9 +53,11 @@ function Badge({ label, active }: { label: string; active: boolean }) {
 
 export default async function TalentDetailPage({ params }: Props) {
   const { id } = await params;
-  const [talent, bookingHistory] = await Promise.all([
+  const [talent, bookingHistory, preferredCrew, allCrew] = await Promise.all([
     getTalent(id),
     listTalentBookingHistory(id),
+    listPreferredCrew(id),
+    listCrew(),
   ]);
   if (!talent) notFound();
 
@@ -212,6 +216,16 @@ export default async function TalentDetailPage({ params }: Props) {
             <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{talent.notes}</p>
           </section>
         )}
+
+        {/* Preferred crew — the people this artist likes to work with.
+            Surfaced first in BookingTeam's crew picker when this artist is
+            on a booking, and used by the "Who's free?" availability blast. */}
+        <PreferredCrewPanel
+          talentId={talent.id}
+          talentName={talent.working_name}
+          preferred={preferredCrew}
+          allCrew={allCrew}
+        />
 
         <DataRightsControls type="talent" id={talent.id} name={talent.working_name} />
 
