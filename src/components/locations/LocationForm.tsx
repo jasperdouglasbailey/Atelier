@@ -25,7 +25,7 @@ const STUDIO_TYPE_OPTIONS: { value: StudioType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
-const FACILITY_OPTIONS = [
+export const FACILITY_OPTIONS = [
   { value: 'change_rooms', label: 'Change rooms' },
   { value: 'kitchen', label: 'Kitchen' },
   { value: 'wifi', label: 'Wi-Fi' },
@@ -38,6 +38,12 @@ const FACILITY_OPTIONS = [
   { value: 'outdoor_space', label: 'Outdoor space' },
   { value: 'catering_available', label: 'Catering available' },
   { value: 'parking_onsite', label: 'On-site parking' },
+  { value: 'rooftop', label: 'Rooftop' },
+  { value: 'basketball_court', label: 'Basketball court' },
+  { value: 'tennis_court', label: 'Tennis court' },
+  { value: 'cinema', label: 'Cinema' },
+  { value: 'garden', label: 'Garden' },
+  { value: 'ground_level', label: 'Ground level' },
 ];
 
 const ROOM_FEATURE_OPTIONS = [
