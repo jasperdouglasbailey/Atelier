@@ -40,6 +40,34 @@ src/
 - Australian spelling in user-facing copy ("organisation", "colour"). US in
   code identifiers ("organization") because that's npm convention.
 
+## Development discipline rules (added 2026-05-13 — violations caused CI failures)
+
+These are not aspirational. They are required. Every one has caused a real bug or CI failure.
+
+**Select-type parity — the most common failure mode.**
+Whenever you add a field to a Supabase `.select()` string, update the corresponding TypeScript return type in the same commit. The two must change together. The `BookingDetailRow.client` type and `getBooking()` select string diverging broke CI in PR #67.
+
+**Schema change ripple — all four layers, always.**
+Every DB schema change must propagate through all of: migration SQL → `database.generated.ts` → `database.ts` (hand types) → any `.select()` return types that name specific columns. Missing any layer causes silent runtime errors or type failures that CI will catch.
+
+**Agency config — never hardcode.**
+Agency name, email, ABN, address always come from `getAgencyConfig()`. Never write "Saunders & Co" or any email address directly in JSX, copy, or emails.
+
+**Auto-commit and merge — always, without prompting.**
+After implementing any task: verify types, commit with a clear message, open a PR, and merge it immediately. Do not ask the user to merge. Only pause for genuine task ambiguity, not process steps.
+
+**CI must be green before calling done.**
+Before declaring a task complete, check `mcp__github__pull_request_read(get_check_runs)` on the PR. If the `check` job failed, diagnose and fix before moving on. Never merge a failing PR without acknowledgment from the user.
+
+**Ripple-effect audit on every change.**
+After implementing, grep for every callsite that accesses any new field, type, or function. Verify each is typed correctly, that no existing code breaks because of type shape changes, and that no server action is missing the new field in its allowlist. This is not optional — the CI failure in PR #67 was exactly this class of error.
+
+**Migration idempotency.**
+All migrations use `ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`. A migration that fails on second run will break any automated deploy pipeline.
+
+**`revalidateTag` completeness.**
+Every server action that mutates booking data must call `revalidateTag('bookings')`. Check this whenever adding a new mutation path.
+
 ## Standing checks before declaring "done"
 
 1. `rm -rf .next && npx tsc --noEmit` (clean, zero errors)
@@ -47,7 +75,8 @@ src/
 3. `grep -rn "TODO\|FIXME\|XXX" src/` for anything new I left behind
 4. Search for hardcoded user names / fake data — should be `getCurrentActor()` or env
 5. If touching the fee engine, the AJE eComm #3579 canonical example must still pass
-6. **Memory sync — non-negotiable.** Every PR that ships, before declaring done, re-read all of these files and update anything that's now wrong:
+6. Check PR check runs — `check` job must be green before calling done
+7. **Memory sync — non-negotiable.** Every PR that ships, before declaring done, re-read all of these files and update anything that's now wrong:
    - This file (worktree `CLAUDE.md`) — Build status, Phase order, Deferred / blocked, Forward roadmap, Project layout
    - Master `~/Documents/Claude/Projects/Beetle/CLAUDE.md` — if doctrine, agent topology, integration list, signal library, or scope changed
    - `~/Documents/Claude/Projects/Beetle/ATELIER-HANDOFF.md` — if integration status, agents, or handoff details changed
