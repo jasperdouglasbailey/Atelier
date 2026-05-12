@@ -34,6 +34,7 @@ type Props = {
   checklist: ChecklistData;
   showWorkspaceShortcut: boolean;
   preflight?: PreflightData;
+  talentNames?: string[];
 };
 
 const POST_PROD_OPTIONS = [
@@ -47,7 +48,7 @@ const POST_PROD_OPTIONS = [
 const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABELS[t] }));
 
 export default function BookingDetail({
-  booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight,
+  booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight, talentNames,
 }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
@@ -134,6 +135,35 @@ export default function BookingDetail({
               </>
             )}
           </div>
+
+          {/* Talent + producer contact line */}
+          {(talentNames && talentNames.length > 0 || booking.producer_name) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" style={{ color: PALETTE.muted }}>
+              {talentNames && talentNames.length > 0 && (
+                <>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Artist{talentNames.length > 1 ? 's' : ''}</span>
+                  {talentNames.map((name, i) => (
+                    <span key={i} style={{ color: PALETTE.text }}>{name}{i < talentNames.length - 1 ? ' ·' : ''}</span>
+                  ))}
+                </>
+              )}
+              {booking.producer_name && (
+                <>
+                  {talentNames && talentNames.length > 0 && <span>·</span>}
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Contact</span>
+                  <span style={{ color: PALETTE.text }}>{booking.producer_name}</span>
+                  {booking.producer_email && (
+                    <a href={`mailto:${booking.producer_email}`} style={{ color: PALETTE.accent }}>
+                      {booking.producer_email}
+                    </a>
+                  )}
+                  {booking.producer_phone && (
+                    <span style={{ color: PALETTE.muted }}>{booking.producer_phone}</span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 flex-shrink-0">
@@ -310,7 +340,7 @@ export default function BookingDetail({
           6. BRIEF — inline editable fields + usage licence builder
           ═══════════════════════════════════════════════════════════════════ */}
       <section
-        className="rounded-lg border p-4 space-y-4"
+        className="rounded-lg border p-3 space-y-2"
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
         <div className="flex items-center justify-between">
@@ -320,17 +350,17 @@ export default function BookingDetail({
           </span>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-1 sm:grid-cols-3">
           {/* Display-only — client/brand changed via /bookings/[id]/edit since
               they affect Drive folder linkage and quote pricing. */}
           {clientName && (
-            <div className="px-2.5 py-2">
+            <div className="px-2.5 py-1.5">
               <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Client</div>
               <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{clientName}</div>
             </div>
           )}
           {brandName && (
-            <div className="px-2.5 py-2">
+            <div className="px-2.5 py-1.5">
               <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Brand</div>
               <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{brandName}</div>
             </div>
@@ -431,7 +461,7 @@ export default function BookingDetail({
           />
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-3 pt-3 border-t" style={{ borderColor: PALETTE.border }}>
+        <div className="grid gap-1 sm:grid-cols-3 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
           <InlineField
             bookingId={booking.id}
             field="producer_name"
@@ -455,7 +485,7 @@ export default function BookingDetail({
           />
         </div>
 
-        <div className="pt-4 border-t" style={{ borderColor: PALETTE.border }}>
+        <div className="pt-2 border-t" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>
       </section>
