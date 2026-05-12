@@ -62,7 +62,8 @@ export default async function InvoicePrintPage({ params }: Props) {
   const today = new Date();
   const todayStr = today.toLocaleDateString('en-AU', { dateStyle: 'long' });
   const agency = getAgencyConfig();
-  const paymentTerms = agency.defaultPaymentTermsDays;
+  // Prefer client-specific terms over agency default
+  const paymentTerms = booking.client?.payment_terms_days ?? agency.defaultPaymentTermsDays;
   const dueDate = new Date(today);
   dueDate.setDate(dueDate.getDate() + paymentTerms);
   const dueDateStr = dueDate.toLocaleDateString('en-AU', { dateStyle: 'long' });
@@ -113,11 +114,14 @@ export default async function InvoicePrintPage({ params }: Props) {
             Invoice To
           </div>
           {clientName && <div style={{ fontSize: 15, fontWeight: 600 }}>{clientName}</div>}
-          {booking.client?.name && booking.client.company && (
+          {booking.producer_name ? (
+            <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>Attn: {booking.producer_name}</div>
+          ) : booking.client?.name && booking.client.company ? (
             <div style={{ fontSize: 13, color: '#555', marginTop: 2 }}>Attn: {booking.client.name}</div>
+          ) : null}
+          {booking.client?.abn && (
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>ABN: {booking.client.abn}</div>
           )}
-          {/* Client ABN — not in current data model, placeholder */}
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>ABN: [client ABN — add to client record]</div>
         </div>
 
         {/* Dates */}
@@ -142,6 +146,18 @@ export default async function InvoicePrintPage({ params }: Props) {
               <span style={{ color: '#666' }}>Ref</span>
               <span style={{ fontWeight: 500 }}>{booking.booking_ref}</span>
             </div>
+            {booking.po_number && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginTop: 4 }}>
+                <span style={{ color: '#666' }}>PO Number</span>
+                <span style={{ fontWeight: 500 }}>{booking.po_number}</span>
+              </div>
+            )}
+            {booking.job_number && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginTop: 4 }}>
+                <span style={{ color: '#666' }}>Job Number</span>
+                <span style={{ fontWeight: 500 }}>{booking.job_number}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -125,7 +125,7 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -148,7 +148,7 @@ export async function getBookingByQuoteToken(token: string): Promise<BookingDeta
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
     )
     .eq('quote_token', token)
     .maybeSingle();
