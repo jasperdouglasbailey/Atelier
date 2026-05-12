@@ -148,6 +148,12 @@ export default async function BookingDetailPage({ params }: Props) {
               googleConfigured={isGoogleConfigured()}
               checklist={checklist}
               showWorkspaceShortcut={showWorkspaceShortcut}
+              preflight={{
+                talentCount: bookingTalent.length,
+                feeLineCount: feeLines.length,
+                hasDeliverables: !!(booking.deliverables_type),
+                usageLicenceCount: usageLicences.length,
+              }}
             />
 
             {/* 2. BRIEF PARSER — only when the brief hasn't been parsed yet. */}

@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState, UsageLicence } from '@/lib/types/database';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
-import SendQuotePanel from '@/components/bookings/SendQuotePanel';
+import SendQuotePanel, { type PreflightData } from '@/components/bookings/SendQuotePanel';
 import StageStepper from '@/components/bookings/StageStepper';
 import StageChecklist from '@/components/bookings/StageChecklist';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
+import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
   STATE_TRANSITIONS, PALETTE,
@@ -49,6 +50,8 @@ type Props = {
   checklist: ChecklistData;
   /** Show the focused workspace shortcut in the header (only for early states). */
   showWorkspaceShortcut: boolean;
+  /** Pre-flight data for the Send Quote gate. */
+  preflight?: PreflightData;
 };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -70,7 +73,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut }: Props) {
+export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -154,6 +157,7 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
             grandTotal={booking.grand_total ?? 0}
             currentState={booking.state}
             googleConfigured={googleConfigured}
+            preflight={preflight}
           />
         </div>
 
@@ -226,6 +230,22 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           >
             Call sheet
           </Link>
+          <CloneBookingButton
+            sourceBookingId={booking.id}
+            label="Use as template"
+          />
+          {booking.drive_root_link && (
+            <a
+              href={booking.drive_root_link}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md px-2.5 py-1 text-[11px]"
+              title="Open booking Drive folder"
+              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            >
+              Drive ↗
+            </a>
+          )}
         </div>
 
         {/* Stage stepper — 5 groups */}
@@ -281,10 +301,9 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
         </div>
       )}
 
-      {/* Brief — combined panel containing the brief fields, usage details
-          (media / territory / duration / notes), and the usage licence builder.
-          Usage is part of the brief: it's a property of the job, not a
-          separate concept. Merging the panels makes that clear. */}
+      {/* Brief — brief fields + usage licence builder in one panel.
+          Usage licences are the single source of truth for usage terms;
+          no separate informal usage display. */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief</h3>
 
@@ -294,50 +313,30 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           {brandName && <Field label="Brand" value={brandName} />}
           <Field label="Shoot location" value={booking.shoot_location} />
           <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-          <Field label="Talent spec" value={humanise(booking.talent_spec) || booking.talent_spec} />
+          <Field
+            label="Call / wrap"
+            value={
+              booking.call_time || booking.wrap_time
+                ? `${booking.call_time ?? '—'} → ${booking.wrap_time ?? '—'}`
+                : null
+            }
+          />
           <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
           <Field label="Deliverables count" value={booking.deliverables_count} />
           <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
           <Field label="Selects cadence" value={booking.selects_cadence} />
+          {booking.confirmation_deadline && (
+            <Field label="Confirm by" value={formatDate(booking.confirmation_deadline)} />
+          )}
+          {(booking.producer_name || booking.producer_email || booking.producer_phone) && (
+            <Field
+              label="Production contact"
+              value={[booking.producer_name, booking.producer_email, booking.producer_phone].filter(Boolean).join(' · ')}
+            />
+          )}
         </div>
 
-        {/* Usage details — only render the divider + section if there's something to show */}
-        {(booking.usage_media?.length || booking.usage_territory?.length || booking.usage_duration_months || booking.usage_notes) ? (
-          <div className="border-t pt-3" style={{ borderColor: PALETTE.border }}>
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>Usage</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {booking.usage_duration_months ? (
-                <Field
-                  label="Duration"
-                  value={`${booking.usage_duration_months} ${booking.usage_duration_months === 1 ? 'month' : 'months'}`}
-                />
-              ) : null}
-              {booking.usage_notes ? <Field label="Notes" value={booking.usage_notes} /> : null}
-              {booking.usage_media?.length ? (
-                <div className="sm:col-span-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Media</div>
-                  <div className="flex flex-wrap gap-1">
-                    {booking.usage_media.map((m) => (
-                      <span key={m} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>{humanise(m)}</span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {booking.usage_territory?.length ? (
-                <div className="sm:col-span-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Territory</div>
-                  <div className="flex flex-wrap gap-1">
-                    {booking.usage_territory.map((t) => (
-                      <span key={t} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.warning}15`, color: PALETTE.warning }}>{humanise(t)}</span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Usage licences — fee lines linked to media/territory/duration */}
+        {/* Usage licences — formal licences with BUR calculation */}
         <div className="border-t pt-4" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>

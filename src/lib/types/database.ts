@@ -159,6 +159,16 @@ export interface Talent {
   website: string | null;
   /** Suggested day rate — pre-fills the booking-team add form. */
   default_day_rate: number | null;
+  /** Lower end of typical day rate range — for quoting context. */
+  min_day_rate: number | null;
+  /** Upper end of typical day rate range — for quoting context. */
+  max_day_rate: number | null;
+  /** Bank account name (as it appears on RCTI / remittance). */
+  bank_account_name: string | null;
+  /** BSB (6-digit sort code). */
+  bank_bsb: string | null;
+  /** Bank account number. */
+  bank_account_number: string | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
@@ -198,6 +208,11 @@ export interface Crew {
   kit_list: string | null;
   certifications: string[] | null;
   default_day_rate: number | null;
+  min_day_rate: number | null;
+  max_day_rate: number | null;
+  bank_account_name: string | null;
+  bank_bsb: string | null;
+  bank_account_number: string | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
@@ -248,20 +263,32 @@ export interface Booking {
   shoot_location: string | null;
   shoot_dates: string | null; // daterange as string
   shoot_date_notes: string | null;
+  /** Planned crew start time on shoot day (HH:MM, local agency TZ). */
+  call_time: string | null;
+  /** Planned crew finish time on shoot day (HH:MM, local agency TZ). */
+  wrap_time: string | null;
   talent_count: number | null;
+  /** @deprecated UI removed 2026-05-12; column kept for brief parser write target. */
   talent_spec: string | null;
   deliverables_type: string | null;
   deliverables_count: number | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_media: UsageMedia[] | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_territory: UsageTerritory[] | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_duration_months: number | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_notes: string | null;
   tier: ShootTier;
   post_production_ownership: PostProductionOwnership | null;
   budget_indication: number | null;
   budget_currency: string;
+  /** @deprecated UI removed 2026-05-12. */
   retouch_note_format: string | null;
+  /** @deprecated UI removed 2026-05-12. */
   video_references: string | null;
+  /** @deprecated UI removed 2026-05-12. */
   wardrobe_responsibility: string | null;
   looks_per_talent: number | null;
   subtotal: number;
@@ -301,6 +328,14 @@ export interface Booking {
   invoice_issued_at: string | null;
   /** Set automatically when the booking transitions to paid. */
   paid_at: string | null;
+  /** Date by which the client must confirm or the booking is released. */
+  confirmation_deadline: string | null;
+  /** Days the quote is valid from issue — overrides agency default if set. */
+  quote_validity_days: number | null;
+  /** Primary production contact at the client/agency for this booking. */
+  producer_name: string | null;
+  producer_email: string | null;
+  producer_phone: string | null;
 }
 
 export interface BookingTalent {

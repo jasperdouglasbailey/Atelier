@@ -170,7 +170,10 @@ export type CreateBookingInput = {
   shoot_location?: string | null;
   shoot_date_notes?: string | null;
   shoot_dates?: string | null; // Postgres daterange string e.g. '[2026-05-15,2026-05-17)'
+  call_time?: string | null;
+  wrap_time?: string | null;
   talent_count?: number | null;
+  /** @deprecated UI removed 2026-05-12; brief parser still writes it. */
   talent_spec?: string | null;
   deliverables_type?: string | null;
   deliverables_count?: number | null;
@@ -182,6 +185,10 @@ export type CreateBookingInput = {
   brief_raw_text?: string | null;
   usage_media?: string[] | null;
   usage_territory?: string[] | null;
+  producer_name?: string | null;
+  producer_email?: string | null;
+  producer_phone?: string | null;
+  confirmation_deadline?: string | null;
 };
 
 export async function createBooking(input: CreateBookingInput): Promise<Booking | null> {

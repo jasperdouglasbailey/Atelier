@@ -92,10 +92,6 @@ export default function BookingsBoard({ bookings }: Props) {
                             <span className="ml-1" style={{ color: PALETTE.muted }}>· {primaryArtist.discipline}</span>
                           )}
                         </div>
-                      ) : b.talent_spec ? (
-                        <div className="text-[10px] mb-0.5" style={{ color: PALETTE.muted }}>
-                          {b.talent_spec}
-                        </div>
                       ) : null;
                     })()}
                     {clientName && (

@@ -209,7 +209,7 @@ export default function TalentEditForm({ talent }: Props) {
       {/* Rates */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Rates</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label style={labelStyle}>Default Day Rate (AUD, ex. GST)</label>
             <input
@@ -224,6 +224,14 @@ export default function TalentEditForm({ talent }: Props) {
             <p className="mt-1" style={{ fontSize: 10, color: PALETTE.muted }}>
               Pre-fills the day rate input when adding this artist to a booking.
             </p>
+          </div>
+          <div>
+            <label style={labelStyle}>Min Day Rate (AUD)</label>
+            <input name="min_day_rate" type="number" step="0.01" min="0" defaultValue={talent.min_day_rate ?? ''} style={inputStyle} placeholder="e.g. 2500" />
+          </div>
+          <div>
+            <label style={labelStyle}>Max Day Rate (AUD)</label>
+            <input name="max_day_rate" type="number" step="0.01" min="0" defaultValue={talent.max_day_rate ?? ''} style={inputStyle} placeholder="e.g. 5000" />
           </div>
         </div>
       </section>
@@ -270,6 +278,26 @@ export default function TalentEditForm({ talent }: Props) {
           <div>
             <label style={labelStyle}>USI</label>
             <input name="super_usi" defaultValue={talent.super_usi ?? ''} style={inputStyle} />
+          </div>
+        </div>
+      </section>
+
+      {/* Bank Account */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+        <p style={{ fontSize: 10, color: PALETTE.muted }}>Used for RCTI / remittance payments. Owner-visible only.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label style={labelStyle}>Account Name</label>
+            <input name="bank_account_name" defaultValue={talent.bank_account_name ?? ''} style={inputStyle} placeholder="As on bank account" />
+          </div>
+          <div>
+            <label style={labelStyle}>BSB</label>
+            <input name="bank_bsb" defaultValue={talent.bank_bsb ?? ''} style={inputStyle} placeholder="XXX-XXX" />
+          </div>
+          <div>
+            <label style={labelStyle}>Account Number</label>
+            <input name="bank_account_number" defaultValue={talent.bank_account_number ?? ''} style={inputStyle} />
           </div>
         </div>
       </section>

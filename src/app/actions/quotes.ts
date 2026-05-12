@@ -76,12 +76,20 @@ export async function createQuoteVersionAction(bookingId: string, notes?: string
 // Fee lines
 // ============================================================
 
+const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production'];
+const CREW_LABOUR_LINE_TYPES = ['crew_labour', 'overtime'];
+// Pass-through costs — no ASF by default (client is reimbursing a real expenditure)
+const FRINGE_LINE_TYPES = [
+  'crew_equipment', 'equipment_rental', 'studio_hire', 'travel',
+  'catering', 'wardrobe', 'props', 'casting', 'location_fee',
+  'permits', 'insurance', 'other_expense',
+];
+
 /** Determine defaults based on line type */
 function lineTypeDefaults(lineType: FeeLineType) {
-  const artistLabour = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production'];
-  const crewLabour = ['crew_labour', 'overtime'];
-  const isArtist = artistLabour.includes(lineType);
-  const isCrew = crewLabour.includes(lineType);
+  const isArtist = ARTIST_LABOUR_LINE_TYPES.includes(lineType);
+  const isCrew = CREW_LABOUR_LINE_TYPES.includes(lineType);
+  const isFringe = FRINGE_LINE_TYPES.includes(lineType);
 
   return {
     is_commissionable: isArtist,
@@ -90,7 +98,8 @@ function lineTypeDefaults(lineType: FeeLineType) {
     super_rate_charged: isCrew ? SUPER_RATE_CHARGED : 0,
     super_rate_paid: isCrew ? SUPER_RATE_PAID : 0,
     is_gst_exempt: false,
-    asf_rate: DEFAULT_ASF_RATE,
+    // Fringe/expense lines are pass-through costs — no ASF by default
+    asf_rate: isFringe ? 0 : DEFAULT_ASF_RATE,
   };
 }
 
@@ -108,6 +117,10 @@ export async function addFeeLineAction(formData: FormData) {
   const asfRateOverride = formData.get('asf_rate');
   const asfRate = asfRateOverride != null && asfRateOverride !== '' ? Number(asfRateOverride) : defaults.asf_rate;
 
+  // GST exempt driven by payee's registration status (form sends 'true'/'false')
+  const gstExemptOverride = formData.get('gst_exempt');
+  const isGstExempt = gstExemptOverride === 'true';
+
   const subtotal = Math.round(quantity * unitPrice * 100) / 100;
   const asfAmount = Math.round(subtotal * asfRate * 100) / 100;
 
@@ -121,7 +134,7 @@ export async function addFeeLineAction(formData: FormData) {
     subtotal,
     asf_rate: asfRate,
     asf_amount: asfAmount,
-    is_gst_exempt: defaults.is_gst_exempt,
+    is_gst_exempt: isGstExempt,
     is_super_bearing: defaults.is_super_bearing,
     super_rate_charged: defaults.super_rate_charged,
     super_rate_paid: defaults.super_rate_paid,

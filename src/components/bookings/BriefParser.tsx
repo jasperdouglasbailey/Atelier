@@ -19,12 +19,8 @@ const FIELD_LABELS = {
   shoot_date_start: 'Shoot Start Date',
   shoot_date_end: 'Shoot End Date',
   shoot_date_notes: 'Date Notes',
-  talent_spec: 'Talent Spec',
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
-  usage_duration_months: 'Usage Duration (months)',
-  usage_territory_raw: 'Territory (raw — review)',
-  usage_media_raw: 'Media (raw — review)',
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
@@ -33,9 +29,7 @@ const KEY_FIELDS: Record<string, string> = {
   shoot_location: 'shoot_location',
   shoot_date_start: 'shoot_dates',
   shoot_date_notes: 'shoot_dates',
-  talent_spec: 'talent_spec',
   deliverables_type: 'deliverables_type',
-  usage_duration_months: 'usage_duration_months',
 };
 
 export default function BriefParser({ bookingId, hasBriefText, currentState }: Props) {

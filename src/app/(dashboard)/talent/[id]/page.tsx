@@ -123,6 +123,17 @@ export default async function TalentDetailPage({ params }: Props) {
             >
               ✏ Edit
             </Link>
+            {talent.drive_folder_link && (
+              <a
+                href={talent.drive_folder_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive ↗
+              </a>
+            )}
             <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
             {!talent.onboarding_completed && (
               <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />
@@ -163,8 +174,12 @@ export default async function TalentDetailPage({ params }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             {talent.default_day_rate != null && (
               <Field
-                label="Default Day Rate"
-                value={talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })}
+                label="Day Rate"
+                value={
+                  talent.min_day_rate || talent.max_day_rate
+                    ? `${talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })} (range: ${(talent.min_day_rate ?? talent.default_day_rate).toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })} – ${(talent.max_day_rate ?? talent.default_day_rate).toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })})`
+                    : talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })
+                }
               />
             )}
             <Field label="ABN" value={talent.abn} />
@@ -186,6 +201,18 @@ export default async function TalentDetailPage({ params }: Props) {
             <Field label="USI" value={talent.super_usi} />
           </div>
         </section>
+
+        {/* Bank Account */}
+        {(talent.bank_account_name || talent.bank_bsb || talent.bank_account_number) && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Account Name" value={talent.bank_account_name} />
+              <Field label="BSB" value={talent.bank_bsb} />
+              <Field label="Account Number" value={talent.bank_account_number} />
+            </div>
+          </section>
+        )}
 
         {/* Emergency Contact */}
         {(talent.emergency_name || talent.emergency_mobile) && (

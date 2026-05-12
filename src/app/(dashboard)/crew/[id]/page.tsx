@@ -127,6 +127,17 @@ export default async function CrewDetailPage({ params }: Props) {
             >
               ✏ Edit
             </Link>
+            {crew.drive_folder_link && (
+              <a
+                href={crew.drive_folder_link}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+              >
+                Drive ↗
+              </a>
+            )}
             {!crew.onboarding_completed && (
               <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
             )}
@@ -163,7 +174,16 @@ export default async function CrewDetailPage({ params }: Props) {
               <div className="grid gap-3 grid-cols-2">
                 <Field label="ABN" value={crew.abn} />
                 <Field label="GST Registered" value={crew.gst_registered ? 'Yes' : 'No'} />
-                <Field label="Default Day Rate" value={crew.default_day_rate != null ? formatCurrency(crew.default_day_rate) : null} />
+                <Field
+                  label="Day Rate"
+                  value={
+                    crew.default_day_rate != null
+                      ? crew.min_day_rate || crew.max_day_rate
+                        ? `${formatCurrency(crew.default_day_rate)} (${formatCurrency(crew.min_day_rate ?? crew.default_day_rate)}–${formatCurrency(crew.max_day_rate ?? crew.default_day_rate)})`
+                        : formatCurrency(crew.default_day_rate)
+                      : null
+                  }
+                />
                 <Field label="Xero Contact" value={crew.xero_contact_id ? 'Linked' : 'Not linked'} />
                 <Field label="Bank in Xero" value={crew.bank_setup_in_xero ? 'Yes' : 'No'} />
               </div>
@@ -184,6 +204,18 @@ export default async function CrewDetailPage({ params }: Props) {
 
           {/* RIGHT column */}
           <div className="space-y-4">
+
+            {/* Bank Account */}
+            {(crew.bank_account_name || crew.bank_bsb || crew.bank_account_number) && (
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+                <div className="grid gap-3 grid-cols-1">
+                  <Field label="Account Name" value={crew.bank_account_name} />
+                  <Field label="BSB" value={crew.bank_bsb} />
+                  <Field label="Account Number" value={crew.bank_account_number} />
+                </div>
+              </section>
+            )}
 
             {/* Super */}
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

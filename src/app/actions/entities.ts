@@ -164,7 +164,8 @@ export async function updateCrewAction(id: string, formData: FormData) {
   const textFields = ['email', 'mobile', 'preferred_comms', 'primary_role', 'tier', 'abn',
     'city', 'dietary', 'drink_order', 'home_address',
     'super_fund_name', 'super_member_number', 'super_usi',
-    'kit_list', 'xero_contact_id', 'notes'];
+    'kit_list', 'xero_contact_id', 'notes',
+    'bank_account_name', 'bank_bsb', 'bank_account_number'];
   for (const f of textFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = (val as string) || null;
@@ -175,9 +176,11 @@ export async function updateCrewAction(id: string, formData: FormData) {
   if (formData.get('bank_setup_in_xero') !== null) {
     updates.bank_setup_in_xero = formData.get('bank_setup_in_xero') === 'true';
   }
-  if (formData.get('default_day_rate') !== null) {
-    const v = formData.get('default_day_rate') as string;
-    updates.default_day_rate = v ? Number(v) : null;
+  for (const rateField of ['default_day_rate', 'min_day_rate', 'max_day_rate']) {
+    if (formData.get(rateField) !== null) {
+      const v = formData.get(rateField) as string;
+      updates[rateField] = v ? Number(v) : null;
+    }
   }
   if (formData.get('dob') !== null) {
     const v = formData.get('dob') as string;
@@ -512,7 +515,8 @@ export async function updateTalentAction(id: string, formData: FormData) {
     'abn', 'entity_type', 'representation_status', 'instagram', 'website', 'notes',
     'super_fund_name', 'super_member_number', 'super_usi',
     'emergency_name', 'emergency_relationship', 'emergency_mobile', 'emergency_email',
-    'work_rights', 'wwcc_number', 'xero_contact_id'];
+    'work_rights', 'wwcc_number', 'xero_contact_id',
+    'bank_account_name', 'bank_bsb', 'bank_account_number'];
   for (const f of textFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = (val as string) || null;
@@ -524,9 +528,11 @@ export async function updateTalentAction(id: string, formData: FormData) {
       updates[dateField] = v || null;
     }
   }
-  if (formData.get('default_day_rate') !== null) {
-    const v = formData.get('default_day_rate') as string;
-    updates.default_day_rate = v ? Number(v) : null;
+  for (const rateField of ['default_day_rate', 'min_day_rate', 'max_day_rate']) {
+    if (formData.get(rateField) !== null) {
+      const v = formData.get(rateField) as string;
+      updates[rateField] = v ? Number(v) : null;
+    }
   }
   if (formData.get('gst_registered') !== null) {
     updates.gst_registered = formData.get('gst_registered') === 'true';

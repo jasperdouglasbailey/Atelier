@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { reportDataError } from '@/lib/utils/data-errors';
 import { createBooking, getBooking, updateBooking, transitionState, deleteBookingWithCorpus, type CreateBookingInput } from '@/lib/data/bookings';
-import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent } from '@/lib/data/quotes';
+import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
 import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
@@ -95,8 +95,9 @@ export async function createBookingAction(formData: FormData) {
     shoot_location: (formData.get('shoot_location') as string) || null,
     shoot_date_notes: (formData.get('shoot_date_notes') as string) || null,
     shoot_dates: buildDateRange(shootStart, shootEnd),
+    call_time: (formData.get('call_time') as string) || null,
+    wrap_time: (formData.get('wrap_time') as string) || null,
     talent_count: formData.get('talent_count') ? Number(formData.get('talent_count')) : null,
-    talent_spec: (formData.get('talent_spec') as string) || null,
     deliverables_type: (formData.get('deliverables_type') as string) || null,
     deliverables_count: formData.get('deliverables_count') ? Number(formData.get('deliverables_count')) : null,
     usage_duration_months: formData.get('usage_duration_months') ? Number(formData.get('usage_duration_months')) : null,
@@ -106,6 +107,10 @@ export async function createBookingAction(formData: FormData) {
     brief_raw_text: (formData.get('brief_raw_text') as string) || null,
     usage_media: usageMedia,
     usage_territory: usageTerritory,
+    producer_name: (formData.get('producer_name') as string) || null,
+    producer_email: (formData.get('producer_email') as string) || null,
+    producer_phone: (formData.get('producer_phone') as string) || null,
+    confirmation_deadline: (formData.get('confirmation_deadline') as string) || null,
   };
 
   const booking = await createBooking(input);
@@ -159,10 +164,12 @@ export async function createBookingAction(formData: FormData) {
 export async function updateBookingAction(id: string, formData: FormData) {
   const updates: Record<string, unknown> = {};
   const fields = [
-    'title', 'shoot_location', 'shoot_date_notes', 'talent_spec',
-    'deliverables_type', 'usage_notes', 'agency_notes', 'brief_raw_text',
-    'selects_cadence', 'retouch_note_format', 'video_references',
-    'wardrobe_responsibility',
+    'title', 'shoot_location', 'shoot_date_notes',
+    'call_time', 'wrap_time',
+    'deliverables_type', 'agency_notes', 'brief_raw_text',
+    'selects_cadence',
+    'producer_name', 'producer_email', 'producer_phone',
+    'confirmation_deadline',
   ];
   for (const f of fields) {
     const val = formData.get(f);
@@ -235,18 +242,22 @@ export async function updateBookingAction(id: string, formData: FormData) {
     });
   }
 
-  // Calendar sync — if shoot dates / location changed AND a calendar event
-  // already exists, update it. Google sends "this event has been updated"
-  // emails to all attendees automatically.
-  if ('shoot_dates' in updates || 'shoot_location' in updates) {
+  // Calendar sync — if shoot dates, location, or call/wrap time changed AND a
+  // calendar event already exists, push the update.
+  const calendarTriggerFields = ['shoot_dates', 'shoot_location', 'call_time', 'wrap_time'];
+  if (calendarTriggerFields.some((f) => f in updates)) {
     const refreshed = await getBooking(id);
     if (refreshed?.calendar_event_id) {
       const { start, end } = dateRangeToInputs(refreshed.shoot_dates);
       if (start) {
+        const callWrapDesc = refreshed.call_time
+          ? `Call: ${refreshed.call_time}${refreshed.wrap_time ? ` · Wrap: ${refreshed.wrap_time}` : ''}`
+          : null;
         updateCalendarEvent(refreshed.calendar_event_id, {
           startDate: start,
           endDate: end || start,
           location: refreshed.shoot_location ?? undefined,
+          description: callWrapDesc ?? undefined,
         }).catch((err) =>
           reportDataError('[updateBookingAction] Calendar event update failed', err),
         );
@@ -374,15 +385,17 @@ export async function transitionBookingAction(
           if (c?.email) attendees.push({ email: c.email, displayName: c.name ?? c.email });
         }
 
+        const primaryArtistName = attendees.find(() => true)?.displayName ?? null;
+        const callWrap = booking.call_time ? `Call: ${booking.call_time}${booking.wrap_time ? ` · Wrap: ${booking.wrap_time}` : ''}` : null;
         createCalendarEvent({
           subject,
           startDate: start,
           endDate: end || start,
           location: booking.shoot_location ?? undefined,
           description: [
-            `Tier: ${booking.tier}`,
-            booking.talent_spec ? `Talent: ${booking.talent_spec}` : '',
-            attendees.length > 0 ? `Team: ${attendees.map((a) => a.displayName).join(', ')}` : '',
+            primaryArtistName ? `Artist: ${primaryArtistName}` : '',
+            attendees.length > 1 ? `+${attendees.length - 1} crew` : '',
+            callWrap ?? '',
           ].filter(Boolean).join('\n'),
           bookingRef: booking.booking_ref ?? undefined,
           attendees,
@@ -914,12 +927,14 @@ export async function regenerateQuoteV1Action(bookingId: string) {
 // ============================================================
 //
 // Creates a fresh booking row with the same client, brand, tier, deliverables,
-// usage media/territory/duration, post-production ownership, and primary
-// artist as the source. Dates are offset by 30 days from the source's start
-// (or null if the source had no shoot dates). Title gets " (Copy)" appended.
+// usage media/territory/duration, post-production ownership, all attached
+// talent, and all attached crew as the source. Dates are offset by 30 days
+// from the source's start (or null if the source had no shoot dates). Title
+// gets " (Copy)" appended.
 //
-// Quote, fee lines, events, and confirmations are NOT copied — the new
-// booking starts fresh in `brief_received`.
+// Quote V1 is auto-generated from the primary artist's discipline template.
+// Crew start fresh in 'hold_requested' so availability is re-confirmed.
+// Confirmations, OT, expenses, send history, and Drive links are NOT copied.
 
 export async function cloneBookingAction(sourceId: string) {
   const source = await getBooking(sourceId);
@@ -971,21 +986,47 @@ export async function cloneBookingAction(sourceId: string) {
   const sourceTalent = await listBookingTalent(sourceId);
   const primary = sourceTalent[0] as (typeof sourceTalent[0] & { talent?: { default_day_rate: number | null; discipline: string } | null }) | undefined;
 
-  if (primary?.talent_id) {
-    const supabase = await createSupabaseServer();
-    await supabase.from('atelier_booking_talent').insert({
-      booking_id: newBooking.id,
-      talent_id: primary.talent_id,
-      role_on_booking: primary.role_on_booking || primary.talent?.discipline || 'photographer',
-      day_rate: primary.talent?.default_day_rate ?? null,
-      confirmed: false,
-    });
+  const supabase = await createSupabaseServer();
 
-    // Auto-generate Quote V1 if it's a photographer/videographer
-    const discipline = primary.talent?.discipline ?? '';
-    if (discipline === 'photographer' || discipline === 'videographer') {
-      await generateQuoteV1FromTemplate(newBooking.id, discipline, primary.talent?.default_day_rate ?? null);
+  // Clone ALL talent rows, not just the primary. Day rates are pulled from
+  // each artist's current default_day_rate so a clone reflects "what they'd
+  // charge today" rather than what they charged on the source booking.
+  if (sourceTalent.length > 0) {
+    const talentRows = sourceTalent.map((bt) => {
+      const tw = bt as typeof bt & { talent?: { default_day_rate: number | null; discipline: string } | null };
+      return {
+        booking_id: newBooking.id,
+        talent_id: bt.talent_id,
+        role_on_booking: bt.role_on_booking || tw.talent?.discipline || 'photographer',
+        day_rate: tw.talent?.default_day_rate ?? null,
+        confirmed: false,
+      };
+    });
+    await supabase.from('atelier_booking_talent').insert(talentRows);
+
+    // Auto-generate Quote V1 from the primary artist's discipline template
+    if (primary) {
+      const tw = primary as typeof primary & { talent?: { default_day_rate: number | null; discipline: string } | null };
+      const discipline = tw.talent?.discipline ?? '';
+      if (discipline === 'photographer' || discipline === 'videographer') {
+        await generateQuoteV1FromTemplate(newBooking.id, discipline, tw.talent?.default_day_rate ?? null);
+      }
     }
+  }
+
+  // Clone crew assignments — only crew_id + role hint, NOT statuses or day
+  // rates from the old booking. Each crew row starts fresh in "hold_requested"
+  // so the producer re-confirms availability for the new dates.
+  const sourceCrew = await listBookingCrew(sourceId);
+  if (sourceCrew.length > 0) {
+    const crewRows = sourceCrew.map((bc) => ({
+      booking_id: newBooking.id,
+      crew_id: bc.crew_id,
+      role_on_booking: bc.role_on_booking,
+      day_rate: bc.day_rate, // Keep the rate they charged — usually still right
+      status: 'hold_requested' as const,
+    }));
+    await supabase.from('atelier_booking_crew').insert(crewRows);
   }
 
   revalidatePath('/bookings');
