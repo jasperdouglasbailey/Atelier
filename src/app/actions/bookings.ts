@@ -19,7 +19,7 @@ import { callLLM } from '@/lib/integrations/anthropic';
 import { critiqueDraft, jasperVoicePromptBlock } from '@/lib/automation/agent-primitives';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { createClient as createSupabaseServer } from '@/lib/supabase/server';
-import { logAuditFailure } from '@/lib/utils/audit';
+import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
 import type { BookingState } from '@/lib/types/database';
 
@@ -155,7 +155,6 @@ export async function createBookingAction(formData: FormData) {
   }
 
   revalidatePath('/bookings');
-  revalidateTag('bookings', {});
   revalidatePath('/');
   revalidateTag('bookings', {});
   return { id: booking.id, ref: booking.booking_ref };
@@ -1405,13 +1404,12 @@ export async function convertEmailToBookingAction(opts: {
       return { ok: false, error: 'createBooking returned null — check server logs.' };
     }
 
-    await logAuditFailure({
+    await logAudit({
       userId: await getCurrentActor(),
       action: 'convert_email_to_booking',
       tableName: 'atelier_bookings',
       recordId: booking.id,
-      attempted: ({ messageId: opts.messageId, subject: opts.subject } as unknown) as import('@/lib/types/database').Json,
-      error: '',
+      newValue: ({ messageId: opts.messageId, subject: opts.subject } as unknown) as import('@/lib/types/database').Json,
     }).catch(() => {}); // best-effort log
 
     revalidatePath('/inbox');

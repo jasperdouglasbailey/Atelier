@@ -330,10 +330,12 @@ export async function transitionState(
     .from(TABLE)
     .update(patch)
     .eq('id', id)
+    .eq('state', current.state)
     .select()
     .single();
 
   if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'State changed by another session — please refresh and try again.' };
 
   const booking = data as Booking;
 

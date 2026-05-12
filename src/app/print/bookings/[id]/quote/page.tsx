@@ -211,7 +211,7 @@ export default async function QuotePrintPage({ params }: Props) {
       {/* Footer terms */}
       <div style={{ borderTop: '1px solid #e8e8e8', paddingTop: 20, fontSize: 11, color: '#999', lineHeight: 1.7 }}>
         <p style={{ margin: '0 0 4px' }}>
-          This estimate is valid for 30 days from the date of issue. All amounts are in Australian Dollars (AUD) and are inclusive of GST where applicable.
+          This estimate is valid for {agency.quoteValidityDays} days from the date of issue. All amounts are in Australian Dollars (AUD) and are inclusive of GST where applicable.
         </p>
         <p style={{ margin: 0 }}>
           Quote is subject to talent and crew availability confirmation. Cancellation terms apply once a booking is confirmed.
