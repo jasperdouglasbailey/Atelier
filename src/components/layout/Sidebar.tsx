@@ -93,6 +93,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Close drawer whenever the user navigates to a new page
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const sections: NavSection[] = [

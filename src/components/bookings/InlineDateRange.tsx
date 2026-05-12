@@ -34,6 +34,7 @@ export default function InlineDateRange({ bookingId, label, shootDates, shootDat
 
   useEffect(() => {
     const fresh = dateRangeToInputs(shootDates);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStart(fresh.start ?? '');
     setEnd(fresh.end ?? '');
   }, [shootDates]);

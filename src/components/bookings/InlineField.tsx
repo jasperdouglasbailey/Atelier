@@ -51,6 +51,7 @@ export default function InlineField({
   // Sync local draft when the parent re-renders with a fresh value (e.g. after
   // router.refresh() picks up the saved row from the server).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(value == null ? '' : String(value));
   }, [value]);
 
