@@ -525,7 +525,7 @@ export default function BookingFormFields({
 
       {mode === 'edit' && (
         <div>
-          <label className={labelClass} style={labelStyle}>Selects Cadence</label>
+          <label className={labelClass} style={labelStyle}>Selects Due</label>
           <input name="selects_cadence" defaultValue={initial?.selects_cadence ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. 1 round within 48h" />
         </div>
       )}

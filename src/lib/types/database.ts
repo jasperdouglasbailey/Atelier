@@ -282,6 +282,7 @@ export interface Booking {
   usage_notes: string | null;
   tier: ShootTier;
   post_production_ownership: PostProductionOwnership | null;
+  grade_retouch_scope: 'grade_and_retouch' | 'grade_only' | null;
   budget_indication: number | null;
   budget_currency: string;
   /** @deprecated UI removed 2026-05-12. */

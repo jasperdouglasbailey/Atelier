@@ -131,7 +131,7 @@ export default async function QuotePrintPage({ params }: Props) {
           {booking.deliverables_type && <Row label="Deliverables" value={booking.deliverables_type} />}
           {booking.deliverables_count && <Row label="Deliverable Count" value={String(booking.deliverables_count)} />}
           {booking.post_production_ownership && <Row label="Post-Production" value={humanise(booking.post_production_ownership)} />}
-          {booking.selects_cadence && <Row label="Selects Cadence" value={booking.selects_cadence} />}
+          {booking.selects_cadence && <Row label="Selects Due" value={booking.selects_cadence} />}
         </div>
       </div>
 

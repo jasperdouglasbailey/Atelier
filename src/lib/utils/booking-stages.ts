@@ -251,7 +251,7 @@ function productionChecklist(input: ChecklistInput): StageChecklist {
       hint: 'Planned finish — drives the overtime threshold' },
     { label: 'Looks per talent set',
       status: booking.looks_per_talent != null ? 'done' : 'optional' },
-    { label: 'Selects cadence captured',
+    { label: 'Selects due captured',
       status: booking.selects_cadence ? 'done' : 'optional' },
     { label: 'Drive folder ready',
       status: booking.drive_folder_ids ? 'done' : 'pending',

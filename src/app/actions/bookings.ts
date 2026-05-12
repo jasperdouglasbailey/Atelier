@@ -295,6 +295,7 @@ const INLINE_TEXT_FIELDS = new Set([
   'producer_email',
   'producer_phone',
   'post_production_ownership',
+  'grade_retouch_scope',
   'tier',
 ] as const);
 
