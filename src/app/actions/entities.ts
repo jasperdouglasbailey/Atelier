@@ -86,6 +86,9 @@ export async function updateClientAction(id: string, formData: FormData) {
       // Title-case names + company on save (manual entry safety net)
       updates[key] = titleCaseName((val as string) || '') || null;
     }
+    else if (key === 'contacts') {
+      try { updates.contacts = JSON.parse(val as string); } catch { updates.contacts = []; }
+    }
     else updates[key] = (val as string) || null;
   }
   const result = await updateClient(id, updates);

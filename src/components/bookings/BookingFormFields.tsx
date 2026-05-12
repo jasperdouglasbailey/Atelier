@@ -300,6 +300,7 @@ export default function BookingFormFields({
                   payment_terms_days: null, notes: null,
                   avg_doi_days: null, preferred_comms: null,
                   communication_style: null,
+                  address: null, contacts: [],
                   drive_folder_id: null, drive_folder_link: null,
                 };
                 setClients((prev) => [...prev, newClient]);
@@ -472,6 +473,18 @@ export default function BookingFormFields({
         <label className={labelClass} style={labelStyle}>Confirmation Deadline</label>
         <input name="confirmation_deadline" type="date" defaultValue={initial?.confirmation_deadline ?? ''} className={inputClass} style={inputStyle} />
         <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>Date the client must confirm by — quote releases if missed.</p>
+      </div>
+
+      {/* ── Invoicing ──────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass} style={labelStyle}>PO Number</label>
+          <input name="po_number" defaultValue={initial?.po_number ?? ''} className={inputClass} style={inputStyle} placeholder="Client's purchase order number" />
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>Job Number</label>
+          <input name="job_number" defaultValue={initial?.job_number ?? ''} className={inputClass} style={inputStyle} placeholder="Client or internal job number" />
+        </div>
       </div>
 
       {/* ── Internal Notes ─────────────────────────────────────── */}

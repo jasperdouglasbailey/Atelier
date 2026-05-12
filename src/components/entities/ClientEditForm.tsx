@@ -4,15 +4,22 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateClientAction } from '@/app/actions/entities';
 import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS, COMMUNICATION_STYLE_OPTIONS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
-import type { Client } from '@/lib/types/database';
+import type { Client, ClientContact } from '@/lib/types/database';
 import EmailTonePreview from './EmailTonePreview';
 
 type Props = { client: Client };
+
+const EMPTY_CONTACT: ClientContact = { name: '', role: '', email: '', phone: '', brands: [] };
 
 export default function ClientEditForm({ client }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<ClientContact[]>(
+    Array.isArray(client.contacts) && client.contacts.length > 0
+      ? client.contacts
+      : []
+  );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -20,6 +27,7 @@ export default function ClientEditForm({ client }: Props) {
     setError(null);
 
     const fd = new FormData(e.currentTarget);
+    fd.set('contacts', JSON.stringify(contacts));
     const result = await updateClientAction(client.id, fd);
 
     setSaving(false);
@@ -27,11 +35,26 @@ export default function ClientEditForm({ client }: Props) {
       setError(result.error);
       return;
     }
-    // router.push alone won't refetch the destination's server data when the
-    // route is in the cache. router.refresh() forces the server components to
-    // re-render with the latest data so saved changes appear without a reload.
     router.push(`/clients/${client.id}`);
     router.refresh();
+  }
+
+  function addContact() {
+    setContacts((prev) => [...prev, { ...EMPTY_CONTACT }]);
+  }
+
+  function removeContact(idx: number) {
+    setContacts((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateContact(idx: number, field: keyof ClientContact, value: string) {
+    setContacts((prev) => prev.map((c, i) => {
+      if (i !== idx) return c;
+      if (field === 'brands') {
+        return { ...c, brands: value ? value.split(',').map((s) => s.trim()).filter(Boolean) : [] };
+      }
+      return { ...c, [field]: value };
+    }));
   }
 
   const inputStyle = {
@@ -94,11 +117,16 @@ export default function ClientEditForm({ client }: Props) {
             <option value="true">Creative Agency</option>
           </select>
         </div>
+
+        <div>
+          <label style={labelStyle}>Address</label>
+          <input name="address" defaultValue={client.address ?? ''} style={inputStyle} placeholder="e.g. Level 5, 100 Harris St, Pyrmont NSW 2009" />
+        </div>
       </section>
 
-      {/* Contact */}
+      {/* Primary contact */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Primary Contact</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -135,6 +163,100 @@ export default function ClientEditForm({ client }: Props) {
             />
           </div>
         </div>
+      </section>
+
+      {/* Additional contacts */}
+      <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Additional Contacts</h3>
+            <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
+              In-house producers, brand managers, or other contacts at this client.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={addContact}
+            className="rounded px-3 py-1 text-xs font-medium"
+            style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33` }}
+          >
+            + Add
+          </button>
+        </div>
+
+        {contacts.length === 0 && (
+          <p className="text-[11px] italic" style={{ color: PALETTE.muted }}>No additional contacts yet.</p>
+        )}
+
+        {contacts.map((contact, idx) => (
+          <div
+            key={idx}
+            className="rounded-md border p-3 space-y-2"
+            style={{ borderColor: PALETTE.border, background: PALETTE.bg }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+                Contact {idx + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeContact(idx)}
+                className="text-[10px] px-2 py-0.5 rounded"
+                style={{ color: PALETTE.danger, background: `${PALETTE.danger}15`, border: `1px solid ${PALETTE.danger}30` }}
+              >
+                Remove
+              </button>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 2 }}>Name *</label>
+                <input
+                  value={contact.name}
+                  onChange={(e) => updateContact(idx, 'name', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                  placeholder="Sam Davies"
+                />
+              </div>
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 2 }}>Role / Title</label>
+                <input
+                  value={contact.role ?? ''}
+                  onChange={(e) => updateContact(idx, 'role', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                  placeholder="Head of Production"
+                />
+              </div>
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 2 }}>Email</label>
+                <input
+                  type="email"
+                  value={contact.email ?? ''}
+                  onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                />
+              </div>
+              <div>
+                <label style={{ ...labelStyle, marginBottom: 2 }}>Phone</label>
+                <input
+                  value={contact.phone ?? ''}
+                  onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ ...labelStyle, marginBottom: 2 }}>Brands / Accounts (comma-separated)</label>
+              <input
+                value={(contact.brands ?? []).join(', ')}
+                onChange={(e) => updateContact(idx, 'brands', e.target.value)}
+                style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                placeholder="e.g. AJE, Aje Athletica, Resort 26"
+              />
+            </div>
+          </div>
+        ))}
       </section>
 
       {/* Finance */}

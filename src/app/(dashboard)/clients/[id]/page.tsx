@@ -5,7 +5,7 @@ import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
-import type { CommunicationStyle } from '@/lib/types/database';
+import type { CommunicationStyle, ClientContact } from '@/lib/types/database';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import DataRightsControls from '@/components/entities/DataRightsControls';
 
@@ -199,6 +199,7 @@ export default async function ClientDetailPage({ params }: Props) {
             <Field label="Email" value={client.email} />
             <Field label="Phone" value={client.phone} />
             <Field label="ABN" value={client.abn} />
+            <Field label="Address" value={client.address} />
             <Field label="Preferred Comms" value={client.preferred_comms ?? null} />
             <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
             {client.communication_style && (
@@ -225,6 +226,36 @@ export default async function ClientDetailPage({ params }: Props) {
             ) : null}
           </div>
         </section>
+
+        {/* Additional contacts */}
+        {Array.isArray(client.contacts) && client.contacts.length > 0 && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contacts</h3>
+            <div className="space-y-3">
+              {(client.contacts as ClientContact[]).map((c, i) => (
+                <div key={i} className="rounded-md border p-3" style={{ borderColor: PALETTE.border }}>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</span>
+                    {c.role && <span className="text-[11px]" style={{ color: PALETTE.muted }}>{c.role}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                    {c.email && <span className="text-xs" style={{ color: PALETTE.text }}>{c.email}</span>}
+                    {c.phone && <span className="text-xs" style={{ color: PALETTE.text }}>{c.phone}</span>}
+                  </div>
+                  {c.brands && c.brands.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {c.brands.map((b) => (
+                        <span key={b} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {client.notes && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

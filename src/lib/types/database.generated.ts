@@ -398,6 +398,8 @@ export type Database = {
             | null
           video_references: string | null
           wardrobe_responsibility: string | null
+          po_number: string | null
+          job_number: string | null
         }
         Insert: {
           agency_notes?: string | null
@@ -461,6 +463,8 @@ export type Database = {
             | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
+          po_number?: string | null
+          job_number?: string | null
         }
         Update: {
           agency_notes?: string | null
@@ -524,6 +528,8 @@ export type Database = {
             | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
+          po_number?: string | null
+          job_number?: string | null
         }
         Relationships: [
           {
@@ -664,9 +670,11 @@ export type Database = {
       atelier_clients: {
         Row: {
           abn: string | null
+          address: string | null
           avg_doi_days: number | null
           communication_style: string | null
           company: string | null
+          contacts: Json
           created_at: string
           drive_folder_id: string | null
           drive_folder_link: string | null
@@ -683,9 +691,11 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
+          address?: string | null
           avg_doi_days?: number | null
           communication_style?: string | null
           company?: string | null
+          contacts?: Json
           created_at?: string
           drive_folder_id?: string | null
           drive_folder_link?: string | null
@@ -702,9 +712,11 @@ export type Database = {
         }
         Update: {
           abn?: string | null
+          address?: string | null
           avg_doi_days?: number | null
           communication_style?: string | null
           company?: string | null
+          contacts?: Json
           created_at?: string
           drive_folder_id?: string | null
           drive_folder_link?: string | null
