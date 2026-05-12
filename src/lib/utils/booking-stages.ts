@@ -47,7 +47,7 @@ export const STAGE_GROUP_BLURBS: Record<BookingStageGroup, string> = {
   quote:      'Build, send, and confirm the quote',
   production: 'Pre-pro, shoot day, morning-after',
   delivery:   'Post, deliver, invoice, get paid',
-  closed:     'Released or cancelled',
+  closed:     'Released, cancelled, or written off',
 };
 
 /**
@@ -70,6 +70,7 @@ export const STATE_TO_STAGE: Record<BookingState, BookingStageGroup> = {
   paid:                'delivery',
   released:            'closed',
   cancelled:           'closed',
+  written_off:         'closed',
 };
 
 /** Returns the stage group for a booking state. */
@@ -343,12 +344,26 @@ function deliveryChecklist(input: ChecklistInput): StageChecklist {
 
 function closedChecklist({ booking }: ChecklistInput): StageChecklist {
   const isCancelled = booking.state === 'cancelled';
+  const isWrittenOff = booking.state === 'written_off';
+  const isReleased = booking.state === 'released';
+
+  if (isWrittenOff) {
+    return {
+      summary: 'Written off. Invoice unrecoverable — recorded for the corpus.',
+      nextAction: null,
+      items: [
+        { label: 'Write-off reason captured',
+          status: booking.cancellation_reason ? 'done' : 'optional' },
+      ],
+    };
+  }
+
   const items: ChecklistItem[] = [
     { label: isCancelled ? 'Cancellation reason captured' : 'Release reason captured',
       status: (isCancelled ? booking.cancellation_reason : booking.release_reason)
         ? 'done' : 'optional' },
   ];
-  if (!isCancelled) {
+  if (isReleased) {
     items.push({ label: 'Won by (which agency)',
       status: booking.released_to ? 'done' : 'optional' });
   }

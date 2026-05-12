@@ -53,7 +53,7 @@ export default async function CrewDetailPage({ params }: Props) {
   const totalBookings = bookingRows.length;
   const confirmedBookings = bookingRows.filter((b) => b.status === 'confirmed').length;
   const activeBookings = bookingRows.filter(
-    (b) => !['paid', 'released', 'cancelled'].includes(b.booking_state),
+    (b) => !['paid', 'released', 'cancelled', 'written_off'].includes(b.booking_state),
   ).length;
   const ratesPaid = bookingRows
     .filter((b) => b.status === 'confirmed' && b.day_rate)

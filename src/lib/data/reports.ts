@@ -71,6 +71,7 @@ export async function getReportSummary(): Promise<ReportSummary> {
     'quote_confirmed', 'pre_production', 'shoot_live',
     'morning_after_check', 'post_production', 'final_delivery',
     'invoice_issued', 'paid',
+    // written_off intentionally excluded — invoice unrecoverable, not revenue
   ] as const;
 
   const [aggResult, weekResult] = await Promise.all([
@@ -218,11 +219,12 @@ export async function getWinRate(): Promise<WinRateStat> {
     'post_production', 'final_delivery', 'invoice_issued', 'paid',
   ]);
   const EARLY_STATES = new Set(['brief_received', 'brief_parsed', 'quote_drafted']);
+  const LOST_STATES = new Set(['released', 'cancelled', 'written_off']);
 
   // "Quoted" = a quote was sent or the booking progressed beyond that point
   const quoted = rows.filter((r) => !EARLY_STATES.has(r.state));
   const confirmed = quoted.filter((r) => CONFIRMED_STATES.has(r.state)).length;
-  const lost = quoted.filter((r) => r.state === 'released' || r.state === 'cancelled').length;
+  const lost = quoted.filter((r) => LOST_STATES.has(r.state)).length;
   const decided = confirmed + lost;
   const winRate = decided > 0 ? confirmed / decided : 0;
 

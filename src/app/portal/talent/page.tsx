@@ -47,8 +47,9 @@ export default async function TalentPortalPage() {
   }
 
   const { talent, bookings } = data;
-  const upcoming = bookings.filter((b) => !['paid', 'released', 'cancelled'].includes(b.state));
-  const past = bookings.filter((b) => ['paid', 'released', 'cancelled'].includes(b.state));
+  const TERMINAL = ['paid', 'released', 'cancelled', 'written_off'];
+  const upcoming = bookings.filter((b) => !TERMINAL.includes(b.state));
+  const past = bookings.filter((b) => TERMINAL.includes(b.state));
 
   const compliance = {
     abn: Boolean(talent.abn),

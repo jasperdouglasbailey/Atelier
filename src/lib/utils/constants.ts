@@ -6,7 +6,7 @@ export const BOOKING_STATES: readonly BookingState[] = [
   'artists_crew_held', 'quote_confirmed', 'pre_production',
   'shoot_live', 'morning_after_check', 'post_production',
   'final_delivery', 'invoice_issued', 'paid',
-  'released', 'cancelled',
+  'released', 'cancelled', 'written_off',
 ] as const;
 
 // Human-readable labels
@@ -26,6 +26,7 @@ export const BOOKING_STATE_LABELS: Record<BookingState, string> = {
   paid: 'Paid',
   released: 'Released',
   cancelled: 'Cancelled',
+  written_off: 'Written Off',
 };
 
 // Valid state transitions (from → allowed next states)
@@ -33,7 +34,7 @@ export const STATE_TRANSITIONS: Record<BookingState, BookingState[]> = {
   brief_received: ['brief_parsed', 'released'],
   brief_parsed: ['quote_drafted', 'released'],
   quote_drafted: ['quote_sent', 'released'],
-  quote_sent: ['artists_crew_held', 'released'],
+  quote_sent: ['artists_crew_held', 'released', 'quote_drafted'],
   artists_crew_held: ['quote_confirmed', 'released'],
   quote_confirmed: ['pre_production', 'cancelled'],
   pre_production: ['shoot_live', 'cancelled'],
@@ -41,10 +42,11 @@ export const STATE_TRANSITIONS: Record<BookingState, BookingState[]> = {
   morning_after_check: ['post_production'],
   post_production: ['final_delivery'],
   final_delivery: ['invoice_issued'],
-  invoice_issued: ['paid'],
+  invoice_issued: ['paid', 'written_off'],
   paid: [],
   released: [],
   cancelled: [],
+  written_off: [],
 };
 
 // State categories for filtering
@@ -54,6 +56,8 @@ export const ACTIVE_STATES: BookingState[] = [
   'shoot_live', 'morning_after_check', 'post_production',
   'final_delivery', 'invoice_issued',
 ];
+
+export const TERMINAL_STATES: BookingState[] = ['paid', 'released', 'cancelled', 'written_off'];
 
 export const SHOOT_TIERS: readonly ShootTier[] = [
   'campaign', 'content', 'lookbook_ecomm', 'arty_commission', 'editorial',
@@ -259,6 +263,7 @@ export const STATE_COLORS: Record<BookingState, string> = {
   paid: '#4ade80',
   released: '#8b8b8b',
   cancelled: '#f87171',
+  written_off: '#94a3b8',
 };
 
 // ============================================================

@@ -21,7 +21,7 @@ export type BookingState =
   | 'artists_crew_held' | 'quote_confirmed' | 'pre_production'
   | 'shoot_live' | 'morning_after_check' | 'post_production'
   | 'final_delivery' | 'invoice_issued' | 'paid'
-  | 'released' | 'cancelled';
+  | 'released' | 'cancelled' | 'written_off';
 
 export type ShootTier =
   | 'campaign' | 'content' | 'lookbook_ecomm' | 'arty_commission' | 'editorial'

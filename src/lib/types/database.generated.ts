@@ -2238,6 +2238,7 @@ export type Database = {
         | "paid"
         | "released"
         | "cancelled"
+        | "written_off"
       atelier_crew_tier: "preferred_core" | "regular_freelance" | "never_again"
       atelier_fee_line_type:
         | "artist_fee"
@@ -2489,6 +2490,7 @@ export const Constants = {
         "paid",
         "released",
         "cancelled",
+        "written_off",
       ],
       atelier_crew_tier: ["preferred_core", "regular_freelance", "never_again"],
       atelier_fee_line_type: [

@@ -20,7 +20,7 @@ import { emitEvent } from '@/lib/utils/events';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { sendEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
-import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import { checkKillSwitch } from '@/lib/utils/kill-switch';
 
 export type Decision = 'approved' | 'rejected';
 
@@ -108,18 +108,18 @@ async function sendApprovedEmail(input: {
   body: string;
   auditAction: string;
 }): Promise<void> {
-  // Doctrine: kill-switch RED holds outbound. The approval already cleared
-  // human review, but if the switch flipped between queue + approve we
-  // respect that — keep the approval marked approved, but don't send.
-  const ks = await getKillSwitchState();
-  if (ks?.is_active) {
+  // Doctrine: kill-switch RED or AMBER holds outbound. The approval already
+  // cleared human review, but if the switch flipped between queue + approve
+  // we respect that — keep the approval marked approved, but don't send.
+  const { canSendOutbound, level } = await checkKillSwitch();
+  if (!canSendOutbound) {
     await logAuditFailure({
       userId: await getCurrentActor(),
       action: input.auditAction,
       tableName: 'atelier_approvals',
       recordId: input.approval.id,
       error: 'kill_switch_active',
-      attempted: { pause_outbound: ks.pause_outbound },
+      attempted: { kill_switch_level: level },
     }).catch(() => {});
     return;
   }
