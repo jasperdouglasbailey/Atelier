@@ -36,10 +36,10 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
     const result = await markTalentPaidAction(btId, bookingId);
     if ('error' in result) {
       setError(result.error);
-      setPending((p) => { const s = new Set(p); s.delete(btId); return s; });
     } else {
       router.refresh();
     }
+    setPending((p) => { const s = new Set(p); s.delete(btId); return s; });
   }
 
   async function handleMarkCrewPaid(bcId: string) {
@@ -48,10 +48,10 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
     const result = await markCrewPaidAction(bcId, bookingId);
     if ('error' in result) {
       setError(result.error);
-      setPending((p) => { const s = new Set(p); s.delete(bcId); return s; });
     } else {
       router.refresh();
     }
+    setPending((p) => { const s = new Set(p); s.delete(bcId); return s; });
   }
 
   const totalOwed = [
@@ -123,7 +123,7 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
                   <button
                     onClick={() => handleMarkTalentPaid(bt.id)}
                     disabled={isProcessing}
-                    className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50"
+                    className="rounded px-2 py-1 text-[10px] font-semibold"
                     style={{ background: `${PALETTE.success}22`, color: PALETTE.success, border: `1px solid ${PALETTE.success}44` }}
                   >
                     {isProcessing ? '…' : 'Mark Paid'}
@@ -171,7 +171,7 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
                   <button
                     onClick={() => handleMarkCrewPaid(bc.id)}
                     disabled={isProcessing}
-                    className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50"
+                    className="rounded px-2 py-1 text-[10px] font-semibold"
                     style={{ background: `${PALETTE.success}22`, color: PALETTE.success, border: `1px solid ${PALETTE.success}44` }}
                   >
                     {isProcessing ? '…' : 'Mark Paid'}
