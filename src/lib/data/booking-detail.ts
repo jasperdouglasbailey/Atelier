@@ -17,6 +17,7 @@ import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
+import { getCrewUnavailabilityForRange } from '@/lib/data/portal';
 import { listEvents } from '@/lib/utils/events';
 import { parseDateRangeRaw } from '@/lib/utils/daterange';
 import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew } from '@/lib/types/database';
@@ -62,7 +63,7 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
   const [
     events, quoteVersions, latestQuote, feeLines,
     bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
-    rawConflicts,
+    rawConflicts, unavailability,
   ] = await Promise.all([
     listEvents({ bookingId: id, limit: 30 }),
     listQuoteVersions(id),
@@ -80,6 +81,9 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
           excludeBookingId: id,
         })
       : Promise.resolve(new Map<string, CrewConflict[]>()),
+    shootRange.start
+      ? getCrewUnavailabilityForRange(shootRange.start, crewConflictsEnd ?? shootRange.start)
+      : Promise.resolve(new Map<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>()),
   ]);
 
   // Talent-dependent: fire once we know the primary artist.
@@ -92,6 +96,21 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
   const crewConflictsByCrewId: Record<string, CrewConflict[]> = {};
   for (const [crewId, bookings] of rawConflicts) {
     crewConflictsByCrewId[crewId] = bookings;
+  }
+  // Merge self-reported unavailability blocks into the same map so BookingTeam
+  // surfaces them alongside booking-based conflicts.
+  for (const [crewId, blocks] of unavailability) {
+    const existing = crewConflictsByCrewId[crewId] ?? [];
+    for (const block of blocks) {
+      existing.push({
+        bookingId: '',
+        bookingRef: null,
+        title: block.reason ? `Unavailable — ${block.reason}` : 'Unavailable (self-reported)',
+        start: block.dateFrom,
+        end: block.dateTo,
+      });
+    }
+    crewConflictsByCrewId[crewId] = existing;
   }
 
   return {

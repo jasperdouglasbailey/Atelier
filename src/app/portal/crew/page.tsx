@@ -1,10 +1,14 @@
 /**
  * Crew portal — what a crew member sees about themselves.
  *
- * Same shape as talent portal but using crew data:
- *   - Their profile + role
- *   - Bookings they're attached to with day rate + role-on-booking
- *   - Compliance status (ABN, super, GST)
+ * Sections:
+ *   1. Profile header (name, role, compliance hints)
+ *   2. Pending holds — bookings waiting for the crew member to accept or decline
+ *   3. Upcoming shoot call sheets — location, date, team contacts
+ *   4. Confirmed upcoming bookings table
+ *   5. Past bookings table
+ *   6. Availability — self-report blocked dates
+ *   7. Data rights
  *
  * Does NOT show: client identities, agency commission, other crew rates.
  */
@@ -12,8 +16,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
-import { getCrewPortalData } from '@/lib/data/portal';
+import { getCrewPortalData, getPortalCallSheets } from '@/lib/data/portal';
 import PortalDataRights from '@/components/portal/PortalDataRights';
+import HoldCard from '@/components/portal/HoldCard';
+import UnavailabilityManager from '@/components/portal/UnavailabilityManager';
+import CallSheetCard from '@/components/portal/CallSheetCard';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -22,9 +29,14 @@ import {
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
+import { respondToCrewHoldAction } from '@/app/actions/portal';
 import type { BookingState } from '@/lib/types/database';
+import type { CrewPortalBookingRow } from '@/lib/data/portal';
 
 export const dynamic = 'force-dynamic';
+
+const TERMINAL = ['paid', 'released', 'cancelled', 'written_off'];
+const HOLD_STATES = ['hold_requested', 'sent'];
 
 export default async function CrewPortalPage() {
   const user = await getCurrentAppUser();
@@ -43,10 +55,14 @@ export default async function CrewPortalPage() {
     );
   }
 
-  const { crew, bookings } = data;
-  const TERMINAL = ['paid', 'released', 'cancelled', 'written_off'];
-  const upcoming = bookings.filter((b) => !TERMINAL.includes(b.state));
+  const { crew, bookings, unavailability } = data;
+
+  const pendingHolds = bookings.filter((b) => HOLD_STATES.includes(b.status));
+  const upcoming = bookings.filter((b) => !TERMINAL.includes(b.state) && !HOLD_STATES.includes(b.status));
   const past = bookings.filter((b) => TERMINAL.includes(b.state));
+
+  const upcomingIds = upcoming.map((b) => b.bookingId);
+  const callSheets = await getPortalCallSheets('crew', user.crew_id, upcomingIds);
 
   const compliance = {
     abn: Boolean(crew.abn),
@@ -55,10 +71,9 @@ export default async function CrewPortalPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
-      <section
-        className="rounded-lg border p-5"
-        style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-      >
+
+      {/* Profile header */}
+      <section className="rounded-lg border p-5" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{crew.name}</h1>
@@ -81,14 +96,7 @@ export default async function CrewPortalPage() {
         </div>
 
         {(!compliance.abn || !compliance.super) && (
-          <div
-            className="mt-4 rounded border-l-2 px-3 py-2 text-xs"
-            style={{
-              borderColor: PALETTE.warning,
-              background: `${PALETTE.warning}11`,
-              color: PALETTE.text,
-            }}
-          >
+          <div className="mt-4 rounded border-l-2 px-3 py-2 text-xs" style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}11`, color: PALETTE.text }}>
             <div className="font-semibold" style={{ color: PALETTE.warning }}>Some details still missing</div>
             <div className="mt-1" style={{ color: PALETTE.muted }}>
               {!compliance.abn && 'Add your ABN. '}
@@ -99,17 +107,52 @@ export default async function CrewPortalPage() {
         )}
       </section>
 
+      {/* Pending holds */}
+      {pendingHolds.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.warning }}>
+            Action needed — {pendingHolds.length} hold{pendingHolds.length > 1 ? 's' : ''} waiting
+          </h2>
+          {pendingHolds.map((b) => (
+            <HoldCard
+              key={b.bookingCrewId}
+              bookingRef={b.bookingRef}
+              title={b.title}
+              shootDateNotes={b.shootDateNotes}
+              dayRate={b.dayRate}
+              roleOnBooking={b.roleOnBooking}
+              onConfirm={() => respondToCrewHoldAction(b.bookingCrewId, 'confirmed')}
+              onDecline={() => respondToCrewHoldAction(b.bookingCrewId, 'declined')}
+            />
+          ))}
+        </section>
+      )}
+
+      {/* Upcoming shoot call sheets */}
+      {callSheets.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+            Upcoming shoots
+          </h2>
+          {callSheets.map((sheet) => (
+            <CallSheetCard key={sheet.bookingId} sheet={sheet} />
+          ))}
+        </section>
+      )}
+
+      {/* Confirmed upcoming bookings */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-          Upcoming bookings ({upcoming.length})
+          Confirmed bookings ({upcoming.length})
         </h2>
         {upcoming.length === 0 ? (
-          <p className="text-xs" style={{ color: PALETTE.muted }}>No upcoming bookings.</p>
+          <p className="text-xs" style={{ color: PALETTE.muted }}>No confirmed bookings.</p>
         ) : (
-          <BookingTable rows={upcoming} />
+          <CrewBookingTable rows={upcoming} />
         )}
       </section>
 
+      {/* Past bookings */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
           Past bookings ({past.length})
@@ -117,8 +160,19 @@ export default async function CrewPortalPage() {
         {past.length === 0 ? (
           <p className="text-xs" style={{ color: PALETTE.muted }}>No past bookings yet.</p>
         ) : (
-          <BookingTable rows={past} />
+          <CrewBookingTable rows={past} />
         )}
+      </section>
+
+      {/* Availability */}
+      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          My availability
+        </h2>
+        <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
+          Mark dates you are unavailable so Saunders &amp; Co can see conflicts before sending hold requests.
+        </p>
+        <UnavailabilityManager initial={unavailability} />
       </section>
 
       <PortalDataRights type="crew" id={crew.id} name={crew.name} />
@@ -139,21 +193,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BookingTable({
-  rows,
-}: {
-  rows: Array<{
-    bookingId: string;
-    bookingRef: string | null;
-    title: string;
-    state: BookingState;
-    shootDateNotes: string | null;
-    tier: string;
-    dayRate: number | null;
-    confirmed: boolean;
-    roleOnBooking: string | null;
-  }>;
-}) {
+function CrewBookingTable({ rows }: { rows: CrewPortalBookingRow[] }) {
   return (
     <table className="w-full text-xs">
       <thead>
@@ -162,29 +202,27 @@ function BookingTable({
           <th className="py-2 text-left">Date</th>
           <th className="py-2 text-left">Role</th>
           <th className="py-2 text-left">Day rate</th>
-          <th className="py-2 text-left">State</th>
-          <th className="py-2 text-left">Confirmed</th>
+          <th className="py-2 text-left">Status</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.bookingId} style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+          <tr key={r.bookingCrewId} style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
             <td className="py-2">
               <div style={{ color: PALETTE.text }}>{r.title}</div>
               <div className="font-mono text-[10px]" style={{ color: PALETTE.muted }}>{r.bookingRef ?? '—'}</div>
             </td>
             <td className="py-2" style={{ color: PALETTE.muted }}>{r.shootDateNotes ?? '—'}</td>
-            <td className="py-2">{r.roleOnBooking ?? '—'}</td>
+            <td className="py-2" style={{ color: PALETTE.muted }}>{r.roleOnBooking ? humanise(r.roleOnBooking) : '—'}</td>
             <td className="py-2">{r.dayRate ? formatCurrency(r.dayRate) : '—'}</td>
             <td className="py-2">
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                style={{ background: `${STATE_COLORS[r.state]}22`, color: STATE_COLORS[r.state] }}
+                style={{ background: `${STATE_COLORS[r.state as BookingState]}22`, color: STATE_COLORS[r.state as BookingState] }}
               >
-                {BOOKING_STATE_LABELS[r.state]}
+                {BOOKING_STATE_LABELS[r.state as BookingState]}
               </span>
             </td>
-            <td className="py-2">{r.confirmed ? '✓' : '–'}</td>
           </tr>
         ))}
       </tbody>
