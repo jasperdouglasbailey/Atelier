@@ -51,8 +51,10 @@ export default function InlineField({
 
   // Sync when the parent re-renders with a server-fresh value.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setSavedValue(value);
     setDraft(value == null ? '' : String(value));
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [value]);
 
   // Autofocus when we enter edit mode.

@@ -634,11 +634,12 @@ async function sha256hex(value: string): Promise<string> {
  *   atelier_approval_requests, atelier_events (where booking_id is FK'd)
  */
 export async function deleteBookingWithCorpus(bookingId: string): Promise<boolean> {
-  const supabase = await createClient();
   const serviceClient = createServiceClient();
 
-  // 1. Fetch the booking and its first talent assignment
-  const { data: booking, error: fetchError } = await supabase
+  // 1. Fetch the booking and its first talent assignment.
+  // Use the service client so RLS cannot block the read — authorisation is
+  // already enforced by the calling server action (getCurrentActor check).
+  const { data: booking, error: fetchError } = await serviceClient
     .from(TABLE)
     .select(
       '*, booking_talent:atelier_booking_talent(talent_id)',
@@ -667,7 +668,7 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
 
   // 2. Determine whether a quote was ever sent (to pick the right outcome)
   //    We check the audit log for a 'transition' row whose new_value contains 'quote_sent'.
-  const { data: auditRows } = await supabase
+  const { data: auditRows } = await serviceClient
     .from('atelier_audit_log')
     .select('new_value')
     .eq('record_id', bookingId)

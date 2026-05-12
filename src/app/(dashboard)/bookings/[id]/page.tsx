@@ -12,16 +12,9 @@ import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
-import { getBooking } from '@/lib/data/bookings';
-import { listEvents } from '@/lib/utils/events';
-import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
-import { parseDateRangeRaw } from '@/lib/utils/daterange';
-import { listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent, listBookingCrew, getTalentRatePrecedents, type RatePrecedent } from '@/lib/data/quotes';
+import { getBookingDetail } from '@/lib/data/booking-detail';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
-import { listUsageLicences } from '@/lib/data/usage-licences';
-import { listTalent, listCrew } from '@/lib/data/entities';
-import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
@@ -32,11 +25,6 @@ import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
 
-/**
- * Streamed comms section. The Gmail search runs in parallel with rendering;
- * the rest of the page paints first, then this slot fills in when threads
- * arrive (or immediately, if Google is not configured).
- */
 async function StreamingComms({ bookingRef }: { bookingRef: string | null }) {
   if (!bookingRef) return null;
   const threads = await searchInbox(bookingRef, 20).catch(() => []);
@@ -58,38 +46,50 @@ function CommsLoadingFallback({ bookingRef }: { bookingRef: string | null }) {
   );
 }
 
+async function StreamingPrecedents({
+  primaryTalentId, clientId, tier, proposedDayRate, proposedGrandTotal,
+}: {
+  primaryTalentId: string | null;
+  clientId: string | null;
+  tier: string;
+  proposedDayRate: number | null;
+  proposedGrandTotal: number | null;
+}) {
+  const bookingTier = tier as Parameters<typeof getTalentRateBand>[0]['tier'];
+  const [talentBand, clientBand, talentClientHistory, clientCorpus] = await Promise.all([
+    primaryTalentId ? getTalentRateBand({ talentId: primaryTalentId, tier: bookingTier }) : Promise.resolve(null),
+    clientId ? getClientRateBand({ clientId, tier: bookingTier }) : Promise.resolve(null),
+    primaryTalentId && clientId ? getTalentClientHistory({ talentId: primaryTalentId, clientId }) : Promise.resolve([]),
+    clientId ? getClientCorpusSignal({ clientId, tier: bookingTier }) : Promise.resolve(null),
+  ]);
+  return (
+    <PrecedentSignals
+      talentBand={talentBand}
+      clientBand={clientBand}
+      talentClientHistory={talentClientHistory}
+      clientCorpus={clientCorpus}
+      proposedDayRate={proposedDayRate}
+      proposedGrandTotal={proposedGrandTotal}
+    />
+  );
+}
+
 export default async function BookingDetailPage({ params }: Props) {
   const { id } = await params;
-  const booking = await getBooking(id);
-  if (!booking) notFound();
+  const detail = await getBookingDetail(id);
+  if (!detail) notFound();
 
-  const [events, quoteVersions, latestQuote, feeLines, bookingTalent, bookingCrew, usageLicences, allTalent, allCrew] = await Promise.all([
-    listEvents({ bookingId: id, limit: 30 }),
-    listQuoteVersions(id),
-    getLatestQuoteVersion(id),
-    listFeeLinesForBooking(id),
-    listBookingTalent(id),
-    listBookingCrew(id),
-    listUsageLicences(id),
-    listTalent(),
-    listCrew(),
-  ]);
+  const {
+    booking, events, quoteVersions, latestQuote, feeLines,
+    bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
+    preferredCrewIds, ratePrecedents, crewConflictsByCrewId,
+  } = detail;
 
-  // Rate precedents for the primary artist (if any) — helps Jasper price consistently.
-  // Also pulls in their preferred crew so the BookingTeam picker can surface
-  // them at the top of the add-crew dropdown.
   const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
-  const preferredCrewIds = primaryTalentId
-    ? await listPreferredCrewIds(primaryTalentId)
-    : [];
-  const ratePrecedents: RatePrecedent[] = primaryTalentId
-    ? await getTalentRatePrecedents(primaryTalentId, id)
-    : [];
-
   const proposedDayRate = bookingTalent[0]?.day_rate ?? null;
+  const stage = stageOf(booking.state);
+  const showWorkspaceShortcut = stage === 'brief' || booking.state === 'quote_drafted';
 
-  // Stage-aware checklist for the header. Computed server-side so the
-  // client component is presentation-only (no data joins in client land).
   const checklist = getStageChecklist({
     booking,
     bookingTalent: bookingTalent as BookingTalent[],
@@ -99,42 +99,12 @@ export default async function BookingDetailPage({ params }: Props) {
     feeLines,
   });
 
-  // Crew availability — for any crew member already booked elsewhere on the
-  // same dates, BookingTeam flags them with a soft warning so the producer
-  // sees the conflict before adding (sometimes intentional double-book is
-  // OK; this is a heads-up, not a hard block).
-  const shootRange = parseDateRangeRaw(booking.shoot_dates);
-  const crewConflictsByCrewId: Record<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>> = {};
-  if (shootRange.start) {
-    let endInclusive = shootRange.end;
-    if (shootRange.end) {
-      const d = new Date(shootRange.end + 'T00:00:00Z');
-      d.setUTCDate(d.getUTCDate() - 1);
-      endInclusive = d.toISOString().slice(0, 10);
-    }
-    const conflicts = await getCrewBookedOnRange({
-      startDate: shootRange.start,
-      endDate: endInclusive ?? shootRange.start,
-      excludeBookingId: id,
-    });
-    for (const [crewId, bookings] of conflicts) {
-      crewConflictsByCrewId[crewId] = bookings;
-    }
-  }
-
-  // Show the focused workspace shortcut only while the booking is in the
-  // brief / quote-drafting phase — afterwards the workspace doesn't help.
-  const stage = stageOf(booking.state);
-  const showWorkspaceShortcut = stage === 'brief' || booking.state === 'quote_drafted';
-
   return (
     <>
       <Topbar title={booking.booking_ref ?? booking.title} />
       <div className="p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            {/* 1. HEADER — identity, stage, what's next, action buttons.
-                Owns the brief/usage cards and invoice status (rendered inside). */}
             <BookingDetail
               booking={booking}
               licences={usageLicences}
@@ -150,7 +120,6 @@ export default async function BookingDetailPage({ params }: Props) {
               }}
             />
 
-            {/* 2. BRIEF PARSER — only when the brief hasn't been parsed yet. */}
             {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
               <BriefParser
                 bookingId={id}
@@ -159,8 +128,6 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             )}
 
-            {/* 3. TEAM — moved up from the bottom. Decisions about who is on
-                the booking precede pricing, so this comes before the quote. */}
             <BookingTeam
               bookingId={id}
               bookingTalent={bookingTalent}
@@ -173,16 +140,12 @@ export default async function BookingDetailPage({ params }: Props) {
               primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
             />
 
-            {/* 4. HOLDS — sits between team and quote. Once talent/crew are
-                attached, the agency confirms availability before pricing. */}
             <HoldRequestsTrigger
               bookingId={id}
               bookingState={booking.state}
               pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
             />
 
-            {/* 5. QUOTE — fee lines, totals, GST passthrough, agency margin.
-                Now sits inside the themed `surface` so light mode reads cleanly. */}
             <div
               className="rounded-lg border p-4"
               style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
@@ -197,8 +160,6 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             </div>
 
-            {/* 6. PRECEDENT — loads after the page paints so it doesn't
-                delay the quote builder. Streams in via Suspense. */}
             <Suspense fallback={null}>
               <StreamingPrecedents
                 primaryTalentId={primaryTalentId}
@@ -209,12 +170,8 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             </Suspense>
 
-            {/* 7. PRODUCTION-CONDITIONAL — morning-after, OT entry, payroll. */}
             {booking.state === 'morning_after_check' && (
-              <MorningAfterChecklist
-                bookingId={id}
-                bookingRef={booking.booking_ref}
-              />
+              <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
             )}
             {booking.ot_expenses_window_end && (
               <OTExpenseEntry
@@ -233,13 +190,10 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             )}
 
-            {/* 8. COMMS — emails sent / received on this booking. */}
             <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
               <StreamingComms bookingRef={booking.booking_ref} />
             </Suspense>
 
-            {/* 9. LIFECYCLE — Archive / Delete controls at the bottom so they
-                don't compete with day-to-day actions but are always available. */}
             <BookingLifecycleControls
               bookingId={id}
               bookingRef={booking.booking_ref}
@@ -248,9 +202,6 @@ export default async function BookingDetailPage({ params }: Props) {
             />
           </div>
 
-          {/* Right rail — reference panels.
-              Files (Drive folders + Calendar event), Agency notes
-              (internal), and the collapsible audit-trail timeline. */}
           <div className="space-y-6">
             <FilesPanel booking={booking} />
             <AgencyNotesPanel bookingId={id} agencyNotes={booking.agency_notes} />
@@ -259,45 +210,5 @@ export default async function BookingDetailPage({ params }: Props) {
         </div>
       </div>
     </>
-  );
-}
-
-/**
- * Loads the four corpus/history queries independently of the main page
- * render so they don't block the booking detail from painting. The
- * parent wraps this in <Suspense fallback={null}> so the panel streams
- * in once the slower DB aggregations resolve.
- */
-async function StreamingPrecedents({
-  primaryTalentId,
-  clientId,
-  tier,
-  proposedDayRate,
-  proposedGrandTotal,
-}: {
-  primaryTalentId: string | null;
-  clientId: string | null;
-  tier: string;
-  proposedDayRate: number | null;
-  proposedGrandTotal: number | null;
-}) {
-  const bookingTier = tier as Parameters<typeof getTalentRateBand>[0]['tier'];
-  const [talentBand, clientBand, talentClientHistory, clientCorpus] = await Promise.all([
-    primaryTalentId ? getTalentRateBand({ talentId: primaryTalentId, tier: bookingTier }) : Promise.resolve(null),
-    clientId ? getClientRateBand({ clientId, tier: bookingTier }) : Promise.resolve(null),
-    primaryTalentId && clientId
-      ? getTalentClientHistory({ talentId: primaryTalentId, clientId })
-      : Promise.resolve([]),
-    clientId ? getClientCorpusSignal({ clientId, tier: bookingTier }) : Promise.resolve(null),
-  ]);
-  return (
-    <PrecedentSignals
-      talentBand={talentBand}
-      clientBand={clientBand}
-      talentClientHistory={talentClientHistory}
-      clientCorpus={clientCorpus}
-      proposedDayRate={proposedDayRate}
-      proposedGrandTotal={proposedGrandTotal}
-    />
   );
 }
