@@ -47,6 +47,9 @@ export async function applyApprovalDecisionEffects(approval: Approval, decision:
     case 'talent_gallery_share_request':
       await applyTalentGalleryShareRequestEffect(approval, decision);
       return;
+    case 'crew_gallery_share_request':
+      await applyCrewGalleryShareRequestEffect(approval, decision);
+      return;
     default:
       // Unknown action_type — no side effects yet. Logged for visibility.
       console.warn('[approval-effects] no handler for', approval.action_type);
@@ -344,5 +347,33 @@ async function applyTalentGalleryShareRequestEffect(approval: Approval, decision
     subject: draft.subject,
     body: draft.body,
     auditAction: 'talent_gallery_share_request_send',
+  });
+}
+
+async function applyCrewGalleryShareRequestEffect(approval: Approval, decision: Decision) {
+  if (decision !== 'approved') return;
+
+  const draft = approval.draft_content;
+  if (!isEmailDraftContent(draft)) {
+    console.warn('[approval-effects] crew_gallery_share_request missing/invalid draft_content');
+    return;
+  }
+  if (draft.to.length === 0) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'crew_gallery_share_request_send',
+      tableName: 'atelier_approvals',
+      recordId: approval.id,
+      error: 'recipient_missing',
+    }).catch(() => {});
+    return;
+  }
+
+  await sendApprovedEmail({
+    approval,
+    recipients: draft.to,
+    subject: draft.subject,
+    body: draft.body,
+    auditAction: 'crew_gallery_share_request_send',
   });
 }

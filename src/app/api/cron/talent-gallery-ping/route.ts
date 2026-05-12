@@ -87,6 +87,18 @@ export async function GET(req: NextRequest) {
           working_name,
           email
         )
+      ),
+      booking_crew:atelier_booking_crew(
+        id,
+        crew_id,
+        confirmed,
+        role_on_booking,
+        crew:atelier_crew!atelier_booking_crew_crew_id_fkey(
+          id,
+          name,
+          email,
+          primary_role
+        )
       )
     `)
     .not('final_delivery_at', 'is', null)
@@ -175,6 +187,64 @@ export async function GET(req: NextRequest) {
       } else {
         queued++;
         console.log('[cron/talent-gallery-ping] queued', key);
+      }
+    }
+
+    // Also ping confirmed crew who handle digital/editing work (they often
+    // hold the raw selects and need to upload or share them).
+    const GALLERY_CREW_ROLES = ['digital_operator', 'photo_editor', 'video_editor', 'retoucher', 'digi_tech'];
+    const crewRows = (booking.booking_crew ?? []) as unknown as Array<{
+      id: string;
+      crew_id: string;
+      confirmed: boolean;
+      role_on_booking: string | null;
+      crew: { id: string; name: string; email: string | null; primary_role: string | null }
+           | { id: string; name: string; email: string | null; primary_role: string | null }[]
+           | null;
+    }>;
+
+    for (const bc of crewRows) {
+      if (!bc.confirmed) continue;
+      const crewRaw = bc.crew;
+      const crew = Array.isArray(crewRaw) ? crewRaw[0] ?? null : crewRaw;
+      if (!crew?.email) continue;
+
+      const role = bc.role_on_booking ?? crew.primary_role ?? '';
+      if (!GALLERY_CREW_ROLES.some((r) => role.toLowerCase().includes(r.replace('_', ' ').toLowerCase()))) continue;
+
+      const key = `crew_gallery_${booking.id}_${bc.crew_id}`;
+      const draft = buildGalleryPingEmail({
+        talentName: crew.name,
+        bookingRef: booking.booking_ref as string,
+        bookingTitle: booking.title as string,
+      });
+
+      const { error: insertErr } = await supabase.from('atelier_approvals').insert({
+        agent: 'comms',
+        action_type: 'crew_gallery_share_request',
+        booking_id: booking.id,
+        summary: `Gallery-share request (crew) — ${crew.name} / ${booking.booking_ref}`,
+        draft_content: {
+          to: [crew.email],
+          subject: draft.subject,
+          body: draft.body,
+          crew_id: bc.crew_id,
+          crew_name: crew.name,
+          booking_ref: booking.booking_ref,
+          booking_title: booking.title,
+          days_since_delivery: days,
+        },
+        confidence: 95,
+        uncertainty_sources: [],
+        idempotency_key: key,
+        status: 'pending',
+      });
+
+      if (insertErr) {
+        if (insertErr.code === '23505') { skipped.push(key); }
+        else { console.error('[cron/talent-gallery-ping] crew insert error', key, insertErr.message); }
+      } else {
+        queued++;
       }
     }
   }

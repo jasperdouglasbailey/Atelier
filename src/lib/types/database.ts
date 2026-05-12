@@ -351,6 +351,11 @@ export interface BookingTalent {
   notes: string | null;
   /** Set when Atelier pays this artist. Null = not yet paid. */
   artist_paid_at: string | null;
+  /** Mirrors booking_crew.status — talent can confirm/decline holds from their portal. */
+  status: string;
+  rate_accepted: boolean;
+  rate_accepted_at: string | null;
+  brief_acknowledged_at: string | null;
   // Joined
   talent?: Talent;
 }
@@ -546,6 +551,15 @@ export interface AuditLogRow {
   old_value: Json | null;
   new_value: Json | null;
   ip_address: string | null;
+}
+
+export interface CrewUnavailability {
+  id: string;
+  created_at: string;
+  crew_id: string;
+  date_from: string;
+  date_to: string;
+  reason: string | null;
 }
 
 export interface LLMCallRow {
