@@ -85,9 +85,10 @@ export default async function CallSheetPage({ params }: Props) {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: '#666' }}>Schedule</h2>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <Row label="Shoot date" value={shootDates ?? '—'} />
-          <Row label="Notes" value={booking.shoot_date_notes ?? '—'} />
+          <Row label="Call time" value={booking.call_time ?? '—'} />
+          <Row label="Wrap time" value={booking.wrap_time ?? '—'} />
           <Row label="Looks per talent" value={booking.looks_per_talent ?? '—'} />
-          <Row label="Wardrobe" value={booking.wardrobe_responsibility ?? '—'} />
+          {booking.shoot_date_notes && <Row label="Notes" value={booking.shoot_date_notes} />}
         </div>
       </section>
 
@@ -148,24 +149,10 @@ export default async function CallSheetPage({ params }: Props) {
       </section>
 
       {/* Brief / agency notes */}
-      {(booking.agency_notes || booking.video_references || booking.retouch_note_format) && (
+      {booking.agency_notes && (
         <section className="mb-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: '#666' }}>Notes</h2>
-          {booking.agency_notes && (
-            <div className="text-sm whitespace-pre-line mb-2">{booking.agency_notes}</div>
-          )}
-          {booking.video_references && (
-            <div className="text-sm">
-              <span style={{ color: '#666' }}>Video references: </span>
-              {booking.video_references}
-            </div>
-          )}
-          {booking.retouch_note_format && (
-            <div className="text-sm">
-              <span style={{ color: '#666' }}>Retouch format: </span>
-              {booking.retouch_note_format}
-            </div>
-          )}
+          <div className="text-sm whitespace-pre-line">{booking.agency_notes}</div>
         </section>
       )}
 

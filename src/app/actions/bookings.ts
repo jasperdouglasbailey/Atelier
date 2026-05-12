@@ -95,8 +95,9 @@ export async function createBookingAction(formData: FormData) {
     shoot_location: (formData.get('shoot_location') as string) || null,
     shoot_date_notes: (formData.get('shoot_date_notes') as string) || null,
     shoot_dates: buildDateRange(shootStart, shootEnd),
+    call_time: (formData.get('call_time') as string) || null,
+    wrap_time: (formData.get('wrap_time') as string) || null,
     talent_count: formData.get('talent_count') ? Number(formData.get('talent_count')) : null,
-    talent_spec: (formData.get('talent_spec') as string) || null,
     deliverables_type: (formData.get('deliverables_type') as string) || null,
     deliverables_count: formData.get('deliverables_count') ? Number(formData.get('deliverables_count')) : null,
     usage_duration_months: formData.get('usage_duration_months') ? Number(formData.get('usage_duration_months')) : null,
@@ -159,10 +160,10 @@ export async function createBookingAction(formData: FormData) {
 export async function updateBookingAction(id: string, formData: FormData) {
   const updates: Record<string, unknown> = {};
   const fields = [
-    'title', 'shoot_location', 'shoot_date_notes', 'talent_spec',
-    'deliverables_type', 'usage_notes', 'agency_notes', 'brief_raw_text',
-    'selects_cadence', 'retouch_note_format', 'video_references',
-    'wardrobe_responsibility',
+    'title', 'shoot_location', 'shoot_date_notes',
+    'call_time', 'wrap_time',
+    'deliverables_type', 'agency_notes', 'brief_raw_text',
+    'selects_cadence',
   ];
   for (const f of fields) {
     const val = formData.get(f);

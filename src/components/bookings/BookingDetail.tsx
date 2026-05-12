@@ -313,7 +313,14 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           {brandName && <Field label="Brand" value={brandName} />}
           <Field label="Shoot location" value={booking.shoot_location} />
           <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-          <Field label="Talent spec" value={humanise(booking.talent_spec) || booking.talent_spec} />
+          <Field
+            label="Call / wrap"
+            value={
+              booking.call_time || booking.wrap_time
+                ? `${booking.call_time ?? '—'} → ${booking.wrap_time ?? '—'}`
+                : null
+            }
+          />
           <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
           <Field label="Deliverables count" value={booking.deliverables_count} />
           <Field label="Post-production" value={humanise(booking.post_production_ownership)} />

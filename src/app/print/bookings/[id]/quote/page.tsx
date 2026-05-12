@@ -1,13 +1,12 @@
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes';
-import { listUsageLicences } from '@/lib/data/usage-licences';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
-import type { FeeLine, UsageMedia, UsageTerritory } from '@/lib/types/database';
+import type { FeeLine } from '@/lib/types/database';
 import PrintActions from './PrintActions';
 
 type Props = { params: Promise<{ id: string }> };
@@ -26,28 +25,6 @@ function formatShootDates(range: string | null): string | null {
   }
   return formatDate(start);
 }
-
-const MEDIA_LABELS: Record<UsageMedia, string> = {
-  all_media: 'All Media', all_print: 'All Print', all_digital: 'All Digital',
-  ooh: 'Out-of-Home', press: 'Press', brochures: 'Brochures', packaging: 'Packaging',
-  pos: 'Point of Sale', direct_mail: 'Direct Mail', posters: 'Posters',
-  collateral: 'Collateral', pr_print: 'PR Print', social_media: 'Social Media',
-  company_website: 'Company Website', regional_website: 'Regional Website',
-  internet_advertising: 'Internet Advertising', digital_posters: 'Digital Posters',
-  digital_direct_mail: 'Digital Direct Mail', mobile: 'Mobile', intranet: 'Intranet',
-  pr_digital: 'PR Digital', tv: 'TV', ambient: 'Ambient', marketing_aids: 'Marketing Aids',
-};
-
-const TERRITORY_LABELS: Record<UsageTerritory, string> = {
-  worldwide: 'Worldwide', australia: 'Australia', oceania: 'Oceania',
-  usa: 'USA', north_america: 'North America', europe_all: 'Europe (All)',
-  europe_eu: 'Europe (EU)', europe_non_eu: 'Europe (Non-EU)', uk: 'UK',
-  asia_incl_japan: 'Asia (incl. Japan)', asia_excl_japan: 'Asia (excl. Japan)',
-  middle_east: 'Middle East', africa: 'Africa', south_america: 'South America',
-  central_america: 'Central America', caribbean: 'Caribbean', nordics: 'Nordics',
-  latin_america: 'Latin America', cee: 'CEE', mea: 'MEA', emea: 'EMEA',
-  uae: 'UAE', gcc: 'GCC', amet: 'AMET',
-};
 
 export default async function QuotePrintPage({ params }: Props) {
   const { id } = await params;
@@ -148,34 +125,15 @@ export default async function QuotePrintPage({ params }: Props) {
           {(booking.shoot_dates || booking.shoot_date_notes) && (
             <Row label="Shoot Dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes ?? ''} />
           )}
-          {booking.talent_spec && <Row label="Talent Spec" value={booking.talent_spec} />}
+          {(booking.call_time || booking.wrap_time) && (
+            <Row label="Call / Wrap" value={`${booking.call_time ?? '—'} → ${booking.wrap_time ?? '—'}`} />
+          )}
           {booking.deliverables_type && <Row label="Deliverables" value={booking.deliverables_type} />}
           {booking.deliverables_count && <Row label="Deliverable Count" value={String(booking.deliverables_count)} />}
           {booking.post_production_ownership && <Row label="Post-Production" value={humanise(booking.post_production_ownership)} />}
           {booking.selects_cadence && <Row label="Selects Cadence" value={booking.selects_cadence} />}
         </div>
       </div>
-
-      {/* Usage */}
-      {(booking.usage_media?.length || booking.usage_territory?.length || booking.usage_duration_months) && (
-        <div style={{ marginBottom: 32, padding: '16px 20px', background: '#f8f8f8', borderRadius: 6 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999', marginBottom: 10 }}>
-            Usage / Licence Rights
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 32px' }}>
-            {booking.usage_media && booking.usage_media.length > 0 && (
-              <Row label="Media" value={booking.usage_media.map((m) => MEDIA_LABELS[m] ?? m).join(', ')} />
-            )}
-            {booking.usage_territory && booking.usage_territory.length > 0 && (
-              <Row label="Territory" value={booking.usage_territory.map((t) => TERRITORY_LABELS[t] ?? t).join(', ')} />
-            )}
-            {booking.usage_duration_months && (
-              <Row label="Duration" value={`${booking.usage_duration_months} months`} />
-            )}
-            {booking.usage_notes && <Row label="Notes" value={booking.usage_notes} />}
-          </div>
-        </div>
-      )}
 
       {/* Fee schedule */}
       <div style={{ marginBottom: 32 }}>

@@ -497,10 +497,18 @@ export default function BookingFormFields({
         </div>
       </div>
 
-      {/* ── Talent Spec ─────────────────────────────────────────── */}
-      <div>
-        <label className={labelClass} style={labelStyle}>Talent Spec</label>
-        <input name="talent_spec" defaultValue={initial?.talent_spec ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. 1 photographer, 1 HMU" />
+      {/* ── Call / Wrap times ───────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass} style={labelStyle}>Call Time</label>
+          <input name="call_time" type="time" defaultValue={initial?.call_time ?? ''} className={inputClass} style={inputStyle} />
+          <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>When the crew is needed on set.</p>
+        </div>
+        <div>
+          <label className={labelClass} style={labelStyle}>Wrap Time</label>
+          <input name="wrap_time" type="time" defaultValue={initial?.wrap_time ?? ''} className={inputClass} style={inputStyle} />
+          <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>Planned finish — drives the overtime threshold.</p>
+        </div>
       </div>
 
       {/* ── Deliverables ───────────────────────────────────────── */}
@@ -529,26 +537,6 @@ export default function BookingFormFields({
           {POST_PROD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-
-      {mode === 'edit' && (
-        <div>
-          <label className={labelClass} style={labelStyle}>Retouch Note Format</label>
-          <input name="retouch_note_format" defaultValue={initial?.retouch_note_format ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. Lightroom .xmp, Capture One session" />
-        </div>
-      )}
-
-      {mode === 'edit' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelClass} style={labelStyle}>Wardrobe Responsibility</label>
-            <input name="wardrobe_responsibility" defaultValue={initial?.wardrobe_responsibility ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. Client to supply" />
-          </div>
-          <div>
-            <label className={labelClass} style={labelStyle}>Video References</label>
-            <input name="video_references" defaultValue={initial?.video_references ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. reference URLs" />
-          </div>
-        </div>
-      )}
 
       {/* ── Internal Notes ─────────────────────────────────────── */}
       <div>

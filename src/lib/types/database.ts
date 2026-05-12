@@ -248,20 +248,32 @@ export interface Booking {
   shoot_location: string | null;
   shoot_dates: string | null; // daterange as string
   shoot_date_notes: string | null;
+  /** Planned crew start time on shoot day (HH:MM, local agency TZ). */
+  call_time: string | null;
+  /** Planned crew finish time on shoot day (HH:MM, local agency TZ). */
+  wrap_time: string | null;
   talent_count: number | null;
+  /** @deprecated UI removed 2026-05-12; column kept for brief parser write target. */
   talent_spec: string | null;
   deliverables_type: string | null;
   deliverables_count: number | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_media: UsageMedia[] | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_territory: UsageTerritory[] | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_duration_months: number | null;
+  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_notes: string | null;
   tier: ShootTier;
   post_production_ownership: PostProductionOwnership | null;
   budget_indication: number | null;
   budget_currency: string;
+  /** @deprecated UI removed 2026-05-12. */
   retouch_note_format: string | null;
+  /** @deprecated UI removed 2026-05-12. */
   video_references: string | null;
+  /** @deprecated UI removed 2026-05-12. */
   wardrobe_responsibility: string | null;
   looks_per_talent: number | null;
   subtotal: number;

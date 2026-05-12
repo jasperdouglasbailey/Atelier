@@ -145,14 +145,8 @@ function briefChecklist({ booking }: ChecklistInput): StageChecklist {
     { label: 'Shoot dates clarified',
       status: (booking.shoot_dates || booking.shoot_date_notes) ? 'done' : 'pending',
       hint: 'Either a confirmed range or notes (e.g. "TBC mid-May")' },
-    { label: 'Talent spec captured',
-      status: booking.talent_spec ? 'done' : 'pending',
-      hint: 'What the client is asking for — discipline, level, look' },
     { label: 'Deliverables understood',
       status: booking.deliverables_type ? 'done' : 'pending' },
-    { label: 'Usage scope captured',
-      status: (booking.usage_media?.length || booking.usage_notes) ? 'done' : 'pending',
-      hint: 'Media + territory + duration' },
   ];
 
   const isParsed = booking.state === 'brief_parsed';
@@ -248,8 +242,12 @@ function productionChecklist(input: ChecklistInput): StageChecklist {
   const items: ChecklistItem[] = [
     { label: 'Shoot location confirmed',
       status: booking.shoot_location ? 'done' : 'pending' },
-    { label: 'Wardrobe responsibility set',
-      status: booking.wardrobe_responsibility ? 'done' : 'optional' },
+    { label: 'Call time set',
+      status: booking.call_time ? 'done' : 'pending',
+      hint: 'When the crew is needed on set' },
+    { label: 'Wrap time set',
+      status: booking.wrap_time ? 'done' : 'optional',
+      hint: 'Planned finish — drives the overtime threshold' },
     { label: 'Looks per talent set',
       status: booking.looks_per_talent != null ? 'done' : 'optional' },
     { label: 'Selects cadence captured',
