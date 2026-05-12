@@ -356,6 +356,7 @@ export interface BookingTalent {
   rate_accepted: boolean;
   rate_accepted_at: string | null;
   brief_acknowledged_at: string | null;
+  confirmed_at: string | null;
   // Joined
   talent?: Talent;
 }

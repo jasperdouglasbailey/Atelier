@@ -21,6 +21,7 @@ import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { createClient as createSupabaseServer } from '@/lib/supabase/server';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
+import { getCurrentAppUser } from '@/lib/data/app-users';
 import type { BookingState } from '@/lib/types/database';
 
 /**
@@ -977,6 +978,17 @@ export async function markTalentPaidAction(
   bookingTalentId: string,
   bookingId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  const appUser = await getCurrentAppUser();
+  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+    return { error: 'Not authorised.' };
+  }
+
+  const booking = await getBooking(bookingId);
+  if (!booking) return { error: 'Booking not found.' };
+  if (!['invoice_issued', 'paid'].includes(booking.state)) {
+    return { error: `Cannot mark payment on a booking in '${booking.state}' state.` };
+  }
+
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
@@ -999,6 +1011,17 @@ export async function markCrewPaidAction(
   bookingCrewId: string,
   bookingId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  const appUser = await getCurrentAppUser();
+  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+    return { error: 'Not authorised.' };
+  }
+
+  const booking = await getBooking(bookingId);
+  if (!booking) return { error: 'Booking not found.' };
+  if (!['invoice_issued', 'paid'].includes(booking.state)) {
+    return { error: `Cannot mark payment on a booking in '${booking.state}' state.` };
+  }
+
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
@@ -1437,7 +1460,15 @@ export async function sendQuickEmailAction(opts: {
 }): Promise<{ ok: true; mode: 'sent' | 'drafted' | 'no_google' } | { ok: false; error: string }> {
   const { bookingId, to, subject, body, mode } = opts;
 
+  const appUser = await getCurrentAppUser();
+  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+    return { ok: false, error: 'Not authorised.' };
+  }
+
   if (!to.trim()) return { ok: false, error: 'Recipient email is required.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
+    return { ok: false, error: 'Recipient must be a valid email address.' };
+  }
   if (!subject.trim()) return { ok: false, error: 'Subject is required.' };
   if (!body.trim()) return { ok: false, error: 'Message body is required.' };
 

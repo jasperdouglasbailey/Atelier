@@ -26,11 +26,12 @@ export default function JobPnLPanel({ feeLines, latestQuote }: Props) {
   const actualMargin = computeAgencyMargin(actualTotals);
 
   const quotedMarginPct = quotedTotals.grandTotal > 0
-    ? (quotedMargin.total / quotedTotals.grandTotal) * 100 : 0;
+    ? (quotedMargin.total / quotedTotals.grandTotal) * 100 : null;
   const actualMarginPct = actualTotals.grandTotal > 0
-    ? (actualMargin.total / actualTotals.grandTotal) * 100 : 0;
+    ? (actualMargin.total / actualTotals.grandTotal) * 100 : null;
 
-  const marginDrift = actualMarginPct - quotedMarginPct;
+  const marginDrift = quotedMarginPct !== null && actualMarginPct !== null
+    ? actualMarginPct - quotedMarginPct : null;
   const revenueDrift = actualTotals.grandTotal - quotedTotals.grandTotal;
   const hasPostShoot = postShootLines.length > 0;
 
@@ -52,7 +53,7 @@ export default function JobPnLPanel({ feeLines, latestQuote }: Props) {
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Agency margin: {formatCurrency(quotedMargin.total)}{' '}
-            <span className="tabular-nums">({quotedMarginPct.toFixed(1)}%)</span>
+            <span className="tabular-nums">({quotedMarginPct !== null ? `${quotedMarginPct.toFixed(1)}%` : '—'})</span>
           </div>
         </div>
 
@@ -66,7 +67,7 @@ export default function JobPnLPanel({ feeLines, latestQuote }: Props) {
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Agency margin: {formatCurrency(actualMargin.total)}{' '}
-            <span className="tabular-nums">({actualMarginPct.toFixed(1)}%)</span>
+            <span className="tabular-nums">({actualMarginPct !== null ? `${actualMarginPct.toFixed(1)}%` : '—'})</span>
           </div>
         </div>
       </div>
@@ -87,9 +88,9 @@ export default function JobPnLPanel({ feeLines, latestQuote }: Props) {
             <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Margin drift </span>
             <span
               className="text-xs font-semibold tabular-nums ml-1"
-              style={{ color: marginDrift >= 0 ? PALETTE.success : PALETTE.danger }}
+              style={{ color: marginDrift !== null && marginDrift >= 0 ? PALETTE.success : PALETTE.danger }}
             >
-              {marginDrift >= 0 ? '+' : ''}{marginDrift.toFixed(1)}pp
+              {marginDrift !== null ? `${marginDrift >= 0 ? '+' : ''}${marginDrift.toFixed(1)}pp` : '—'}
             </span>
           </div>
           {postShootLines.length > 0 && (
