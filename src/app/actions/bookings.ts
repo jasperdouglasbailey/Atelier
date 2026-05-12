@@ -170,6 +170,7 @@ export async function updateBookingAction(id: string, formData: FormData) {
     'selects_cadence',
     'producer_name', 'producer_email', 'producer_phone',
     'confirmation_deadline',
+    'po_number', 'job_number',
   ];
   for (const f of fields) {
     const val = formData.get(f);

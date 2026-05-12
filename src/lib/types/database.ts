@@ -100,6 +100,10 @@ export interface Client {
   preferred_comms: string | null;
   /** Tone / register to use in outbound emails. null = casual (Jasper's base voice). */
   communication_style: CommunicationStyle | null;
+  /** Physical/mailing address. */
+  address: string | null;
+  /** Additional contacts at this client (in-house producers, brand managers, etc.). */
+  contacts: ClientContact[];
   /** Auto-created Drive folder for client material (signed letters, invoices). */
   drive_folder_id: string | null;
   drive_folder_link: string | null;
@@ -242,6 +246,15 @@ export interface BriefContact {
   role?: string;
 }
 
+export interface ClientContact {
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  /** Which brands/accounts this contact handles — useful at creative agencies. */
+  brands?: string[];
+}
+
 export interface SplitInvoiceEntry {
   payer_client_id: string;
   amount_or_pct: number;
@@ -337,6 +350,10 @@ export interface Booking {
   producer_name: string | null;
   producer_email: string | null;
   producer_phone: string | null;
+  /** Client's purchase order number — appears on invoice. */
+  po_number: string | null;
+  /** Client or internal job/project number — appears on invoice. */
+  job_number: string | null;
 }
 
 export interface BookingTalent {

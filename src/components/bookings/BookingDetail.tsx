@@ -633,6 +633,23 @@ export default function BookingDetail({
           />
         </div>
 
+        <div className="grid gap-1 sm:grid-cols-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+          <InlineField
+            bookingId={booking.id}
+            field="po_number"
+            label="PO number"
+            value={booking.po_number}
+            placeholder="Client purchase order"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="job_number"
+            label="Job number"
+            value={booking.job_number}
+            placeholder="Client or internal job ref"
+          />
+        </div>
+
         <div className="pt-2 border-t" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>

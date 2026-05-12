@@ -29,6 +29,7 @@ import {
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { respondToCrewHoldAction } from '@/app/actions/portal';
 import type { BookingState } from '@/lib/types/database';
 import type { CrewPortalBookingRow } from '@/lib/data/portal';
@@ -44,12 +45,13 @@ export default async function CrewPortalPage() {
     redirect('/login?error=not_authorised');
   }
 
+  const agency = getAgencyConfig();
   const data = await getCrewPortalData(user.crew_id);
   if (!data || !data.crew) {
     return (
       <div className="p-6">
         <p className="text-sm" style={{ color: PALETTE.muted }}>
-          Could not load your profile. Please contact Saunders &amp; Co.
+          Could not load your profile. Please contact {agency.name}.
         </p>
       </div>
     );
@@ -101,7 +103,7 @@ export default async function CrewPortalPage() {
             <div className="mt-1" style={{ color: PALETTE.muted }}>
               {!compliance.abn && 'Add your ABN. '}
               {!compliance.super && 'Add your super fund name + member number. '}
-              Saunders &amp; Co will email you a personalised link to update these.
+              {agency.name} will email you a personalised link to update these.
             </div>
           </div>
         )}
@@ -170,7 +172,7 @@ export default async function CrewPortalPage() {
           My availability
         </h2>
         <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
-          Mark dates you are unavailable so Saunders &amp; Co can see conflicts before sending hold requests.
+          Mark dates you are unavailable so {agency.name} can see conflicts before sending hold requests.
         </p>
         <UnavailabilityManager initial={unavailability} />
       </section>
@@ -178,7 +180,7 @@ export default async function CrewPortalPage() {
       <PortalDataRights type="crew" id={crew.id} name={crew.name} />
 
       <p className="text-[10px] text-center" style={{ color: PALETTE.muted }}>
-        Saunders &amp; Co · <Link href="mailto:info@saundersandco.com.au" style={{ color: PALETTE.muted }} className="underline">info@saundersandco.com.au</Link> · <Link href="/privacy" style={{ color: PALETTE.muted }} className="underline">Privacy</Link>
+        {agency.name}{agency.email && <> · <Link href={`mailto:${agency.email}`} style={{ color: PALETTE.muted }} className="underline">{agency.email}</Link></>} · <Link href="/privacy" style={{ color: PALETTE.muted }} className="underline">Privacy</Link>
       </p>
     </div>
   );

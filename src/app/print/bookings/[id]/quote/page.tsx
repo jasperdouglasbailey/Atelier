@@ -110,6 +110,12 @@ export default async function QuotePrintPage({ params }: Props) {
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{booking.booking_ref}</div>
           <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Date: {today}</div>
           <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Valid: {agency.quoteValidityDays} days from issue</div>
+          {booking.po_number && (
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>PO: {booking.po_number}</div>
+          )}
+          {booking.job_number && (
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Job: {booking.job_number}</div>
+          )}
         </div>
       </div>
 
