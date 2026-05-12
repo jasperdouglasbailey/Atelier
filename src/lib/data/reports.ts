@@ -70,7 +70,8 @@ export async function getReportSummary(): Promise<ReportSummary> {
   const CONFIRMED_OR_LATER_STATES = [
     'quote_confirmed', 'pre_production', 'shoot_live',
     'morning_after_check', 'post_production', 'final_delivery',
-    'invoice_issued', 'paid', 'written_off',
+    'invoice_issued', 'paid',
+    // written_off intentionally excluded — invoice unrecoverable, not revenue
   ] as const;
 
   const [aggResult, weekResult] = await Promise.all([
