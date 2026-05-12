@@ -103,10 +103,10 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
     const result = await transitionBookingAction(booking.id, newState, meta);
     if ('error' in result) {
       setTransitionError(result.error ?? 'Unknown error');
-      setTransitioning(false);
     } else {
       router.refresh();
     }
+    setTransitioning(false);
   }
 
   return (
@@ -267,7 +267,7 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
                   key={state}
                   onClick={() => handleTransition(state)}
                   disabled={transitioning}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  className="rounded-md px-3 py-1.5 text-xs font-medium"
                   style={{
                     background: isExit ? `${PALETTE.danger}22` : PALETTE.accent,
                     color: isExit ? PALETTE.danger : PALETTE.bg,

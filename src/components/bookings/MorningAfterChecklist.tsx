@@ -103,10 +103,10 @@ export default function MorningAfterChecklist({ bookingId, bookingRef }: Props) 
     const result = await transitionBookingAction(bookingId, 'post_production');
     if ('error' in result) {
       setError(result.error ?? 'Transition failed');
-      setAdvancing(false);
     } else {
       router.refresh();
     }
+    setAdvancing(false);
   }
 
   return (
@@ -166,8 +166,14 @@ export default function MorningAfterChecklist({ bookingId, bookingRef }: Props) 
         <button
           onClick={handleAdvance}
           disabled={!allRequiredDone || advancing}
-          className="rounded px-4 py-2 text-xs font-medium disabled:opacity-40"
-          style={{ background: PALETTE.success, color: PALETTE.bg, border: 'none', cursor: allRequiredDone ? 'pointer' : 'not-allowed' }}
+          className="rounded px-4 py-2 text-xs font-medium"
+          style={{
+            background: PALETTE.success,
+            color: PALETTE.bg,
+            border: 'none',
+            cursor: allRequiredDone ? 'pointer' : 'not-allowed',
+            opacity: !allRequiredDone ? 0.4 : 1,
+          }}
         >
           {advancing ? 'Advancing…' : '→ Move to Post-Production'}
         </button>
