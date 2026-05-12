@@ -47,7 +47,7 @@ CREATE POLICY "crew_unavail_crew_self" ON public.atelier_crew_unavailability
   FOR ALL USING (
     crew_id = (
       SELECT crew_id FROM public.atelier_app_users
-      WHERE auth_user_id = auth.uid() AND role = 'crew'
+      WHERE user_id = auth.uid() AND role = 'crew'
       LIMIT 1
     )
   );
