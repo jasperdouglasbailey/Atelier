@@ -271,6 +271,137 @@ export async function updateBookingAction(id: string, formData: FormData) {
   return { ok: true };
 }
 
+/**
+ * Field-level inline edit on the booking detail page. One column, one save.
+ *
+ * The whitelist below is the single source of truth for which fields can be
+ * edited inline (and what type they are). Anything else needs to go through
+ * `/bookings/[id]/edit` — that page is still the fallback for fields that
+ * don't fit a one-input UX (primary artist swap, usage media/territory
+ * arrays, etc.).
+ *
+ * For the date range we expose a separate action below because the range
+ * is two inputs (start + end) that need to be saved together.
+ */
+const INLINE_TEXT_FIELDS = new Set([
+  'title',
+  'shoot_location',
+  'shoot_date_notes',
+  'call_time',
+  'wrap_time',
+  'deliverables_type',
+  'agency_notes',
+  'selects_cadence',
+  'producer_name',
+  'producer_email',
+  'producer_phone',
+  'post_production_ownership',
+  'tier',
+] as const);
+
+const INLINE_NUMERIC_FIELDS = new Set([
+  'deliverables_count',
+  'looks_per_talent',
+] as const);
+
+const INLINE_DATE_FIELDS = new Set([
+  'confirmation_deadline',
+] as const);
+
+const CALENDAR_TRIGGER_FIELDS = new Set([
+  'shoot_dates', 'shoot_location', 'call_time', 'wrap_time',
+]);
+
+async function syncCalendarIfNeeded(id: string, changedField: string) {
+  if (!CALENDAR_TRIGGER_FIELDS.has(changedField)) return;
+  const refreshed = await getBooking(id);
+  if (!refreshed?.calendar_event_id) return;
+  const { start, end } = dateRangeToInputs(refreshed.shoot_dates);
+  if (!start) return;
+  const callWrapDesc = refreshed.call_time
+    ? `Call: ${refreshed.call_time}${refreshed.wrap_time ? ` · Wrap: ${refreshed.wrap_time}` : ''}`
+    : null;
+  await updateCalendarEvent(refreshed.calendar_event_id, {
+    startDate: start,
+    endDate: end || start,
+    location: refreshed.shoot_location ?? undefined,
+    description: callWrapDesc ?? undefined,
+  }).catch((err) =>
+    reportDataError('[updateBookingFieldAction] Calendar event update failed', err),
+  );
+}
+
+export async function updateBookingFieldAction(
+  id: string,
+  field: string,
+  value: string | null,
+) {
+  const isText = INLINE_TEXT_FIELDS.has(field as never);
+  const isNumeric = INLINE_NUMERIC_FIELDS.has(field as never);
+  const isDate = INLINE_DATE_FIELDS.has(field as never);
+  if (!isText && !isNumeric && !isDate) {
+    return { error: `Field "${field}" is not editable inline` };
+  }
+
+  const trimmed = value == null ? null : value.trim() === '' ? null : value.trim();
+  let parsed: string | number | null = trimmed;
+  if (isNumeric && trimmed !== null) {
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) return { error: 'Must be a number' };
+    parsed = n;
+  }
+
+  const result = await updateBooking(id, { [field]: parsed });
+  if (!result) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'update_booking_field',
+      tableName: 'atelier_bookings',
+      recordId: id,
+      attempted: { field, value: parsed } as import('@/lib/types/database').Json,
+      error: 'updateBooking returned null',
+    });
+    return { error: 'Failed to save' };
+  }
+
+  await syncCalendarIfNeeded(id, field);
+
+  revalidatePath(`/bookings/${id}`);
+  revalidatePath('/bookings');
+  revalidateTag('bookings', {});
+  return { ok: true };
+}
+
+export async function updateBookingShootDatesAction(
+  id: string,
+  start: string | null,
+  end: string | null,
+) {
+  const trimmedStart = start && start.trim() !== '' ? start.trim() : null;
+  const trimmedEnd = end && end.trim() !== '' ? end.trim() : null;
+  const range = buildDateRange(trimmedStart, trimmedEnd);
+
+  const result = await updateBooking(id, { shoot_dates: range });
+  if (!result) {
+    await logAuditFailure({
+      userId: await getCurrentActor(),
+      action: 'update_booking_field',
+      tableName: 'atelier_bookings',
+      recordId: id,
+      attempted: { field: 'shoot_dates', start: trimmedStart, end: trimmedEnd } as import('@/lib/types/database').Json,
+      error: 'updateBooking returned null',
+    });
+    return { error: 'Failed to save' };
+  }
+
+  await syncCalendarIfNeeded(id, 'shoot_dates');
+
+  revalidatePath(`/bookings/${id}`);
+  revalidatePath('/bookings');
+  revalidateTag('bookings', {});
+  return { ok: true };
+}
+
 export async function transitionBookingAction(
   id: string,
   newState: BookingState,
