@@ -44,7 +44,7 @@ export default async function CostsPage() {
                 ≈ {formatCurrency(monthlyUsd, 'USD')} at A$1 = US${(1 / USD_TO_AUD).toFixed(3)}
               </div>
             </div>
-            <SeedButton />
+            {process.env.NODE_ENV === 'development' && <SeedButton />}
           </div>
           <div
             className="mt-4 h-3 w-full overflow-hidden rounded-full"

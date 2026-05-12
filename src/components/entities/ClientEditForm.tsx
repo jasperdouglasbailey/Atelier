@@ -216,6 +216,7 @@ export default function ClientEditForm({ client }: Props) {
                   onChange={(e) => updateContact(idx, 'name', e.target.value)}
                   style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
                   placeholder="Sam Davies"
+                  required
                 />
               </div>
               <div>

@@ -38,13 +38,12 @@ const ACTIVE_STATES = new Set([
   'artists_crew_held', 'quote_confirmed', 'pre_production', 'shoot_live',
   'morning_after_check', 'post_production',
 ]);
-const thisYear = new Date().getFullYear();
-
 export default async function ClientDetailPage({ params }: Props) {
   const { id } = await params;
   const client = await getClient(id);
   if (!client) notFound();
 
+  const thisYear = new Date().getFullYear();
   const { bookings } = await listBookings({ clientId: id, pageSize: 200 });
 
   // ---- Revenue signals ------------------------------------------------
