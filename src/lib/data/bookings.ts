@@ -16,7 +16,7 @@ export type BookingListRow = Booking & {
 
 /** Booking row with full relations for the detail page. */
 export type BookingDetailRow = Booking & {
-  client?: { id: string; name: string; company: string | null; email: string | null } | null;
+  client?: { id: string; name: string; company: string | null; email: string | null; abn: string | null; payment_terms_days: number | null } | null;
   brand?: { id: string; name: string } | null;
 };
 
