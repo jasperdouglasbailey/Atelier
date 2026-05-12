@@ -185,6 +185,10 @@ export type CreateBookingInput = {
   brief_raw_text?: string | null;
   usage_media?: string[] | null;
   usage_territory?: string[] | null;
+  producer_name?: string | null;
+  producer_email?: string | null;
+  producer_phone?: string | null;
+  confirmation_deadline?: string | null;
 };
 
 export async function createBooking(input: CreateBookingInput): Promise<Booking | null> {

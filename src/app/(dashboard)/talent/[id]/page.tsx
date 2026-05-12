@@ -174,8 +174,12 @@ export default async function TalentDetailPage({ params }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             {talent.default_day_rate != null && (
               <Field
-                label="Default Day Rate"
-                value={talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })}
+                label="Day Rate"
+                value={
+                  talent.min_day_rate || talent.max_day_rate
+                    ? `${talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })} (range: ${(talent.min_day_rate ?? talent.default_day_rate).toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })} – ${(talent.max_day_rate ?? talent.default_day_rate).toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })})`
+                    : talent.default_day_rate.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 })
+                }
               />
             )}
             <Field label="ABN" value={talent.abn} />
@@ -197,6 +201,18 @@ export default async function TalentDetailPage({ params }: Props) {
             <Field label="USI" value={talent.super_usi} />
           </div>
         </section>
+
+        {/* Bank Account */}
+        {(talent.bank_account_name || talent.bank_bsb || talent.bank_account_number) && (
+          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Account Name" value={talent.bank_account_name} />
+              <Field label="BSB" value={talent.bank_bsb} />
+              <Field label="Account Number" value={talent.bank_account_number} />
+            </div>
+          </section>
+        )}
 
         {/* Emergency Contact */}
         {(talent.emergency_name || talent.emergency_mobile) && (

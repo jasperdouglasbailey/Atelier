@@ -325,6 +325,15 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
           <Field label="Deliverables count" value={booking.deliverables_count} />
           <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
           <Field label="Selects cadence" value={booking.selects_cadence} />
+          {booking.confirmation_deadline && (
+            <Field label="Confirm by" value={formatDate(booking.confirmation_deadline)} />
+          )}
+          {(booking.producer_name || booking.producer_email || booking.producer_phone) && (
+            <Field
+              label="Production contact"
+              value={[booking.producer_name, booking.producer_email, booking.producer_phone].filter(Boolean).join(' · ')}
+            />
+          )}
         </div>
 
         {/* Usage licences — formal licences with BUR calculation */}

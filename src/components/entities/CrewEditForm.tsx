@@ -208,15 +208,15 @@ export default function CrewEditForm({ crew }: Props) {
           </div>
           <div>
             <label style={labelStyle}>Default Day Rate (AUD)</label>
-            <input
-              name="default_day_rate"
-              type="number"
-              min={0}
-              step={50}
-              defaultValue={crew.default_day_rate ?? ''}
-              style={inputStyle}
-              placeholder="e.g. 800"
-            />
+            <input name="default_day_rate" type="number" min={0} step={50} defaultValue={crew.default_day_rate ?? ''} style={inputStyle} placeholder="e.g. 800" />
+          </div>
+          <div>
+            <label style={labelStyle}>Min Day Rate (AUD)</label>
+            <input name="min_day_rate" type="number" min={0} step={50} defaultValue={crew.min_day_rate ?? ''} style={inputStyle} placeholder="e.g. 600" />
+          </div>
+          <div>
+            <label style={labelStyle}>Max Day Rate (AUD)</label>
+            <input name="max_day_rate" type="number" min={0} step={50} defaultValue={crew.max_day_rate ?? ''} style={inputStyle} placeholder="e.g. 1000" />
           </div>
         </div>
 
@@ -231,6 +231,26 @@ export default function CrewEditForm({ crew }: Props) {
               <option value="false">No</option>
               <option value="true">Yes</option>
             </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Bank Account */}
+      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+        <p style={{ fontSize: 10, color: PALETTE.muted }}>Used for RCTI / remittance payments. Owner-visible only.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label style={labelStyle}>Account Name</label>
+            <input name="bank_account_name" defaultValue={crew.bank_account_name ?? ''} style={inputStyle} placeholder="As on bank account" />
+          </div>
+          <div>
+            <label style={labelStyle}>BSB</label>
+            <input name="bank_bsb" defaultValue={crew.bank_bsb ?? ''} style={inputStyle} placeholder="XXX-XXX" />
+          </div>
+          <div>
+            <label style={labelStyle}>Account Number</label>
+            <input name="bank_account_number" defaultValue={crew.bank_account_number ?? ''} style={inputStyle} />
           </div>
         </div>
       </section>

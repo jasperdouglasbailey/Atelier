@@ -538,6 +538,37 @@ export default function BookingFormFields({
         </select>
       </div>
 
+      {/* ── Production Contact ─────────────────────────────────── */}
+      <div>
+        <label className={labelClass} style={{ ...labelStyle, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          Production Contact
+        </label>
+        <p className="text-[11px] mb-2" style={{ color: PALETTE.muted }}>
+          Direct contact at the client or agency for this shoot — used on call sheets and chasers.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className={labelClass} style={labelStyle}>Name</label>
+            <input name="producer_name" defaultValue={initial?.producer_name ?? ''} className={inputClass} style={inputStyle} placeholder="e.g. Sam Davies" />
+          </div>
+          <div>
+            <label className={labelClass} style={labelStyle}>Email</label>
+            <input name="producer_email" type="email" defaultValue={initial?.producer_email ?? ''} className={inputClass} style={inputStyle} />
+          </div>
+          <div>
+            <label className={labelClass} style={labelStyle}>Phone</label>
+            <input name="producer_phone" defaultValue={initial?.producer_phone ?? ''} className={inputClass} style={inputStyle} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Confirmation Deadline ──────────────────────────────── */}
+      <div>
+        <label className={labelClass} style={labelStyle}>Confirmation Deadline</label>
+        <input name="confirmation_deadline" type="date" defaultValue={initial?.confirmation_deadline ?? ''} className={inputClass} style={inputStyle} />
+        <p className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>Date the client must confirm by — quote releases if missed.</p>
+      </div>
+
       {/* ── Internal Notes ─────────────────────────────────────── */}
       <div>
         <label className={labelClass} style={labelStyle}>Agency Notes (internal)</label>

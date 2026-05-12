@@ -444,6 +444,12 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
           onSubmit={handleAddLine}
           onCancel={() => setShowAddLine(false)}
           busy={busy}
+          primaryTalent={bookingTalent[0] ?? null}
+          attachedCrew={(bookingCrew ?? []).map((bc) => ({
+            crew_id: bc.crew_id,
+            name: bc.crew?.name ?? bc.crew_id,
+            gst_registered: bc.crew?.gst_registered ?? false,
+          }))}
         />
       )}
 
@@ -799,29 +805,63 @@ function TotalField({ label, value, muted, warn }: { label: string; value: numbe
 // Add line form (inline)
 // ============================================================
 
-// Line types where ASF doesn't typically apply (fringes / pass-through costs).
-// Used to default the "Charge ASF" toggle to off.
+// Pass-through/fringe types where ASF defaults to off (client is reimbursing real costs).
 const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>([
-  'crew_equipment', 'equipment_rental',
+  'crew_equipment', 'equipment_rental', 'studio_hire', 'travel',
+  'catering', 'wardrobe', 'props', 'casting', 'location_fee',
+  'permits', 'insurance', 'other_expense',
 ]);
+
+// Artist-side line types — GST exempt when the payee is not GST-registered.
+const ARTIST_LINE_TYPES = new Set<FeeLineType>([
+  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
+]);
+
+// Crew labour line types — GST exempt when the crew member is not GST-registered.
+const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'overtime']);
 
 function AddLineForm({
   quoteVersionId, bookingId, onSubmit, onCancel, busy,
+  primaryTalent, attachedCrew,
 }: {
   quoteVersionId: string;
   bookingId: string;
   onSubmit: (fd: FormData) => void;
   onCancel: () => void;
   busy: boolean;
+  primaryTalent: import('@/lib/types/database').BookingTalent | null;
+  attachedCrew: { crew_id: string; name: string; gst_registered: boolean }[];
 }) {
   const [lineType, setLineType] = useState<FeeLineType>('artist_fee');
   const [chargeAsf, setChargeAsf] = useState<boolean>(!ASF_OFF_BY_DEFAULT.has('artist_fee'));
+  const [selectedCrewId, setSelectedCrewId] = useState<string>('');
 
-  // Re-default ASF toggle whenever line type changes — Jasper can still override.
+  // GST exempt: artist lines → based on primary talent's registration; crew lines → based on selected crew; expenses → not exempt
+  const primaryTalentGstRegistered = primaryTalent?.talent?.gst_registered ?? true;
+  function defaultGstExempt(t: FeeLineType, crewId?: string): boolean {
+    if (ARTIST_LINE_TYPES.has(t)) return !primaryTalentGstRegistered;
+    if (CREW_LINE_TYPES_SET.has(t) && crewId) {
+      const crew = attachedCrew.find((c) => c.crew_id === crewId);
+      return crew ? !crew.gst_registered : false;
+    }
+    return false;
+  }
+  const [gstExempt, setGstExempt] = useState<boolean>(() => defaultGstExempt('artist_fee'));
+
+  // Re-default ASF + GST toggles whenever line type changes — Jasper can still override.
   function handleLineTypeChange(t: FeeLineType) {
     setLineType(t);
     setChargeAsf(!ASF_OFF_BY_DEFAULT.has(t));
+    setGstExempt(defaultGstExempt(t, selectedCrewId));
   }
+
+  function handleCrewChange(crewId: string) {
+    setSelectedCrewId(crewId);
+    setGstExempt(defaultGstExempt(lineType, crewId));
+  }
+
+  const isCrewLine = CREW_LINE_TYPES_SET.has(lineType);
+  const isArtistLine = ARTIST_LINE_TYPES.has(lineType);
 
   return (
     <form
@@ -861,7 +901,31 @@ function AddLineForm({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      {/* Crew picker — shown for crew_labour / overtime so we can link the line and derive GST status */}
+      {isCrewLine && attachedCrew.length > 0 && (
+        <div>
+          <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Crew Member</label>
+          <select
+            value={selectedCrewId}
+            onChange={(e) => handleCrewChange(e.target.value)}
+            className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
+            style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+          >
+            <option value="">— not linked to specific crew —</option>
+            {attachedCrew.map((c) => (
+              <option key={c.crew_id} value={c.crew_id}>{c.name}</option>
+            ))}
+          </select>
+          <input type="hidden" name="crew_id" value={selectedCrewId} />
+        </div>
+      )}
+
+      {/* Artist line: auto-link to primary talent */}
+      {isArtistLine && primaryTalent && (
+        <input type="hidden" name="talent_id" value={primaryTalent.talent_id} />
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-4">
         <div>
           <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Quantity</label>
           <input
@@ -899,8 +963,34 @@ function AddLineForm({
             />
             <span>Charge {(DEFAULT_ASF_RATE * 100).toFixed(0)}%</span>
           </label>
-          {/* Hidden input feeds the form action — 0 when toggle is off. */}
           <input type="hidden" name="asf_rate" value={chargeAsf ? DEFAULT_ASF_RATE : 0} />
+        </div>
+        <div>
+          <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
+            GST
+          </label>
+          <label
+            className="mt-0.5 flex items-center gap-2 rounded border px-2 py-1.5 text-xs cursor-pointer select-none"
+            style={{
+              background: gstExempt ? `${PALETTE.warning}10` : PALETTE.bg,
+              borderColor: gstExempt ? `${PALETTE.warning}55` : PALETTE.border,
+              color: gstExempt ? PALETTE.warning : PALETTE.muted,
+            }}
+            title={
+              isArtistLine
+                ? `Artist is ${primaryTalentGstRegistered ? 'GST registered — GST applies' : 'not GST registered — exempt by default'}`
+                : 'Check if this payee is not GST registered'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={gstExempt}
+              onChange={(e) => setGstExempt(e.target.checked)}
+              className="accent-yellow-400"
+            />
+            <span>{gstExempt ? 'Exempt' : 'Applying'}</span>
+          </label>
+          <input type="hidden" name="gst_exempt" value={String(gstExempt)} />
         </div>
       </div>
 

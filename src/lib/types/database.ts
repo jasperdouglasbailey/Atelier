@@ -159,6 +159,16 @@ export interface Talent {
   website: string | null;
   /** Suggested day rate — pre-fills the booking-team add form. */
   default_day_rate: number | null;
+  /** Lower end of typical day rate range — for quoting context. */
+  min_day_rate: number | null;
+  /** Upper end of typical day rate range — for quoting context. */
+  max_day_rate: number | null;
+  /** Bank account name (as it appears on RCTI / remittance). */
+  bank_account_name: string | null;
+  /** BSB (6-digit sort code). */
+  bank_bsb: string | null;
+  /** Bank account number. */
+  bank_account_number: string | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
@@ -198,6 +208,11 @@ export interface Crew {
   kit_list: string | null;
   certifications: string[] | null;
   default_day_rate: number | null;
+  min_day_rate: number | null;
+  max_day_rate: number | null;
+  bank_account_name: string | null;
+  bank_bsb: string | null;
+  bank_account_number: string | null;
   is_active: boolean;
   notes: string | null;
   onboarding_completed: boolean;
@@ -313,6 +328,14 @@ export interface Booking {
   invoice_issued_at: string | null;
   /** Set automatically when the booking transitions to paid. */
   paid_at: string | null;
+  /** Date by which the client must confirm or the booking is released. */
+  confirmation_deadline: string | null;
+  /** Days the quote is valid from issue — overrides agency default if set. */
+  quote_validity_days: number | null;
+  /** Primary production contact at the client/agency for this booking. */
+  producer_name: string | null;
+  producer_email: string | null;
+  producer_phone: string | null;
 }
 
 export interface BookingTalent {

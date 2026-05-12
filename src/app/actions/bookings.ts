@@ -107,6 +107,10 @@ export async function createBookingAction(formData: FormData) {
     brief_raw_text: (formData.get('brief_raw_text') as string) || null,
     usage_media: usageMedia,
     usage_territory: usageTerritory,
+    producer_name: (formData.get('producer_name') as string) || null,
+    producer_email: (formData.get('producer_email') as string) || null,
+    producer_phone: (formData.get('producer_phone') as string) || null,
+    confirmation_deadline: (formData.get('confirmation_deadline') as string) || null,
   };
 
   const booking = await createBooking(input);
@@ -164,6 +168,8 @@ export async function updateBookingAction(id: string, formData: FormData) {
     'call_time', 'wrap_time',
     'deliverables_type', 'agency_notes', 'brief_raw_text',
     'selects_cadence',
+    'producer_name', 'producer_email', 'producer_phone',
+    'confirmation_deadline',
   ];
   for (const f of fields) {
     const val = formData.get(f);
@@ -236,18 +242,22 @@ export async function updateBookingAction(id: string, formData: FormData) {
     });
   }
 
-  // Calendar sync — if shoot dates / location changed AND a calendar event
-  // already exists, update it. Google sends "this event has been updated"
-  // emails to all attendees automatically.
-  if ('shoot_dates' in updates || 'shoot_location' in updates) {
+  // Calendar sync — if shoot dates, location, or call/wrap time changed AND a
+  // calendar event already exists, push the update.
+  const calendarTriggerFields = ['shoot_dates', 'shoot_location', 'call_time', 'wrap_time'];
+  if (calendarTriggerFields.some((f) => f in updates)) {
     const refreshed = await getBooking(id);
     if (refreshed?.calendar_event_id) {
       const { start, end } = dateRangeToInputs(refreshed.shoot_dates);
       if (start) {
+        const callWrapDesc = refreshed.call_time
+          ? `Call: ${refreshed.call_time}${refreshed.wrap_time ? ` · Wrap: ${refreshed.wrap_time}` : ''}`
+          : null;
         updateCalendarEvent(refreshed.calendar_event_id, {
           startDate: start,
           endDate: end || start,
           location: refreshed.shoot_location ?? undefined,
+          description: callWrapDesc ?? undefined,
         }).catch((err) =>
           reportDataError('[updateBookingAction] Calendar event update failed', err),
         );
@@ -375,15 +385,17 @@ export async function transitionBookingAction(
           if (c?.email) attendees.push({ email: c.email, displayName: c.name ?? c.email });
         }
 
+        const primaryArtistName = attendees.find(() => true)?.displayName ?? null;
+        const callWrap = booking.call_time ? `Call: ${booking.call_time}${booking.wrap_time ? ` · Wrap: ${booking.wrap_time}` : ''}` : null;
         createCalendarEvent({
           subject,
           startDate: start,
           endDate: end || start,
           location: booking.shoot_location ?? undefined,
           description: [
-            `Tier: ${booking.tier}`,
-            booking.talent_spec ? `Talent: ${booking.talent_spec}` : '',
-            attendees.length > 0 ? `Team: ${attendees.map((a) => a.displayName).join(', ')}` : '',
+            primaryArtistName ? `Artist: ${primaryArtistName}` : '',
+            attendees.length > 1 ? `+${attendees.length - 1} crew` : '',
+            callWrap ?? '',
           ].filter(Boolean).join('\n'),
           bookingRef: booking.booking_ref ?? undefined,
           attendees,
