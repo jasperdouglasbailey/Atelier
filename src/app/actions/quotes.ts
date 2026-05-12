@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import {
   createQuoteVersion, addFeeLine, updateFeeLine, removeFeeLine,
   addBookingTalent, removeBookingTalent, addBookingCrew, removeBookingCrew,
-  listFeeLines, getFeeLine,
+  listFeeLines, getFeeLine, listBookingTalent,
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
 import type { FeeLineType, FeeLine } from '@/lib/types/database';
@@ -265,6 +265,66 @@ export async function addBookingTalentAction(formData: FormData) {
 export async function removeBookingTalentAction(id: string, bookingId: string) {
   const ok = await removeBookingTalent(id);
   if (!ok) return { error: 'Failed to remove talent' };
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Substitute one talent for another on a booking.
+ * Removes the old booking_talent row and adds a new one carrying the same
+ * rate unless overridden. Writes an audit row linking old → new so the
+ * substitution is traceable.
+ */
+export async function substituteTalentAction(opts: {
+  bookingId: string;
+  oldBookingTalentId: string;
+  newTalentId: string;
+  reason: string;
+  dayRate?: number | null;
+  usageFee?: number | null;
+}): Promise<{ ok: true } | { error: string }> {
+  const { bookingId, oldBookingTalentId, newTalentId, reason, dayRate, usageFee } = opts;
+
+  // Fetch current roster to find the old row
+  const roster = await listBookingTalent(bookingId);
+  const oldRow = roster.find((r) => r.id === oldBookingTalentId);
+  if (!oldRow) return { error: 'Talent row not found — it may have already been removed.' };
+
+  const resolvedDayRate = dayRate !== undefined ? dayRate : oldRow.day_rate;
+  const resolvedUsageFee = usageFee !== undefined ? usageFee : oldRow.usage_fee;
+  const role = oldRow.role_on_booking;
+
+  // Remove old row first
+  const removed = await removeBookingTalent(oldBookingTalentId);
+  if (!removed) return { error: 'Failed to remove original talent — try again.' };
+
+  // Add replacement
+  const added = await addBookingTalent({
+    booking_id: bookingId,
+    talent_id: newTalentId,
+    role_on_booking: role,
+    day_rate: resolvedDayRate,
+    half_day_rate: oldRow.half_day_rate,
+    usage_fee: resolvedUsageFee,
+  });
+  if (!added) {
+    // Best-effort — log the gap, don't re-add old talent (state is already mutated)
+    return { error: 'Replacement talent could not be added. The original was already removed — please add the replacement manually.' };
+  }
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'talent_substituted',
+    tableName: 'atelier_bookings',
+    recordId: bookingId,
+    newValue: ({
+      old_talent_id: oldRow.talent_id,
+      new_talent_id: newTalentId,
+      reason,
+      day_rate: resolvedDayRate,
+    } as unknown) as import('@/lib/types/database').Json,
+  }).catch(() => {});
+
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
 }

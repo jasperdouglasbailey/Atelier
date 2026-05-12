@@ -1422,3 +1422,74 @@ export async function convertEmailToBookingAction(opts: {
     return { ok: false, error: msg };
   }
 }
+
+/**
+ * Send a quick ad-hoc email from within the booking context.
+ * No state transition — just sends and logs.
+ * mode='draft' creates a Gmail draft; mode='send' sends immediately.
+ */
+export async function sendQuickEmailAction(opts: {
+  bookingId: string;
+  to: string;
+  subject: string;
+  body: string;
+  mode: 'send' | 'draft';
+}): Promise<{ ok: true; mode: 'sent' | 'drafted' | 'no_google' } | { ok: false; error: string }> {
+  const { bookingId, to, subject, body, mode } = opts;
+
+  if (!to.trim()) return { ok: false, error: 'Recipient email is required.' };
+  if (!subject.trim()) return { ok: false, error: 'Subject is required.' };
+  if (!body.trim()) return { ok: false, error: 'Message body is required.' };
+
+  const booking = await getBooking(bookingId);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  if (!isGoogleConfigured()) {
+    return { ok: true, mode: 'no_google' };
+  }
+
+  if (mode === 'send') {
+    const ks = await checkKillSwitch();
+    if (!ks.canSendOutbound) {
+      return { ok: false, error: `Outbound email paused (kill switch: ${ks.level}). Use Draft instead.` };
+    }
+  }
+
+  const actor = await getCurrentActor();
+
+  try {
+    if (mode === 'send') {
+      await sendEmail({ to: [to], subject, body, bookingRef: booking.booking_ref ?? undefined });
+      await logAudit({
+        userId: actor,
+        action: 'quick_email_sent',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        newValue: ({ to, subject } as unknown) as import('@/lib/types/database').Json,
+      }).catch(() => {});
+      revalidatePath(`/bookings/${bookingId}`);
+      return { ok: true, mode: 'sent' };
+    } else {
+      await draftEmail({ to: [to], subject, body, bookingRef: booking.booking_ref ?? undefined });
+      await logAudit({
+        userId: actor,
+        action: 'quick_email_drafted',
+        tableName: 'atelier_bookings',
+        recordId: bookingId,
+        newValue: ({ to, subject } as unknown) as import('@/lib/types/database').Json,
+      }).catch(() => {});
+      revalidatePath(`/bookings/${bookingId}`);
+      return { ok: true, mode: 'drafted' };
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAuditFailure({
+      userId: actor,
+      action: mode === 'send' ? 'quick_email_sent' : 'quick_email_drafted',
+      tableName: 'atelier_bookings',
+      recordId: bookingId,
+      error: msg,
+    }).catch(() => {});
+    return { ok: false, error: msg };
+  }
+}

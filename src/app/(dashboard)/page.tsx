@@ -230,10 +230,22 @@ export default async function DashboardPage() {
                     const cfg = ATTENTION_CONFIG[item.state] ?? { action: 'Review', urgency: 'low' };
                     const color = urgencyColor[cfg.urgency];
                     const clientLabel = item.client_company || item.client_name || null;
+
+                    // For morning_after_check: compute hours remaining in the OT window
+                    let otWindowLabel: string | null = null;
+                    if (item.state === 'morning_after_check' && item.ot_expenses_window_end && !item.ot_expenses_locked) {
+                      const hoursLeft = Math.max(0, Math.round(
+                        (new Date(item.ot_expenses_window_end).getTime() - Date.now()) / 3_600_000
+                      ));
+                      otWindowLabel = hoursLeft <= 0
+                        ? 'OT window closing soon'
+                        : `OT window closes in ${hoursLeft}h`;
+                    }
+
                     return (
                       <Link
                         key={`att-${item.id}`}
-                        href={`/bookings/${item.id}`}
+                        href={`/bookings/${item.id}#morning-after`}
                         className="flex items-center justify-between rounded-md border-l-2 px-4 py-3 transition hover:opacity-80"
                         style={{ borderColor: color, background: `${color}08` }}
                       >
@@ -244,7 +256,12 @@ export default async function DashboardPage() {
                               <span className="font-mono text-[10px]" style={{ color: PALETTE.accent }}>{item.booking_ref}</span>
                             )}
                           </div>
-                          {clientLabel && <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>{clientLabel}</div>}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {clientLabel && <span className="text-[11px]" style={{ color: PALETTE.muted }}>{clientLabel}</span>}
+                            {otWindowLabel && (
+                              <span className="text-[11px] font-semibold" style={{ color: PALETTE.danger }}>{otWindowLabel}</span>
+                            )}
+                          </div>
                         </div>
                         <div className="ml-4 flex-none flex items-center gap-3">
                           <span className="text-[11px] font-medium" style={{ color }}>{cfg.action} →</span>

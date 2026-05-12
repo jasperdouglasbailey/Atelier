@@ -455,6 +455,8 @@ export type AttentionItem = {
   client_company: string | null;
   client_name: string | null;
   updated_at: string;
+  ot_expenses_window_end: string | null;
+  ot_expenses_locked: boolean;
 };
 
 const ATTENTION_STATES: BookingState[] = [
@@ -468,7 +470,7 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, booking_ref, title, state, updated_at, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
+    .select('id, booking_ref, title, state, updated_at, ot_expenses_window_end, ot_expenses_locked, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
     .in('state', ATTENTION_STATES)
     .order('updated_at', { ascending: false })
     .limit(20);
@@ -479,6 +481,7 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   const stateOrder = Object.fromEntries(ATTENTION_STATES.map((s, i) => [s, i]));
   const rows = (data as unknown as Array<{
     id: string; booking_ref: string | null; title: string; state: BookingState; updated_at: string;
+    ot_expenses_window_end: string | null; ot_expenses_locked: boolean;
     client: { name: string; company: string | null } | null;
   }>);
 
@@ -492,6 +495,8 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
     client_company: r.client?.company ?? null,
     client_name: r.client?.name ?? null,
     updated_at: r.updated_at,
+    ot_expenses_window_end: r.ot_expenses_window_end ?? null,
+    ot_expenses_locked: r.ot_expenses_locked ?? false,
   }));
 }
 

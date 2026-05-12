@@ -8,6 +8,7 @@ import { humanise } from '@/lib/utils/humanise';
 import {
   addBookingTalentAction, removeBookingTalentAction,
   addBookingCrewAction, removeBookingCrewAction,
+  substituteTalentAction,
 } from '@/app/actions/quotes';
 import CrewStatusSelect from './CrewStatusSelect';
 
@@ -114,6 +115,44 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
     setBusy(false);
   }
 
+  // Substitution state
+  const [substituteFor, setSubstituteFor] = useState<string | null>(null); // booking_talent id
+  const [subReason, setSubReason] = useState('');
+  const [subNewTalentId, setSubNewTalentId] = useState('');
+  const [subDayRate, setSubDayRate] = useState('');
+  const [subBusy, setSubBusy] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
+
+  function openSubstitute(btId: string) {
+    setSubstituteFor(btId);
+    setSubReason('');
+    setSubNewTalentId('');
+    setSubDayRate('');
+    setSubError(null);
+  }
+
+  async function handleSubstitute() {
+    if (!substituteFor) return;
+    if (!subNewTalentId) { setSubError('Select a replacement.'); return; }
+    if (!subReason.trim()) { setSubError('Reason is required.'); return; }
+    setSubBusy(true);
+    setSubError(null);
+    const result = await substituteTalentAction({
+      bookingId,
+      oldBookingTalentId: substituteFor,
+      newTalentId: subNewTalentId,
+      reason: subReason.trim(),
+      dayRate: subDayRate ? Number(subDayRate) : undefined,
+    });
+    setSubBusy(false);
+    if ('error' in result) {
+      setSubError(result.error);
+    } else {
+      setSubstituteFor(null);
+      router.refresh();
+    }
+  }
+
   async function handleAddCrew(formData: FormData) {
     setBusy(true);
     const result = await addBookingCrewAction(formData);
@@ -200,32 +239,103 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
           <div className="space-y-2">
             {bookingTalent.map((bt) => {
               const t = bt.talent;
+              const isSubbing = substituteFor === bt.id;
+              // Available replacements — exclude talent already on this booking
+              const bookedTalentIds = new Set(bookingTalent.map((r) => r.talent_id));
+              const replacements = allTalent.filter((tl) => tl.is_active && !bookedTalentIds.has(tl.id));
               return (
-                <div key={bt.id} className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
-                  <div>
-                    <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
-                      {t?.working_name ?? 'Unknown'}
-                      {bt.role_on_booking && (
-                        <span className="ml-2 text-[10px]" style={{ color: PALETTE.muted }}>{humanise(bt.role_on_booking)}</span>
+                <div key={bt.id} className="rounded border" style={{ borderColor: isSubbing ? PALETTE.warning : PALETTE.border }}>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <div>
+                      <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
+                        {t?.working_name ?? 'Unknown'}
+                        {bt.role_on_booking && (
+                          <span className="ml-2 text-[10px]" style={{ color: PALETTE.muted }}>{humanise(bt.role_on_booking)}</span>
+                        )}
+                      </div>
+                      {/* Fees live in the quote — this row is just "who's on the booking" */}
+                      <div className="text-[10px]" style={{ color: PALETTE.muted }}>
+                        {bt.confirmed ? 'Confirmed' : 'Pencilled'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={`/print/bookings/${bookingId}/artist/${bt.talent_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px]"
+                        style={{ color: PALETTE.accent }}
+                      >
+                        ↗ Remittance
+                      </a>
+                      {!isSubbing && (
+                        <button
+                          onClick={() => openSubstitute(bt.id)}
+                          className="text-[10px]"
+                          style={{ color: PALETTE.warning }}
+                        >
+                          Substitute
+                        </button>
                       )}
-                    </div>
-                    {/* Fees live in the quote — this row is just "who's on the booking" */}
-                    <div className="text-[10px]" style={{ color: PALETTE.muted }}>
-                      {bt.confirmed ? 'Confirmed' : 'Pencilled'}
+                      <button onClick={() => handleRemoveTalent(bt.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <a
-                      href={`/print/bookings/${bookingId}/artist/${bt.talent_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px]"
-                      style={{ color: PALETTE.accent }}
-                    >
-                      ↗ Remittance
-                    </a>
-                    <button onClick={() => handleRemoveTalent(bt.id)} className="text-[10px]" style={{ color: PALETTE.danger }}>Remove</button>
-                  </div>
+
+                  {/* Inline substitution form */}
+                  {isSubbing && (
+                    <div className="border-t px-3 py-3 space-y-2" style={{ borderColor: PALETTE.border, background: `${PALETTE.warning}08` }}>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.warning }}>
+                        Substituting {t?.working_name ?? 'this talent'}
+                      </div>
+                      <select
+                        value={subNewTalentId}
+                        onChange={(e) => setSubNewTalentId(e.target.value)}
+                        className="w-full rounded border px-2 py-1 text-xs"
+                        style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+                      >
+                        <option value="">— Select replacement —</option>
+                        {replacements.map((tl) => (
+                          <option key={tl.id} value={tl.id}>{tl.working_name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={subReason}
+                        onChange={(e) => setSubReason(e.target.value)}
+                        placeholder="Reason for substitution (e.g. illness, scheduling conflict)"
+                        className="w-full rounded border px-2 py-1 text-xs"
+                        style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+                      />
+                      <input
+                        type="number"
+                        value={subDayRate}
+                        onChange={(e) => setSubDayRate(e.target.value)}
+                        placeholder={`Day rate (leave blank to keep ${bt.day_rate ? `$${bt.day_rate}` : 'current'})`}
+                        className="w-full rounded border px-2 py-1 text-xs"
+                        style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+                      />
+                      {subError && (
+                        <div className="text-[11px]" style={{ color: PALETTE.danger }}>{subError}</div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSubstitute}
+                          disabled={subBusy}
+                          className="rounded px-3 py-1 text-xs font-semibold"
+                          style={{ background: PALETTE.warning, color: '#000', opacity: subBusy ? 0.6 : 1 }}
+                        >
+                          {subBusy ? 'Substituting…' : 'Confirm substitution'}
+                        </button>
+                        <button
+                          onClick={() => setSubstituteFor(null)}
+                          className="text-[11px]"
+                          style={{ color: PALETTE.muted }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
