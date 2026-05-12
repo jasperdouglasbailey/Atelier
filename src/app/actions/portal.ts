@@ -101,6 +101,7 @@ export async function respondToTalentHoldAction(
     .update({
       status: newStatus,
       confirmed: response === 'confirmed',
+      confirmed_at: response === 'confirmed' ? new Date().toISOString() : null,
     })
     .eq('id', bookingTalentId);
 

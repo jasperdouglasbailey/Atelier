@@ -73,7 +73,19 @@ export default function HoldCard({
         {roleOnBooking && <div><span className="uppercase tracking-wide text-[10px]">Role</span><div className="mt-0.5" style={{ color: PALETTE.text }}>{roleOnBooking}</div></div>}
       </div>
 
-      {error && <p className="text-[11px]" style={{ color: PALETTE.danger }}>{error}</p>}
+      {error && (
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[11px]" style={{ color: PALETTE.danger }}>{error}</p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-[10px] shrink-0"
+            style={{ color: PALETTE.muted }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-2 pt-1">
         <button

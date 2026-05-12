@@ -289,6 +289,7 @@ export async function substituteTalentAction(opts: {
   const roster = await listBookingTalent(bookingId);
   const oldRow = roster.find((r) => r.id === oldBookingTalentId);
   if (!oldRow) return { error: 'Talent row not found — it may have already been removed.' };
+  if (oldRow.talent_id === newTalentId) return { error: 'Replacement talent is the same as the current artist.' };
 
   const resolvedDayRate = dayRate !== undefined ? dayRate : oldRow.day_rate;
   const resolvedUsageFee = usageFee !== undefined ? usageFee : oldRow.usage_fee;
