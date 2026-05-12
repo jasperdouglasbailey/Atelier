@@ -73,7 +73,7 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
   } else if (filters.stateGroup === 'completed') {
     query = query.eq('state', 'paid');
   } else if (filters.stateGroup === 'lost') {
-    query = query.in('state', ['released', 'cancelled']);
+    query = query.in('state', ['released', 'cancelled', 'written_off']);
   }
 
   // Archived filter — by default we hide archived rows from active lists.
@@ -301,6 +301,10 @@ export async function transitionState(
   if (newState === 'cancelled') {
     patch.cancellation_reason = meta?.reason ?? null;
     patch.cancellation_fee = meta?.cancellationFee ?? null;
+  }
+  if (newState === 'written_off') {
+    // Reuses cancellation_reason column to store write-off reason
+    patch.cancellation_reason = meta?.reason ?? null;
   }
   // Record when the quote was sent — drives the quote-chase cron's day-counter
   if (newState === 'quote_sent') {
@@ -605,7 +609,7 @@ export function deriveOutcome(
   quoteWasSent: boolean,
 ): 'won' | 'lost_pre_quote' | 'lost_post_quote' | 'cancelled' {
   if (state === 'paid' || state === 'released') return 'won';
-  if (state === 'cancelled') return quoteWasSent ? 'lost_post_quote' : 'lost_pre_quote';
+  if (state === 'cancelled' || state === 'written_off') return quoteWasSent ? 'lost_post_quote' : 'lost_pre_quote';
   return 'cancelled';
 }
 
@@ -652,7 +656,7 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
   };
 
   // Guard: only allow deletion of terminal states
-  const TERMINAL: BookingState[] = ['paid', 'released', 'cancelled'];
+  const TERMINAL: BookingState[] = ['paid', 'released', 'cancelled', 'written_off'];
   if (!TERMINAL.includes(b.state)) {
     reportDataError(
       '[bookings] deleteWithCorpus — refused',
