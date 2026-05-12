@@ -1232,7 +1232,7 @@ export async function getClientDefaultsAction(clientId: string): Promise<{
  * Permanently delete a booking, archiving an anonymised row to
  * atelier_corpus_bookings before the cascade fires.
  *
- * Only permitted for terminal states: paid, released, cancelled.
+ * Only permitted for terminal states: paid, released, cancelled, written_off.
  * There is intentionally no UI button wired to this yet — it is
  * callable from the /audit surface or future admin tooling.
  *

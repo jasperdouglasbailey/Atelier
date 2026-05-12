@@ -57,6 +57,8 @@ export const ACTIVE_STATES: BookingState[] = [
   'final_delivery', 'invoice_issued',
 ];
 
+export const TERMINAL_STATES: BookingState[] = ['paid', 'released', 'cancelled', 'written_off'];
+
 export const SHOOT_TIERS: readonly ShootTier[] = [
   'campaign', 'content', 'lookbook_ecomm', 'arty_commission', 'editorial',
   'pr_press', 'corporate', 'event', 'still_life', 'fashion_film', 'pre_production_only',

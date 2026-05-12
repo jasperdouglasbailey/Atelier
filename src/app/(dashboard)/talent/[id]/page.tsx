@@ -65,7 +65,7 @@ export default async function TalentDetailPage({ params }: Props) {
   const totalBookings = bookingHistory.length;
   const confirmedBookings = bookingHistory.filter((b) => b.confirmed).length;
   const activeBookings = bookingHistory.filter(
-    (b) => !['paid', 'released', 'cancelled'].includes(b.booking_state),
+    (b) => !['paid', 'released', 'cancelled', 'written_off'].includes(b.booking_state),
   ).length;
   const ratesPaid = bookingHistory
     .filter((b) => b.confirmed && b.day_rate)
