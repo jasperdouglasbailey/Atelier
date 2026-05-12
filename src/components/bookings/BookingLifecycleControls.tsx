@@ -4,9 +4,8 @@
  * Booking-lifecycle controls — Archive / Unarchive / Delete.
  *
  *   Archive  → soft-hide from active lists. Reversible.
- *   Delete   → hard-delete the booking row. Anonymised summary kept in
- *              the corpus table for trend analysis. Refused if the
- *              booking is not in a terminal state.
+ *   Delete   → hard-delete the booking row. An anonymised financial
+ *              summary is kept in the corpus table for trend analysis.
  *
  * Anonymise is NOT a booking-level operation — it's at the entity
  * (talent / client / crew) level via DataRightsControls.
@@ -28,9 +27,7 @@ type Props = {
   isArchived: boolean;
 };
 
-const TERMINAL_STATES = ['paid', 'released', 'cancelled'];
-
-export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState, isArchived }: Props) {
+export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState: _bookingState, isArchived }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +36,6 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteTyped, setDeleteTyped] = useState('');
 
-  const isTerminal = TERMINAL_STATES.includes(bookingState);
   const label = bookingRef ?? bookingId.slice(0, 8);
 
   function runArchive(target: 'archive' | 'unarchive') {
@@ -80,10 +76,9 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
         Booking lifecycle
       </h3>
       <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
-        Archive hides the booking from active lists but keeps it intact —
-        reversible. Delete is permanent: the row is removed and only an
-        anonymised summary stays in the corpus table for trend analysis.
-        Delete is only available once the booking reaches a terminal state.
+        Archive hides the booking from active lists but keeps it intact — reversible.
+        Delete is permanent: the row is removed and only an anonymised financial
+        summary stays in the corpus for trend analysis.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -128,15 +123,7 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
         )}
 
         {/* Delete */}
-        {!isTerminal ? (
-          <span
-            className="rounded px-3 py-1.5 text-xs"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px dashed ${PALETTE.border}`, cursor: 'not-allowed' }}
-            title="Delete only available once the booking reaches paid / released / cancelled"
-          >
-            Delete (terminal state only)
-          </span>
-        ) : confirmingDelete ? (
+        {confirmingDelete ? (
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
               <span>Permanent delete. Type DELETE to confirm.</span>

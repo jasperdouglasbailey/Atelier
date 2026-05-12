@@ -86,16 +86,7 @@ export default async function BookingDetailPage({ params }: Props) {
     ? await getTalentRatePrecedents(primaryTalentId, id)
     : [];
 
-  // Phase 3 precedent signals — corpus + live history aggregates
   const proposedDayRate = bookingTalent[0]?.day_rate ?? null;
-  const [talentBand, clientBand, talentClientHistory, clientCorpus] = await Promise.all([
-    primaryTalentId ? getTalentRateBand({ talentId: primaryTalentId, tier: booking.tier }) : Promise.resolve(null),
-    booking.client_id ? getClientRateBand({ clientId: booking.client_id, tier: booking.tier }) : Promise.resolve(null),
-    primaryTalentId && booking.client_id
-      ? getTalentClientHistory({ talentId: primaryTalentId, clientId: booking.client_id })
-      : Promise.resolve([]),
-    booking.client_id ? getClientCorpusSignal({ clientId: booking.client_id, tier: booking.tier }) : Promise.resolve(null),
-  ]);
 
   // Stage-aware checklist for the header. Computed server-side so the
   // client component is presentation-only (no data joins in client land).
@@ -150,6 +141,7 @@ export default async function BookingDetailPage({ params }: Props) {
               googleConfigured={isGoogleConfigured()}
               checklist={checklist}
               showWorkspaceShortcut={showWorkspaceShortcut}
+              talentNames={bookingTalent.map((bt) => bt.talent?.name ?? '').filter(Boolean)}
               preflight={{
                 talentCount: bookingTalent.length,
                 feeLineCount: feeLines.length,
@@ -205,16 +197,17 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             </div>
 
-            {/* 6. PRECEDENT — context for the pricing decision; renders right
-                under the quote so it can inform line edits without scrolling. */}
-            <PrecedentSignals
-              talentBand={talentBand}
-              clientBand={clientBand}
-              talentClientHistory={talentClientHistory}
-              clientCorpus={clientCorpus}
-              proposedDayRate={proposedDayRate}
-              proposedGrandTotal={booking.grand_total}
-            />
+            {/* 6. PRECEDENT — loads after the page paints so it doesn't
+                delay the quote builder. Streams in via Suspense. */}
+            <Suspense fallback={null}>
+              <StreamingPrecedents
+                primaryTalentId={primaryTalentId}
+                clientId={booking.client_id ?? null}
+                tier={booking.tier}
+                proposedDayRate={proposedDayRate}
+                proposedGrandTotal={booking.grand_total}
+              />
+            </Suspense>
 
             {/* 7. PRODUCTION-CONDITIONAL — morning-after, OT entry, payroll. */}
             {booking.state === 'morning_after_check' && (
@@ -266,5 +259,45 @@ export default async function BookingDetailPage({ params }: Props) {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Loads the four corpus/history queries independently of the main page
+ * render so they don't block the booking detail from painting. The
+ * parent wraps this in <Suspense fallback={null}> so the panel streams
+ * in once the slower DB aggregations resolve.
+ */
+async function StreamingPrecedents({
+  primaryTalentId,
+  clientId,
+  tier,
+  proposedDayRate,
+  proposedGrandTotal,
+}: {
+  primaryTalentId: string | null;
+  clientId: string | null;
+  tier: string;
+  proposedDayRate: number | null;
+  proposedGrandTotal: number | null;
+}) {
+  const bookingTier = tier as Parameters<typeof getTalentRateBand>[0]['tier'];
+  const [talentBand, clientBand, talentClientHistory, clientCorpus] = await Promise.all([
+    primaryTalentId ? getTalentRateBand({ talentId: primaryTalentId, tier: bookingTier }) : Promise.resolve(null),
+    clientId ? getClientRateBand({ clientId, tier: bookingTier }) : Promise.resolve(null),
+    primaryTalentId && clientId
+      ? getTalentClientHistory({ talentId: primaryTalentId, clientId })
+      : Promise.resolve([]),
+    clientId ? getClientCorpusSignal({ clientId, tier: bookingTier }) : Promise.resolve(null),
+  ]);
+  return (
+    <PrecedentSignals
+      talentBand={talentBand}
+      clientBand={clientBand}
+      talentClientHistory={talentClientHistory}
+      clientCorpus={clientCorpus}
+      proposedDayRate={proposedDayRate}
+      proposedGrandTotal={proposedGrandTotal}
+    />
   );
 }
