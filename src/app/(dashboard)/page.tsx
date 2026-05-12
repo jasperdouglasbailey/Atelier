@@ -59,6 +59,7 @@ export default async function DashboardPage() {
     : new Map();
 
   const failedProbes = healthProbes.filter((p) => !p.ok);
+  // eslint-disable-next-line react-hooks/purity
   const renderNow = Date.now();
   const totalActive = ACTIVE_STATES.reduce((s, st) => s + (counts[st] ?? 0), 0);
 
