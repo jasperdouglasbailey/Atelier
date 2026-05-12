@@ -27,7 +27,7 @@ type Props = {
   isArchived: boolean;
 };
 
-export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState: _bookingState, isArchived }: Props) {
+export default function BookingLifecycleControls({ bookingId, bookingRef, isArchived }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
