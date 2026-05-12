@@ -417,7 +417,6 @@ export async function addExpenseLineAction(formData: FormData) {
   const description = formData.get('description') as string;
   const amount = Number(formData.get('amount') || 0);
 
-  const expenseDefaults = lineTypeDefaults(lineType);
   // Expenses typically have no ASF unless explicitly specified
   const asfRate = 0;
   const asfAmount = 0;

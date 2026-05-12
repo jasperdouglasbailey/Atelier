@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes';
+import { listFeeLinesForBooking } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
-import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine } from '@/lib/types/database';
 import PrintActions from '../quote/PrintActions';
@@ -52,9 +51,8 @@ function groupFeeLines(feeLines: FeeLine[]): InvoiceGroup[] {
 export default async function InvoicePrintPage({ params }: Props) {
   const { id } = await params;
 
-  const [booking, quoteVersion, feeLines] = await Promise.all([
+  const [booking, feeLines] = await Promise.all([
     getBooking(id),
-    getLatestQuoteVersion(id),
     listFeeLinesForBooking(id),
   ]);
 

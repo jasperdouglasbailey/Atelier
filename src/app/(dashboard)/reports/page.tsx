@@ -227,7 +227,7 @@ export default async function ReportsPage() {
               <p className="text-xs" style={subheadStyle}>No artist data yet.</p>
             ) : (
               <div className="space-y-2">
-                {topTalent.map(({ talentId, name, discipline, bookingCount, totalRevenue }, i) => {
+                {topTalent.map(({ talentId, name, discipline, bookingCount }, i) => {
                   const barPct = maxTalentBookings > 0 ? (bookingCount / maxTalentBookings) * 100 : 0;
                   return (
                     <div key={talentId} className="flex items-center gap-3">

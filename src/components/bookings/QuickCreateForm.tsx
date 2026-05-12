@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { createClientAction, createBrandAction } from '@/app/actions/entities';
 import { PALETTE } from '@/lib/utils/constants';
-import type { Client, Brand } from '@/lib/types/database';
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
 const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg };

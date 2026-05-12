@@ -69,13 +69,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     const lines = await getFeeLinesByVersionAction(versionId);
     setFeeLines(lines);
     setLoadingVersion(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // stable deps only — setState setters + server action import
 
   useEffect(() => {
     // When the server refreshes (new version created, line added), sync latest.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFeeLines(initialFeeLines);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (latestVersion) setSelectedVersionId(latestVersion.id);
   }, [initialFeeLines, latestVersion]);
 

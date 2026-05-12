@@ -150,9 +150,6 @@ export async function listFeeLines(quoteVersionId: string): Promise<FeeLine[]> {
 }
 
 export async function listFeeLinesForBooking(bookingId: string): Promise<FeeLine[]> {
-  const supabase = await createClient();
-
-  // Get latest quote version
   const latest = await getLatestQuoteVersion(bookingId);
   if (!latest) return [];
 

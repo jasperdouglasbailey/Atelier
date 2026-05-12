@@ -6,7 +6,7 @@ import { PALETTE, CREW_TIER_LABELS, CREW_ROLES } from '@/lib/utils/constants';
 import { humanise } from '@/lib/utils/humanise';
 import { orderCityKeys, NO_CITY_KEY } from '@/lib/utils/city-order';
 import CollapsibleCityGroup from '@/components/entities/CollapsibleCityGroup';
-import type { Crew, CrewTier } from '@/lib/types/database';
+import type { Crew } from '@/lib/types/database';
 
 type Props = {
   allCrew: Crew[];

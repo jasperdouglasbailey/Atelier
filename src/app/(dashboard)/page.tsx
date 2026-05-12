@@ -44,7 +44,7 @@ const urgencyColor: Record<string, string> = {
 export default async function DashboardPage() {
   const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices, healthProbes, topTalent] = await Promise.all([
     getCachedBookingCounts(),
-    getUpcomingShoots(7),
+    getUpcomingShoots(),
     getPendingCount(),
     listEvents({ limit: 10 }),
     getAttentionItems(),

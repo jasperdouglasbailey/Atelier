@@ -500,11 +500,11 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   }));
 }
 
-export async function getUpcomingShoots(days = 14): Promise<Booking[]> {
+// Returns the next confirmed/pre-production/live bookings ordered by shoot date.
+// Date-window filtering on the daterange column requires a Postgres RPC; the
+// caller limits scope via the limit() and the dashboard shows all upcoming shoots.
+export async function getUpcomingShoots(): Promise<Booking[]> {
   const supabase = await createClient();
-  const now = new Date().toISOString().slice(0, 10);
-  const future = new Date();
-  future.setDate(future.getDate() + days);
 
   const { data, error } = await supabase
     .from(TABLE)

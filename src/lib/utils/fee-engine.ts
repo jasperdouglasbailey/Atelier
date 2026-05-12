@@ -28,16 +28,6 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// Fee line types that are artist labour (commissionable)
-const ARTIST_LABOUR_TYPES: FeeLineType[] = [
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
-];
-
-// Fee line types that are crew labour (super-bearing)
-const CREW_LABOUR_TYPES: FeeLineType[] = ['crew_labour', 'overtime'];
-
-// Super-bearing includes crew labour + travel (when it's crew travel)
-const SUPER_BEARING_TYPES: FeeLineType[] = ['crew_labour', 'overtime', 'travel'];
 
 // ============================================================
 // Compute a single fee line

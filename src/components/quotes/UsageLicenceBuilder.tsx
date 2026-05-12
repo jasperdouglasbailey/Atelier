@@ -80,10 +80,8 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
     const bur = parseFloat(burMultiplier);
     const base = parseFloat(baseRate);
     if (!isNaN(bur) && !isNaN(base) && bur > 0 && base > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAutoFee(String(Math.round(bur * base)));
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAutoFee('');
     }
   }, [burMultiplier, baseRate]);
