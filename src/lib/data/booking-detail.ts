@@ -1,0 +1,112 @@
+/**
+ * Orchestration layer for the booking detail page.
+ *
+ * Bundles the 9+ parallel data fetches into one call so the page stays
+ * focused on rendering. The precedent signals (corpus aggregations) are
+ * intentionally NOT included — they stream in via Suspense to avoid
+ * blocking the initial paint.
+ */
+
+import { getBooking, type BookingDetailRow } from '@/lib/data/bookings';
+import {
+  listQuoteVersions, getLatestQuoteVersion, listFeeLinesForBooking,
+  listBookingTalent, listBookingCrew, getTalentRatePrecedents,
+  type RatePrecedent,
+} from '@/lib/data/quotes';
+import { listUsageLicences } from '@/lib/data/usage-licences';
+import { listTalent, listCrew } from '@/lib/data/entities';
+import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
+import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
+import { listEvents } from '@/lib/utils/events';
+import { parseDateRangeRaw } from '@/lib/utils/daterange';
+import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew } from '@/lib/types/database';
+
+export type CrewConflict = {
+  bookingId: string;
+  bookingRef: string | null;
+  title: string;
+  start: string;
+  end: string;
+};
+
+export type BookingDetailData = {
+  booking: BookingDetailRow;
+  events: Awaited<ReturnType<typeof listEvents>>;
+  quoteVersions: QuoteVersion[];
+  latestQuote: QuoteVersion | null;
+  feeLines: FeeLine[];
+  bookingTalent: Awaited<ReturnType<typeof listBookingTalent>>;
+  bookingCrew: Awaited<ReturnType<typeof listBookingCrew>>;
+  usageLicences: UsageLicence[];
+  allTalent: Talent[];
+  allCrew: Crew[];
+  preferredCrewIds: string[];
+  ratePrecedents: RatePrecedent[];
+  crewConflictsByCrewId: Record<string, CrewConflict[]>;
+};
+
+export async function getBookingDetail(id: string): Promise<BookingDetailData | null> {
+  const booking = await getBooking(id);
+  if (!booking) return null;
+
+  // Compute shoot range for conflict lookup (needs booking.shoot_dates).
+  const shootRange = parseDateRangeRaw(booking.shoot_dates);
+  let crewConflictsEnd = shootRange.end;
+  if (shootRange.end) {
+    const d = new Date(shootRange.end + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - 1);
+    crewConflictsEnd = d.toISOString().slice(0, 10);
+  }
+
+  // Fire everything that only depends on bookingId / shoot_dates in parallel.
+  const [
+    events, quoteVersions, latestQuote, feeLines,
+    bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
+    rawConflicts,
+  ] = await Promise.all([
+    listEvents({ bookingId: id, limit: 30 }),
+    listQuoteVersions(id),
+    getLatestQuoteVersion(id),
+    listFeeLinesForBooking(id),
+    listBookingTalent(id),
+    listBookingCrew(id),
+    listUsageLicences(id),
+    listTalent(),
+    listCrew(),
+    shootRange.start
+      ? getCrewBookedOnRange({
+          startDate: shootRange.start,
+          endDate: crewConflictsEnd ?? shootRange.start,
+          excludeBookingId: id,
+        })
+      : Promise.resolve(new Map<string, CrewConflict[]>()),
+  ]);
+
+  // Talent-dependent: fire once we know the primary artist.
+  const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
+  const [preferredCrewIds, ratePrecedents] = await Promise.all([
+    primaryTalentId ? listPreferredCrewIds(primaryTalentId) : Promise.resolve([]),
+    primaryTalentId ? getTalentRatePrecedents(primaryTalentId, id) : Promise.resolve([]),
+  ]);
+
+  const crewConflictsByCrewId: Record<string, CrewConflict[]> = {};
+  for (const [crewId, bookings] of rawConflicts) {
+    crewConflictsByCrewId[crewId] = bookings;
+  }
+
+  return {
+    booking,
+    events,
+    quoteVersions,
+    latestQuote,
+    feeLines,
+    bookingTalent,
+    bookingCrew,
+    usageLicences,
+    allTalent,
+    allCrew,
+    preferredCrewIds,
+    ratePrecedents,
+    crewConflictsByCrewId,
+  };
+}
