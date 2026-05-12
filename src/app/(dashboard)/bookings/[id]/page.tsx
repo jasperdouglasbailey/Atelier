@@ -19,6 +19,8 @@ import { searchInbox } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import BookingComms from '@/components/bookings/BookingComms';
 import PayrollPanel from '@/components/bookings/PayrollPanel';
+import JobPnLPanel from '@/components/bookings/JobPnLPanel';
+import QuickCompose from '@/components/bookings/QuickCompose';
 import { PALETTE } from '@/lib/utils/constants';
 import { getStageChecklist, stageOf } from '@/lib/utils/booking-stages';
 import type { BookingTalent, BookingCrew } from '@/lib/types/database';
@@ -171,7 +173,9 @@ export default async function BookingDetailPage({ params }: Props) {
             </Suspense>
 
             {booking.state === 'morning_after_check' && (
-              <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+              <div id="morning-after">
+                <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+              </div>
             )}
             {booking.ot_expenses_window_end && (
               <OTExpenseEntry
@@ -182,6 +186,8 @@ export default async function BookingDetailPage({ params }: Props) {
                 bookingCrew={bookingCrew}
               />
             )}
+            <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
+
             {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
               <PayrollPanel
                 bookingId={id}
@@ -193,6 +199,14 @@ export default async function BookingDetailPage({ params }: Props) {
             <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
               <StreamingComms bookingRef={booking.booking_ref} />
             </Suspense>
+
+            <QuickCompose
+              bookingId={id}
+              bookingRef={booking.booking_ref}
+              bookingTitle={booking.title}
+              defaultTo={booking.client?.email ?? null}
+              googleConfigured={isGoogleConfigured()}
+            />
 
             <BookingLifecycleControls
               bookingId={id}
