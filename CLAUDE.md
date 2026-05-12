@@ -124,7 +124,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 
 36. **Workflow UX: per-job P&L + morning-after urgency + quick email compose + talent substitution (PR#65).** ✅ (a) `JobPnLPanel` on every booking detail — Quoted vs Actual grand total, Commission/ASF/Super spread breakdown, revenue drift $ and margin drift pp (drift rows hidden until OT/expense lines exist). (b) Dashboard attention panel shows a red "OT window closes in Xh" badge on `morning_after_check` items; link anchors to `#morning-after`. (c) `QuickCompose` panel on booking detail (collapsed by default) — pre-fills To/Subject from booking context, Send now or Draft, kill-switch checked on send, audit-logged, graceful fallback when Gmail not connected. (d) Amber "Substitute" button on each talent row in BookingTeam — inline panel with required reason, replacement talent select, optional day rate override; `substituteTalentAction` writes `talent_substituted` audit row with `old_talent_id`, `new_talent_id`, `reason`.
 
-## Build status (updated 2026-05-13, session 10)
+## Build status (updated 2026-05-13, session 11)
 
 ### Fully built (Phases 1a, 1b, 3 first slice, 4 first pass, 5 first slice, 6 portals)
 - Booking pipeline: all 13 states, list + kanban board + month calendar, detail, edit, new
@@ -163,6 +163,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 - **Workflow: use-as-template + pre-flight quote gate + Drive deep-links (PR#55):** `CloneBookingButton` wired into Tools row in `BookingDetail` ("Use as template"). `SendQuotePanel` now two-step: pre-flight modal checks recipient email (blocker), talent attached, fee lines, total, deliverables, usage licences — red blocks, amber warns, green proceeds. Drive ↗ button added to talent / crew / client / booking detail pages; hidden when `drive_folder_link` is null.
 - **Portal interactivity (PR#64):** Hold responses, rate acceptance, brief sign-off in talent/crew portals. Crew self-reported unavailability visible in BookingTeam. Digital call sheets in both portals. Gallery-share cron covers crew with digital roles. Migration 0037 applied.
 - **Workflow UX (PR#65):** `JobPnLPanel` (quoted vs actual + margin drift), morning-after urgency badge on dashboard, `QuickCompose` on booking detail, inline talent substitution with audit trail.
+- **Security + UX hardening (PR#66):** Auth guards on `markTalentPaidAction`, `markCrewPaidAction`, `sendQuickEmailAction` (owner/partner only); booking state check on payroll actions; server-side email format validation; same-artist guard in `substituteTalentAction`; `confirmed_at` timestamp on talent hold confirmation (migration 0038); `JobPnLPanel` shows `—` for zero-total margin; `HoldCard` error is now dismissable.
 
 ### In progress / partially wired
 - Gmail outbound: wired, needs GOOGLE_REFRESH_TOKEN credentials set
