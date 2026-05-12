@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
+import FilesPanel from '@/components/bookings/FilesPanel';
+import AgencyNotesPanel from '@/components/bookings/AgencyNotesPanel';
 import CollapsibleTimeline from '@/components/bookings/CollapsibleTimeline';
 import HoldRequestsTrigger from '@/components/bookings/HoldRequestsTrigger';
 import OTExpenseEntry from '@/components/bookings/OTExpenseEntry';
@@ -253,9 +255,12 @@ export default async function BookingDetailPage({ params }: Props) {
             />
           </div>
 
-          {/* Right rail — collapsible timeline (audit trail). Hidden by
-              default; available when Jasper wants it. */}
-          <div>
+          {/* Right rail — reference panels.
+              Files (Drive folders + Calendar event), Agency notes
+              (internal), and the collapsible audit-trail timeline. */}
+          <div className="space-y-6">
+            <FilesPanel booking={booking} />
+            <AgencyNotesPanel bookingId={id} agencyNotes={booking.agency_notes} />
             <CollapsibleTimeline events={events} />
           </div>
         </div>

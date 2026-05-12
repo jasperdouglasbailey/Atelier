@@ -12,74 +12,48 @@ import StageChecklist from '@/components/bookings/StageChecklist';
 import { transitionBookingAction } from '@/app/actions/bookings';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
+import InlineField from '@/components/bookings/InlineField';
+import InlineDateRange from '@/components/bookings/InlineDateRange';
 import {
-  BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS,
+  BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, SHOOT_TIERS, STATE_COLORS,
   STATE_TRANSITIONS, PALETTE,
 } from '@/lib/utils/constants';
-import { humanise } from '@/lib/utils/humanise';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { humanise } from '@/lib/utils/humanise';
 
-/** Days between two ISO date strings (or from one ISO date string to now). */
 function daysBetween(from: string, to?: string | null): number {
   const start = new Date(from).getTime();
   const end = to ? new Date(to).getTime() : Date.now();
   return Math.round((end - start) / 86_400_000);
 }
 
-/** Parses a Postgres daterange string and returns a human-readable date span. */
-function formatShootDates(range: string | null): string | null {
-  if (!range) return null;
-  const m = range.match(/^[\[(](\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?[\])]$/);
-  if (!m || !m[1]) return null;
-  const start = m[1];
-  if (m[2]) {
-    // Postgres daterange end is exclusive — subtract 1 day for display
-    const end = new Date(m[2] + 'T00:00:00Z');
-    end.setUTCDate(end.getUTCDate() - 1);
-    const endStr = end.toISOString().slice(0, 10);
-    return endStr === start ? formatDate(start) : `${formatDate(start)} – ${formatDate(endStr)}`;
-  }
-  return formatDate(start);
-}
-
 type Props = {
   booking: BookingDetailRow;
   licences: UsageLicence[];
   googleConfigured: boolean;
-  /** Pre-computed stage checklist from the server. */
   checklist: ChecklistData;
-  /** Show the focused workspace shortcut in the header (only for early states). */
   showWorkspaceShortcut: boolean;
-  /** Pre-flight data for the Send Quote gate. */
   preflight?: PreflightData;
 };
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value) return null;
-  return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>{label}</div>
-      <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{value}</div>
-    </div>
-  );
-}
+const POST_PROD_OPTIONS = [
+  { value: '', label: '— Not set —' },
+  { value: 'us_via_artist', label: 'Us via artist' },
+  { value: 'us_via_post_team', label: 'Us via post team' },
+  { value: 'client_in_house', label: 'Client in-house' },
+  { value: 'client_outsourced', label: 'Client outsourced' },
+];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>{title}</h3>
-      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
-    </section>
-  );
-}
+const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABELS[t] }));
 
-export default function BookingDetail({ booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight }: Props) {
+export default function BookingDetail({
+  booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight,
+}: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
   const allowedTransitions = STATE_TRANSITIONS[booking.state] ?? [];
-
   const clientName = booking.client?.company || booking.client?.name || null;
   const brandName = booking.brand?.name || null;
 
@@ -88,7 +62,6 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
     setTransitionError(null);
 
     let meta: { reason?: string; releasedTo?: string; cancellationFee?: number } | undefined;
-
     if (newState === 'released') {
       const reason = prompt('Release reason (optional):');
       const releasedTo = prompt('Who won the job? (optional):');
@@ -110,29 +83,33 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
   }
 
   return (
-    <div className="space-y-4">
-      {/* ============================================================ */}
-      {/* HEADER — title + identity, then stage stepper + checklist,    */}
-      {/* then a single row of grouped actions. Three layers, one job   */}
-      {/* each: who is this, where is it, what do I do next.            */}
-      {/* ============================================================ */}
-      <div className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        {/* Identity row */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{booking.title}</h2>
-              <span
-                className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase"
-                style={{ background: `${STATE_COLORS[booking.state]}22`, color: STATE_COLORS[booking.state] }}
-              >
-                {BOOKING_STATE_LABELS[booking.state]}
-              </span>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: PALETTE.muted }}>
-              <span>{booking.booking_ref}</span>
-              <span>{SHOOT_TIER_LABELS[booking.tier]}</span>
-              {clientName && (
+    <div className="space-y-3">
+      {/* ═══════════════════════════════════════════════════════════════════
+          1. ID STRIP — title, state, ref, total + primary CTAs on the right
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div
+        className="rounded-lg border p-4 flex items-start justify-between gap-4 flex-wrap"
+        style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>
+              {booking.title}
+            </h2>
+            <span
+              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              style={{ background: `${STATE_COLORS[booking.state]}22`, color: STATE_COLORS[booking.state] }}
+            >
+              {BOOKING_STATE_LABELS[booking.state]}
+            </span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: PALETTE.muted }}>
+            <span>{booking.booking_ref}</span>
+            <span>·</span>
+            <span>{SHOOT_TIER_LABELS[booking.tier]}</span>
+            {clientName && (
+              <>
+                <span>·</span>
                 <Link
                   href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
                   className="hover:underline"
@@ -140,14 +117,26 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
                 >
                   {clientName}
                 </Link>
-              )}
-              {brandName && (
+              </>
+            )}
+            {brandName && (
+              <>
+                <span>·</span>
                 <span>{brandName}</span>
-              )}
-              {booking.grand_total > 0 && <span>{formatCurrency(booking.grand_total, 'AUD')}</span>}
-            </div>
+              </>
+            )}
+            {booking.grand_total > 0 && (
+              <>
+                <span>·</span>
+                <span style={{ color: PALETTE.text, fontWeight: 600 }}>
+                  {formatCurrency(booking.grand_total, 'AUD')}
+                </span>
+              </>
+            )}
           </div>
-          {/* Send-quote primary CTA stays prominent in the identity row */}
+        </div>
+
+        <div className="flex gap-2 flex-shrink-0">
           <SendQuotePanel
             bookingId={booking.id}
             clientEmail={booking.client?.email ?? null}
@@ -159,129 +148,56 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
             googleConfigured={googleConfigured}
             preflight={preflight}
           />
-        </div>
-
-        {/* Tools — moved up. Edit / workspace / print / call-sheet links sit
-            close to the title so they're always one glance away. */}
-        <div className="flex flex-wrap gap-2 text-xs" style={{ color: PALETTE.muted }}>
-          <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1">Tools</span>
-          <Link
-            href={`/bookings/${booking.id}/edit`}
-            className="rounded-md px-2.5 py-1 text-[11px]"
-            style={{ background: 'transparent', color: PALETTE.text, border: `1px solid ${PALETTE.border}` }}
-          >
-            Edit booking
-          </Link>
-          {showWorkspaceShortcut && (
-            <Link
-              href={`/inbox/${booking.id}`}
-              className="rounded-md px-2.5 py-1 text-[11px]"
-              style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-              title="Brief → Quote → Send focused workspace"
-            >
-              Open workspace
-            </Link>
-          )}
-          <Link
-            href={`/print/bookings/${booking.id}/quote`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-2.5 py-1 text-[11px]"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            Print quote
-          </Link>
-          <a
-            href={`/api/print/quote/${booking.id}`}
-            className="rounded-md px-2.5 py-1 text-[11px]"
-            title="Download a server-rendered PDF of the quote — for attaching to client emails"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            ⤓ Quote PDF
-          </a>
-          {booking.quote_token && (
-            <Link
-              href={`/q/${booking.quote_token}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-md px-2.5 py-1 text-[11px]"
-              title="Public client-facing quote link"
-              style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-            >
-              Client view
-            </Link>
-          )}
-          <Link
-            href={`/print/bookings/${booking.id}/invoice`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-2.5 py-1 text-[11px]"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            Print invoice
-          </Link>
-          <Link
-            href={`/print/bookings/${booking.id}/call-sheet`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md px-2.5 py-1 text-[11px]"
-            title="Auto-generated call sheet"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            Call sheet
-          </Link>
-          <CloneBookingButton
-            sourceBookingId={booking.id}
-            label="Use as template"
-          />
           {booking.drive_root_link && (
             <a
               href={booking.drive_root_link}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md px-2.5 py-1 text-[11px]"
-              title="Open booking Drive folder"
+              className="rounded-md px-3 py-1.5 text-xs font-medium"
               style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
             >
-              Drive ↗
+              ↗ Drive
             </a>
           )}
         </div>
-
-        {/* Stage stepper — 5 groups */}
-        <StageStepper state={booking.state} />
-
-        {/* Stage checklist — what's left to do at this stage */}
-        <StageChecklist checklist={checklist} />
-
-        {/* Action rows: state transitions on top, navigation links below */}
-        {allowedTransitions.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: PALETTE.border }}>
-            <span className="text-[10px] font-semibold uppercase tracking-wider self-center mr-1" style={{ color: PALETTE.muted }}>
-              Advance to
-            </span>
-            {allowedTransitions.map((state) => {
-              const isExit = state === 'released' || state === 'cancelled';
-              return (
-                <button
-                  key={state}
-                  onClick={() => handleTransition(state)}
-                  disabled={transitioning}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium"
-                  style={{
-                    background: isExit ? `${PALETTE.danger}22` : PALETTE.accent,
-                    color: isExit ? PALETTE.danger : PALETTE.bg,
-                    border: isExit ? `1px solid ${PALETTE.danger}44` : 'none',
-                  }}
-                >
-                  → {BOOKING_STATE_LABELS[state]}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          2. STAGE STEPPER — compact 5-group progress indicator
+          ═══════════════════════════════════════════════════════════════════ */}
+      <StageStepper state={booking.state} />
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          3. ADVANCE-TO ROW — state transition buttons
+          ═══════════════════════════════════════════════════════════════════ */}
+      {allowedTransitions.length > 0 && (
+        <div
+          className="rounded-lg border p-3 flex flex-wrap items-center gap-2"
+          style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wider mr-1" style={{ color: PALETTE.muted }}>
+            Advance to
+          </span>
+          {allowedTransitions.map((state) => {
+            const isExit = state === 'released' || state === 'cancelled';
+            return (
+              <button
+                key={state}
+                onClick={() => handleTransition(state)}
+                disabled={transitioning}
+                className="rounded-md px-3 py-1.5 text-xs font-medium"
+                style={{
+                  background: isExit ? `${PALETTE.danger}22` : PALETTE.accent,
+                  color: isExit ? PALETTE.danger : PALETTE.bg,
+                  border: isExit ? `1px solid ${PALETTE.danger}44` : 'none',
+                }}
+              >
+                → {BOOKING_STATE_LABELS[state]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {transitionError && (
         <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: PALETTE.danger, color: PALETTE.danger }}>
@@ -289,168 +205,330 @@ export default function BookingDetail({ booking, licences, googleConfigured, che
         </div>
       )}
 
-      {/* OT/expenses window indicator */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          4. WHAT'S NEXT — stage checklist + warnings (OT window, cancellation)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <StageChecklist checklist={checklist} />
+
       {booking.ot_expenses_window_end && !booking.ot_expenses_locked && (
-        <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: PALETTE.warning, color: PALETTE.warning, background: `${PALETTE.warning}11` }}>
+        <div
+          className="rounded-md border px-3 py-2 text-xs"
+          style={{ borderColor: PALETTE.warning, color: PALETTE.warning, background: `${PALETTE.warning}11` }}
+        >
           OT/expenses window open until {new Date(booking.ot_expenses_window_end).toLocaleDateString()}
         </div>
       )}
       {booking.ot_expenses_locked && (
-        <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: PALETTE.muted, color: PALETTE.muted }}>
+        <div
+          className="rounded-md border px-3 py-2 text-xs"
+          style={{ borderColor: PALETTE.muted, color: PALETTE.muted }}
+        >
           OT/expenses window closed — financial state locked
         </div>
       )}
 
-      {/* Brief — brief fields + usage licence builder in one panel.
-          Usage licences are the single source of truth for usage terms;
-          no separate informal usage display. */}
-      <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief</h3>
-
-        {/* Core brief fields */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {clientName && <Field label="Client" value={clientName} />}
-          {brandName && <Field label="Brand" value={brandName} />}
-          <Field label="Shoot location" value={booking.shoot_location} />
-          <Field label="Shoot dates" value={formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes} />
-          <Field
-            label="Call / wrap"
-            value={
-              booking.call_time || booking.wrap_time
-                ? `${booking.call_time ?? '—'} → ${booking.wrap_time ?? '—'}`
-                : null
-            }
-          />
-          <Field label="Deliverables type" value={humanise(booking.deliverables_type) || booking.deliverables_type} />
-          <Field label="Deliverables count" value={booking.deliverables_count} />
-          <Field label="Post-production" value={humanise(booking.post_production_ownership)} />
-          <Field label="Selects cadence" value={booking.selects_cadence} />
-          {booking.confirmation_deadline && (
-            <Field label="Confirm by" value={formatDate(booking.confirmation_deadline)} />
-          )}
-          {(booking.producer_name || booking.producer_email || booking.producer_phone) && (
-            <Field
-              label="Production contact"
-              value={[booking.producer_name, booking.producer_email, booking.producer_phone].filter(Boolean).join(' · ')}
-            />
+      {(booking.cancellation_reason || booking.release_reason) && (
+        <div
+          className="rounded-md border px-3 py-2 text-xs"
+          style={{
+            borderColor: booking.state === 'cancelled' ? PALETTE.danger : PALETTE.muted,
+            background: booking.state === 'cancelled' ? `${PALETTE.danger}11` : `${PALETTE.muted}11`,
+            color: booking.state === 'cancelled' ? PALETTE.danger : PALETTE.muted,
+          }}
+        >
+          <strong className="uppercase tracking-wide">
+            {booking.state === 'cancelled' ? 'Cancelled' : 'Released'}:
+          </strong>{' '}
+          {booking.cancellation_reason || booking.release_reason}
+          {booking.released_to && <> · won by {booking.released_to}</>}
+          {booking.cancellation_fee != null && booking.cancellation_fee > 0 && (
+            <> · cancellation fee {formatCurrency(booking.cancellation_fee, 'AUD')}</>
           )}
         </div>
+      )}
 
-        {/* Usage licences — formal licences with BUR calculation */}
-        <div className="border-t pt-4" style={{ borderColor: PALETTE.border }}>
+      {/* ═══════════════════════════════════════════════════════════════════
+          5. TOOLS ROW — print / template / workspace shortcuts (tertiary)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div
+        className="flex flex-wrap items-center gap-2 text-xs px-1"
+        style={{ color: PALETTE.muted }}
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wider mr-1">Print &amp; tools</span>
+        <Link
+          href={`/print/bookings/${booking.id}/quote`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Quote
+        </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/invoice`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Invoice
+        </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/call-sheet`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Call sheet
+        </Link>
+        {booking.quote_token && (
+          <Link
+            href={`/q/${booking.quote_token}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded px-2 py-0.5 text-[11px]"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            Client view
+          </Link>
+        )}
+        <CloneBookingButton sourceBookingId={booking.id} label="Use as template" />
+        {showWorkspaceShortcut && (
+          <Link
+            href={`/inbox/${booking.id}`}
+            className="rounded px-2 py-0.5 text-[11px]"
+            style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            title="Brief → Quote → Send focused workspace"
+          >
+            Open workspace
+          </Link>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          6. BRIEF — inline editable fields + usage licence builder
+          ═══════════════════════════════════════════════════════════════════ */}
+      <section
+        className="rounded-lg border p-4 space-y-4"
+        style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief</h3>
+          <span className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+            Click any field to edit · Esc cancels
+          </span>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {/* Display-only — client/brand changed via /bookings/[id]/edit since
+              they affect Drive folder linkage and quote pricing. */}
+          {clientName && (
+            <div className="px-2.5 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Client</div>
+              <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{clientName}</div>
+            </div>
+          )}
+          {brandName && (
+            <div className="px-2.5 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Brand</div>
+              <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{brandName}</div>
+            </div>
+          )}
+
+          <InlineField
+            bookingId={booking.id}
+            field="title"
+            label="Title"
+            value={booking.title}
+            placeholder="Booking title"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="tier"
+            label="Tier"
+            value={booking.tier}
+            variant="select"
+            options={TIER_OPTIONS}
+            format={(v) => v ? SHOOT_TIER_LABELS[v as keyof typeof SHOOT_TIER_LABELS] ?? String(v) : null}
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="shoot_location"
+            label="Shoot location"
+            value={booking.shoot_location}
+            placeholder="Sydney, Pier 2/3"
+          />
+          <InlineDateRange
+            bookingId={booking.id}
+            label="Shoot dates"
+            shootDates={booking.shoot_dates}
+            shootDateNotes={booking.shoot_date_notes}
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="call_time"
+            label="Call time"
+            value={booking.call_time}
+            variant="time"
+            placeholder="07:00"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="wrap_time"
+            label="Wrap time"
+            value={booking.wrap_time}
+            variant="time"
+            placeholder="18:00"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="deliverables_type"
+            label="Deliverables"
+            value={booking.deliverables_type}
+            placeholder="e.g. eCommerce, BTS video"
+            format={(v) => v ? (humanise(String(v)) || String(v)) : null}
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="deliverables_count"
+            label="Deliverables count"
+            value={booking.deliverables_count}
+            variant="number"
+            placeholder="48"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="post_production_ownership"
+            label="Post-production"
+            value={booking.post_production_ownership}
+            variant="select"
+            options={POST_PROD_OPTIONS}
+            format={(v) => v ? humanise(String(v)) : null}
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="selects_cadence"
+            label="Selects cadence"
+            value={booking.selects_cadence}
+            placeholder="EOD same-day"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="looks_per_talent"
+            label="Looks per talent"
+            value={booking.looks_per_talent}
+            variant="number"
+            placeholder="e.g. 12"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="confirmation_deadline"
+            label="Confirm by"
+            value={booking.confirmation_deadline}
+            variant="date"
+            format={(v) => v ? formatDate(String(v)) : null}
+          />
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3 pt-3 border-t" style={{ borderColor: PALETTE.border }}>
+          <InlineField
+            bookingId={booking.id}
+            field="producer_name"
+            label="Producer"
+            value={booking.producer_name}
+            placeholder="Name"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="producer_email"
+            label="Producer email"
+            value={booking.producer_email}
+            placeholder="name@client.com"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="producer_phone"
+            label="Producer phone"
+            value={booking.producer_phone}
+            placeholder="04…"
+          />
+        </div>
+
+        <div className="pt-4 border-t" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>
       </section>
 
-      {/* Invoice & payment status — only meaningful once invoiced.
-          The full financial breakdown (subtotal / ASF / GST / agency margin
-          / GST passthrough) lives on the Quote panel further down so we
-          have a single source of truth. */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          7. INVOICE & PAYMENT — only renders once invoice has been issued
+          ═══════════════════════════════════════════════════════════════════ */}
       {booking.invoice_issued_at && (() => {
         const doi = booking.paid_at
           ? daysBetween(booking.invoice_issued_at!, booking.paid_at)
           : daysBetween(booking.invoice_issued_at!);
         const overdue = !booking.paid_at && doi > 30;
         return (
-          <Section title="Invoice & payment">
-            <Field
-              label="Invoice issued"
-              value={formatDate(booking.invoice_issued_at!.slice(0, 10))}
-            />
-            <Field
-              label={booking.paid_at ? 'Days to pay (DOI)' : 'Days outstanding'}
-              value={
-                <span style={{ color: overdue ? PALETTE.danger : booking.paid_at ? PALETTE.success : PALETTE.warning, fontWeight: 600 }}>
-                  {doi} {doi === 1 ? 'day' : 'days'}
-                  {overdue ? ' — overdue' : ''}
-                </span>
-              }
-            />
-            {booking.paid_at && (
-              <Field
-                label="Paid"
-                value={
-                  <span style={{ color: PALETTE.success }}>
-                    {formatDate(booking.paid_at.slice(0, 10))}
-                  </span>
-                }
-              />
-            )}
-          </Section>
+          <section
+            className="rounded-lg border p-4"
+            style={{
+              background: PALETTE.surface,
+              borderColor: booking.paid_at ? `${PALETTE.success}66` : overdue ? `${PALETTE.danger}66` : PALETTE.border,
+            }}
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+              Invoice &amp; payment
+            </h3>
+            <div className="grid gap-3 grid-cols-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Invoice issued</div>
+                <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>
+                  {formatDate(booking.invoice_issued_at!.slice(0, 10))}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+                  {booking.paid_at ? 'Days to pay (DOI)' : 'Days outstanding'}
+                </div>
+                <div
+                  className="mt-0.5 text-sm font-semibold"
+                  style={{ color: overdue ? PALETTE.danger : booking.paid_at ? PALETTE.success : PALETTE.warning }}
+                >
+                  {doi} {doi === 1 ? 'day' : 'days'}{overdue ? ' — overdue' : ''}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Paid</div>
+                <div className="mt-0.5 text-sm" style={{ color: booking.paid_at ? PALETTE.success : PALETTE.muted }}>
+                  {booking.paid_at ? formatDate(booking.paid_at.slice(0, 10)) : '—'}
+                </div>
+              </div>
+            </div>
+          </section>
         );
       })()}
 
-      {(booking.cancellation_reason || booking.release_reason) && (
-        <Section title={booking.state === 'cancelled' ? 'Cancellation' : 'Release'}>
-          <Field label="Reason" value={booking.cancellation_reason || booking.release_reason} />
-          {booking.released_to && <Field label="Won by" value={booking.released_to} />}
-          {booking.cancellation_fee != null && booking.cancellation_fee > 0 && (
-            <Field label="Cancellation Fee" value={formatCurrency(booking.cancellation_fee, 'AUD')} />
-          )}
-        </Section>
-      )}
-
-      {/* Google links — shown once quote_confirmed fires */}
-      {(booking.drive_root_link || booking.calendar_event_id) && (
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Google</h3>
-          <div className="flex flex-wrap gap-2">
-            {booking.calendar_event_id && (
-              <a
-                href={`https://calendar.google.com/calendar/r/eventedit/${booking.calendar_event_id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded px-2 py-1 text-xs font-medium"
-                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-              >
-                Calendar Event
-              </a>
-            )}
-            {booking.drive_root_link && (
-              <a
-                href={booking.drive_root_link}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded px-2 py-1 text-xs font-medium"
-                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-              >
-                Drive Folder
-              </a>
-            )}
-            {booking.drive_folder_ids && (
-              (['briefs', 'selects', 'retouched', 'finals', 'admin'] as const).map((key) => {
-                const folderId = booking.drive_folder_ids![key];
-                const label = key === 'finals' ? 'Finals' : key.charAt(0).toUpperCase() + key.slice(1);
-                return (
-                  <a
-                    key={key}
-                    href={`https://drive.google.com/drive/folders/${folderId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded px-2 py-1 text-xs"
-                    style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-                  >
-                    {label}
-                  </a>
-                );
-              })
-            )}
-          </div>
-        </section>
-      )}
-
-      {booking.agency_notes && (
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Agency Notes</h3>
-          <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{booking.agency_notes}</p>
-        </section>
-      )}
-
+      {/* ═══════════════════════════════════════════════════════════════════
+          8. RAW BRIEF — collapsed by default, only useful for reference
+          ═══════════════════════════════════════════════════════════════════ */}
       {booking.brief_raw_text && (
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Raw Brief</h3>
-          <pre className="whitespace-pre-wrap text-xs" style={{ color: PALETTE.muted }}>{booking.brief_raw_text}</pre>
-        </section>
+        <details
+          className="rounded-lg border"
+          style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+        >
+          <summary
+            className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: PALETTE.muted }}
+          >
+            Raw brief text (original email)
+          </summary>
+          <pre
+            className="whitespace-pre-wrap text-xs px-4 pb-4"
+            style={{ color: PALETTE.muted, fontFamily: 'ui-monospace, monospace' }}
+          >
+            {booking.brief_raw_text}
+          </pre>
+        </details>
       )}
     </div>
   );
