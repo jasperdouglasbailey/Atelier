@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { updateBookingFieldAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
 
@@ -41,17 +40,18 @@ export default function InlineField({
   format,
   cols = 1,
 }: Props) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  // savedValue tracks the last confirmed value so display updates immediately
+  // without a router.refresh() round-trip.
+  const [savedValue, setSavedValue] = useState<string | number | null>(value);
   const [draft, setDraft] = useState<string>(value == null ? '' : String(value));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null);
 
-  // Sync local draft when the parent re-renders with a fresh value (e.g. after
-  // router.refresh() picks up the saved row from the server).
+  // Sync when the parent re-renders with a server-fresh value.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSavedValue(value);
     setDraft(value == null ? '' : String(value));
   }, [value]);
 
@@ -66,7 +66,7 @@ export default function InlineField({
   }, [editing, variant]);
 
   function commit() {
-    const original = value == null ? '' : String(value);
+    const original = savedValue == null ? '' : String(savedValue);
     if (draft === original) {
       setEditing(false);
       return;
@@ -82,13 +82,14 @@ export default function InlineField({
         setError(result.error);
         return;
       }
+      // Optimistic: update displayed value immediately — no router.refresh() needed.
+      setSavedValue(draft === '' ? null : draft);
       setEditing(false);
-      router.refresh();
     });
   }
 
   function cancel() {
-    setDraft(value == null ? '' : String(value));
+    setDraft(savedValue == null ? '' : String(savedValue));
     setError(null);
     setEditing(false);
   }
@@ -109,10 +110,10 @@ export default function InlineField({
   // ── DISPLAY MODE ──────────────────────────────────────────────────────
   if (!editing) {
     const display = format
-      ? format(value)
-      : value == null || value === ''
+      ? format(savedValue)
+      : savedValue == null || savedValue === ''
         ? null
-        : String(value);
+        : String(savedValue);
 
     return (
       <button
@@ -221,15 +222,11 @@ export default function InlineField({
         />
       )}
 
-      <div className="mt-1 flex justify-between items-center text-[10px]" style={{ color: PALETTE.muted }}>
-        <span style={{ color: error ? PALETTE.danger : PALETTE.muted }}>
-          {error ? error : pending ? 'Saving…' : (
-            <>
-              <kbd style={{ background: PALETTE.surface, border: `1px solid ${PALETTE.border}`, borderRadius: 3, padding: '0px 4px', fontSize: 9 }}>↵</kbd> save · <kbd style={{ background: PALETTE.surface, border: `1px solid ${PALETTE.border}`, borderRadius: 3, padding: '0px 4px', fontSize: 9 }}>esc</kbd> cancel
-            </>
-          )}
-        </span>
-      </div>
+      {(error || pending) && (
+        <div className="mt-1 text-[10px]" style={{ color: error ? PALETTE.danger : PALETTE.muted }}>
+          {error ?? 'Saving…'}
+        </div>
+      )}
     </div>
   );
 }

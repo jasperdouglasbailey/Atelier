@@ -711,9 +711,9 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
     .insert(corpusRow);
 
   if (corpusError) {
-    // Log but don't abort — corpus write failure should not block the delete.
-    // reportDataError throws in dev so we'd notice during testing.
-    reportDataError('[bookings] corpus insert failed', corpusError);
+    // Non-fatal: corpus write failure must not block the delete.
+    // Absorb any throw from reportDataError (it throws in dev mode).
+    try { reportDataError('[bookings] corpus insert failed', corpusError); } catch { /* absorbed */ }
   }
 
   // 5. Audit the deletion before it happens

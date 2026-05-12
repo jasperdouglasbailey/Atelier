@@ -141,7 +141,7 @@ export default async function BookingDetailPage({ params }: Props) {
               googleConfigured={isGoogleConfigured()}
               checklist={checklist}
               showWorkspaceShortcut={showWorkspaceShortcut}
-              talentNames={bookingTalent.map((bt) => bt.talent?.name ?? '').filter(Boolean)}
+              talentNames={bookingTalent.map((bt) => (bt.talent as { working_name?: string } | null)?.working_name ?? '').filter(Boolean)}
               preflight={{
                 talentCount: bookingTalent.length,
                 feeLineCount: feeLines.length,

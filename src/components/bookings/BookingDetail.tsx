@@ -45,6 +45,12 @@ const POST_PROD_OPTIONS = [
   { value: 'client_outsourced', label: 'Client outsourced' },
 ];
 
+const GRADE_RETOUCH_OPTIONS = [
+  { value: '', label: '— Not set —' },
+  { value: 'grade_and_retouch', label: 'Grade & Retouch' },
+  { value: 'grade_only', label: 'Grade only' },
+];
+
 const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABELS[t] }));
 
 export default function BookingDetail({
@@ -568,8 +574,20 @@ export default function BookingDetail({
           />
           <InlineField
             bookingId={booking.id}
+            field="grade_retouch_scope"
+            label="Grade"
+            value={booking.grade_retouch_scope}
+            variant="select"
+            options={GRADE_RETOUCH_OPTIONS}
+            format={(v) => {
+              if (!v) return null;
+              return v === 'grade_and_retouch' ? 'Grade & Retouch' : 'Grade only';
+            }}
+          />
+          <InlineField
+            bookingId={booking.id}
             field="selects_cadence"
-            label="Selects cadence"
+            label="Selects Due"
             value={booking.selects_cadence}
             placeholder="EOD same-day"
           />

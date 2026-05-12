@@ -18,7 +18,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { archiveBookingAction, unarchiveBookingAction, deleteBookingAction } from '@/app/actions/bookings';
-import { PALETTE } from '@/lib/utils/constants';
+import { PALETTE, TERMINAL_STATES } from '@/lib/utils/constants';
+import type { BookingState } from '@/lib/types/database';
 
 type Props = {
   bookingId: string;
@@ -27,7 +28,8 @@ type Props = {
   isArchived: boolean;
 };
 
-export default function BookingLifecycleControls({ bookingId, bookingRef, isArchived }: Props) {
+export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState, isArchived }: Props) {
+  const isTerminal = TERMINAL_STATES.includes(bookingState as BookingState);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -122,8 +124,12 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, isArch
           </button>
         )}
 
-        {/* Delete */}
-        {confirmingDelete ? (
+        {/* Delete — only available once booking reaches a terminal state */}
+        {!isTerminal ? (
+          <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+            Delete available after booking reaches a terminal state (paid, released, cancelled, written off).
+          </span>
+        ) : confirmingDelete ? (
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
               <span>Permanent delete. Type DELETE to confirm.</span>
