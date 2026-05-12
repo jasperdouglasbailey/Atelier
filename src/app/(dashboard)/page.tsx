@@ -59,6 +59,7 @@ export default async function DashboardPage() {
     : new Map();
 
   const failedProbes = healthProbes.filter((p) => !p.ok);
+  const renderNow = Date.now();
   const totalActive = ACTIVE_STATES.reduce((s, st) => s + (counts[st] ?? 0), 0);
 
   const pipeline = ACTIVE_STATES
@@ -235,7 +236,7 @@ export default async function DashboardPage() {
                     let otWindowLabel: string | null = null;
                     if (item.state === 'morning_after_check' && item.ot_expenses_window_end && !item.ot_expenses_locked) {
                       const hoursLeft = Math.max(0, Math.round(
-                        (new Date(item.ot_expenses_window_end).getTime() - Date.now()) / 3_600_000
+                        (new Date(item.ot_expenses_window_end).getTime() - renderNow) / 3_600_000
                       ));
                       otWindowLabel = hoursLeft <= 0
                         ? 'OT window closing soon'
