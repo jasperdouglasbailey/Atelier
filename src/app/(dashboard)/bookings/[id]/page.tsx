@@ -12,6 +12,7 @@ import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
+import BookingTabs from '@/components/bookings/BookingTabs';
 import { getBookingDetail } from '@/lib/data/booking-detail';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
@@ -95,7 +96,7 @@ export default async function BookingDetailPage({ params }: Props) {
     booking, events, quoteVersions, latestQuote, feeLines,
     bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
     preferredCrewIds, ratePrecedents, crewConflictsByCrewId, talentUnavailByTalentId, schedules,
-  } = detail;
+  } = detail!;
 
   // Expand shoot_dates range into individual day strings for the SchedulesPanel picker.
   const shootRange = parseDateRangeRaw(booking.shoot_dates);
@@ -133,140 +134,150 @@ export default async function BookingDetailPage({ params }: Props) {
     <>
       <Topbar title={booking.booking_ref ?? booking.title} />
       <div className="p-4 sm:p-6">
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <BookingDetail
-              booking={booking}
-              licences={usageLicences}
-              googleConfigured={isGoogleConfigured()}
-              checklist={checklist}
-              showWorkspaceShortcut={showWorkspaceShortcut}
-              talentNames={bookingTalent.map((bt) => (bt.talent as { working_name?: string } | null)?.working_name ?? '').filter(Boolean)}
-              preflight={{
-                talentCount: bookingTalent.length,
-                feeLineCount: feeLines.length,
-                hasDeliverables: !!(booking.deliverables_type),
-                usageLicenceCount: usageLicences.length,
-              }}
-            />
-
-            {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
-              <BriefParser
-                bookingId={id}
-                hasBriefText={!!booking.brief_raw_text}
-                currentState={booking.state}
+        <BookingTabs
+          overview={
+            <>
+              <BookingDetail
+                booking={booking}
+                licences={usageLicences}
+                googleConfigured={isGoogleConfigured()}
+                checklist={checklist}
+                showWorkspaceShortcut={showWorkspaceShortcut}
+                talentNames={bookingTalent.map((bt) => (bt.talent as { working_name?: string } | null)?.working_name ?? '').filter(Boolean)}
+                preflight={{
+                  talentCount: bookingTalent.length,
+                  feeLineCount: feeLines.length,
+                  hasDeliverables: !!(booking.deliverables_type),
+                  usageLicenceCount: usageLicences.length,
+                }}
               />
-            )}
 
-            <BookingTeam
-              bookingId={id}
-              bookingTalent={bookingTalent}
-              bookingCrew={bookingCrew}
-              allTalent={allTalent}
-              allCrew={allCrew}
-              shootLocation={booking.shoot_location}
-              crewConflictsByCrewId={crewConflictsByCrewId}
-              talentUnavailByTalentId={talentUnavailByTalentId}
-              preferredCrewIds={preferredCrewIds}
-              primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
-            />
+              {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
+                <BriefParser
+                  bookingId={id}
+                  hasBriefText={!!booking.brief_raw_text}
+                  currentState={booking.state}
+                />
+              )}
 
-            <HoldRequestsTrigger
-              bookingId={id}
-              bookingState={booking.state}
-              pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
-            />
+              <div
+                className="rounded-lg border p-4"
+                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+              >
+                <QuoteBuilder
+                  bookingId={id}
+                  quoteVersions={quoteVersions}
+                  feeLines={feeLines}
+                  bookingTalent={bookingTalent}
+                  bookingCrew={bookingCrew}
+                  ratePrecedents={ratePrecedents}
+                />
+              </div>
 
-            <div
-              className="rounded-lg border p-4"
-              style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-            >
-              <QuoteBuilder
+              <Suspense fallback={null}>
+                <StreamingPrecedents
+                  primaryTalentId={primaryTalentId}
+                  clientId={booking.client_id ?? null}
+                  tier={booking.tier}
+                  proposedDayRate={proposedDayRate}
+                  proposedGrandTotal={booking.grand_total}
+                />
+              </Suspense>
+
+              {booking.state === 'morning_after_check' && (
+                <div id="morning-after">
+                  <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+                </div>
+              )}
+
+              {booking.ot_expenses_window_end && (
+                <OTExpenseEntry
+                  bookingId={id}
+                  quoteVersionId={latestQuote?.id ?? ''}
+                  windowEnd={booking.ot_expenses_window_end}
+                  isLocked={booking.ot_expenses_locked}
+                  bookingCrew={bookingCrew}
+                />
+              )}
+
+              <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
+
+              {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
+                <PayrollPanel
+                  bookingId={id}
+                  bookingTalent={bookingTalent as BookingTalent[]}
+                  bookingCrew={bookingCrew as BookingCrew[]}
+                />
+              )}
+
+              <BookingLifecycleControls
                 bookingId={id}
-                quoteVersions={quoteVersions}
-                feeLines={feeLines}
+                bookingRef={booking.booking_ref}
+                bookingState={booking.state}
+                isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+              />
+            </>
+          }
+          team={
+            <>
+              <BookingTeam
+                bookingId={id}
                 bookingTalent={bookingTalent}
                 bookingCrew={bookingCrew}
-                ratePrecedents={ratePrecedents}
+                allTalent={allTalent}
+                allCrew={allCrew}
+                shootLocation={booking.shoot_location}
+                crewConflictsByCrewId={crewConflictsByCrewId}
+                talentUnavailByTalentId={talentUnavailByTalentId}
+                preferredCrewIds={preferredCrewIds}
+                primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
               />
-            </div>
 
-            <Suspense fallback={null}>
-              <StreamingPrecedents
-                primaryTalentId={primaryTalentId}
-                clientId={booking.client_id ?? null}
-                tier={booking.tier}
-                proposedDayRate={proposedDayRate}
-                proposedGrandTotal={booking.grand_total}
-              />
-            </Suspense>
-
-            {booking.state === 'morning_after_check' && (
-              <div id="morning-after">
-                <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
-              </div>
-            )}
-            {booking.ot_expenses_window_end && (
-              <OTExpenseEntry
+              <HoldRequestsTrigger
                 bookingId={id}
-                quoteVersionId={latestQuote?.id ?? ''}
-                windowEnd={booking.ot_expenses_window_end}
-                isLocked={booking.ot_expenses_locked}
-                bookingCrew={bookingCrew}
+                bookingState={booking.state}
+                pendingCrewCount={bookingCrew.filter((c) => c.status === 'hold_requested').length}
               />
-            )}
-            <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
 
-            {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
-              <PayrollPanel
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Schedule</h2>
+                <SchedulesPanel bookingId={id} initial={schedules} shootDays={shootDays} />
+              </section>
+
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h2>
+                <TasksPanel
+                  initial={bookingTasks}
+                  attachment={{ type: 'booking', id }}
+                  assignees={taskAssignees}
+                />
+              </section>
+            </>
+          }
+          documents={
+            <>
+              <FilesPanel booking={booking} />
+              <AgencyNotesPanel bookingId={id} agencyNotes={booking.agency_notes} />
+            </>
+          }
+          comms={
+            <>
+              <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
+                <StreamingComms bookingRef={booking.booking_ref} />
+              </Suspense>
+              <QuickCompose
                 bookingId={id}
-                bookingTalent={bookingTalent as BookingTalent[]}
-                bookingCrew={bookingCrew as BookingCrew[]}
+                bookingRef={booking.booking_ref}
+                bookingTitle={booking.title}
+                defaultTo={booking.client?.email ?? null}
+                googleConfigured={isGoogleConfigured()}
               />
-            )}
-
-            <Suspense fallback={<CommsLoadingFallback bookingRef={booking.booking_ref} />}>
-              <StreamingComms bookingRef={booking.booking_ref} />
-            </Suspense>
-
-            <QuickCompose
-              bookingId={id}
-              bookingRef={booking.booking_ref}
-              bookingTitle={booking.title}
-              defaultTo={booking.client?.email ?? null}
-              googleConfigured={isGoogleConfigured()}
-            />
-
-            {/* Day-by-day schedules */}
-            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Schedule</h2>
-              <SchedulesPanel bookingId={id} initial={schedules} shootDays={shootDays} />
-            </section>
-
-            {/* Tasks */}
-            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h2>
-              <TasksPanel
-                initial={bookingTasks}
-                attachment={{ type: 'booking', id }}
-                assignees={taskAssignees}
-              />
-            </section>
-
-            <BookingLifecycleControls
-              bookingId={id}
-              bookingRef={booking.booking_ref}
-              bookingState={booking.state}
-              isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
-            />
-          </div>
-
-          <div className="space-y-6">
-            <FilesPanel booking={booking} />
-            <AgencyNotesPanel bookingId={id} agencyNotes={booking.agency_notes} />
+            </>
+          }
+          activity={
             <CollapsibleTimeline events={events} />
-          </div>
-        </div>
+          }
+        />
       </div>
     </>
   );
