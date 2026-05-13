@@ -3,39 +3,37 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Sun/moon toggle that flips between dark (default) and light (cream) themes.
- * Persists preference to localStorage and applies `.light` class to <html>.
+ * Sun/moon toggle that flips between light/cream (default) and dark themes.
+ * Persists preference to localStorage and applies `.dark` class to <html>.
  */
 export default function ThemeToggle() {
-  const [isLight, setIsLight] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
-  // Read persisted preference on mount — reads DOM, not external system,
-  // but the pattern is valid (one-time sync from client-only state).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsLight(document.documentElement.classList.contains('light'));
+    setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
   function toggle() {
-    const next = !isLight;
-    setIsLight(next);
-    document.documentElement.classList.toggle('light', next);
-    try { localStorage.setItem('atelier-theme', next ? 'light' : 'dark'); } catch {}
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle('dark', next);
+    try { localStorage.setItem('atelier-theme', next ? 'dark' : 'light'); } catch {}
   }
 
   return (
     <button
       onClick={toggle}
-      title={isLight ? 'Switch to dark mode' : 'Switch to light mode'}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       className="rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors"
       style={{
         borderColor: 'var(--p-border)',
         color: 'var(--p-muted)',
         background: 'transparent',
       }}
-      aria-label={isLight ? 'Switch to dark mode' : 'Switch to light mode'}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
-      {isLight ? '☾' : '☀'}
+      {isDark ? '☀' : '☾'}
     </button>
   );
 }

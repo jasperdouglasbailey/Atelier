@@ -3,10 +3,11 @@
 import { useState, type ReactNode } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
 
-type TabKey = 'overview' | 'team' | 'documents' | 'comms' | 'activity';
+type TabKey = 'overview' | 'finance' | 'team' | 'documents' | 'comms' | 'activity';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview',   label: 'Overview'   },
+  { key: 'finance',    label: 'Finance'    },
   { key: 'team',       label: 'Team'       },
   { key: 'documents',  label: 'Documents'  },
   { key: 'comms',      label: 'Comms'      },
@@ -14,13 +15,14 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 export default function BookingTabs({
-  overview, team, documents, comms, activity,
+  overview, finance, team, documents, comms, activity,
 }: {
-  overview: ReactNode;
-  team: ReactNode;
+  overview:  ReactNode;
+  finance:   ReactNode;
+  team:      ReactNode;
   documents: ReactNode;
-  comms: ReactNode;
-  activity: ReactNode;
+  comms:     ReactNode;
+  activity:  ReactNode;
 }) {
   const [active, setActive] = useState<TabKey>('overview');
 
@@ -37,14 +39,16 @@ export default function BookingTabs({
             <button
               key={key}
               onClick={() => setActive(key)}
-              className="text-sm font-medium transition-colors"
+              className="text-sm transition-colors"
               style={{
-                color: isActive ? PALETTE.accent : PALETTE.muted,
-                borderBottom: isActive ? `2px solid ${PALETTE.accent}` : '2px solid transparent',
+                fontWeight: isActive ? 500 : 400,
+                color: isActive ? PALETTE.text : PALETTE.muted,
+                borderBottom: isActive ? `2px solid ${PALETTE.text}` : '2px solid transparent',
                 marginBottom: '-1px',
                 background: 'none',
                 cursor: 'pointer',
                 padding: '0.5rem 1rem',
+                letterSpacing: '0.01em',
               }}
             >
               {label}
@@ -54,11 +58,12 @@ export default function BookingTabs({
       </div>
 
       {/* Tab panels — all server-rendered, toggled with hidden attribute */}
-      <div hidden={active !== 'overview'}  className="space-y-6">{overview}</div>
-      <div hidden={active !== 'team'}      className="space-y-6">{team}</div>
-      <div hidden={active !== 'documents'} className="space-y-6">{documents}</div>
-      <div hidden={active !== 'comms'}     className="space-y-6">{comms}</div>
-      <div hidden={active !== 'activity'}  className="space-y-6">{activity}</div>
+      <div hidden={active !== 'overview'}   className="space-y-6">{overview}</div>
+      <div hidden={active !== 'finance'}    className="space-y-6">{finance}</div>
+      <div hidden={active !== 'team'}       className="space-y-6">{team}</div>
+      <div hidden={active !== 'documents'}  className="space-y-6">{documents}</div>
+      <div hidden={active !== 'comms'}      className="space-y-6">{comms}</div>
+      <div hidden={active !== 'activity'}   className="space-y-6">{activity}</div>
     </div>
   );
 }

@@ -160,6 +160,22 @@ export default async function BookingDetailPage({ params }: Props) {
                 />
               )}
 
+              {booking.state === 'morning_after_check' && (
+                <div id="morning-after">
+                  <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+                </div>
+              )}
+
+              <BookingLifecycleControls
+                bookingId={id}
+                bookingRef={booking.booking_ref}
+                bookingState={booking.state}
+                isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+              />
+            </>
+          }
+          finance={
+            <>
               <div
                 className="rounded-lg border p-4"
                 style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
@@ -196,12 +212,6 @@ export default async function BookingDetailPage({ params }: Props) {
                 </div>
               </details>
 
-              {booking.state === 'morning_after_check' && (
-                <div id="morning-after">
-                  <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
-                </div>
-              )}
-
               {booking.ot_expenses_window_end && (
                 <OTExpenseEntry
                   bookingId={id}
@@ -219,13 +229,6 @@ export default async function BookingDetailPage({ params }: Props) {
                   bookingCrew={bookingCrew as BookingCrew[]}
                 />
               )}
-
-              <BookingLifecycleControls
-                bookingId={id}
-                bookingRef={booking.booking_ref}
-                bookingState={booking.state}
-                isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
-              />
             </>
           }
           team={

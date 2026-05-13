@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { signOutAction } from '@/app/actions/auth';
 
-type NavItem = { label: string; href: string; badge?: number };
-type NavSection = { title?: string; items: NavItem[] };
+type NavItem = { label: string; href: string; badge?: number; num?: string };
+type NavSection = { title?: string; items: NavItem[]; numbered?: boolean };
 type Props = { inboxCount?: number; userEmail?: string | null };
 
 function NavInner({
@@ -20,35 +20,46 @@ function NavInner({
 }) {
   return (
     <>
-      <nav className="flex-1 overflow-y-auto py-4 px-3">
+      <nav className="flex-1 overflow-y-auto py-5 px-4">
         {sections.map((section, idx) => (
-          <div key={idx} className={idx > 0 ? 'mt-6' : ''}>
+          <div key={idx} className={idx > 0 ? 'mt-7' : ''}>
             {section.title && (
               <div
-                className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest"
+                className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[0.18em]"
                 style={{ color: 'var(--p-muted)' }}
               >
                 {section.title}
               </div>
             )}
-            <ul className="space-y-1">
-              {section.items.map(({ label, href, badge }) => {
+            <ul className="space-y-0.5">
+              {section.items.map(({ label, href, badge, num }) => {
                 const active = pathname === href || (href !== '/' && pathname.startsWith(href));
                 return (
                   <li key={href}>
                     <Link
                       href={href}
-                      className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
+                      className="flex items-center justify-between rounded px-2 py-1.5 transition-colors"
                       style={{
                         color: active ? 'var(--p-text)' : 'var(--p-muted)',
                         background: active ? 'var(--p-border)' : 'transparent',
+                        fontSize: 13,
                       }}
                     >
-                      <span>{label}</span>
+                      <span className="flex items-baseline gap-2.5">
+                        {num && (
+                          <span
+                            className="text-[10px] font-medium tabular-nums"
+                            style={{ color: active ? 'var(--p-muted)' : 'var(--p-border)', letterSpacing: '0.04em' }}
+                          >
+                            {num}
+                          </span>
+                        )}
+                        <span style={{ fontWeight: active ? 500 : 400 }}>{label}</span>
+                      </span>
                       {badge != null && badge > 0 && (
                         <span
                           className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                          style={{ background: 'var(--p-accent)', color: 'var(--p-bg)', minWidth: 18, textAlign: 'center' }}
+                          style={{ background: 'var(--p-accent)', color: '#fff', minWidth: 18, textAlign: 'center' }}
                         >
                           {badge > 99 ? '99+' : badge}
                         </span>
@@ -65,20 +76,20 @@ function NavInner({
       {userEmail && (
         <form
           action={signOutAction}
-          className="border-t px-3 py-3"
+          className="border-t px-4 py-3"
           style={{ borderColor: 'var(--p-border)' }}
         >
           <div
-            className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest truncate"
-            style={{ color: 'var(--p-muted)' }}
+            className="mb-1 px-2 text-[10px] font-medium truncate"
+            style={{ color: 'var(--p-muted)', letterSpacing: '0.04em' }}
             title={userEmail}
           >
             {userEmail}
           </div>
           <button
             type="submit"
-            className="w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-white/5"
-            style={{ color: 'var(--p-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            className="w-full rounded px-2 py-1.5 text-left transition-colors"
+            style={{ color: 'var(--p-muted)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12 }}
           >
             Sign out
           </button>
@@ -98,31 +109,32 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
 
   const sections: NavSection[] = [
     {
+      numbered: true,
       items: [
-        { label: 'Dashboard', href: '/' },
-        { label: 'Inbox', href: '/inbox', badge: inboxCount },
-        { label: 'Bookings', href: '/bookings' },
-        { label: 'Talent', href: '/talent' },
-        { label: 'Crew', href: '/crew' },
-        { label: 'Clients', href: '/clients' },
-        { label: 'Locations', href: '/locations' },
-        { label: 'Grid Planner', href: '/grid-planner' },
+        { label: 'Dashboard',    href: '/',             num: '01' },
+        { label: 'Inbox',        href: '/inbox',        num: '02', badge: inboxCount },
+        { label: 'Bookings',     href: '/bookings',     num: '03' },
+        { label: 'Talent',       href: '/talent',       num: '04' },
+        { label: 'Crew',         href: '/crew',         num: '05' },
+        { label: 'Clients',      href: '/clients',      num: '06' },
+        { label: 'Locations',    href: '/locations',    num: '07' },
+        { label: 'Grid Planner', href: '/grid-planner', num: '08' },
       ],
     },
     {
       title: 'Analytics',
       items: [
         { label: 'Reports', href: '/reports' },
-        { label: 'Costs', href: '/costs' },
+        { label: 'Costs',   href: '/costs'   },
       ],
     },
     {
       title: 'System',
       items: [
-        { label: 'Compliance', href: '/settings/compliance' },
-        { label: 'Renewals', href: '/settings/business-renewals' },
-        { label: 'Audit', href: '/audit' },
-        { label: 'Settings', href: '/settings' },
+        { label: 'Compliance', href: '/settings/compliance'        },
+        { label: 'Renewals',   href: '/settings/business-renewals' },
+        { label: 'Audit',      href: '/audit'                      },
+        { label: 'Settings',   href: '/settings'                   },
       ],
     },
   ];
@@ -131,12 +143,12 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
     <>
       {/* ── DESKTOP sidebar ─────────────────────────────────────────── */}
       <aside
-        className="hidden h-screen w-56 flex-col border-r md:flex flex-shrink-0"
+        className="hidden h-screen w-52 flex-col border-r md:flex flex-shrink-0"
         style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
       >
         <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: 'var(--p-border)' }}>
-          <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: 'var(--p-accent)' }}>
-            Atelier
+          <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 15, fontWeight: 400, letterSpacing: '0.12em' }}>
+            ATELIER.
           </span>
         </div>
         <NavInner sections={sections} userEmail={userEmail} pathname={pathname} />
@@ -147,8 +159,8 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         className="flex md:hidden h-12 flex-shrink-0 items-center justify-between border-b px-4"
         style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
       >
-        <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: 'var(--p-accent)' }}>
-          Atelier
+        <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, letterSpacing: '0.12em' }}>
+          ATELIER.
         </span>
         <div className="flex items-center gap-3">
           {inboxCount > 0 && (
@@ -197,8 +209,8 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
               className="flex h-14 items-center justify-between border-b px-5"
               style={{ borderColor: 'var(--p-border)' }}
             >
-              <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: 'var(--p-accent)' }}>
-                Atelier
+              <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, letterSpacing: '0.12em' }}>
+                ATELIER.
               </span>
               <button
                 type="button"
