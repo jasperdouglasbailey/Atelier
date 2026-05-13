@@ -113,11 +113,9 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   });
   const totals = computeQuoteTotals(previewLines);
 
-  // Split artist vs outgoings for the totals breakdown
+  // Artist-only totals still needed for the GST passthrough calc (input credits).
   const artistLines = previewLines.filter((l) => !OUTGOING_TYPES.has(l.line_type));
-  const outgoingLines = previewLines.filter((l) => OUTGOING_TYPES.has(l.line_type));
   const artistTotals = computeQuoteTotals(artistLines);
-  const outgoingTotals = computeQuoteTotals(outgoingLines);
 
   function startEdit(line: FeeLine) {
     setEditingId(line.id);
@@ -630,21 +628,23 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                       <span>{line.description}</span>
                       {isLatestVersion && <span className="ml-1.5 opacity-0 group-hover:opacity-100 text-[9px] transition-opacity" style={{ color: PALETTE.muted }}>edit</span>}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{line.quantity}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(line.unit_price)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.subtotal ?? line.subtotal)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-3 py-2 text-right tabular-nums align-top">{line.quantity}</td>
+                    <td className="px-3 py-2 text-right tabular-nums align-top">{formatCurrency(line.unit_price)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums align-top">{formatCurrency(computed?.subtotal ?? line.subtotal)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums align-top">
                       {(line.asf_rate ?? 0) === 0 ? (
                         <span style={{ color: PALETTE.muted }} title="No ASF on this line — click to edit">—</span>
                       ) : (
-                        <>
-                          {formatCurrency(computed?.asfAmount ?? line.asf_amount)}
-                          <span className="ml-1 text-[9px] opacity-60">{Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)}%</span>
-                        </>
+                        <div className="flex flex-col items-end leading-tight">
+                          <span>{formatCurrency(computed?.asfAmount ?? line.asf_amount)}</span>
+                          <span className="text-[9px] mt-0.5" style={{ color: PALETTE.muted }}>
+                            {Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)}%
+                          </span>
+                        </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(computed?.gstAmount ?? 0)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(computed?.lineTotal ?? 0)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums align-top">{formatCurrency(computed?.gstAmount ?? 0)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium align-top">{formatCurrency(computed?.lineTotal ?? 0)}</td>
                     <td className="px-3 py-2">
                       {isLatestVersion && (
                         <button
@@ -712,156 +712,70 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             {showFullBreakdown ? '▴ Hide breakdown' : '▾ Show full breakdown'}
           </button>
 
-          {showFullBreakdown && (
-            <div className="space-y-4 border-t pt-3" style={{ borderColor: PALETTE.border }}>
-              {/* Artist fees subtotal */}
-              {artistLines.length > 0 && outgoingLines.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>Artist &amp; Licence Fees</div>
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                    <TotalField label="Subtotal" value={artistTotals.subtotal} />
-                    <TotalField label="ASF" value={artistTotals.totalAsf} />
-                    <TotalField label="GST" value={artistTotals.totalGst} />
-                    <TotalField label="Commission" value={artistTotals.totalCommission} muted />
-                  </div>
-                </div>
-              )}
-
-              {/* Outgoings subtotal */}
-              {outgoingLines.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.warning }}>
-                    Outgoings (crew &amp; production)
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                    <TotalField label="Subtotal" value={outgoingTotals.subtotal} warn />
-                    <TotalField label="ASF" value={outgoingTotals.totalAsf} warn />
-                    <TotalField label="GST" value={outgoingTotals.totalGst} warn />
-                    <TotalField label="Super (charged)" value={outgoingTotals.totalSuper} warn />
-                  </div>
-                </div>
-              )}
-
-          {/* Two separate panels:
-              1. GST passthrough — what's collected vs claimed back vs owed to ATO.
-                 GST is not margin, it flows through us; this panel makes that explicit.
-              2. Agency margin — pure retained revenue (commission + ASF + super spread).
-                 No GST annotations to confuse the picture. */}
-          {(() => {
+          {showFullBreakdown && (() => {
             const margin = computeAgencyMargin(totals);
-            if (margin.total <= 0 && totals.totalGst <= 0) return null;
-
-            // Estimate input credits from the booking team's GST status. Artist
-            // GST applies to commissionable artist-side line types; crew GST
-            // applies to crew_labour / overtime lines linked to GST-registered
-            // crew. Equipment / studio / catering vendors invoice the agency
-            // separately and are not modelled here.
             const primaryArtist = bookingTalent[0]?.talent;
             const artistGstRegistered = primaryArtist?.gst_registered ?? false;
-            const artistFeeSubtotal = artistTotals.subtotal;
-
-            const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+            const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
             const crewLabourSubtotalGstRegistered = previewLines
-              .filter((l) => CREW_LABOUR_LINE_TYPES.has(l.line_type) && l.crew_id != null)
+              .filter((l) => CREW_LABOUR_TYPES.has(l.line_type) && l.crew_id != null)
               .reduce((sum, l) => {
                 const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
                 return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
               }, 0);
-
             const gst = computeGstPassthrough({
               totals,
-              artistFeeSubtotal,
+              artistFeeSubtotal: artistTotals.subtotal,
               artistGstRegistered,
               crewLabourSubtotalGstRegistered,
             });
 
             return (
-              <div className="space-y-3">
-                {/* GST passthrough */}
+              <div className="border-t pt-3 space-y-3" style={{ borderColor: PALETTE.border }}>
+                {/* Money flow — three named buckets that sum to the grand total */}
+                <div className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+                  Every dollar the client pays lands in one of three places:
+                </div>
+
+                {/* 1. Agency keeps */}
+                <BreakdownBucket
+                  label="Agency keeps"
+                  total={margin.total}
+                  accent
+                  rows={[
+                    margin.commission > 0 && { l: 'Commission · 20% on artist labour', v: margin.commission },
+                    margin.asf > 0 && { l: 'ASF · charged per line', v: margin.asf },
+                    margin.superSpread > 0 && { l: 'Super spread · 15% charged − 12% paid', v: margin.superSpread },
+                  ].filter(Boolean) as { l: string; v: number }[]}
+                />
+
+                {/* 2. Owed to ATO (net GST) */}
                 {gst.collectedTotal > 0 && (
-                  <div
-                    className="rounded-md border-l-2 px-3 py-2 space-y-1"
-                    style={{ borderColor: PALETTE.muted, background: `${PALETTE.muted}10` }}
-                  >
-                    <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>
-                      <span>GST (passthrough — owed to ATO)</span>
-                      <span className="tabular-nums text-sm font-bold normal-case tracking-normal" style={{ color: PALETTE.text }}>
-                        {formatCurrency(gst.netToAto)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                      <span>Collected from client</span>
-                      <span className="tabular-nums">+{formatCurrency(gst.collectedTotal)}</span>
-                    </div>
-                    {gst.collectedOnCommission > 0 && (
-                      <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
-                        <span>· incl. GST on commission</span>
-                        <span className="tabular-nums">{formatCurrency(gst.collectedOnCommission)}</span>
-                      </div>
-                    )}
-                    {gst.inputCreditsTotal > 0 && (
-                      <>
-                        <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                          <span>Input credits (paid through to suppliers)</span>
-                          <span className="tabular-nums">−{formatCurrency(gst.inputCreditsTotal)}</span>
-                        </div>
-                        {gst.artistInputCredits > 0 && (
-                          <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
-                            <span>· artist (GST-registered)</span>
-                            <span className="tabular-nums">{formatCurrency(gst.artistInputCredits)}</span>
-                          </div>
-                        )}
-                        {gst.crewInputCredits > 0 && (
-                          <div className="flex items-baseline justify-between text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.75 }}>
-                            <span>· crew (GST-registered)</span>
-                            <span className="tabular-nums">{formatCurrency(gst.crewInputCredits)}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {gst.inputCreditsTotal === 0 && (
-                      <div className="text-[10px] pl-3" style={{ color: PALETTE.muted, opacity: 0.7 }}>
-                        No GST-registered talent or crew on this booking — net = collected.
-                      </div>
-                    )}
-                  </div>
+                  <BreakdownBucket
+                    label="Owed to ATO · net GST"
+                    total={gst.netToAto}
+                    rows={[
+                      { l: 'Collected from client', v: gst.collectedTotal, sign: '+' as const },
+                      gst.inputCreditsTotal > 0 && { l: 'Input credits (paid to GST-registered talent/crew)', v: gst.inputCreditsTotal, sign: '−' as const },
+                    ].filter(Boolean) as { l: string; v: number; sign?: '+' | '−' }[]}
+                  />
                 )}
 
-                {/* Agency margin (retained) */}
-                {margin.total > 0 && (
-                  <div
-                    className="rounded-md border-l-2 px-3 py-2 space-y-1"
-                    style={{ borderColor: PALETTE.accent, background: `${PALETTE.accent}08` }}
-                  >
-                    <div className="flex items-baseline justify-between text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.accent }}>
-                      <span>Agency margin (retained, ex-GST)</span>
-                      <span className="tabular-nums text-sm font-bold normal-case tracking-normal">{formatCurrency(margin.total)}</span>
-                    </div>
-                    {margin.commission > 0 && (
-                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                        <span>Commission (20% on artist labour)</span>
-                        <span className="tabular-nums">{formatCurrency(margin.commission)}</span>
-                      </div>
-                    )}
-                    {margin.asf > 0 && (
-                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                        <span>ASF (15% on artist + outgoings)</span>
-                        <span className="tabular-nums">{formatCurrency(margin.asf)}</span>
-                      </div>
-                    )}
-                    {margin.superSpread > 0 && (
-                      <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                        <span>Super spread (15% charged − 12% paid)</span>
-                        <span className="tabular-nums">{formatCurrency(margin.superSpread)}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* 3. Paid through — subtotal of every line in the table (what flows out
+                       to artist net, crew net, vendor invoices, super to fund). */}
+                <BreakdownBucket
+                  label="Paid through to artist + crew + vendors"
+                  total={Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100}
+                  muted
+                  rows={[
+                    { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
+                    totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
+                    { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
+                  ].filter(Boolean) as { l: string; v: number }[]}
+                />
               </div>
             );
           })()}
-            </div>
-          )}
         </div>
       )}
 
@@ -875,13 +789,43 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   );
 }
 
-function TotalField({ label, value, muted, warn }: { label: string; value: number; muted?: boolean; warn?: boolean }) {
+function BreakdownBucket({
+  label, total, rows, accent, muted,
+}: {
+  label: string;
+  total: number;
+  rows: { l: string; v: number; sign?: '+' | '−' }[];
+  accent?: boolean;
+  muted?: boolean;
+}) {
+  const headerColor = accent ? PALETTE.accent : muted ? PALETTE.muted : PALETTE.text;
+  const borderColor = accent ? `${PALETTE.accent}40` : PALETTE.border;
+  const bgColor = accent ? `${PALETTE.accent}0a` : PALETTE.bg;
   return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>{label}</div>
-      <div className="mt-0.5 tabular-nums" style={{ color: warn ? PALETTE.warning : muted ? PALETTE.muted : PALETTE.text }}>
-        {formatCurrency(value)}
+    <div
+      className="rounded-md border-l-2 px-3 py-2"
+      style={{ borderColor, background: bgColor }}
+    >
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span
+          className="micro-label"
+          style={{ marginBottom: 0, color: headerColor }}
+        >
+          {label}
+        </span>
+        <span
+          className="text-base font-semibold tabular-nums"
+          style={{ color: headerColor }}
+        >
+          {formatCurrency(total)}
+        </span>
       </div>
+      {rows.map(({ l, v, sign }) => (
+        <div key={l} className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+          <span>{l}</span>
+          <span className="tabular-nums">{sign ?? ''}{formatCurrency(v)}</span>
+        </div>
+      ))}
     </div>
   );
 }

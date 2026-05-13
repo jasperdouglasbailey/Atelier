@@ -204,21 +204,24 @@ export default async function BookingDetailPage({ params }: Props) {
           }
           finance={
             <>
-              <div
-                className="rounded-lg border p-4"
-                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-              >
-                <QuoteBuilder
-                  bookingId={id}
-                  quoteVersions={quoteVersions}
-                  feeLines={feeLines}
-                  bookingTalent={bookingTalent}
-                  bookingCrew={bookingCrew}
-                  ratePrecedents={ratePrecedents}
-                />
-              </div>
+              {/* Quote (flexible) + Job P&L (fixed 360px) on wide screens, stacked below xl */}
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
+                <div
+                  className="rounded-lg border p-4 min-w-0"
+                  style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+                >
+                  <QuoteBuilder
+                    bookingId={id}
+                    quoteVersions={quoteVersions}
+                    feeLines={feeLines}
+                    bookingTalent={bookingTalent}
+                    bookingCrew={bookingCrew}
+                    ratePrecedents={ratePrecedents}
+                  />
+                </div>
 
-              <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
+                <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} bookingTalent={bookingTalent} bookingCrew={bookingCrew} />
+              </div>
 
               <details className="rounded-lg border" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
                 <summary
