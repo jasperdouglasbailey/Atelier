@@ -78,6 +78,7 @@ Output: ranked findings with file:line, prioritised into a polish PR sequence. D
   you delete a route folder, run `rm -rf .next` before `tsc --noEmit`.
 - Supabase PostgREST builder lacks `.catch()` — use try/catch.
 - Postgres daterange end is EXCLUSIVE. Use `src/lib/utils/daterange.ts`.
+- Next.js 16 changed `revalidateTag`'s signature to require a second `profile` argument (`revalidateTag(tag, {})`). The codebase pattern is `revalidateTag('bookings', {})` — TS will fail CI if you call it with one arg.
 
 ## Phase order (agreed 2026-05-05)
 
