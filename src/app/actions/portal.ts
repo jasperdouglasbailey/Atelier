@@ -12,7 +12,7 @@
  *      we've done the ownership check ourselves.
  */
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { logAudit } from '@/lib/utils/audit';
@@ -72,6 +72,7 @@ export async function respondToCrewHoldAction(
   }).catch(() => {});
 
   revalidatePath('/portal/crew');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -121,6 +122,7 @@ export async function respondToTalentHoldAction(
   }).catch(() => {});
 
   revalidatePath('/portal/talent');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -158,6 +160,7 @@ export async function acceptTalentRateAction(
   }).catch(() => {});
 
   revalidatePath('/portal/talent');
+  revalidateTag('bookings', {});
 }
 
 // ─── talent brief acknowledgement ────────────────────────────────────────────
@@ -194,6 +197,7 @@ export async function acknowledgeBriefAction(
   }).catch(() => {});
 
   revalidatePath('/portal/talent');
+  revalidateTag('bookings', {});
 }
 
 // ─── crew unavailability ──────────────────────────────────────────────────────
@@ -218,6 +222,7 @@ export async function addCrewUnavailabilityAction(
   if (error) return err(error.message);
 
   revalidatePath('/portal/crew');
+  revalidateTag('bookings', {});
   return { ok: true, id: data.id };
 }
 
@@ -247,6 +252,7 @@ export async function removeCrewUnavailabilityAction(
   if (error) return err(error.message);
 
   revalidatePath('/portal/crew');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 // ─── talent unavailability ────────────────────────────────────────────────────
@@ -271,6 +277,7 @@ export async function addTalentUnavailabilityAction(
   if (error) return err(error.message);
 
   revalidatePath('/portal/talent');
+  revalidateTag('bookings', {});
   return { ok: true, id: data.id as string };
 }
 
@@ -299,5 +306,6 @@ export async function removeTalentUnavailabilityAction(
   if (error) return err(error.message);
 
   revalidatePath('/portal/talent');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
