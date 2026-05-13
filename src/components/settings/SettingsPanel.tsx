@@ -8,7 +8,8 @@ import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 import type { AgencyConfig } from '@/lib/utils/agency-config';
 
-type IntegrationStatus = { googleConnected: boolean; xeroConnected: boolean; anthropicConnected: boolean };
+type GoogleStatus = 'connected' | 'invalid_token' | 'not_configured';
+type IntegrationStatus = { googleStatus: GoogleStatus; xeroConnected: boolean; anthropicConnected: boolean };
 type Props = { killSwitch: KillSwitchState | null; agency: AgencyConfig; integrations?: IntegrationStatus };
 
 function Toggle({ label, description, checked, onChange, color }: {
@@ -169,11 +170,21 @@ export default function SettingsPanel({ killSwitch, agency, integrations }: Prop
           <IntegrationRow name="Supabase" status="connected" detail="ap-southeast-2 (Sydney)" />
           <IntegrationRow
             name="Google (Gmail · Drive · Calendar)"
-            status={integrations?.googleConnected ? 'connected' : 'pending'}
-            detail={integrations?.googleConnected
-              ? 'Connected — Gmail, Drive, and Calendar active'
-              : 'Email relay, file delivery, shoot day events — single OAuth grant'}
-            action={!integrations?.googleConnected ? { label: 'Connect Google', href: '/api/auth/start/google' } : undefined}
+            status={
+              integrations?.googleStatus === 'connected' ? 'connected'
+              : integrations?.googleStatus === 'invalid_token' ? 'error'
+              : 'pending'
+            }
+            detail={
+              integrations?.googleStatus === 'connected'
+                ? 'Connected — Gmail, Drive, and Calendar active'
+              : integrations?.googleStatus === 'invalid_token'
+                ? 'Token expired or revoked — reconnect to restore email drafts and Drive'
+              : 'Email relay, file delivery, shoot day events — single OAuth grant'
+            }
+            action={integrations?.googleStatus !== 'connected'
+              ? { label: integrations?.googleStatus === 'invalid_token' ? 'Reconnect Google' : 'Connect Google', href: '/api/auth/start/google' }
+              : undefined}
           />
           <IntegrationRow
             name="Xero"

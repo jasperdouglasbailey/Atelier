@@ -37,6 +37,7 @@ let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 /**
  * Returns true when all required Google credentials are present in env.
  * Used by callers to short-circuit before attempting an API call.
+ * Does NOT verify the token is valid — use checkGoogleTokenValid() for that.
  */
 export function isGoogleConfigured(): boolean {
   return Boolean(
@@ -44,6 +45,22 @@ export function isGoogleConfigured(): boolean {
     process.env.GOOGLE_CLIENT_SECRET &&
     process.env.GOOGLE_REFRESH_TOKEN,
   );
+}
+
+/**
+ * Probes the token endpoint to verify the refresh token is still valid.
+ * Returns 'connected' | 'invalid_token' | 'not_configured'.
+ * Safe to call on the settings page — lightweight single HTTP request,
+ * result cached in memory for subsequent calls.
+ */
+export async function checkGoogleTokenValid(): Promise<'connected' | 'invalid_token' | 'not_configured'> {
+  if (!isGoogleConfigured()) return 'not_configured';
+  try {
+    await getAccessToken();
+    return 'connected';
+  } catch {
+    return 'invalid_token';
+  }
 }
 
 /**
