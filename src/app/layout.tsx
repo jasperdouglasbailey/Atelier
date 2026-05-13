@@ -17,7 +17,7 @@ export default function RootLayout({
         {/* Prevent flash of wrong theme on load */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('atelier-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('atelier-theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
       </head>
