@@ -17,10 +17,11 @@ import { listUsageLicences } from '@/lib/data/usage-licences';
 import { listTalent, listCrew } from '@/lib/data/entities';
 import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
-import { getCrewUnavailabilityForRange } from '@/lib/data/portal';
+import { getCrewUnavailabilityForRange, getTalentUnavailabilityForRange } from '@/lib/data/portal';
+import { listBookingSchedules } from '@/lib/data/booking-schedules';
 import { listEvents } from '@/lib/utils/events';
 import { parseDateRangeRaw } from '@/lib/utils/daterange';
-import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew } from '@/lib/types/database';
+import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew, BookingSchedule } from '@/lib/types/database';
 
 export type CrewConflict = {
   bookingId: string;
@@ -44,6 +45,8 @@ export type BookingDetailData = {
   preferredCrewIds: string[];
   ratePrecedents: RatePrecedent[];
   crewConflictsByCrewId: Record<string, CrewConflict[]>;
+  talentUnavailByTalentId: Record<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>;
+  schedules: BookingSchedule[];
 };
 
 export async function getBookingDetail(id: string): Promise<BookingDetailData | null> {
@@ -63,7 +66,7 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
   const [
     events, quoteVersions, latestQuote, feeLines,
     bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
-    rawConflicts, unavailability,
+    rawConflicts, crewUnavailability, talentUnavailability, schedules,
   ] = await Promise.all([
     listEvents({ bookingId: id, limit: 30 }),
     listQuoteVersions(id),
@@ -84,6 +87,10 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
     shootRange.start
       ? getCrewUnavailabilityForRange(shootRange.start, crewConflictsEnd ?? shootRange.start)
       : Promise.resolve(new Map<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>()),
+    shootRange.start
+      ? getTalentUnavailabilityForRange(shootRange.start, crewConflictsEnd ?? shootRange.start)
+      : Promise.resolve(new Map<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>()),
+    listBookingSchedules(id),
   ]);
 
   // Talent-dependent: fire once we know the primary artist.
@@ -97,9 +104,8 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
   for (const [crewId, bookings] of rawConflicts) {
     crewConflictsByCrewId[crewId] = bookings;
   }
-  // Merge self-reported unavailability blocks into the same map so BookingTeam
-  // surfaces them alongside booking-based conflicts.
-  for (const [crewId, blocks] of unavailability) {
+  // Merge self-reported crew unavailability blocks into the conflict map.
+  for (const [crewId, blocks] of crewUnavailability) {
     const existing = crewConflictsByCrewId[crewId] ?? [];
     for (const block of blocks) {
       existing.push({
@@ -111,6 +117,11 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
       });
     }
     crewConflictsByCrewId[crewId] = existing;
+  }
+
+  const talentUnavailByTalentId: Record<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>> = {};
+  for (const [talentId, blocks] of talentUnavailability) {
+    talentUnavailByTalentId[talentId] = blocks;
   }
 
   return {
@@ -127,5 +138,7 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
     preferredCrewIds,
     ratePrecedents,
     crewConflictsByCrewId,
+    talentUnavailByTalentId,
+    schedules,
   };
 }

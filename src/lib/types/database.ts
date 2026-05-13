@@ -580,6 +580,41 @@ export interface CrewUnavailability {
   reason: string | null;
 }
 
+export interface TalentUnavailability {
+  id: string;
+  created_at: string;
+  talent_id: string;
+  date_from: string;
+  date_to: string;
+  reason: string | null;
+}
+
+export interface Task {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  assigned_to: string | null;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  completed_at: string | null;
+  booking_id: string | null;
+  talent_id: string | null;
+  crew_id: string | null;
+}
+
+export interface BookingSchedule {
+  id: string;
+  created_at: string;
+  booking_id: string;
+  schedule_date: string;
+  call_time: string | null;
+  wrap_time: string | null;
+  location: string | null;
+  notes: string | null;
+}
+
 export interface LLMCallRow {
   id: string;
   created_at: string;

@@ -11,6 +11,9 @@ import ArchiveTalentButton from '@/components/entities/ArchiveTalentButton';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import DataRightsControls from '@/components/entities/DataRightsControls';
+import { listTasksForTalent } from '@/lib/data/tasks';
+import { listAppUsers } from '@/lib/data/app-users';
+import TasksPanel from '@/components/tasks/TasksPanel';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import type { BookingState } from '@/lib/types/database';
@@ -53,12 +56,17 @@ function Badge({ label, active }: { label: string; active: boolean }) {
 
 export default async function TalentDetailPage({ params }: Props) {
   const { id } = await params;
-  const [talent, bookingHistory, preferredCrew, allCrew] = await Promise.all([
+  const [talent, bookingHistory, preferredCrew, allCrew, talentTasks, allAppUsers] = await Promise.all([
     getTalent(id),
     listTalentBookingHistory(id),
     listPreferredCrew(id),
     listCrew(),
+    listTasksForTalent(id),
+    listAppUsers(),
   ]);
+  const taskAssignees = allAppUsers
+    .filter((u) => u.is_active && (u.role === 'owner' || u.role === 'partner'))
+    .map((u) => ({ userId: u.user_id, displayName: u.display_name ?? u.user_id }));
   if (!talent) notFound();
 
   // Quick stats from booking history
@@ -255,6 +263,16 @@ export default async function TalentDetailPage({ params }: Props) {
         />
 
         <DataRightsControls type="talent" id={talent.id} name={talent.working_name} />
+
+        {/* Tasks */}
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h3>
+          <TasksPanel
+            initial={talentTasks}
+            attachment={{ type: 'talent', id: talent.id }}
+            assignees={taskAssignees}
+          />
+        </section>
 
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

@@ -245,3 +245,55 @@ export async function removeCrewUnavailabilityAction(
   revalidatePath('/portal/crew');
   return { ok: true };
 }
+// ─── talent unavailability ────────────────────────────────────────────────────
+
+export async function addTalentUnavailabilityAction(
+  dateFrom: string,
+  dateTo: string,
+  reason: string | null,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const user = await getCurrentAppUser();
+  if (!user || user.role !== 'talent' || !user.talent_id) return err('Not authorised');
+
+  if (dateTo < dateFrom) return err('End date must be on or after start date');
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('atelier_talent_unavailability')
+    .insert({ talent_id: user.talent_id, date_from: dateFrom, date_to: dateTo, reason: reason || null })
+    .select('id')
+    .single();
+
+  if (error) return err(error.message);
+
+  revalidatePath('/portal/talent');
+  return { ok: true, id: data.id as string };
+}
+
+export async function removeTalentUnavailabilityAction(
+  unavailabilityId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentAppUser();
+  if (!user || user.role !== 'talent' || !user.talent_id) return err('Not authorised');
+
+  const supabase = createServiceClient();
+
+  const { data: row } = await supabase
+    .from('atelier_talent_unavailability')
+    .select('id, talent_id')
+    .eq('id', unavailabilityId)
+    .maybeSingle();
+
+  if (!row) return err('Record not found');
+  if (row.talent_id !== user.talent_id) return err('Not authorised');
+
+  const { error } = await supabase
+    .from('atelier_talent_unavailability')
+    .delete()
+    .eq('id', unavailabilityId);
+
+  if (error) return err(error.message);
+
+  revalidatePath('/portal/talent');
+  return { ok: true };
+}

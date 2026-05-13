@@ -6,6 +6,9 @@ import { listCrewBookings } from '@/lib/data/crew-bookings';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import DataRightsControls from '@/components/entities/DataRightsControls';
+import { listTasksForCrew } from '@/lib/data/tasks';
+import { listAppUsers } from '@/lib/data/app-users';
+import TasksPanel from '@/components/tasks/TasksPanel';
 import { PALETTE, CREW_TIER_LABELS, CREW_STATUS_LABELS, BOOKING_STATE_LABELS, STATE_COLORS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
@@ -41,11 +44,16 @@ const TIER_COLORS: Record<string, string> = {
 
 export default async function CrewDetailPage({ params }: Props) {
   const { id } = await params;
-  const [crew, bookingRows] = await Promise.all([
+  const [crew, bookingRows, crewTasks, allAppUsers] = await Promise.all([
     getCrewMember(id),
     listCrewBookings(id),
+    listTasksForCrew(id),
+    listAppUsers(),
   ]);
   if (!crew) notFound();
+  const taskAssignees = allAppUsers
+    .filter((u) => u.is_active && (u.role === 'owner' || u.role === 'partner'))
+    .map((u) => ({ userId: u.user_id, displayName: u.display_name ?? u.user_id }));
 
   const tierColor = TIER_COLORS[crew.tier] ?? PALETTE.muted;
 
@@ -307,6 +315,16 @@ export default async function CrewDetailPage({ params }: Props) {
         </section>
 
         <DataRightsControls type="crew" id={crew.id} name={crew.name} />
+
+        {/* Tasks */}
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h3>
+          <TasksPanel
+            initial={crewTasks}
+            attachment={{ type: 'crew', id: crew.id }}
+            assignees={taskAssignees}
+          />
+        </section>
 
         {/* Stats */}
         {totalBookings > 0 && (
