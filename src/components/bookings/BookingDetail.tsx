@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingState, UsageLicence } from '@/lib/types/database';
+import { dateRangeToInputs } from '@/lib/utils/daterange';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import SendQuotePanel, { type PreflightData } from '@/components/bookings/SendQuotePanel';
 import StageStepper from '@/components/bookings/StageStepper';
@@ -59,6 +60,7 @@ export default function BookingDetail({
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [briefExpanded, setBriefExpanded] = useState(false);
 
   // Modal state for transitions that need extra metadata
   const [pendingTransition, setPendingTransition] = useState<BookingState | null>(null);
@@ -163,29 +165,33 @@ export default function BookingDetail({
             )}
           </div>
 
-          {/* Talent + producer contact line */}
+          {/* Talent + producer contact line — labels use · separator for readability */}
           {(talentNames && talentNames.length > 0 || booking.producer_name) && (
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" style={{ color: PALETTE.muted }}>
               {talentNames && talentNames.length > 0 && (
-                <>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">Artist{talentNames.length > 1 ? 's' : ''}</span>
-                  {talentNames.map((name, i) => (
-                    <span key={i} style={{ color: PALETTE.text }}>{name}{i < talentNames.length - 1 ? ' ·' : ''}</span>
-                  ))}
-                </>
+                <span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">
+                    {talentNames.length > 1 ? 'Artists' : 'Artist'}
+                  </span>
+                  <span className="mx-1" style={{ color: PALETTE.border }}>·</span>
+                  <span style={{ color: PALETTE.text }}>{talentNames.join(' · ')}</span>
+                </span>
               )}
               {booking.producer_name && (
                 <>
-                  {talentNames && talentNames.length > 0 && <span>·</span>}
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">Contact</span>
-                  <span style={{ color: PALETTE.text }}>{booking.producer_name}</span>
+                  {talentNames && talentNames.length > 0 && <span style={{ color: PALETTE.border }}>·</span>}
+                  <span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Contact</span>
+                    <span className="mx-1" style={{ color: PALETTE.border }}>·</span>
+                    <span style={{ color: PALETTE.text }}>{booking.producer_name}</span>
+                  </span>
                   {booking.producer_email && (
                     <a href={`mailto:${booking.producer_email}`} style={{ color: PALETTE.accent }}>
                       {booking.producer_email}
                     </a>
                   )}
                   {booking.producer_phone && (
-                    <span style={{ color: PALETTE.muted }}>{booking.producer_phone}</span>
+                    <span>{booking.producer_phone}</span>
                   )}
                 </>
               )}
@@ -225,37 +231,105 @@ export default function BookingDetail({
       <StageStepper state={booking.state} />
 
       {/* ═══════════════════════════════════════════════════════════════════
-          3. ADVANCE-TO ROW — state transition buttons
+          3. ACTION STRIP — advance-to + print/tools in one row
           ═══════════════════════════════════════════════════════════════════ */}
-      {allowedTransitions.length > 0 && (
-        <div
-          className="rounded-lg border p-3 flex flex-wrap items-center gap-2"
-          style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+      <div
+        className="rounded-lg border px-3 py-2 flex flex-wrap items-center gap-2"
+        style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+      >
+        {/* Advance-to buttons */}
+        {allowedTransitions.length > 0 && (
+          <>
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+              Advance
+            </span>
+            {allowedTransitions.map((state) => {
+              const isExit = state === 'released' || state === 'cancelled' || state === 'written_off';
+              const isBack = state === 'quote_drafted' && booking.state === 'quote_sent';
+              return (
+                <button
+                  key={state}
+                  onClick={() => openTransition(state)}
+                  disabled={transitioning}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium"
+                  style={{
+                    background: isExit ? `${PALETTE.danger}22` : isBack ? `${PALETTE.warning}22` : PALETTE.accent,
+                    color: isExit ? PALETTE.danger : isBack ? PALETTE.warning : PALETTE.bg,
+                    border: (isExit || isBack) ? `1px solid ${isExit ? PALETTE.danger : PALETTE.warning}44` : 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isBack ? '← ' : '→ '}{BOOKING_STATE_LABELS[state]}
+                </button>
+              );
+            })}
+            <span className="self-stretch border-l mx-1" style={{ borderColor: PALETTE.border }} />
+          </>
+        )}
+
+        {/* Print & tools */}
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+          Print &amp; tools
+        </span>
+        <Link
+          href={`/print/bookings/${booking.id}/quote`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-wider mr-1" style={{ color: PALETTE.muted }}>
-            Advance to
-          </span>
-          {allowedTransitions.map((state) => {
-            const isExit = state === 'released' || state === 'cancelled' || state === 'written_off';
-            const isBack = state === 'quote_drafted' && booking.state === 'quote_sent';
-            return (
-              <button
-                key={state}
-                onClick={() => openTransition(state)}
-                disabled={transitioning}
-                className="rounded-md px-3 py-1.5 text-xs font-medium"
-                style={{
-                  background: isExit ? `${PALETTE.danger}22` : isBack ? `${PALETTE.warning}22` : PALETTE.accent,
-                  color: isExit ? PALETTE.danger : isBack ? PALETTE.warning : PALETTE.bg,
-                  border: (isExit || isBack) ? `1px solid ${isExit ? PALETTE.danger : PALETTE.warning}44` : 'none',
-                }}
-              >
-                {isBack ? '← ' : '→ '}{BOOKING_STATE_LABELS[state]}
-              </button>
-            );
-          })}
-        </div>
-      )}
+          Quote
+        </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/invoice`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Invoice
+        </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/call-sheet`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Call sheet
+        </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/confirmation`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Confirmation
+        </Link>
+        {booking.quote_token && (
+          <Link
+            href={`/q/${booking.quote_token}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded px-2 py-0.5 text-[11px]"
+            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          >
+            Client view
+          </Link>
+        )}
+        <CloneBookingButton sourceBookingId={booking.id} label="Use as template" />
+        {showWorkspaceShortcut && (
+          <Link
+            href={`/inbox/${booking.id}`}
+            className="rounded px-2 py-0.5 text-[11px]"
+            style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+            title="Brief → Quote → Send focused workspace"
+          >
+            Open workspace
+          </Link>
+        )}
+      </div>
 
       {/* Transition modal — shown for released / cancelled / written_off */}
       {pendingTransition && (
@@ -414,86 +488,46 @@ export default function BookingDetail({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          5. TOOLS ROW — print / template / workspace shortcuts (tertiary)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <div
-        className="flex flex-wrap items-center gap-2 text-xs px-1"
-        style={{ color: PALETTE.muted }}
-      >
-        <span className="text-[10px] font-semibold uppercase tracking-wider mr-1">Print &amp; tools</span>
-        <Link
-          href={`/print/bookings/${booking.id}/quote`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Quote
-        </Link>
-        <Link
-          href={`/print/bookings/${booking.id}/invoice`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Invoice
-        </Link>
-        <Link
-          href={`/print/bookings/${booking.id}/call-sheet`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Call sheet
-        </Link>
-        <Link
-          href={`/print/bookings/${booking.id}/confirmation`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Confirmation
-        </Link>
-        {booking.quote_token && (
-          <Link
-            href={`/q/${booking.quote_token}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded px-2 py-0.5 text-[11px]"
-            style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          >
-            Client view
-          </Link>
-        )}
-        <CloneBookingButton sourceBookingId={booking.id} label="Use as template" />
-        {showWorkspaceShortcut && (
-          <Link
-            href={`/inbox/${booking.id}`}
-            className="rounded px-2 py-0.5 text-[11px]"
-            style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-            title="Brief → Quote → Send focused workspace"
-          >
-            Open workspace
-          </Link>
-        )}
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          6. BRIEF — inline editable fields + usage licence builder
+          5. BRIEF — compact summary + expandable inline fields
           ═══════════════════════════════════════════════════════════════════ */}
       <section
         className="rounded-lg border p-3 space-y-2"
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief</h3>
-          <span className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
-            Click any field to edit · Esc cancels
-          </span>
+        {/* Header row — compact summary + expand toggle */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-baseline gap-2 flex-wrap flex-1 min-w-0">
+            <h3 className="text-xs font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: PALETTE.muted }}>Brief</h3>
+            {!briefExpanded && (() => {
+              const { start, end } = dateRangeToInputs(booking.shoot_dates);
+              const dateStr = start
+                ? (end && end !== start ? `${formatDate(start)} – ${formatDate(end)}` : formatDate(start))
+                : booking.shoot_date_notes ?? null;
+              return (
+                <span className="text-xs truncate" style={{ color: PALETTE.text }}>
+                  {[
+                    dateStr,
+                    booking.shoot_location,
+                    booking.deliverables_type ? humanise(booking.deliverables_type) : null,
+                  ].filter(Boolean).join(' · ')}
+                </span>
+              );
+            })()}
+          </div>
+          <button
+            onClick={() => setBriefExpanded((v) => !v)}
+            className="flex-shrink-0 text-[11px] font-medium rounded px-2 py-0.5"
+            style={{ color: PALETTE.accent, background: `${PALETTE.accent}11`, border: 'none', cursor: 'pointer' }}
+          >
+            {briefExpanded ? 'Collapse' : 'Expand'}
+          </button>
         </div>
+
+        {briefExpanded && (
+          <>
+          <div className="text-[10px] pb-1" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+            Click any field to edit · Esc cancels
+          </div>
 
         <div className="grid gap-1 sm:grid-cols-3">
           {/* Display-only — client/brand changed via /bookings/[id]/edit since
@@ -662,10 +696,12 @@ export default function BookingDetail({
         <div className="pt-2 border-t" style={{ borderColor: PALETTE.border }}>
           <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
         </div>
+          </>
+        )}
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          7. INVOICE & PAYMENT — only renders once invoice has been issued
+          6. INVOICE & PAYMENT — only renders once invoice has been issued
           ═══════════════════════════════════════════════════════════════════ */}
       {booking.invoice_issued_at && (() => {
         const doi = booking.paid_at
@@ -713,7 +749,7 @@ export default function BookingDetail({
       })()}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          8. RAW BRIEF — collapsed by default, only useful for reference
+          7. RAW BRIEF — collapsed by default, only useful for reference
           ═══════════════════════════════════════════════════════════════════ */}
       {booking.brief_raw_text && (
         <details
