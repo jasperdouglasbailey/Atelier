@@ -80,21 +80,21 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
         {confirmingArchive ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px]" style={{ color: PALETTE.warning }}>
-              {isArchived ? `Restore ${label} to the active list?` : `Archive ${label}?`}
+              {isArchived ? `Restore ${label}?` : `Archive ${label}?`}
             </span>
             <button
               type="button"
               onClick={() => runArchive(isArchived ? 'unarchive' : 'archive')}
               disabled={pending}
-              className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              className="rounded px-2.5 py-1 text-[11px] font-medium disabled:opacity-50"
               style={{ background: PALETTE.warning, color: '#1a1a1a', border: 'none', cursor: 'pointer' }}
             >
-              {pending ? 'Working…' : `Confirm ${isArchived ? 'restore' : 'archive'}`}
+              {pending ? '…' : 'Confirm'}
             </button>
             <button
               type="button"
               onClick={() => setConfirmingArchive(false)}
-              className="rounded px-3 py-1.5 text-xs font-medium"
+              className="rounded px-2.5 py-1 text-[11px] font-medium"
               style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}`, cursor: 'pointer' }}
             >
               Cancel
@@ -104,24 +104,21 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
           <button
             type="button"
             onClick={() => setConfirmingArchive(true)}
-            className="rounded px-3 py-1.5 text-xs font-medium"
+            className="rounded px-2.5 py-1 text-[11px] font-medium"
             style={{
-              background: `${PALETTE.warning}18`,
-              color: PALETTE.warning,
-              border: `1px solid ${PALETTE.warning}44`,
+              background: 'transparent',
+              color: PALETTE.muted,
+              border: `1px solid ${PALETTE.border}`,
               cursor: 'pointer',
             }}
           >
-            {isArchived ? 'Restore from archive' : 'Archive booking'}
+            {isArchived ? 'Restore' : 'Archive'}
           </button>
         )}
 
-        {/* Delete — only available once booking reaches a terminal state */}
-        {!isTerminal ? (
-          <span className="text-[11px]" style={{ color: PALETTE.muted }}>
-            Delete available after booking reaches a terminal state (paid, released, cancelled, written off).
-          </span>
-        ) : confirmingDelete ? (
+        {/* Delete — only shown when booking is in a terminal state (paid / released / cancelled / written off).
+            In all other states the button is hidden entirely so the action bar stays uncluttered. */}
+        {!isTerminal ? null : confirmingDelete ? (
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
               <span>Permanent delete. Type DELETE to confirm.</span>
@@ -163,15 +160,15 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="rounded px-3 py-1.5 text-xs font-medium"
+            className="rounded px-2.5 py-1 text-[11px] font-medium"
             style={{
-              background: `${PALETTE.danger}18`,
+              background: 'transparent',
               color: PALETTE.danger,
               border: `1px solid ${PALETTE.danger}44`,
               cursor: 'pointer',
             }}
           >
-            Delete booking
+            Delete
           </button>
         )}
       </div>

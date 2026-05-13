@@ -61,7 +61,7 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
           <span style={{ color: PALETTE.text }}>{booking.title}</span>
         </nav>
 
-        {/* Title row + action bar */}
+        {/* Title row */}
         <div className="flex items-start justify-between gap-6 flex-wrap">
           <div className="min-w-0 flex-1">
             <h1
@@ -88,9 +88,12 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
               JOB / {booking.booking_ref ?? '—'}
             </div>
           </div>
+        </div>
 
-          {/* Right-side actions: Advance → Copy team → Archive */}
-          <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+        {/* Stage stepper + actions on same line */}
+        <div className="mt-4 flex items-center justify-between gap-4 flex-wrap">
+          <StageStepper state={booking.state} />
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <BookingAdvanceButtons bookingId={booking.id} bookingState={booking.state} />
             <div className="h-5 w-px" style={{ background: PALETTE.border }} />
             <CopyTeamButton
@@ -106,11 +109,6 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
               compact
             />
           </div>
-        </div>
-
-        {/* Stage pill bar */}
-        <div className="mt-4">
-          <StageStepper state={booking.state} />
         </div>
 
         {/* Metadata strip — generous padding so text doesn't crowd the dividers */}
