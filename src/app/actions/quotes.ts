@@ -441,6 +441,67 @@ export async function updateBookingCrewAssignedDatesAction(args: {
   return { ok: true };
 }
 
+/**
+ * Update the hold-expiry sunset on a booking_talent or booking_crew row.
+ * `expiresAt` of null clears the hold; otherwise an ISO timestamp.
+ */
+export async function updateHoldExpiryAction(args: {
+  tableKind: 'talent' | 'crew';
+  id: string;
+  bookingId: string;
+  expiresAt: string | null;
+}) {
+  const { tableKind, id, bookingId, expiresAt } = args;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: 'Invalid id' };
+  if (tableKind !== 'talent' && tableKind !== 'crew') return { error: 'Invalid table kind' };
+
+  const { updateHoldExpiry } = await import('@/lib/data/quotes');
+  const ok = await updateHoldExpiry(tableKind, id, expiresAt);
+  if (!ok) return { error: 'Failed to update hold expiry' };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: `${tableKind === 'talent' ? 'booking_talent' : 'booking_crew'}_hold_expiry_update`,
+    tableName: tableKind === 'talent' ? 'atelier_booking_talent' : 'atelier_booking_crew',
+    recordId: id,
+    newValue: { hold_expires_at: expiresAt },
+  });
+
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
+  return { ok: true };
+}
+
+/**
+ * Set a per-day rate override for a single crew assignment. Passing
+ * `rate = null` removes the override (date falls back to row-level day_rate).
+ */
+export async function updateCrewDayRateOverrideAction(args: {
+  bookingCrewId: string;
+  bookingId: string;
+  date: string;
+  rate: number | null;
+}) {
+  const { bookingCrewId, bookingId, date, rate } = args;
+  if (!/^[0-9a-f-]{36}$/i.test(bookingCrewId)) return { error: 'Invalid id' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'Invalid date' };
+  if (rate !== null && (!Number.isFinite(rate) || rate < 0)) return { error: 'Invalid rate' };
+
+  const { updateCrewDayRateOverride } = await import('@/lib/data/quotes');
+  const ok = await updateCrewDayRateOverride(bookingCrewId, date, rate);
+  if (!ok) return { error: 'Failed to update rate override' };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'crew_day_rate_override_update',
+    tableName: 'atelier_booking_crew',
+    recordId: bookingCrewId,
+    newValue: { date, rate },
+  });
+
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
+  return { ok: true };
+}
+
 // ============================================================
 // OT & expense entry (morning-after window)
 // ============================================================

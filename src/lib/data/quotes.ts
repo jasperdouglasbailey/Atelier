@@ -320,11 +320,15 @@ export async function addBookingTalent(input: {
   notes?: string | null;
 }) {
   const supabase = await createClient();
+  // Default the hold expiry to NOW + 14 days so unconfirmed assignments
+  // don't go stale silently. Cleared once the talent confirms.
+  const holdExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from(BT_TABLE)
     .insert({
       ...input,
       confirmed: false,
+      hold_expires_at: holdExpiresAt,
     })
     .select()
     .single();
@@ -341,8 +345,11 @@ export async function removeBookingTalent(id: string) {
 
 export async function updateBookingCrewStatus(id: string, status: string) {
   const supabase = await createClient();
-  const update: { status: string; confirmed_at?: string } = { status };
-  if (status === 'confirmed') update.confirmed_at = new Date().toISOString();
+  const update: { status: string; confirmed_at?: string; hold_expires_at?: null } = { status };
+  if (status === 'confirmed') {
+    update.confirmed_at = new Date().toISOString();
+    update.hold_expires_at = null;
+  }
   const { data, error } = await supabase
     .from(BC_TABLE)
     .update(update)
@@ -355,8 +362,11 @@ export async function updateBookingCrewStatus(id: string, status: string) {
 
 export async function updateBookingCrewStatusByCrewId(bookingId: string, crewId: string, status: string) {
   const supabase = await createClient();
-  const update: { status: string; confirmed_at?: string } = { status };
-  if (status === 'confirmed') update.confirmed_at = new Date().toISOString();
+  const update: { status: string; confirmed_at?: string; hold_expires_at?: null } = { status };
+  if (status === 'confirmed') {
+    update.confirmed_at = new Date().toISOString();
+    update.hold_expires_at = null;
+  }
   const { data, error } = await supabase
     .from(BC_TABLE)
     .update(update)
@@ -408,11 +418,13 @@ export async function addBookingCrew(input: {
     };
   }
 
+  const holdExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from(BC_TABLE)
     .insert({
       ...input,
       status: 'pencilled',
+      hold_expires_at: holdExpiresAt,
     })
     .select()
     .single();
@@ -422,6 +434,60 @@ export async function addBookingCrew(input: {
     return { ok: false, error: error.message, reason: 'db_error' };
   }
   return { ok: true, data };
+}
+
+/**
+ * Update the hold-expiry sunset for a booking_talent or booking_crew row.
+ * `tableKind` selects which table; `nextExpiry` is null to clear the hold
+ * (used when explicitly extending or removing the expiry).
+ */
+export async function updateHoldExpiry(
+  tableKind: 'talent' | 'crew',
+  id: string,
+  nextExpiry: string | null,
+): Promise<boolean> {
+  const supabase = await createClient();
+  const table = tableKind === 'talent' ? BT_TABLE : BC_TABLE;
+  const { error } = await supabase
+    .from(table)
+    .update({ hold_expires_at: nextExpiry })
+    .eq('id', id);
+  if (error) { reportDataError('[quotes] update hold expiry', error); return false; }
+  return true;
+}
+
+/**
+ * Set the day-rate override for a single date on a booking_crew row.
+ * Pass `null` rate to clear the override (date falls back to row-level day_rate).
+ * Persists the full overrides object — concurrent writes on different dates
+ * will race; the latest write wins. Acceptable for a single-operator agency.
+ */
+export async function updateCrewDayRateOverride(
+  bookingCrewId: string,
+  date: string,
+  rate: number | null,
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: existing, error: readErr } = await supabase
+    .from(BC_TABLE)
+    .select('assigned_dates_rate_overrides')
+    .eq('id', bookingCrewId)
+    .maybeSingle();
+  if (readErr || !existing) { reportDataError('[quotes] read override', readErr); return false; }
+
+  const overrides: Record<string, number> =
+    (existing as { assigned_dates_rate_overrides?: Record<string, number> }).assigned_dates_rate_overrides ?? {};
+  if (rate == null || Number.isNaN(rate)) {
+    delete overrides[date];
+  } else {
+    overrides[date] = rate;
+  }
+  const { error } = await supabase
+    .from(BC_TABLE)
+    .update({ assigned_dates_rate_overrides: overrides })
+    .eq('id', bookingCrewId);
+  if (error) { reportDataError('[quotes] write override', error); return false; }
+  return true;
 }
 
 export async function removeBookingCrew(id: string) {

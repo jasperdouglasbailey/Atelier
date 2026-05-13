@@ -374,6 +374,8 @@ export interface BookingTalent {
   rate_accepted_at: string | null;
   brief_acknowledged_at: string | null;
   confirmed_at: string | null;
+  /** When the unconfirmed hold lapses. NULL once confirmed or for legacy rows. */
+  hold_expires_at: string | null;
   // Joined
   talent?: Talent;
 }
@@ -394,6 +396,10 @@ export interface BookingCrew {
   artist_paid_at: string | null;
   /** Per-day assignment for multi-day shoots. NULL/empty = all days. */
   assigned_dates: string[] | null;
+  /** When the unconfirmed hold lapses. NULL once confirmed or for legacy rows. */
+  hold_expires_at: string | null;
+  /** Per-day rate override. Shape: { "YYYY-MM-DD": amount }. Falls back to day_rate. */
+  assigned_dates_rate_overrides: Record<string, number>;
   // Joined
   crew?: Crew;
 }
