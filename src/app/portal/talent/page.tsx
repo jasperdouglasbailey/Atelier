@@ -96,7 +96,7 @@ export default async function TalentPortalPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <Stat label="Default day rate" value={talent.default_day_rate ? formatCurrency(talent.default_day_rate) : '—'} />
           <Stat label="ABN" value={talent.abn ?? '—'} />
           <Stat label="GST registered" value={talent.gst_registered ? 'Yes' : 'No'} />
@@ -219,7 +219,7 @@ function TalentBookingRow({
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         {row.shootDateNotes && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Date</span><div style={{ color: PALETTE.text }}>{row.shootDateNotes}</div></div>}
         {row.dayRate && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Day rate</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.dayRate)}</div></div>}
         {row.usageFee && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage fee</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.usageFee)}</div></div>}
@@ -260,6 +260,7 @@ function TalentBookingRow({
 
 function TalentBookingTable({ rows }: { rows: TalentPortalBookingRow[] }) {
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-xs">
       <thead>
         <tr style={{ color: PALETTE.muted, borderBottom: `1px solid ${PALETTE.border}` }}>
@@ -292,5 +293,6 @@ function TalentBookingTable({ rows }: { rows: TalentPortalBookingRow[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

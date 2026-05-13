@@ -674,7 +674,7 @@ export default function BookingDetail({
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
               Invoice &amp; payment
             </h3>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Invoice issued</div>
                 <div className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>
@@ -718,7 +718,7 @@ export default function BookingDetail({
             Raw brief text (original email)
           </summary>
           <pre
-            className="whitespace-pre-wrap text-xs px-4 pb-4"
+            className="whitespace-pre-wrap break-all text-xs px-4 pb-4"
             style={{ color: PALETTE.muted, fontFamily: 'ui-monospace, monospace' }}
           >
             {booking.brief_raw_text}

@@ -182,6 +182,7 @@ export default function PartnerAccountsPanel({ users, currentUserId, talent, cre
         {users.length === 0 ? (
           <p className="text-xs" style={{ color: PALETTE.muted }}>No accounts provisioned yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr style={{ color: PALETTE.muted, borderBottom: `1px solid ${PALETTE.border}` }}>
@@ -235,6 +236,7 @@ export default function PartnerAccountsPanel({ users, currentUserId, talent, cre
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>
