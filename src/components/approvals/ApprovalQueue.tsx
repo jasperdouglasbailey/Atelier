@@ -17,17 +17,22 @@ const statusColors: Record<string, string> = {
   expired:  PALETTE.muted,
 };
 
+type PageWarning = { message: string; summary: string };
+
 export default function ApprovalQueue({ approvals }: Props) {
   const router = useRouter();
   const [acting, setActing] = useState<string | null>(null);
-  const [effectError, setEffectError] = useState<Record<string, string>>({});
+  const [pageWarning, setPageWarning] = useState<PageWarning | null>(null);
 
   async function handleApprove(id: string) {
     setActing(id);
-    setEffectError((prev: Record<string, string>) => { const n = { ...prev }; delete n[id]; return n; });
+    setPageWarning(null);
+    const approval = approvals.find((a) => a.id === id);
     const result = await approveAction(id);
     if (result && 'effectWarning' in result && result.effectWarning) {
-      setEffectError((prev: Record<string, string>) => ({ ...prev, [id]: result.effectWarning as string }));
+      // Lift warning to component level — the card disappears from the pending
+      // filter after router.refresh(), so per-card state would vanish unseen.
+      setPageWarning({ message: result.effectWarning as string, summary: approval?.summary ?? '' });
     }
     router.refresh();
     setActing(null);
@@ -41,127 +46,142 @@ export default function ApprovalQueue({ approvals }: Props) {
     setActing(null);
   }
 
-  if (approvals.length === 0) {
-    return (
-      <div className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-        Nothing in the queue. When agents draft actions, they&apos;ll appear here for your approval.
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-3">
-      {approvals.map((a) => (
+      {/* Page-level effect warning — survives the pending-filter refresh that removes the card */}
+      {pageWarning && (
         <div
-          key={a.id}
-          className="rounded-lg border p-4"
-          style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+          className="flex items-start justify-between gap-3 rounded-lg border-l-2 px-3 py-2.5 text-xs"
+          style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}11`, color: PALETTE.text }}
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
-                  style={{ background: `${statusColors[a.status]}22`, color: statusColors[a.status] }}
-                >
-                  {a.status}
-                </span>
-                <span className="text-xs font-medium" style={{ color: PALETTE.accent }}>
-                  {humanise(a.agent)}
-                </span>
-                <span className="text-[10px]" style={{ color: PALETTE.muted }}>
-                  {humanise(a.action_type)}
-                </span>
-              </div>
-              <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
-
-              {/* Confidence bar + uncertainty */}
-              {a.confidence != null && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: PALETTE.border }}>
-                      <div
-                        className="absolute left-0 top-0 h-full rounded-full transition-all"
-                        style={{
-                          width: `${a.confidence}%`,
-                          background: a.confidence >= 80 ? PALETTE.success : a.confidence >= 55 ? PALETTE.warning : PALETTE.danger,
-                        }}
-                      />
-                    </div>
-                    <span className="flex-shrink-0 text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
-                      {a.confidence}% confidence
-                    </span>
-                  </div>
-                  {a.uncertainty_sources && a.uncertainty_sources.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {a.uncertainty_sources.map((s, i) => (
-                        <span
-                          key={i}
-                          className="rounded px-1.5 py-0.5 text-[10px]"
-                          style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Precedents */}
-              {a.precedent_refs && a.precedent_refs.length > 0 && (
-                <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
-                  Precedent: {a.precedent_refs.join(', ')}
-                </div>
-              )}
-
-              {/* Draft content preview — pretty-print known action types */}
-              <DraftPreview actionType={a.action_type} content={a.draft_content as unknown as Record<string, unknown> | null} />
-
-              {/* Rejection reason */}
-              {a.rejection_reason && (
-                <div className="mt-2 text-xs" style={{ color: PALETTE.danger }}>
-                  Rejected: {a.rejection_reason}
-                </div>
-              )}
-
-              {/* Effect warning (e.g. Google not connected) */}
-              {effectError[a.id] && (
-                <div className="mt-2 rounded border-l-2 px-2 py-1 text-[11px]" style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}11`, color: PALETTE.warning }}>
-                  {effectError[a.id]}
-                </div>
-              )}
-
-              <div className="mt-2 text-[10px]" style={{ color: '#6b6b6b' }}>
-                {formatDateTime(a.created_at)}
-                {a.decided_at && ` · Decided ${formatDateTime(a.decided_at)}`}
-              </div>
-            </div>
-
-            {/* Action buttons — row on mobile, col on desktop */}
-            {a.status === 'pending' && (
-              <div className="flex flex-row gap-2 sm:flex-col">
-                <button
-                  onClick={() => handleApprove(a.id)}
-                  disabled={acting === a.id}
-                  className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:flex-none"
-                  style={{ background: PALETTE.success, color: PALETTE.bg }}
-                >
-                  {acting === a.id ? '…' : 'Approve'}
-                </button>
-                <button
-                  onClick={() => handleReject(a.id)}
-                  disabled={acting === a.id}
-                  className="flex-1 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:flex-none"
-                  style={{ borderColor: PALETTE.danger, color: PALETTE.danger }}
-                >
-                  Reject
-                </button>
-              </div>
+          <div>
+            <div className="font-semibold mb-0.5" style={{ color: PALETTE.warning }}>Action approved — but email not sent</div>
+            {pageWarning.summary && (
+              <div className="text-[11px] mb-1" style={{ color: PALETTE.muted }}>{pageWarning.summary}</div>
             )}
+            <div className="text-[11px]" style={{ color: PALETTE.warning }}>{pageWarning.message}</div>
           </div>
+          <button
+            onClick={() => setPageWarning(null)}
+            className="flex-shrink-0 text-xs leading-none"
+            style={{ color: PALETTE.muted }}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
         </div>
-      ))}
+      )}
+
+      {approvals.length === 0 && !pageWarning ? (
+        <div className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
+          Nothing in the queue. When agents draft actions, they&apos;ll appear here for your approval.
+        </div>
+      ) : approvals.length === 0 ? null : (
+        approvals.map((a) => (
+          <div
+            key={a.id}
+            className="rounded-lg border p-4"
+            style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                    style={{ background: `${statusColors[a.status]}22`, color: statusColors[a.status] }}
+                  >
+                    {a.status}
+                  </span>
+                  <span className="text-xs font-medium" style={{ color: PALETTE.accent }}>
+                    {humanise(a.agent)}
+                  </span>
+                  <span className="text-[10px]" style={{ color: PALETTE.muted }}>
+                    {humanise(a.action_type)}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
+
+                {/* Confidence bar + uncertainty */}
+                {a.confidence != null && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: PALETTE.border }}>
+                        <div
+                          className="absolute left-0 top-0 h-full rounded-full transition-all"
+                          style={{
+                            width: `${a.confidence}%`,
+                            background: a.confidence >= 80 ? PALETTE.success : a.confidence >= 55 ? PALETTE.warning : PALETTE.danger,
+                          }}
+                        />
+                      </div>
+                      <span className="flex-shrink-0 text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
+                        {a.confidence}% confidence
+                      </span>
+                    </div>
+                    {a.uncertainty_sources && a.uncertainty_sources.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {a.uncertainty_sources.map((s, i) => (
+                          <span
+                            key={i}
+                            className="rounded px-1.5 py-0.5 text-[10px]"
+                            style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Precedents */}
+                {a.precedent_refs && a.precedent_refs.length > 0 && (
+                  <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
+                    Precedent: {a.precedent_refs.join(', ')}
+                  </div>
+                )}
+
+                {/* Draft content preview — pretty-print known action types */}
+                <DraftPreview actionType={a.action_type} content={a.draft_content as unknown as Record<string, unknown> | null} />
+
+                {/* Rejection reason */}
+                {a.rejection_reason && (
+                  <div className="mt-2 text-xs" style={{ color: PALETTE.danger }}>
+                    Rejected: {a.rejection_reason}
+                  </div>
+                )}
+
+                <div className="mt-2 text-[10px]" style={{ color: '#6b6b6b' }}>
+                  {formatDateTime(a.created_at)}
+                  {a.decided_at && ` · Decided ${formatDateTime(a.decided_at)}`}
+                </div>
+              </div>
+
+              {/* Action buttons — row on mobile, col on desktop */}
+              {a.status === 'pending' && (
+                <div className="flex flex-row gap-2 sm:flex-col">
+                  <button
+                    onClick={() => handleApprove(a.id)}
+                    disabled={acting === a.id}
+                    className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:flex-none"
+                    style={{ background: PALETTE.success, color: PALETTE.bg }}
+                  >
+                    {acting === a.id ? '…' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleReject(a.id)}
+                    disabled={acting === a.id}
+                    className="flex-1 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:flex-none"
+                    style={{ borderColor: PALETTE.danger, color: PALETTE.danger }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
