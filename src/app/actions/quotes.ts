@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import {
   createQuoteVersion, addFeeLine, updateFeeLine, removeFeeLine,
   addBookingTalent, removeBookingTalent, addBookingCrew, removeBookingCrew,
@@ -65,7 +65,7 @@ export async function generateQuoteFromTemplateAction(
     });
   }
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: qv.id, version: qv.version };
 }
 
@@ -77,7 +77,7 @@ export async function createQuoteVersionAction(bookingId: string, notes?: string
   const qv = await createQuoteVersion(bookingId, notes);
   if (!qv) return { error: 'Failed to create quote version' };
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: qv.id, version: qv.version };
 }
 
@@ -165,7 +165,7 @@ export async function addFeeLineAction(formData: FormData) {
     newValue: { booking_id: bookingId, line_type: lineType, subtotal, asf_amount: asfAmount },
   }).catch(() => {});
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: line.id };
 }
 
@@ -223,7 +223,7 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
     newValue: updates as never,
   }).catch(() => {});
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -239,7 +239,7 @@ export async function removeFeeLineAction(id: string, bookingId: string) {
     newValue: { booking_id: bookingId },
   }).catch(() => {});
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -264,7 +264,7 @@ export async function reorderFeeLinesAction(
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -290,14 +290,14 @@ export async function addBookingTalentAction(formData: FormData) {
   });
 
   if (!result) return { error: 'Failed to add talent to booking' };
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
 export async function removeBookingTalentAction(id: string, bookingId: string) {
   const ok = await removeBookingTalent(id);
   if (!ok) return { error: 'Failed to remove talent' };
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -358,7 +358,7 @@ export async function substituteTalentAction(opts: {
     } as unknown) as import('@/lib/types/database').Json,
   }).catch(() => {});
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -380,14 +380,14 @@ export async function addBookingCrewAction(formData: FormData) {
     // an alert with a link to the crew member's profile.
     return { error: result.error, reason: result.reason };
   }
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
 export async function removeBookingCrewAction(id: string, bookingId: string) {
   const ok = await removeBookingCrew(id);
   if (!ok) return { error: 'Failed to remove crew' };
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -429,7 +429,7 @@ export async function updateBookingCrewAssignedDatesAction(args: {
     newValue: { assigned_dates: nextValue },
   });
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -477,7 +477,7 @@ export async function addOTLineAction(formData: FormData) {
   const line = await addFeeLine(input);
   if (!line) return { error: 'Failed to add OT line' };
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: line.id };
 }
 
@@ -518,6 +518,6 @@ export async function addExpenseLineAction(formData: FormData) {
   const line = await addFeeLine(input);
   if (!line) return { error: 'Failed to add expense line' };
 
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: line.id };
 }

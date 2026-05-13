@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PALETTE, CREW_ROLES } from '@/lib/utils/constants';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { humanise } from '@/lib/utils/humanise';
 
 type PersonType = 'talent' | 'crew';
@@ -63,7 +64,7 @@ export default function OnboardingForm() {
         <div className="text-3xl mb-3">✓</div>
         <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>All done</h2>
         <p className="mt-2 text-sm" style={{ color: PALETTE.muted }}>
-          Your details have been submitted to Saunders & Co. We&apos;ll be in touch.
+          Your details have been submitted to {getAgencyConfig().name}. We&apos;ll be in touch.
           Banking details will be collected securely via Xero — you&apos;ll get a separate invite for that.
         </p>
       </div>
@@ -82,7 +83,7 @@ export default function OnboardingForm() {
           style={{ background: PALETTE.surface, borderColor: PALETTE.border, color: PALETTE.text }}
         >
           <div className="text-sm font-semibold">Artist / Talent</div>
-          <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>Models, artists, talent represented by Saunders & Co</div>
+          <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>Models, artists, talent represented by {getAgencyConfig().name}</div>
         </button>
         <button
           onClick={() => { setPersonType('crew'); setStep('details'); }}

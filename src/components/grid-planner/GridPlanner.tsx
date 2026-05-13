@@ -21,6 +21,7 @@
 
 import { useRef, useState, useEffect, DragEvent, ChangeEvent } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 
 const GRID_COLS = 3;
 const DEFAULT_ROWS = 4;   // 12 slots to start
@@ -90,8 +91,8 @@ function PhoneMockup({
             <span className="text-[8px] font-bold" style={{ color: '#444' }}>S&amp;Co</span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold" style={{ color: '#262626' }}>saundersandco</div>
-            <div className="text-[9px]" style={{ color: '#8e8e8e' }}>Saunders &amp; Co Agency</div>
+            <div className="text-[11px] font-semibold" style={{ color: '#262626' }}>{getAgencyConfig().website?.replace(/^https?:\/\//, '').replace(/\/$/, '') ?? 'saundersandco'}</div>
+            <div className="text-[9px]" style={{ color: '#8e8e8e' }}>{getAgencyConfig().name} Agency</div>
           </div>
           <div
             className="text-[10px] font-semibold px-2 py-0.5 rounded border"

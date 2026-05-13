@@ -13,6 +13,7 @@
  */
 
 import type { CommunicationStyle } from '@/lib/types/database';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 
 type Style = CommunicationStyle | null;
 type Register = NonNullable<Style>;
@@ -26,7 +27,9 @@ function salutation(style: Style, name: string): string {
 
 function close(style: Style): string {
   if (style === 'formal') {
-    return 'Kind regards,\nJasper Bailey\nSaunders & Co\ninfo@saundersandco.com.au';
+    const agency = getAgencyConfig();
+    const emailLine = agency.email ? `\n${agency.email}` : '';
+    return `Kind regards,\nJasper Bailey\n${agency.name}${emailLine}`;
   }
   return 'Best,\nJasper';
 }

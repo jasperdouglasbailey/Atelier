@@ -149,7 +149,7 @@ export default async function TalentPortalPage() {
 
       {/* Upcoming bookings with actions */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Upcoming bookings ({upcoming.length})
         </h2>
         {upcoming.length === 0 ? (
@@ -170,7 +170,7 @@ export default async function TalentPortalPage() {
 
       {/* Past bookings */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Past bookings ({past.length})
         </h2>
         {past.length === 0 ? (
@@ -182,7 +182,7 @@ export default async function TalentPortalPage() {
 
       {/* Availability */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           My availability
         </h2>
         <p className="text-xs mb-3" style={{ color: PALETTE.muted }}>

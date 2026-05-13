@@ -35,7 +35,7 @@ export default function PortalDataRights({ type, id, name }: Props) {
       className="rounded-lg border p-4"
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+      <h3 className="section-title mb-2">
         Privacy & data rights
       </h3>
       <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted, lineHeight: 1.5 }}>
@@ -72,7 +72,7 @@ export default function PortalDataRights({ type, id, name }: Props) {
       </div>
 
       <p className="mt-2 text-[10px]" style={{ color: PALETTE.muted }}>
-        Anonymisation requests are processed manually by Saunders &amp; Co
+        Anonymisation requests are processed manually by {getAgencyConfig().name}
         within 30 calendar days. See the{' '}
         <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: PALETTE.accent }}>
           full privacy policy
