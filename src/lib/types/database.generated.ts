@@ -217,6 +217,7 @@ export type Database = {
       atelier_booking_crew: {
         Row: {
           artist_paid_at: string | null
+          assigned_dates: string[] | null
           booking_id: string
           confirmed_at: string | null
           created_at: string
@@ -230,6 +231,7 @@ export type Database = {
         }
         Insert: {
           artist_paid_at?: string | null
+          assigned_dates?: string[] | null
           booking_id: string
           confirmed_at?: string | null
           created_at?: string
@@ -243,6 +245,7 @@ export type Database = {
         }
         Update: {
           artist_paid_at?: string | null
+          assigned_dates?: string[] | null
           booking_id?: string
           confirmed_at?: string | null
           created_at?: string

@@ -11,7 +11,6 @@ import MorningAfterChecklist from '@/components/bookings/MorningAfterChecklist';
 import BriefParser from '@/components/bookings/BriefParser';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
-import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
 import BookingTabs from '@/components/bookings/BookingTabs';
 import { getBookingDetail } from '@/lib/data/booking-detail';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
@@ -32,8 +31,8 @@ import { parseDateRangeRaw } from '@/lib/utils/daterange';
 import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 import BookingPageHeader from '@/components/bookings/BookingPageHeader';
 import BookingJobFacts from '@/components/bookings/BookingJobFacts';
-import BookingFinanceSummary from '@/components/bookings/BookingFinanceSummary';
 import StageChecklist from '@/components/bookings/StageChecklist';
+import { getBookingsRoster } from '@/lib/data/booking-roster';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -91,10 +90,12 @@ export default async function BookingDetailPage({ params }: Props) {
   const detail = await getBookingDetail(id);
   if (!detail) notFound();
 
-  const [bookingTasks, allAppUsers] = await Promise.all([
+  const [bookingTasks, allAppUsers, rosterMap] = await Promise.all([
     listTasksForBooking(id),
     listAppUsers(),
+    getBookingsRoster([id]),
   ]);
+  const roster = rosterMap.get(id) ?? null;
 
   const {
     booking, events, quoteVersions, latestQuote, feeLines,
@@ -142,6 +143,7 @@ export default async function BookingDetailPage({ params }: Props) {
       <BookingPageHeader
         booking={booking}
         primaryTalent={bookingTalent[0] ?? null}
+        roster={roster}
       />
 
       <div className="p-4 sm:p-6">
@@ -183,25 +185,11 @@ export default async function BookingDetailPage({ params }: Props) {
                       <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
                     </div>
                   )}
-
-                  <BookingLifecycleControls
-                    bookingId={id}
-                    bookingRef={booking.booking_ref}
-                    bookingState={booking.state}
-                    isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
-                  />
                 </div>
 
-                {/* RIGHT — job facts panel */}
+                {/* RIGHT — job facts panel (brief + dates + location + call times + deliverables, inline-editable) */}
                 <BookingJobFacts booking={booking} schedules={schedules} />
               </div>
-
-              {/* Finance summary cards */}
-              <BookingFinanceSummary
-                feeLines={feeLines}
-                latestQuote={latestQuote}
-                quoteVersionCount={quoteVersions.length}
-              />
             </>
           }
           finance={
@@ -269,6 +257,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 bookingCrew={bookingCrew}
                 allTalent={allTalent}
                 allCrew={allCrew}
+                shootDays={shootDays}
                 shootLocation={booking.shoot_location}
                 crewConflictsByCrewId={crewConflictsByCrewId}
                 talentUnavailByTalentId={talentUnavailByTalentId}

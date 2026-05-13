@@ -11,6 +11,7 @@ import {
   substituteTalentAction,
 } from '@/app/actions/quotes';
 import CrewStatusSelect from './CrewStatusSelect';
+import CrewDayPicker from './CrewDayPicker';
 
 type Props = {
   bookingId: string;
@@ -18,6 +19,8 @@ type Props = {
   bookingCrew: BookingCrew[];
   allTalent: Talent[];
   allCrew: Crew[];
+  /** All shoot days for this booking (ISO YYYY-MM-DD). When length > 1, the per-day picker is shown for each crew row. */
+  shootDays?: string[];
   /** Free-text shoot location — used to surface local crew first. */
   shootLocation?: string | null;
   /**
@@ -56,7 +59,8 @@ function isLocalCrew(crewCity: string | null | undefined, shootLocation: string 
     .some((token) => token.trim().length > 0 && haystack.includes(token.trim()));
 }
 
-export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {}, talentUnavailByTalentId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
+export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootDays = [], shootLocation, crewConflictsByCrewId = {}, talentUnavailByTalentId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
+  const isMultiDay = shootDays.length > 1;
   const preferredSet = useMemo(() => new Set(preferredCrewIds), [preferredCrewIds]);
   const router = useRouter();
   const [showAddTalent, setShowAddTalent] = useState(false);
@@ -491,6 +495,14 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       >
                         ⚠ Also on {conflicts.map((c) => c.bookingRef ?? c.title).join(', ')}
                       </div>
+                    )}
+                    {isMultiDay && (
+                      <CrewDayPicker
+                        bookingCrewId={bc.id}
+                        bookingId={bookingId}
+                        shootDays={shootDays}
+                        assignedDates={bc.assigned_dates}
+                      />
                     )}
                   </div>
                   <div className="flex items-center gap-3">
