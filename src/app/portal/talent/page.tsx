@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getTalentPortalData, getPortalCallSheets } from '@/lib/data/portal';
 import PortalDataRights from '@/components/portal/PortalDataRights';
+import TalentUnavailabilityManager from '@/components/portal/TalentUnavailabilityManager';
 import HoldCard from '@/components/portal/HoldCard';
 import CallSheetCard from '@/components/portal/CallSheetCard';
 import {
@@ -63,7 +64,7 @@ export default async function TalentPortalPage() {
     );
   }
 
-  const { talent, bookings } = data;
+  const { talent, bookings, unavailability } = data;
 
   const pendingHolds = bookings.filter((b) => HOLD_STATES.includes(b.status));
   const upcoming = bookings.filter((b) => !TERMINAL.includes(b.state) && !HOLD_STATES.includes(b.status));
@@ -177,6 +178,17 @@ export default async function TalentPortalPage() {
         ) : (
           <TalentBookingTable rows={past} />
         )}
+      </section>
+
+      {/* Availability */}
+      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          My availability
+        </h2>
+        <p className="text-xs mb-3" style={{ color: PALETTE.muted }}>
+          Add any dates you are unavailable so the team knows before sending hold requests.
+        </p>
+        <TalentUnavailabilityManager initial={unavailability} />
       </section>
 
       <PortalDataRights type="talent" id={talent.id} name={talent.working_name} />

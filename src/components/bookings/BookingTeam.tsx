@@ -27,6 +27,11 @@ type Props = {
    */
   crewConflictsByCrewId?: Record<string, Array<{ bookingId: string; bookingRef: string | null; title: string; start: string; end: string }>>;
   /**
+   * Map of talent_id → self-reported unavailability blocks. Talent in
+   * this map get a soft amber warning in the attached roster and add-dropdown.
+   */
+  talentUnavailByTalentId?: Record<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>;
+  /**
    * Crew IDs preferred by the primary artist on this booking. Surfaced
    * at the top of the add-crew dropdown with a ★ marker so producers
    * see the artist's go-to people first.
@@ -51,7 +56,7 @@ function isLocalCrew(crewCity: string | null | undefined, shootLocation: string 
     .some((token) => token.trim().length > 0 && haystack.includes(token.trim()));
 }
 
-export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
+export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootLocation, crewConflictsByCrewId = {}, talentUnavailByTalentId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
   const preferredSet = useMemo(() => new Set(preferredCrewIds), [preferredCrewIds]);
   const router = useRouter();
   const [showAddTalent, setShowAddTalent] = useState(false);
@@ -206,7 +211,9 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
             >
               <option value="">Select talent...</option>
               {allTalent.filter(t => t.is_active).map(t => (
-                <option key={t.id} value={t.id}>{t.working_name}</option>
+                <option key={t.id} value={t.id}>
+                  {t.working_name}{talentUnavailByTalentId[t.id]?.length ? ' ⚠ Unavailable' : ''}
+                </option>
               ))}
             </select>
             <div className="grid grid-cols-3 gap-2">
@@ -257,6 +264,11 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       <div className="text-[10px]" style={{ color: PALETTE.muted }}>
                         {bt.confirmed ? 'Confirmed' : 'Pencilled'}
                       </div>
+                      {bt.talent_id && talentUnavailByTalentId[bt.talent_id]?.length > 0 && (
+                        <div className="text-[10px] mt-0.5" style={{ color: PALETTE.warning }}>
+                          ⚠ Unavailable (self-reported)
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <a

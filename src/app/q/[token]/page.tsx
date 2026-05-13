@@ -11,6 +11,7 @@ import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
+import QuoteActions from '@/components/quotes/QuoteActions';
 import type { FeeLine } from '@/lib/types/database';
 
 type Props = { params: Promise<{ token: string }> };
@@ -213,18 +214,26 @@ export default async function PublicQuotePage({ params }: Props) {
             </div>
           )}
 
-          {/* Confirm CTA */}
-          <div style={{ background: '#f0f7f0', border: '1px solid #c8e6c8', borderRadius: 8, padding: '20px 24px', marginBottom: 28 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>
-              Ready to go ahead?
+          {/* Quote Accept / Decline CTA */}
+          {(booking.state === 'quote_sent' || booking.state === 'artists_crew_held') ? (
+            <QuoteActions token={token} bookingRef={booking.booking_ref} agencyEmail={agency.email ?? null} />
+          ) : booking.state === 'quote_confirmed' ? (
+            <div style={{ background: '#f0faf0', border: '1px solid #86efac', borderRadius: 8, padding: '20px 24px', marginBottom: 28 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Quote Confirmed</div>
+              <div style={{ fontSize: 13, color: '#166534', lineHeight: 1.6 }}>
+                This quote has been accepted and the booking is confirmed. The team is in touch with you from here.
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>
-              Reply to the quote email to confirm — we will hold the dates and send paperwork once we hear from you.
-              {agency.email && (
-                <> Or email us at <a href={`mailto:${agency.email}`} style={{ color: '#1a6a1a', fontWeight: 500 }}>{agency.email}</a>.</>
-              )}
+          ) : (
+            <div style={{ background: '#f8f8f8', border: '1px solid #e0e0e0', borderRadius: 8, padding: '20px 24px', marginBottom: 28 }}>
+              <div style={{ fontSize: 13, color: '#666', lineHeight: 1.6 }}>
+                This quote is no longer open for response. Contact us if you have any questions.
+                {agency.email && (
+                  <> Email <a href={`mailto:${agency.email}`} style={{ color: '#1a6a1a', fontWeight: 500 }}>{agency.email}</a>.</>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Footer */}
           <div style={{ borderTop: '1px solid #ebebeb', paddingTop: 20, fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>

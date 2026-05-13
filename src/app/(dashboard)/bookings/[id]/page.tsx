@@ -23,6 +23,11 @@ import JobPnLPanel from '@/components/bookings/JobPnLPanel';
 import QuickCompose from '@/components/bookings/QuickCompose';
 import { PALETTE } from '@/lib/utils/constants';
 import { getStageChecklist, stageOf } from '@/lib/utils/booking-stages';
+import { listTasksForBooking } from '@/lib/data/tasks';
+import { listAppUsers } from '@/lib/data/app-users';
+import TasksPanel from '@/components/tasks/TasksPanel';
+import SchedulesPanel from '@/components/bookings/SchedulesPanel';
+import { parseDateRangeRaw } from '@/lib/utils/daterange';
 import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 
 type Props = { params: Promise<{ id: string }> };
@@ -81,11 +86,34 @@ export default async function BookingDetailPage({ params }: Props) {
   const detail = await getBookingDetail(id);
   if (!detail) notFound();
 
+  const [bookingTasks, allAppUsers] = await Promise.all([
+    listTasksForBooking(id),
+    listAppUsers(),
+  ]);
+
   const {
     booking, events, quoteVersions, latestQuote, feeLines,
     bookingTalent, bookingCrew, usageLicences, allTalent, allCrew,
-    preferredCrewIds, ratePrecedents, crewConflictsByCrewId,
+    preferredCrewIds, ratePrecedents, crewConflictsByCrewId, talentUnavailByTalentId, schedules,
   } = detail;
+
+  // Expand shoot_dates range into individual day strings for the SchedulesPanel picker.
+  const shootRange = parseDateRangeRaw(booking.shoot_dates);
+  const shootDays: string[] = [];
+  if (shootRange.start) {
+    const endDate = shootRange.end
+      ? (() => { const d = new Date(shootRange.end + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d; })()
+      : new Date(shootRange.start + 'T00:00:00Z');
+    const cur = new Date(shootRange.start + 'T00:00:00Z');
+    while (cur <= endDate) {
+      shootDays.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
+  const taskAssignees = allAppUsers
+    .filter((u) => u.is_active && (u.role === 'owner' || u.role === 'partner'))
+    .map((u) => ({ userId: u.user_id, displayName: u.display_name ?? u.user_id }));
 
   const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
   const proposedDayRate = bookingTalent[0]?.day_rate ?? null;
@@ -138,6 +166,7 @@ export default async function BookingDetailPage({ params }: Props) {
               allCrew={allCrew}
               shootLocation={booking.shoot_location}
               crewConflictsByCrewId={crewConflictsByCrewId}
+              talentUnavailByTalentId={talentUnavailByTalentId}
               preferredCrewIds={preferredCrewIds}
               primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
             />
@@ -207,6 +236,22 @@ export default async function BookingDetailPage({ params }: Props) {
               defaultTo={booking.client?.email ?? null}
               googleConfigured={isGoogleConfigured()}
             />
+
+            {/* Day-by-day schedules */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Schedule</h2>
+              <SchedulesPanel bookingId={id} initial={schedules} shootDays={shootDays} />
+            </section>
+
+            {/* Tasks */}
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h2>
+              <TasksPanel
+                initial={bookingTasks}
+                attachment={{ type: 'booking', id }}
+                assignees={taskAssignees}
+              />
+            </section>
 
             <BookingLifecycleControls
               bookingId={id}

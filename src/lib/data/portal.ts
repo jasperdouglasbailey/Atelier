@@ -20,7 +20,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { reportDataError } from '@/lib/utils/data-errors';
-import type { Booking, Talent, Crew, CrewUnavailability, BookingState } from '@/lib/types/database';
+import type { Booking, Talent, Crew, CrewUnavailability, TalentUnavailability, BookingState } from '@/lib/types/database';
 
 export type PortalBookingRow = {
   bookingId: string;
@@ -71,16 +71,22 @@ export type PortalCallSheet = {
 export async function getTalentPortalData(talentId: string): Promise<{
   talent: Talent | null;
   bookings: TalentPortalBookingRow[];
+  unavailability: TalentUnavailability[];
 } | null> {
   const supabase = await createClient();
 
-  const [talentResp, assignmentsResp] = await Promise.all([
+  const [talentResp, assignmentsResp, unavailResp] = await Promise.all([
     supabase.from('atelier_talent').select('*').eq('id', talentId).maybeSingle(),
     supabase
       .from('atelier_booking_talent')
       .select('id, booking_id, day_rate, usage_fee, confirmed, status, rate_accepted, brief_acknowledged_at, created_at')
       .eq('talent_id', talentId)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('atelier_talent_unavailability')
+      .select('*')
+      .eq('talent_id', talentId)
+      .order('date_from', { ascending: true }),
   ]);
 
   if (talentResp.error) { reportDataError('[portal] talent', talentResp.error); return null; }
@@ -124,7 +130,11 @@ export async function getTalentPortalData(talentId: string): Promise<{
     })
     .filter((r): r is TalentPortalBookingRow => r !== null);
 
-  return { talent: talentResp.data as Talent | null, bookings };
+  return {
+    talent: talentResp.data as Talent | null,
+    bookings,
+    unavailability: (unavailResp.data ?? []) as TalentUnavailability[],
+  };
 }
 
 // ─── crew portal ──────────────────────────────────────────────────────────────
@@ -303,5 +313,27 @@ export async function getCrewUnavailabilityForRange(
   return result;
 }
 
+// ─── talent unavailability (admin-side lookup) ────────────────────────────────
+
+export async function getTalentUnavailabilityForRange(
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from('atelier_talent_unavailability')
+    .select('talent_id, date_from, date_to, reason')
+    .lte('date_from', endDate)
+    .gte('date_to', startDate);
+
+  const result = new Map<string, Array<{ dateFrom: string; dateTo: string; reason: string | null }>>();
+  for (const row of data ?? []) {
+    const list = result.get(row.talent_id as string) ?? [];
+    list.push({ dateFrom: row.date_from as string, dateTo: row.date_to as string, reason: row.reason as string | null });
+    result.set(row.talent_id as string, list);
+  }
+  return result;
+}
+
 // Reference import kept for type completeness
-export type { Booking };
+export type { Booking, TalentUnavailability };

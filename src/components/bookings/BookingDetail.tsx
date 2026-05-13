@@ -448,6 +448,15 @@ export default function BookingDetail({
         >
           Call sheet
         </Link>
+        <Link
+          href={`/print/bookings/${booking.id}/confirmation`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+        >
+          Confirmation
+        </Link>
         {booking.quote_token && (
           <Link
             href={`/q/${booking.quote_token}`}

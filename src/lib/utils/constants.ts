@@ -34,7 +34,7 @@ export const STATE_TRANSITIONS: Record<BookingState, BookingState[]> = {
   brief_received: ['brief_parsed', 'released'],
   brief_parsed: ['quote_drafted', 'released'],
   quote_drafted: ['quote_sent', 'released'],
-  quote_sent: ['artists_crew_held', 'released', 'quote_drafted'],
+  quote_sent: ['artists_crew_held', 'quote_confirmed', 'released', 'quote_drafted'],
   artists_crew_held: ['quote_confirmed', 'released'],
   quote_confirmed: ['pre_production', 'cancelled'],
   pre_production: ['shoot_live', 'cancelled'],
