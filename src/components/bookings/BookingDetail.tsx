@@ -36,6 +36,8 @@ type Props = {
   showWorkspaceShortcut: boolean;
   preflight?: PreflightData;
   talentNames?: string[];
+  /** When true: hides the ID strip, StageStepper, and StageChecklist (they are rendered in the page-level header/layout). */
+  suppressHeader?: boolean;
 };
 
 const POST_PROD_OPTIONS = [
@@ -56,6 +58,7 @@ const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABEL
 
 export default function BookingDetail({
   booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight, talentNames,
+  suppressHeader = false,
 }: Props) {
   const router = useRouter();
   const [transitioning, setTransitioning] = useState(false);
@@ -116,8 +119,9 @@ export default function BookingDetail({
     <div className="space-y-3">
       {/* ═══════════════════════════════════════════════════════════════════
           1. ID STRIP — title, state, ref, total + primary CTAs on the right
+          Hidden when suppressHeader=true (rendered in BookingPageHeader instead)
           ═══════════════════════════════════════════════════════════════════ */}
-      <div
+      {!suppressHeader && <div
         className="rounded-lg border p-4 flex items-start justify-between gap-4 flex-wrap"
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
@@ -223,12 +227,13 @@ export default function BookingDetail({
             </a>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ═══════════════════════════════════════════════════════════════════
           2. STAGE STEPPER — compact 5-group progress indicator
+          Hidden when suppressHeader=true (rendered in BookingPageHeader)
           ═══════════════════════════════════════════════════════════════════ */}
-      <StageStepper state={booking.state} />
+      {!suppressHeader && <StageStepper state={booking.state} />}
 
       {/* ═══════════════════════════════════════════════════════════════════
           3. ACTION STRIP — advance-to + print/tools in one row
@@ -447,8 +452,9 @@ export default function BookingDetail({
 
       {/* ═══════════════════════════════════════════════════════════════════
           4. WHAT'S NEXT — stage checklist + warnings (OT window, cancellation)
+          Hidden when suppressHeader=true (checklist rendered in two-column layout)
           ═══════════════════════════════════════════════════════════════════ */}
-      <StageChecklist checklist={checklist} />
+      {!suppressHeader && <StageChecklist checklist={checklist} />}
 
       {booking.ot_expenses_window_end && !booking.ot_expenses_locked && (
         <div

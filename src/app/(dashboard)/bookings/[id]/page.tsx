@@ -30,6 +30,10 @@ import TasksPanel from '@/components/tasks/TasksPanel';
 import SchedulesPanel from '@/components/bookings/SchedulesPanel';
 import { parseDateRangeRaw } from '@/lib/utils/daterange';
 import type { BookingTalent, BookingCrew } from '@/lib/types/database';
+import BookingPageHeader from '@/components/bookings/BookingPageHeader';
+import BookingJobFacts from '@/components/bookings/BookingJobFacts';
+import BookingFinanceSummary from '@/components/bookings/BookingFinanceSummary';
+import StageChecklist from '@/components/bookings/StageChecklist';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -133,44 +137,70 @@ export default async function BookingDetailPage({ params }: Props) {
   return (
     <>
       <Topbar title={booking.booking_ref ?? booking.title} />
+
+      {/* Page-level header: breadcrumb, serif title, stage pills, metadata strip */}
+      <BookingPageHeader
+        booking={booking}
+        primaryTalent={bookingTalent[0] ?? null}
+      />
+
       <div className="p-4 sm:p-6">
         <BookingTabs
           overview={
             <>
-              <BookingDetail
-                booking={booking}
-                licences={usageLicences}
-                googleConfigured={isGoogleConfigured()}
-                checklist={checklist}
-                showWorkspaceShortcut={showWorkspaceShortcut}
-                talentNames={bookingTalent.map((bt) => (bt.talent as { working_name?: string } | null)?.working_name ?? '').filter(Boolean)}
-                preflight={{
-                  talentCount: bookingTalent.length,
-                  feeLineCount: feeLines.length,
-                  hasDeliverables: !!(booking.deliverables_type),
-                  usageLicenceCount: usageLicences.length,
-                }}
-              />
+              {/* Two-column layout: What's Left | Job Facts */}
+              <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
+                {/* LEFT — checklist + advance strip + brief panel */}
+                <div className="space-y-4">
+                  <StageChecklist checklist={checklist} />
 
-              {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
-                <BriefParser
-                  bookingId={id}
-                  hasBriefText={!!booking.brief_raw_text}
-                  currentState={booking.state}
-                />
-              )}
+                  <BookingDetail
+                    booking={booking}
+                    licences={usageLicences}
+                    googleConfigured={isGoogleConfigured()}
+                    checklist={checklist}
+                    showWorkspaceShortcut={showWorkspaceShortcut}
+                    suppressHeader
+                    talentNames={bookingTalent.map((bt) => (bt.talent as { working_name?: string } | null)?.working_name ?? '').filter(Boolean)}
+                    preflight={{
+                      talentCount: bookingTalent.length,
+                      feeLineCount: feeLines.length,
+                      hasDeliverables: !!(booking.deliverables_type),
+                      usageLicenceCount: usageLicences.length,
+                    }}
+                  />
 
-              {booking.state === 'morning_after_check' && (
-                <div id="morning-after">
-                  <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+                  {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
+                    <BriefParser
+                      bookingId={id}
+                      hasBriefText={!!booking.brief_raw_text}
+                      currentState={booking.state}
+                    />
+                  )}
+
+                  {booking.state === 'morning_after_check' && (
+                    <div id="morning-after">
+                      <MorningAfterChecklist bookingId={id} bookingRef={booking.booking_ref} />
+                    </div>
+                  )}
+
+                  <BookingLifecycleControls
+                    bookingId={id}
+                    bookingRef={booking.booking_ref}
+                    bookingState={booking.state}
+                    isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+                  />
                 </div>
-              )}
 
-              <BookingLifecycleControls
-                bookingId={id}
-                bookingRef={booking.booking_ref}
-                bookingState={booking.state}
-                isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+                {/* RIGHT — job facts panel */}
+                <BookingJobFacts booking={booking} schedules={schedules} />
+              </div>
+
+              {/* Finance summary cards */}
+              <BookingFinanceSummary
+                feeLines={feeLines}
+                latestQuote={latestQuote}
+                quoteVersionCount={quoteVersions.length}
               />
             </>
           }
