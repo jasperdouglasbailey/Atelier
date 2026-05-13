@@ -4,7 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { createLocation, getLocation, updateLocation } from '@/lib/data/locations';
 import { createLocationFolder } from '@/lib/integrations/drive';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { getCurrentAppUser } from '@/lib/data/app-users';
+import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 import type { StudioType, StudioRoom } from '@/lib/types/database';
+
+async function requireOwnerOrPartner(): Promise<{ error: string } | null> {
+  const user = await getCurrentAppUser();
+  if (!user || (user.role !== 'owner' && user.role !== 'partner')) return { error: 'Forbidden' };
+  return null;
+}
 
 const TEXT_FIELDS = [
   'name', 'alias', 'address', 'suburb', 'state', 'postcode',
@@ -46,12 +55,16 @@ function formToLocationInput(fd: FormData) {
 }
 
 export async function createLocationAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const input = formToLocationInput(formData);
   const name = input.name as string;
   if (!name) return { error: 'Name is required' };
 
   const result = await createLocation({ ...input, name });
   if (!result) return { error: 'Failed to create location' };
+
+  await logAudit({ userId: await getCurrentActor(), action: 'create', tableName: 'atelier_locations', recordId: result.id, newValue: { name } as never });
 
   // Auto-create Google Drive folder (non-blocking — failure doesn't abort creation)
   try {
@@ -71,9 +84,13 @@ export async function createLocationAction(formData: FormData) {
 }
 
 export async function updateLocationAction(id: string, formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const input = formToLocationInput(formData);
   const result = await updateLocation(id, input);
   if (!result) return { error: 'Failed to update location' };
+
+  await logAudit({ userId: await getCurrentActor(), action: 'update', tableName: 'atelier_locations', recordId: id, newValue: input as never });
 
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);
@@ -86,6 +103,8 @@ export async function updateLocationAction(id: string, formData: FormData) {
  * Idempotent — `createLocationFolder` finds an existing folder by name first.
  */
 export async function retryLocationDriveFolderAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   if (!isGoogleConfigured()) {
     return { error: 'Google Drive is not configured. Set GOOGLE_REFRESH_TOKEN first.' };
   }

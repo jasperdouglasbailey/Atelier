@@ -99,6 +99,64 @@ After Phase 1 closes (current trajectory: ~95% done), and again after each subse
 
 Output: ranked findings with file:line, prioritised into a polish PR sequence. Don't skip this in the rush to ship the next feature.
 
+### Standard audit execution procedure (added 2026-05-14)
+
+The audit prompt that produced `docs/AUDIT-2026-05-14.md`. Reproduce verbatim for future audit sessions:
+
+```
+You are doing a comprehensive platform audit of the Atelier codebase, covering PRs [X–Y].
+
+Run these checks in order. For each check, report findings as: SEVERITY | FILE:LINE | DESCRIPTION | FIX.
+Severity levels: P0 (broken / data loss), P1 (wrong-but-not-broken), P2 (polish).
+
+BASELINE
+1. tsc --noEmit — confirm zero type errors
+2. npm test — confirm all tests green
+3. Count server actions across all actions/ files — note total
+4. Spot-check 5 random .select() strings against their TypeScript return types
+
+REVALIDATION + AUDIT GAPS
+5. Grep revalidateTag in all server actions — flag any that use the one-arg form (missing {})
+6. Grep every server action for logAudit — list any mutation that skips it (auth actions, public token actions)
+7. Check portal.ts — does every action call revalidateTag('bookings', {}) after revalidatePath?
+8. Check entities.ts + locations.ts — does every mutation gate on owner/partner role?
+
+BOOKING DETAIL WALK (src/components/bookings/BookingDetail.tsx + tabs)
+9. Every button/link in the tools row — does it navigate or fire an action? No dead href="#"
+10. StageChecklist + BookingAdvanceButtons — does every state transition have a confirm? Enter key?
+11. QuoteBuilder — optimistic update + revert on error? Drag handle tooltip/opacity?
+12. JobPnLPanel — empty state when no quote? Paid Out row hidden when zero?
+13. SchedulesPanel — does Delete have a confirm?
+14. BookingTeam — HoldExpiryBadge present on talent + crew rows? Timezone correct?
+15. HoldExpiryBadge — color thresholds sensible? >7d green, 4-7d amber, ≤3d red, expired filled red?
+
+PORTAL + INBOX + DASHBOARD WALK
+16. /portal/talent + /portal/crew — every interactive element fires the correct action
+17. /inbox — ApprovalQueue key={filter} so state resets on tab change?
+18. BookingTabs — URL sync on tab change via ?tab= param?
+19. /q/[token] — QuoteActions accept/decline: audit logged? State check correct?
+20. Dashboard attention queue — OT window urgency badge present?
+
+TALENT / CREW / CLIENT WALK
+21. Talent detail — 3-row header: identity / badges / actions? ArchiveTalentButton present?
+22. Crew detail — same 3-row structure? ArchiveCrewButton present?
+23. Client detail — same 3-row structure? (was single-row in earlier builds)
+24. DeleteEntityButton — type-to-confirm or two-step? Consistent with booking delete?
+25. DataRightsControls — anonymise has typed confirmation? Export link opens correctly?
+
+VISUAL TOKEN CONSISTENCY
+26. Grep for hardcoded hex codes (#[0-9a-fA-F]{6}) in src/components — list any outside PALETTE
+27. Grep for inline "text-xs font-semibold uppercase tracking-wide" on h3 elements — should use .section-title
+28. Check that all PALETTE.muted / PALETTE.danger / PALETTE.warning / PALETTE.success usages
+    are correct (muted for inactive, not for "all good")
+
+OUTPUT FORMAT
+- Produce a severity table (P0/P1/P2 counts)
+- List every finding with file:line, description, fix
+- Group into a suggested fix-PR sequence (smallest PRs first, dependencies second)
+- Write the full findings to docs/AUDIT-YYYY-MM-DD.md
+```
+
 ## Worktree-specific gotchas
 
 - This is a git worktree, not the main checkout. Changes here need pushing
@@ -153,7 +211,7 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 
 36. **Workflow UX: per-job P&L + morning-after urgency + quick email compose + talent substitution (PR#65).** ✅ (a) `JobPnLPanel` on every booking detail — Quoted vs Actual grand total, Commission/ASF/Super spread breakdown, revenue drift $ and margin drift pp (drift rows hidden until OT/expense lines exist). (b) Dashboard attention panel shows a red "OT window closes in Xh" badge on `morning_after_check` items; link anchors to `#morning-after`. (c) `QuickCompose` panel on booking detail (collapsed by default) — pre-fills To/Subject from booking context, Send now or Draft, kill-switch checked on send, audit-logged, graceful fallback when Gmail not connected. (d) Amber "Substitute" button on each talent row in BookingTeam — inline panel with required reason, replacement talent select, optional day rate override; `substituteTalentAction` writes `talent_substituted` audit row with `old_talent_id`, `new_talent_id`, `reason`.
 
-## Build status (updated 2026-05-13, session 11)
+## Build status (updated 2026-05-14, session 12)
 
 ### Fully built (Phases 1a, 1b, 3 first slice, 4 first pass, 5 first slice, 6 portals)
 - Booking pipeline: all 13 states, list + kanban board + month calendar, detail, edit, new
@@ -194,6 +252,14 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
 - **Workflow UX (PR#65):** `JobPnLPanel` (quoted vs actual + margin drift), morning-after urgency badge on dashboard, `QuickCompose` on booking detail, inline talent substitution with audit trail.
 - **Security + UX hardening (PR#66):** Auth guards on `markTalentPaidAction`, `markCrewPaidAction`, `sendQuickEmailAction` (owner/partner only); booking state check on payroll actions; server-side email format validation; same-artist guard in `substituteTalentAction`; `confirmed_at` timestamp on talent hold confirmation (migration 0038); `JobPnLPanel` shows `—` for zero-total margin; `HoldCard` error is now dismissable.
 - **Syngency-inspired features (PR#74):** Six features in two commits. (1) 5-tab booking detail restructure — `BookingTabs` client component organises the page into Overview / Team / Documents / Comms / Activity; all content SSR'd, tab switching is instant via HTML `hidden` attribute. (2) Quote accept/decline on `/q/[token]` — `QuoteActions` client component lets clients self-serve accept (→ `quote_confirmed`) or decline (→ `released`) with agency email notification; state-aware rendering. (3) Talent bookouts — `atelier_talent_unavailability` (migration 0040) mirrors crew pattern; `TalentUnavailabilityManager` in talent portal; `BookingTeam` shows amber unavailability badges. (4) Tasks system — `atelier_tasks` (migration 0041) polymorphic booking/talent/crew attachment; `TasksPanel` with open/done toggle, delete, add form, colour-coded due dates; wired on booking detail (Team tab), talent detail, crew detail. (5) Booking Confirmation print template — `/print/bookings/[id]/confirmation` with creative team, usage licences, fee totals, dual signature blocks; linked from BookingDetail tools row. (6) Per-day schedules — `atelier_booking_schedules` (migration 0042) with call/wrap/location/notes per shoot day; `SchedulesPanel` with date picker locked to shoot range; upsert on `(booking_id, schedule_date)` conflict; in Team tab.
+- **Comprehensive audit + 6 fix PRs (post-session 12, 2026-05-14):**
+  - `docs/AUDIT-2026-05-14.md` — full platform audit covering PRs #60–#85; 0 P0, 11 P1, 13 P2 findings.
+  - PR-A: `requireOwnerOrPartner()` guard on all 14 entity mutations (entities.ts) + 3 location mutations (locations.ts) + auth + logAudit on locations. `revalidateTag('bookings', {})` added to all 8 portal actions.
+  - PR-B: `SchedulesPanel.handleDelete` confirm dialog. New `ArchiveCrewButton` component. Crew detail action row gains Archive button. Client detail header rebuilt to 3-row structure (identity / badges / actions) matching talent/crew pages.
+  - PR-C: `HoldExpiryBadge` timezone fix — AEST/AEDT resolved dynamically via Intl (was hardcoded +10:00). >7d color changed muted → success (green). `BookingDetail` client chip renders `<span>` not `<Link href="#">` when no client.id.
+  - PR-D: `logAudit('quote_accept_by_token')` + `logAudit('quote_decline_by_token')` in quotes-public.ts. `key={filter}` on `<ApprovalQueue>` in inbox. `BookingTabs` syncs active tab to `?tab=` URL param.
+  - PR-E: Hardcoded hexes replaced in ApprovalQueue (#6b6b6b), SeedButton (#262626/#8b8b8b), BookingsCalendar (#404560). Five inline-styled `<h3>` headings converted to `.section-title` class.
+  - PR-F: `JobPnLPanel` shows empty-state card when no quote (was null). Paid Out row hidden when zero. QuoteBuilder drag handle opacity raised (0.35→0.55) + tooltip added.
 
 ### In progress / partially wired
 - Gmail outbound: wired, needs GOOGLE_REFRESH_TOKEN credentials set

@@ -41,7 +41,8 @@ export default function HoldExpiryBadge({ tableKind, id, bookingId, expiresAt, i
   const expired = days != null && days < 0;
   const urgent = days != null && days >= 0 && days <= 3;
   const soon = days != null && days > 3 && days <= 7;
-  const color = expired ? PALETTE.danger : urgent ? PALETTE.danger : soon ? PALETTE.warning : PALETTE.muted;
+  const comfortable = days != null && days > 7;
+  const color = expired || urgent ? PALETTE.danger : soon ? PALETTE.warning : comfortable ? PALETTE.success : PALETTE.muted;
 
   let label: string;
   if (!expiresAt) {
@@ -79,8 +80,14 @@ export default function HoldExpiryBadge({ tableKind, id, bookingId, expiresAt, i
       save(null);
       return;
     }
-    // Anchor at 9am Sydney for a sensible default — keeps the UI predictable.
-    const iso = new Date(`${draft}T09:00:00+10:00`).toISOString();
+    // Anchor at 9am Sydney — dynamically resolves AEST (+10) vs AEDT (+11).
+    // At UTC midnight the Sydney hour equals the UTC offset (10 or 11).
+    // So 9am Sydney = UTC midnight + (9 - sydneyHour) hours.
+    const midnight = new Date(`${draft}T00:00:00Z`);
+    const sydHour = Number(
+      new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).format(midnight),
+    );
+    const iso = new Date(midnight.getTime() + (9 - sydHour) * 3_600_000).toISOString();
     save(iso);
   }
 
@@ -133,9 +140,9 @@ export default function HoldExpiryBadge({ tableKind, id, bookingId, expiresAt, i
       onClick={() => { setEditing(true); setDraft(toDateInputValue(expiresAt)); }}
       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity hover:opacity-80"
       style={{
-        background: expired || urgent ? `${color}18` : 'transparent',
+        background: expired || urgent || soon ? `${color}18` : 'transparent',
         color,
-        border: `1px solid ${expired || urgent ? `${color}55` : PALETTE.border}`,
+        border: `1px solid ${expired || urgent || soon ? `${color}55` : PALETTE.border}`,
       }}
       title={expiresAt ? `Click to change · ${new Date(expiresAt).toLocaleString()}` : 'Click to set'}
     >

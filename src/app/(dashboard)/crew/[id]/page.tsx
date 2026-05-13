@@ -5,6 +5,7 @@ import { getCrewMember } from '@/lib/data/entities';
 import { listCrewBookings } from '@/lib/data/crew-bookings';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
+import ArchiveCrewButton from '@/components/entities/ArchiveCrewButton';
 import DataRightsControls from '@/components/entities/DataRightsControls';
 import { listTasksForCrew } from '@/lib/data/tasks';
 import { listAppUsers } from '@/lib/data/app-users';
@@ -146,6 +147,7 @@ export default async function CrewDetailPage({ params }: Props) {
                 Drive ↗
               </a>
             )}
+            <ArchiveCrewButton crewId={crew.id} currentlyActive={crew.is_active} />
             {!crew.onboarding_completed && (
               <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
             )}

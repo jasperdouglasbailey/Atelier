@@ -5,6 +5,7 @@ import { getBookingByQuoteToken, transitionState } from '@/lib/data/bookings';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { sendEmail } from '@/lib/integrations/gmail';
+import { logAudit } from '@/lib/utils/audit';
 
 type QuoteActionResult =
   | { ok: true; state: 'accepted' | 'declined' }
@@ -42,6 +43,14 @@ export async function acceptQuoteByTokenAction(token: string): Promise<QuoteActi
     }
   }
 
+  await logAudit({
+    userId: null,
+    action: 'quote_accept_by_token',
+    tableName: 'atelier_bookings',
+    recordId: booking.id,
+    newValue: { state: 'quote_confirmed', booking_ref: booking.booking_ref } as never,
+  }).catch(() => {});
+
   return { ok: true, state: 'accepted' };
 }
 
@@ -78,6 +87,14 @@ export async function declineQuoteByTokenAction(token: string): Promise<QuoteAct
       // Non-fatal
     }
   }
+
+  await logAudit({
+    userId: null,
+    action: 'quote_decline_by_token',
+    tableName: 'atelier_bookings',
+    recordId: booking.id,
+    newValue: { state: 'released', booking_ref: booking.booking_ref } as never,
+  }).catch(() => {});
 
   return { ok: true, state: 'declined' };
 }

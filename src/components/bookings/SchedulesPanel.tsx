@@ -83,6 +83,7 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
   }
 
   function handleDelete(s: BookingSchedule) {
+    if (!confirm(`Delete schedule for ${s.schedule_date}?`)) return;
     startTransition(async () => {
       const result = await deleteScheduleAction(s.id, bookingId);
       if (!result.ok) { setError(result.error); return; }

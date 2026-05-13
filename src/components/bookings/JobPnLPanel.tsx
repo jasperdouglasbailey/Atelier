@@ -79,7 +79,14 @@ function computePaidOut(
 }
 
 export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [], bookingCrew = [] }: Props) {
-  if (!latestQuote || feeLines.length === 0) return null;
+  if (!latestQuote || feeLines.length === 0) {
+    return (
+      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="section-title mb-2">Job P&amp;L</h3>
+        <p className="text-xs" style={{ color: PALETTE.muted }}>Appears once a quote with fee lines exists for this booking.</p>
+      </section>
+    );
+  }
 
   const quotedLines = feeLines.filter((l) => !POST_SHOOT_TYPES.has(l.line_type));
   const postShootLines = feeLines.filter((l) => POST_SHOOT_TYPES.has(l.line_type));
@@ -125,16 +132,18 @@ export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [],
             : 'No OT/extras yet'}
           accent
         />
-        <KpiRow
-          label="Paid out"
-          value={paidOut.total}
-          sub={[
-            `Artist ${formatCurrency(paidOut.artistTotal)}`,
-            `crew ${formatCurrency(paidOut.crewTotal)}`,
-            paidOut.reimbursementTotal > 0 && `reimb. ${formatCurrency(paidOut.reimbursementTotal)}`,
-          ].filter(Boolean).join(' · ')}
-          muted
-        />
+        {paidOut.total > 0 && (
+          <KpiRow
+            label="Paid out"
+            value={paidOut.total}
+            sub={[
+              `Artist ${formatCurrency(paidOut.artistTotal)}`,
+              `crew ${formatCurrency(paidOut.crewTotal)}`,
+              paidOut.reimbursementTotal > 0 && `reimb. ${formatCurrency(paidOut.reimbursementTotal)}`,
+            ].filter(Boolean).join(' · ')}
+            muted
+          />
+        )}
         <KpiRow
           label="Retained"
           value={retained}

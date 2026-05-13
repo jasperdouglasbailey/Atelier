@@ -35,7 +35,7 @@ export default function HoldRequestsTrigger({ bookingId, pendingCrewCount, booki
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.warning }}>
+          <h3 className="section-title" style={{ color: PALETTE.warning }}>
             Crew awaiting hold-request drafts
           </h3>
           <p className="mt-1 text-sm" style={{ color: PALETTE.text }}>

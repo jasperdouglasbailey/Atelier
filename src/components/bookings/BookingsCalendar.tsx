@@ -276,7 +276,7 @@ export default function BookingsCalendar({ shoots, rosterByBookingId }: Props) {
                             ? PALETTE.accent
                             : inMonth
                             ? PALETTE.muted
-                            : '#404560',
+                            : PALETTE.muted,
                         }}
                       >
                         {date.getUTCDate()}

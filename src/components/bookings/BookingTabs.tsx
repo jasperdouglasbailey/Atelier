@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
 
 type TabKey = 'overview' | 'finance' | 'team' | 'documents' | 'comms' | 'activity';
@@ -14,6 +15,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'activity',   label: 'Activity'   },
 ];
 
+const TAB_KEYS = new Set(TABS.map((t) => t.key));
+
 export default function BookingTabs({
   overview, finance, team, documents, comms, activity,
 }: {
@@ -24,7 +27,19 @@ export default function BookingTabs({
   comms:     ReactNode;
   activity:  ReactNode;
 }) {
-  const [active, setActive] = useState<TabKey>('overview');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [active, setActive] = useState<TabKey>(
+    initialTab && TAB_KEYS.has(initialTab as TabKey) ? (initialTab as TabKey) : 'overview',
+  );
+
+  function handleTabChange(key: TabKey) {
+    setActive(key);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', key);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   return (
     <div>
@@ -45,7 +60,7 @@ export default function BookingTabs({
           return (
             <button
               key={key}
-              onClick={() => setActive(key)}
+              onClick={() => handleTabChange(key)}
               className="uppercase transition-colors"
               style={{
                 fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',

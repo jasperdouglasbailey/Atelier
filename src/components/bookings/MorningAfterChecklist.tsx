@@ -112,7 +112,7 @@ export default function MorningAfterChecklist({ bookingId, bookingRef }: Props) 
   return (
     <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.accent + '44' }}>
       <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.accent }}>
+        <h3 className="section-title" style={{ color: PALETTE.accent }}>
           Morning-After Check
         </h3>
         <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>

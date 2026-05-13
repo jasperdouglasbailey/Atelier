@@ -151,7 +151,7 @@ export default function ApprovalQueue({ approvals }: Props) {
                   </div>
                 )}
 
-                <div className="mt-2 text-[10px]" style={{ color: '#6b6b6b' }}>
+                <div className="mt-2 text-[10px]" style={{ color: PALETTE.muted }}>
                   {formatDateTime(a.created_at)}
                   {a.decided_at && ` · Decided ${formatDateTime(a.decided_at)}`}
                 </div>

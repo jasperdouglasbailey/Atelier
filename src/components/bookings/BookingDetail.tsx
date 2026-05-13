@@ -92,13 +92,17 @@ export default function BookingDetail({
             {clientName && (
               <>
                 <span>·</span>
-                <Link
-                  href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
-                  className="hover:underline"
-                  style={{ color: PALETTE.accent }}
-                >
-                  {clientName}
-                </Link>
+                {booking.client?.id ? (
+                  <Link
+                    href={`/clients/${booking.client.id}`}
+                    className="hover:underline"
+                    style={{ color: PALETTE.accent }}
+                  >
+                    {clientName}
+                  </Link>
+                ) : (
+                  <span style={{ color: PALETTE.accent }}>{clientName}</span>
+                )}
               </>
             )}
             {brandName && (
@@ -302,7 +306,7 @@ export default function BookingDetail({
         {/* Header row — compact summary + expand toggle */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-baseline gap-2 flex-wrap flex-1 min-w-0">
-            <h3 className="text-xs font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: PALETTE.muted }}>Brief</h3>
+            <h3 className="section-title flex-shrink-0">Brief</h3>
             {!briefExpanded && (() => {
               const { start, end } = dateRangeToInputs(booking.shoot_dates);
               const dateStr = start

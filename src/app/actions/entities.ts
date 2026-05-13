@@ -10,7 +10,14 @@ import { getCurrentActor } from '@/lib/utils/actor';
 import { reportDataError } from '@/lib/utils/data-errors';
 import { createClient } from '@/lib/supabase/server';
 import { titleCaseName } from '@/lib/utils/name-format';
+import { getCurrentAppUser } from '@/lib/data/app-users';
 import type { CrewTier, ArtistDiscipline, Json } from '@/lib/types/database';
+
+async function requireOwnerOrPartner(): Promise<{ error: string } | null> {
+  const user = await getCurrentAppUser();
+  if (!user || (user.role !== 'owner' && user.role !== 'partner')) return { error: 'Forbidden' };
+  return null;
+}
 
 /**
  * Compact entity-mutation audit log helper. Centralised so create/update
@@ -58,6 +65,8 @@ async function attachEntityDriveFolder(
 }
 
 export async function createClientAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const result = await createClientRecord({
     name: titleCaseName(formData.get('name') as string),
     email: (formData.get('email') as string) || undefined,
@@ -78,6 +87,8 @@ export async function createClientAction(formData: FormData) {
 }
 
 export async function updateClientAction(id: string, formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const updates: Record<string, unknown> = {};
   for (const [key, val] of formData.entries()) {
     if (key === 'is_creative_agency') updates[key] = val === 'true';
@@ -100,6 +111,8 @@ export async function updateClientAction(id: string, formData: FormData) {
 }
 
 export async function createBrandAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const result = await createBrand({
     name: titleCaseName(formData.get('name') as string),
     industry: (formData.get('industry') as string) || undefined,
@@ -112,6 +125,8 @@ export async function createBrandAction(formData: FormData) {
 }
 
 export async function createTalentAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const discipline = formData.get('discipline') as ArtistDiscipline | null;
   if (!discipline) return { error: 'Discipline is required' };
 
@@ -140,6 +155,8 @@ export async function createTalentAction(formData: FormData) {
 }
 
 export async function createCrewAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const result = await createCrewRecord({
     name: titleCaseName(formData.get('name') as string),
     email: (formData.get('email') as string) || undefined,
@@ -159,6 +176,8 @@ export async function createCrewAction(formData: FormData) {
 }
 
 export async function updateCrewAction(id: string, formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const updates: Record<string, unknown> = {};
   // Title-case the name on save (manual entry safety net)
   const rawName = formData.get('name');
@@ -216,6 +235,8 @@ export async function updateCrewAction(id: string, formData: FormData) {
  * Removing crew with no booking history is safe (e.g. a CSV import duplicate).
  */
 export async function deleteCrewAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const supabase = await createClient();
   // Check for booking references
   const { count } = await supabase
@@ -242,6 +263,8 @@ export async function deleteCrewAction(id: string) {
  * rows. The doctrine path for archiving is `setTalentActiveAction(id, false)`.
  */
 export async function deleteTalentAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const supabase = await createClient();
   const { count } = await supabase
     .from('atelier_booking_talent')
@@ -298,6 +321,8 @@ function randomAnonId(): string {
 }
 
 export async function anonymiseTalentAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const anonId = randomAnonId();
 
   // Fetch the existing Drive folder ID *before* we null it on the row, so
@@ -376,6 +401,8 @@ export async function anonymiseTalentAction(id: string) {
 }
 
 export async function anonymiseClientAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const supabase = await createClient();
   const anonId = randomAnonId();
 
@@ -425,6 +452,8 @@ export async function anonymiseClientAction(id: string) {
 }
 
 export async function anonymiseCrewAction(id: string) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const anonId = randomAnonId();
 
   const supabase = await createClient();
@@ -486,6 +515,8 @@ export async function anonymiseCrewAction(id: string) {
  * preserve audit trail. Reactivate via setTalentActiveAction(id, true).
  */
 export async function setTalentActiveAction(id: string, active: boolean) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const result = await updateTalent(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} talent` };
   await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: active ? 'reactivate' : 'archive' });
@@ -496,6 +527,8 @@ export async function setTalentActiveAction(id: string, active: boolean) {
 
 /** Same pattern for crew. */
 export async function setCrewActiveAction(id: string, active: boolean) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const result = await updateCrew(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} crew member` };
   await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: active ? 'reactivate' : 'archive' });
@@ -505,6 +538,8 @@ export async function setCrewActiveAction(id: string, active: boolean) {
 }
 
 export async function updateTalentAction(id: string, formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const updates: Record<string, unknown> = {};
   // Title-case names on save
   const rawWorking = formData.get('working_name');
