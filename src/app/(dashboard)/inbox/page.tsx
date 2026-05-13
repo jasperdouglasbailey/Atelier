@@ -46,7 +46,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
             ))}
           </div>
 
-          <ApprovalQueue approvals={approvals} />
+          <ApprovalQueue key={filter} approvals={approvals} />
         </div>
       </div>
     </>
