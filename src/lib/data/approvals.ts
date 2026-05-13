@@ -39,7 +39,7 @@ export async function decideApproval(
   id: string,
   decision: 'approved' | 'rejected',
   rejectionReason?: string,
-): Promise<Approval | null> {
+): Promise<(Approval & { effectWarning: string | null }) | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -72,16 +72,18 @@ export async function decideApproval(
     newValue: { decision, rejectionReason: rejectionReason ?? null },
   });
 
-  // Dispatch downstream side effects (e.g. flip atelier_booking_crew.status
-  // from hold_requested → sent on a crew_hold_request approval). Failures
-  // are logged but don't roll back the decision row itself.
+  // Dispatch downstream side effects. Failures are logged but don't roll
+  // back the decision row — the approval stands, but we surface the error
+  // so the UI can warn the user (e.g. "Google not connected").
+  let effectWarning: string | null = null;
   try {
     await applyApprovalDecisionEffects(approval, decision);
   } catch (err) {
+    effectWarning = err instanceof Error ? err.message : 'Effect failed';
     reportDataError('[approvals] decision effects failed', err);
   }
 
-  return approval;
+  return { ...approval, effectWarning };
 }
 
 export async function createApproval(input: {

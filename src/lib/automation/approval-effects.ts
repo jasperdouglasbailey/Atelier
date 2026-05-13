@@ -18,7 +18,7 @@ import { updateBookingCrewStatusByCrewId } from '@/lib/data/quotes';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
 import { getCurrentActor } from '@/lib/utils/actor';
-import { sendEmail } from '@/lib/integrations/gmail';
+import { draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 
@@ -124,24 +124,23 @@ async function sendApprovedEmail(input: {
       error: 'kill_switch_active',
       attempted: { kill_switch_level: level },
     }).catch(() => {});
-    return;
+    throw new Error(`Kill switch is ${level} — outbound email blocked.`);
   }
 
   if (!isGoogleConfigured()) {
-    // Dev / no-credentials path — sendEmail() returns a stub. We still
-    // log so the timeline shows the handler ran.
-    await logAudit({
+    await logAuditFailure({
       userId: await getCurrentActor(),
       action: input.auditAction,
       tableName: 'atelier_approvals',
       recordId: input.approval.id,
-      newValue: { stub: true, recipients: input.recipients },
-    });
-    return;
+      error: 'google_not_configured',
+      attempted: { recipients: input.recipients },
+    }).catch(() => {});
+    throw new Error('Google not connected — email draft could not be created. Connect Google in Settings to enable this.');
   }
 
   try {
-    const result = await sendEmail({
+    const { draftId } = await draftEmail({
       to: input.recipients,
       subject: input.subject,
       body: input.body,
@@ -155,9 +154,9 @@ async function sendApprovedEmail(input: {
       tableName: 'atelier_approvals',
       recordId: input.approval.id,
       newValue: {
-        message_id: result.messageId,
+        draft_id: draftId,
         recipients: input.recipients,
-        sent_at: result.sentAt,
+        drafted_at: new Date().toISOString(),
       },
     });
   } catch (err) {
@@ -166,11 +165,8 @@ async function sendApprovedEmail(input: {
       action: input.auditAction,
       tableName: 'atelier_approvals',
       recordId: input.approval.id,
-      error: err instanceof Error ? err.message : 'send_failed',
+      error: err instanceof Error ? err.message : 'draft_failed',
     }).catch(() => {});
-    // Re-throw so the calling action can surface the failure to the UI —
-    // approving a draft and silently dropping the send is exactly the bug
-    // this whole module was rewritten to prevent.
     throw err;
   }
 }
