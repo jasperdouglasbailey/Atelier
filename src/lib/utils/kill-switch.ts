@@ -37,10 +37,13 @@ export async function getKillSwitchState(): Promise<KillSwitchState | null> {
 
 /**
  * Returns the named level. Use this for UI banners and human-readable logs.
- * Defaults to 'red' if state can't be read — fail closed, never silently proceed.
+ * Defaults to 'green' when no row exists — the kill switch is opt-in, not
+ * opt-out. Fail-closed was the original intent but caused silent outbound
+ * block on fresh deployments with no visible indicator, which is worse UX
+ * than fail-open (the operator must explicitly activate RED/AMBER).
  */
 export function levelOf(state: KillSwitchState | null): KillSwitchLevel {
-  if (!state) return 'red';
+  if (!state) return 'green';
   if (state.is_active) return 'red';
   if (state.pause_outbound) return 'amber';
   return 'green';

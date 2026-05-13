@@ -108,23 +108,14 @@ function buildRfc5322Message(input: EmailInput): string {
   return lines.join('\r\n');
 }
 
-/**
- * Stub fallback when Google isn't configured. Keeps callers' code paths
- * working in dev without crashing or sending real mail.
- */
-function stubReturn(action: string, input: EmailInput | { draftId: string }): EmailResult {
-  console.log(`[gmail] ${action} (stub — no credentials)`,
-    'subject' in input ? { to: input.to, subject: input.subject } : input,
-  );
-  return { messageId: `msg-stub-${Date.now()}`, sentAt: new Date().toISOString() };
-}
-
 // ============================================================
 // Public API
 // ============================================================
 
 export async function sendEmail(input: EmailInput): Promise<EmailResult> {
-  if (!isGoogleConfigured()) return stubReturn('SEND EMAIL', input);
+  if (!isGoogleConfigured()) {
+    throw new Error('Google not connected — connect Google in Settings to enable email sending.');
+  }
 
   const raw = base64url(buildRfc5322Message(input));
   const token = await getAccessToken();
@@ -154,8 +145,7 @@ export async function sendEmail(input: EmailInput): Promise<EmailResult> {
 
 export async function draftEmail(input: EmailInput): Promise<{ draftId: string }> {
   if (!isGoogleConfigured()) {
-    console.log('[gmail] DRAFT EMAIL (stub — no credentials)', { to: input.to, subject: input.subject });
-    return { draftId: `draft-stub-${Date.now()}` };
+    throw new Error('Google not connected — connect Google in Settings to enable email drafts.');
   }
 
   const raw = base64url(buildRfc5322Message(input));
@@ -181,7 +171,9 @@ export async function draftEmail(input: EmailInput): Promise<{ draftId: string }
 }
 
 export async function sendDraft(draftId: string): Promise<EmailResult> {
-  if (!isGoogleConfigured()) return stubReturn('SEND DRAFT', { draftId });
+  if (!isGoogleConfigured()) {
+    throw new Error('Google not connected — connect Google in Settings to enable email sending.');
+  }
 
   const token = await getAccessToken();
 
