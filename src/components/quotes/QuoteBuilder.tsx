@@ -635,7 +635,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                   >
                     <td
                       className="px-1 py-2 text-center"
-                      style={{ cursor: isLatestVersion ? 'grab' : 'default', color: PALETTE.muted, opacity: 0.35, userSelect: 'none' }}
+                      title={isLatestVersion ? 'Drag to reorder' : undefined}
+                      style={{ cursor: isLatestVersion ? 'grab' : 'default', color: PALETTE.muted, opacity: isLatestVersion ? 0.55 : 0, userSelect: 'none' }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {isLatestVersion && '⠿'}
