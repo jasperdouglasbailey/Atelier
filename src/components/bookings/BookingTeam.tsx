@@ -209,7 +209,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                 <option key={t.id} value={t.id}>{t.working_name}</option>
               ))}
             </select>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <input name="role_on_booking" required placeholder="Role" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
               <input
                 name="day_rate"
@@ -407,7 +407,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                 })}
               </optgroup>
             </select>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input name="role_on_booking" placeholder="Role on booking" className="rounded border px-2 py-1 text-xs" style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }} />
               <input
                 name="day_rate"

@@ -91,7 +91,7 @@ export default async function CrewPortalPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <Stat label="Default day rate" value={crew.default_day_rate ? formatCurrency(crew.default_day_rate) : '—'} />
           <Stat label="ABN" value={crew.abn ?? '—'} />
           <Stat label="GST registered" value={crew.gst_registered ? 'Yes' : 'No'} />
@@ -197,6 +197,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function CrewBookingTable({ rows }: { rows: CrewPortalBookingRow[] }) {
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-xs">
       <thead>
         <tr style={{ color: PALETTE.muted, borderBottom: `1px solid ${PALETTE.border}` }}>
@@ -229,5 +230,6 @@ function CrewBookingTable({ rows }: { rows: CrewPortalBookingRow[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
