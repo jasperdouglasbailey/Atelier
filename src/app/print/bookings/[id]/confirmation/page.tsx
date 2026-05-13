@@ -13,6 +13,7 @@ import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine } from '@/lib/types/database';
+import PrintActions from '../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -70,21 +71,7 @@ export default async function BookingConfirmationPage({ params }: Props) {
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', background: '#fff', padding: '40px', maxWidth: 780, margin: '0 auto' }}>
 
-      {/* Print actions — hidden in print */}
-      <div style={{ marginBottom: 24, display: 'flex', gap: 12 }} className="print:hidden">
-        <button
-          onClick={() => window.print()}
-          style={{ padding: '8px 20px', borderRadius: 6, fontSize: 13, background: '#1a1a1a', color: '#fff', border: 'none', cursor: 'pointer' }}
-        >
-          Print / Save PDF
-        </button>
-        <button
-          onClick={() => window.history.back()}
-          style={{ padding: '8px 20px', borderRadius: 6, fontSize: 13, background: '#f0f0f0', color: '#333', border: 'none', cursor: 'pointer' }}
-        >
-          Back
-        </button>
-      </div>
+      <PrintActions />
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1a1a1a', paddingBottom: 16, marginBottom: 24 }}>
