@@ -7,6 +7,7 @@ import {
   listFeeLines, getFeeLine, listBookingTalent,
   type CreateFeeLineInput,
 } from '@/lib/data/quotes';
+import { getBooking } from '@/lib/data/bookings';
 import type { FeeLineType, FeeLine } from '@/lib/types/database';
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 import { TEMPLATE_LINES_MAP, type QuoteTemplate } from '@/lib/utils/quote-templates';
@@ -26,7 +27,15 @@ export async function generateQuoteFromTemplateAction(
   const qv = await createQuoteVersion(bookingId);
   if (!qv) return { error: 'Failed to create quote version' };
 
-  const lines = TEMPLATE_LINES_MAP[template];
+  const booking = await getBooking(bookingId);
+  const postProdOwnership = booking?.post_production_ownership ?? null;
+  const postProdInHouse = postProdOwnership === 'us_via_artist' || postProdOwnership === 'us_via_post_team';
+
+  const lines = TEMPLATE_LINES_MAP[template].filter((tl) => {
+    // Post production line only included when we handle post-prod
+    if (tl.line_type === 'post_production' && template === 'photographer' && !postProdInHouse) return false;
+    return true;
+  });
   for (let i = 0; i < lines.length; i++) {
     const tl = lines[i];
     const unitPrice =
@@ -163,6 +172,9 @@ export async function addFeeLineAction(formData: FormData) {
 export async function updateFeeLineAction(id: string, formData: FormData) {
   const bookingId = formData.get('booking_id') as string;
   const updates: Record<string, unknown> = {};
+
+  const lineType = formData.get('line_type') as FeeLineType | null;
+  if (lineType) updates.line_type = lineType;
 
   const desc = formData.get('description');
   if (desc != null) updates.description = desc;

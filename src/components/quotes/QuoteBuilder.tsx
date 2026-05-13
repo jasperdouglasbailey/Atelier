@@ -81,8 +81,10 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
   // Inline editing state. asf_rate is editable here so Jasper can flip ASF
   // off on equipment/pass-through lines without leaving the quote table.
+  // line_type is also editable so the type can be corrected without re-adding.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
+    line_type: FeeLineType;
     description: string;
     quantity: string;
     unit_price: string;
@@ -114,6 +116,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   function startEdit(line: FeeLine) {
     setEditingId(line.id);
     setEditValues({
+      line_type: line.line_type,
       description: line.description,
       quantity: String(line.quantity),
       unit_price: String(line.unit_price),
@@ -131,21 +134,37 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (!editValues) return;
     setBusy(true);
     const fd = new FormData();
+    fd.set('line_type', editValues.line_type);
     fd.set('description', editValues.description);
     fd.set('quantity', editValues.quantity);
     fd.set('unit_price', editValues.unit_price);
     fd.set('booking_id', bookingId);
-    // asf_rate is stored as a decimal in DB; convert from percent string
     const asfPct = parseFloat(editValues.asf_rate);
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
     }
+    // Optimistic: update local state immediately so the UI snaps without waiting for router.refresh()
+    const newQty = parseFloat(editValues.quantity) || line.quantity;
+    const newPrice = parseFloat(editValues.unit_price) || line.unit_price;
+    const newAsfRate = Number.isFinite(asfPct) ? asfPct / 100 : (line.asf_rate ?? DEFAULT_ASF_RATE);
+    const optimistic: FeeLine = {
+      ...line,
+      line_type: editValues.line_type,
+      description: editValues.description,
+      quantity: newQty,
+      unit_price: newPrice,
+      subtotal: Math.round(newQty * newPrice * 100) / 100,
+      asf_rate: newAsfRate,
+      asf_amount: Math.round(newQty * newPrice * newAsfRate * 100) / 100,
+    };
+    setFeeLines((prev) => prev.map((l) => l.id === line.id ? optimistic : l));
+    cancelEdit();
+
     const result = await updateFeeLineAction(line.id, fd);
-    if ('error' in result) {
+    if (!result.ok) {
       setError(result.error ?? 'Failed to save');
-    } else {
-      cancelEdit();
-      router.refresh();
+      // Revert on error
+      setFeeLines((prev) => prev.map((l) => l.id === line.id ? line : l));
     }
     setBusy(false);
   }
@@ -204,11 +223,14 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
   async function handleRemoveLine(lineId: string) {
     if (!confirm('Remove this fee line?')) return;
-    setBusy(true);
+    // Optimistic: remove from local state immediately
+    const snapshot = feeLines;
+    setFeeLines((prev) => prev.filter((l) => l.id !== lineId));
     const result = await removeFeeLineAction(lineId, bookingId);
-    if ('error' in result) setError(result.error ?? 'Failed');
-    else router.refresh();
-    setBusy(false);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed');
+      setFeeLines(snapshot); // revert
+    }
   }
 
   return (
@@ -459,7 +481,18 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
           className="overflow-x-auto rounded-lg border"
           style={{ borderColor: PALETTE.border, opacity: loadingVersion ? 0.5 : 1, transition: 'opacity 0.15s' }}
         >
-          <table className="w-full text-xs" style={{ color: PALETTE.text }}>
+          <table className="w-full text-xs" style={{ color: PALETTE.text, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '13%' }} />  {/* Type */}
+              <col />                            {/* Description — takes remaining space */}
+              <col style={{ width: '52px' }} /> {/* Qty */}
+              <col style={{ width: '80px' }} /> {/* Unit $ */}
+              <col style={{ width: '80px' }} /> {/* Subtotal */}
+              <col style={{ width: '88px' }} /> {/* ASF */}
+              <col style={{ width: '72px' }} /> {/* GST */}
+              <col style={{ width: '84px' }} /> {/* Line Total */}
+              <col style={{ width: '28px' }} /> {/* Delete */}
+            </colgroup>
             <thead>
               <tr style={{ background: PALETTE.surface }}>
                 <th className="px-3 py-2 text-left font-medium" style={{ color: PALETTE.muted }}>Type</th>
@@ -470,7 +503,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>ASF</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>GST</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Line Total</th>
-                <th className="px-3 py-2 w-8"></th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -486,10 +519,17 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
                   return (
                     <tr key={line.id} className="border-t" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
-                      <td className="px-3 py-2">
-                        <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: isOutgoing ? `${PALETTE.warning}18` : `${PALETTE.accent}15`, color: isOutgoing ? PALETTE.warning : PALETTE.accent }}>
-                          {FEE_LINE_TYPE_LABELS[line.line_type]}
-                        </span>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={editValues.line_type}
+                          onChange={(e) => setEditValues((v) => v && { ...v, line_type: e.target.value as FeeLineType })}
+                          className="w-full rounded border px-1.5 py-1 text-[10px]"
+                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                        >
+                          {LINE_TYPE_OPTIONS.map((t) => (
+                            <option key={t} value={t}>{FEE_LINE_TYPE_LABELS[t]}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-1.5">
                         <input
@@ -606,9 +646,15 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       {/* Totals */}
       {feeLines.length > 0 && (
         <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          {/* Grand total — always visible, the only number a non-finance reader needs */}
+          {/* Subtotal excl. GST + Grand Total incl. GST — always visible */}
           <div className="flex items-baseline justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total</span>
+            <span className="text-xs uppercase tracking-wider" style={{ color: PALETTE.muted }}>Subtotal excl. GST</span>
+            <span className="text-sm tabular-nums" style={{ color: PALETTE.muted }}>
+              {formatCurrency(totals.subtotal)}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t" style={{ borderColor: PALETTE.border }}>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total incl. GST</span>
             <span
               className="text-2xl font-bold tabular-nums transition-colors"
               style={{ color: editingId ? PALETTE.accent : PALETTE.text }}

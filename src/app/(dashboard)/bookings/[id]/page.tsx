@@ -174,15 +174,27 @@ export default async function BookingDetailPage({ params }: Props) {
                 />
               </div>
 
-              <Suspense fallback={null}>
-                <StreamingPrecedents
-                  primaryTalentId={primaryTalentId}
-                  clientId={booking.client_id ?? null}
-                  tier={booking.tier}
-                  proposedDayRate={proposedDayRate}
-                  proposedGrandTotal={booking.grand_total}
-                />
-              </Suspense>
+              <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
+
+              <details className="rounded-lg border" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <summary
+                  className="cursor-pointer px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: PALETTE.muted, listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>Precedent signals</span>
+                </summary>
+                <div className="px-4 pb-4">
+                  <Suspense fallback={null}>
+                    <StreamingPrecedents
+                      primaryTalentId={primaryTalentId}
+                      clientId={booking.client_id ?? null}
+                      tier={booking.tier}
+                      proposedDayRate={proposedDayRate}
+                      proposedGrandTotal={booking.grand_total}
+                    />
+                  </Suspense>
+                </div>
+              </details>
 
               {booking.state === 'morning_after_check' && (
                 <div id="morning-after">
@@ -199,8 +211,6 @@ export default async function BookingDetailPage({ params }: Props) {
                   bookingCrew={bookingCrew}
                 />
               )}
-
-              <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} />
 
               {(booking.state === 'invoice_issued' || booking.state === 'paid') && (
                 <PayrollPanel

@@ -39,23 +39,17 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
   photographer: [
     {
       line_type: 'artist_fee',
-      description: 'Photographer — shoot fee (10hr day)',
+      description: 'Photography capture and file management fee',
       quantity: 1, unit_price: 4000,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
       asf_rate: DEFAULT_ASF_RATE,
     },
+    // post_production line is conditionally included by generateQuoteFromTemplateAction
+    // when booking.post_production_ownership is 'us_via_artist' or 'us_via_post_team'
     {
-      line_type: 'usage_licence',
-      description: 'Usage fee — TBD',
-      quantity: 1, unit_price: 0,
-      is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
-      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
-      asf_rate: DEFAULT_ASF_RATE,
-    },
-    {
-      line_type: 'retouching',
-      description: 'Grading / retouching — TBD',
+      line_type: 'post_production',
+      description: 'Post production fee — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -63,23 +57,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'crew_equipment',
-      description: 'Camera equipment — TBD',
-      quantity: 1, unit_price: 0,
-      is_commissionable: false, commission_rate: 0,
-      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
-      asf_rate: DEFAULT_ASF_RATE,
-    },
-    {
-      line_type: 'crew_equipment',
-      description: 'Digital equipment — TBD',
-      quantity: 1, unit_price: 0,
-      is_commissionable: false, commission_rate: 0,
-      is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
-      asf_rate: DEFAULT_ASF_RATE,
-    },
-    {
-      line_type: 'equipment_rental',
-      description: 'Lighting equipment — TBD',
+      description: 'Camera, digital and lighting equipment allowance — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -95,7 +73,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'crew_labour',
-      description: 'Assistant',
+      description: 'First assistant',
       quantity: 1, unit_price: 600,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
