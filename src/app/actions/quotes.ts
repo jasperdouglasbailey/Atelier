@@ -371,6 +371,48 @@ export async function removeBookingCrewAction(id: string, bookingId: string) {
   return { ok: true };
 }
 
+/**
+ * Set per-day assignment for a crew member on a multi-day shoot.
+ * Pass an empty array to mean "every day of the booking".
+ * Dates must be ISO YYYY-MM-DD strings.
+ */
+export async function updateBookingCrewAssignedDatesAction(args: {
+  bookingCrewId: string;
+  bookingId: string;
+  assignedDates: string[];
+}) {
+  const { bookingCrewId, bookingId, assignedDates } = args;
+
+  if (!/^[0-9a-f-]{36}$/i.test(bookingCrewId)) return { error: 'Invalid id' };
+
+  // Normalise: empty array → NULL (meaning "all days"). Drop invalid entries
+  // defensively even though the picker constrains the input to shoot days.
+  const cleaned = assignedDates
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  const nextValue: string[] | null = cleaned.length > 0 ? cleaned : null;
+
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('atelier_booking_crew')
+    .update({ assigned_dates: nextValue })
+    .eq('id', bookingCrewId);
+
+  if (error) return { error: error.message };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'crew_assigned_dates_update',
+    tableName: 'atelier_booking_crew',
+    recordId: bookingCrewId,
+    newValue: { assigned_dates: nextValue },
+  });
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}
+
 // ============================================================
 // OT & expense entry (morning-after window)
 // ============================================================

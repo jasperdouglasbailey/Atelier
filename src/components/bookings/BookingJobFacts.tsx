@@ -1,139 +1,263 @@
+'use client';
+
+import { useState } from 'react';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingSchedule } from '@/lib/types/database';
-import { PALETTE } from '@/lib/utils/constants';
+import InlineField from '@/components/bookings/InlineField';
+import InlineDateRange from '@/components/bookings/InlineDateRange';
+import { PALETTE, SHOOT_TIERS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatDate } from '@/lib/utils/format';
-import { dateRangeToInputs } from '@/lib/utils/daterange';
-import { humanise } from '@/lib/utils/humanise';
+
+const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABELS[t] }));
+
+const POST_PROD_OPTIONS = [
+  { value: '',                   label: '— Not set —' },
+  { value: 'us_via_artist',      label: 'Us via artist' },
+  { value: 'us_via_post_team',   label: 'Us via post team' },
+  { value: 'client_in_house',    label: 'Client in-house' },
+  { value: 'client_outsourced',  label: 'Client outsourced' },
+];
+
+const GRADE_RETOUCH_OPTIONS = [
+  { value: '',                  label: '— Not set —' },
+  { value: 'grade_and_retouch', label: 'Grade & Retouch' },
+  { value: 'grade_only',        label: 'Grade only' },
+];
 
 type Props = {
   booking: BookingDetailRow;
   schedules: BookingSchedule[];
 };
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border-b py-3 last:border-b-0" style={{ borderColor: PALETTE.border }}>
-      <div className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: PALETTE.muted }}>
-        {label}
-      </div>
-      <div className="text-sm" style={{ color: PALETTE.text }}>
-        {children}
-      </div>
+    <div className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: PALETTE.muted }}>
+      {children}
+    </div>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border-t px-4 py-3" style={{ borderColor: PALETTE.border }}>
+      {children}
     </div>
   );
 }
 
 export default function BookingJobFacts({ booking, schedules }: Props) {
-  const { start, end } = dateRangeToInputs(booking.shoot_dates);
-  const dateStr = start
-    ? end && end !== start
-      ? `${formatDate(start)} – ${formatDate(end)}`
-      : formatDate(start)
-    : booking.shoot_date_notes ?? null;
+  const [expanded, setExpanded] = useState(false);
 
-  const hasCallTimes = schedules.some((s) => s.call_time || s.wrap_time);
-
-  const hasBrief = !!(
-    booking.brief_raw_text ||
-    booking.shoot_location ||
-    booking.deliverables_type ||
-    dateStr
-  );
-
-  if (!hasBrief) return null;
+  const callTimeSchedules = schedules.filter((s) => s.call_time || s.wrap_time);
 
   return (
     <div
-      className="rounded-lg border divide-y-0"
+      className="rounded-lg border"
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
-      <div className="px-4 py-3 border-b" style={{ borderColor: PALETTE.border }}>
-        <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: PALETTE.muted }}>
-          Job facts
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <SectionLabel>Job facts</SectionLabel>
+        <span className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+          Click any field to edit
         </span>
       </div>
 
-      <div className="px-4">
-        {booking.brief_raw_text && (
-          <Row label="Brief">
-            <span className="line-clamp-3 text-sm leading-relaxed" style={{ color: PALETTE.muted }}>
-              &ldquo;{booking.brief_raw_text.slice(0, 220)}{booking.brief_raw_text.length > 220 ? '…' : ''}&rdquo;
-            </span>
-          </Row>
-        )}
+      {/* Brief excerpt — read-only display of source brief */}
+      {booking.brief_raw_text && (
+        <Row>
+          <div className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: PALETTE.muted }}>
+            Brief
+          </div>
+          <p className="text-sm leading-relaxed italic" style={{ color: PALETTE.muted }}>
+            &ldquo;{booking.brief_raw_text.slice(0, 280)}{booking.brief_raw_text.length > 280 ? '…' : ''}&rdquo;
+          </p>
+        </Row>
+      )}
 
-        {dateStr && (
-          <Row label="Dates">
-            {dateStr}
-            {booking.shoot_date_notes && !start && (
-              <div className="mt-0.5 text-[11px]" style={{ color: PALETTE.muted }}>
-                {booking.shoot_date_notes}
+      {/* Dates */}
+      <Row>
+        <InlineDateRange
+          bookingId={booking.id}
+          label="Dates"
+          shootDates={booking.shoot_dates}
+          shootDateNotes={booking.shoot_date_notes}
+        />
+      </Row>
+
+      {/* Location */}
+      <Row>
+        <InlineField
+          bookingId={booking.id}
+          field="shoot_location"
+          label="Location"
+          value={booking.shoot_location}
+          placeholder="e.g. Sun Studios, Alexandria"
+        />
+      </Row>
+
+      {/* Call times — show per-day schedules if present, else flat call_time */}
+      {callTimeSchedules.length > 0 ? (
+        <Row>
+          <div className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: PALETTE.muted }}>
+            Call times
+          </div>
+          <div className="space-y-1">
+            {callTimeSchedules.map((s) => (
+              <div key={s.id} className="text-[11px]" style={{ color: PALETTE.muted }}>
+                <span className="font-medium" style={{ color: PALETTE.text }}>
+                  {formatDate(s.schedule_date)}
+                </span>
+                {s.call_time && <> · Call {s.call_time}</>}
+                {s.wrap_time && <> · Wrap {s.wrap_time}</>}
+                {s.location && <> · {s.location}</>}
               </div>
-            )}
-          </Row>
-        )}
+            ))}
+          </div>
+        </Row>
+      ) : (
+        <Row>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InlineField
+              bookingId={booking.id}
+              field="call_time"
+              label="Call time"
+              value={booking.call_time}
+              variant="time"
+            />
+            <InlineField
+              bookingId={booking.id}
+              field="wrap_time"
+              label="Wrap time"
+              value={booking.wrap_time}
+              variant="time"
+            />
+          </div>
+        </Row>
+      )}
 
-        {booking.shoot_location && (
-          <Row label="Location">
-            {booking.shoot_location}
-          </Row>
-        )}
+      {/* Deliverables */}
+      <Row>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InlineField
+            bookingId={booking.id}
+            field="deliverables_type"
+            label="Deliverables"
+            value={booking.deliverables_type}
+            placeholder="e.g. Stills + motion"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="deliverables_count"
+            label="Deliverables count"
+            value={booking.deliverables_count}
+            variant="number"
+            placeholder="e.g. 12"
+          />
+        </div>
+      </Row>
 
-        {hasCallTimes ? (
-          <Row label="Call times">
-            <div className="space-y-1">
-              {schedules
-                .filter((s) => s.call_time || s.wrap_time)
-                .slice(0, 3)
-                .map((s) => (
-                  <div key={s.id} className="text-[11px]" style={{ color: PALETTE.muted }}>
-                    <span className="font-medium" style={{ color: PALETTE.text }}>
-                      {formatDate(s.schedule_date)}
-                    </span>
-                    {s.call_time && <> · Call {s.call_time}</>}
-                    {s.wrap_time && <> · Wrap {s.wrap_time}</>}
-                    {s.location && <> · {s.location}</>}
-                  </div>
-                ))}
-            </div>
-          </Row>
-        ) : booking.call_time ? (
-          <Row label="Call time">
-            {booking.call_time}
-          </Row>
-        ) : null}
-
-        {(booking.deliverables_type || booking.deliverables_count) && (
-          <Row label="Deliverables">
-            <div className="flex flex-wrap gap-1.5">
-              {booking.deliverables_type && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                  style={{ background: PALETTE.border, color: PALETTE.text }}
-                >
-                  {humanise(booking.deliverables_type)}
-                </span>
-              )}
-              {booking.deliverables_count != null && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                  style={{ background: PALETTE.border, color: PALETTE.text }}
-                >
-                  {booking.deliverables_count} deliverables
-                </span>
-              )}
-              {booking.post_production_ownership && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px]"
-                  style={{ background: PALETTE.border, color: PALETTE.muted }}
-                >
-                  {humanise(booking.post_production_ownership)}
-                </span>
-              )}
-            </div>
-          </Row>
-        )}
+      {/* Expand for the long tail of fields */}
+      <div className="border-t" style={{ borderColor: PALETTE.border }}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full px-4 py-2.5 text-left text-[11px] font-medium"
+          style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer' }}
+        >
+          {expanded ? '− Hide additional details' : '+ More details (post, grade, producer, deadline…)'}
+        </button>
       </div>
+
+      {expanded && (
+        <>
+          <Row>
+            <InlineField
+              bookingId={booking.id}
+              field="title"
+              label="Title"
+              value={booking.title}
+            />
+          </Row>
+
+          <Row>
+            <InlineField
+              bookingId={booking.id}
+              field="tier"
+              label="Tier"
+              value={booking.tier}
+              variant="select"
+              options={TIER_OPTIONS}
+            />
+          </Row>
+
+          <Row>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineField
+                bookingId={booking.id}
+                field="post_production_ownership"
+                label="Post-production"
+                value={booking.post_production_ownership}
+                variant="select"
+                options={POST_PROD_OPTIONS}
+              />
+              <InlineField
+                bookingId={booking.id}
+                field="grade_retouch_scope"
+                label="Grade scope"
+                value={booking.grade_retouch_scope}
+                variant="select"
+                options={GRADE_RETOUCH_OPTIONS}
+              />
+            </div>
+          </Row>
+
+          <Row>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineField
+                bookingId={booking.id}
+                field="looks_per_talent"
+                label="Looks per talent"
+                value={booking.looks_per_talent}
+                placeholder="e.g. 12"
+              />
+              <InlineField
+                bookingId={booking.id}
+                field="confirmation_deadline"
+                label="Confirmation deadline"
+                value={booking.confirmation_deadline}
+                variant="date"
+              />
+            </div>
+          </Row>
+
+          <Row>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InlineField
+                bookingId={booking.id}
+                field="producer_name"
+                label="Producer"
+                value={booking.producer_name}
+              />
+              <InlineField
+                bookingId={booking.id}
+                field="producer_email"
+                label="Producer email"
+                value={booking.producer_email}
+              />
+            </div>
+          </Row>
+
+          <Row>
+            <InlineField
+              bookingId={booking.id}
+              field="producer_phone"
+              label="Producer phone"
+              value={booking.producer_phone}
+            />
+          </Row>
+        </>
+      )}
     </div>
   );
 }

@@ -26,9 +26,11 @@ type Props = {
   bookingRef: string | null;
   bookingState: string;
   isArchived: boolean;
+  /** Compact mode: renders just the Archive button (and Delete when terminal) without the surrounding card. */
+  compact?: boolean;
 };
 
-export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState, isArchived }: Props) {
+export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState, isArchived, compact = false }: Props) {
   const isTerminal = TERMINAL_STATES.includes(bookingState as BookingState);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,18 +74,8 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
     });
   }
 
-  return (
-    <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-        Booking lifecycle
-      </h3>
-      <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
-        Archive hides the booking from active lists but keeps it intact — reversible.
-        Delete is permanent: the row is removed and only an anonymised financial
-        summary stays in the corpus for trend analysis.
-      </p>
-
-      <div className="flex flex-wrap gap-2">
+  const buttons = (
+    <div className="flex flex-wrap gap-2">
         {/* Archive / Unarchive */}
         {confirmingArchive ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -183,6 +175,31 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
           </button>
         )}
       </div>
+  );
+
+  if (compact) {
+    return (
+      <div>
+        {buttons}
+        {error && (
+          <div className="mt-2 text-[11px]" style={{ color: PALETTE.danger }}>{error}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        Booking lifecycle
+      </h3>
+      <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
+        Archive hides the booking from active lists but keeps it intact — reversible.
+        Delete is permanent: the row is removed and only an anonymised financial
+        summary stays in the corpus for trend analysis.
+      </p>
+
+      {buttons}
 
       {error && (
         <div className="mt-2 text-[11px]" style={{ color: PALETTE.danger }}>

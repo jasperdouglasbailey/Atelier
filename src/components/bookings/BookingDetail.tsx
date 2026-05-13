@@ -2,22 +2,20 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import type { BookingDetailRow } from '@/lib/data/bookings';
-import type { BookingState, UsageLicence } from '@/lib/types/database';
+import type { UsageLicence } from '@/lib/types/database';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import SendQuotePanel, { type PreflightData } from '@/components/bookings/SendQuotePanel';
 import StageStepper from '@/components/bookings/StageStepper';
 import StageChecklist from '@/components/bookings/StageChecklist';
-import { transitionBookingAction } from '@/app/actions/bookings';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import InlineField from '@/components/bookings/InlineField';
 import InlineDateRange from '@/components/bookings/InlineDateRange';
 import {
   BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, SHOOT_TIERS, STATE_COLORS,
-  STATE_TRANSITIONS, PALETTE,
+  PALETTE,
 } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
@@ -60,60 +58,10 @@ export default function BookingDetail({
   booking, licences, googleConfigured, checklist, showWorkspaceShortcut, preflight, talentNames,
   suppressHeader = false,
 }: Props) {
-  const router = useRouter();
-  const [transitioning, setTransitioning] = useState(false);
-  const [transitionError, setTransitionError] = useState<string | null>(null);
   const [briefExpanded, setBriefExpanded] = useState(false);
 
-  // Modal state for transitions that need extra metadata
-  const [pendingTransition, setPendingTransition] = useState<BookingState | null>(null);
-  const [modalReason, setModalReason] = useState('');
-  const [modalReleasedTo, setModalReleasedTo] = useState('');
-  const [modalFeeStr, setModalFeeStr] = useState('');
-
-  const allowedTransitions = STATE_TRANSITIONS[booking.state] ?? [];
   const clientName = booking.client?.company || booking.client?.name || null;
   const brandName = booking.brand?.name || null;
-
-  const NEEDS_MODAL: BookingState[] = ['released', 'cancelled', 'written_off'];
-
-  function openTransition(newState: BookingState) {
-    if (NEEDS_MODAL.includes(newState)) {
-      setModalReason('');
-      setModalReleasedTo('');
-      setModalFeeStr('');
-      setTransitionError(null);
-      setPendingTransition(newState);
-    } else {
-      runTransition(newState);
-    }
-  }
-
-  async function runTransition(
-    newState: BookingState,
-    meta?: { reason?: string; releasedTo?: string; cancellationFee?: number },
-  ) {
-    setTransitioning(true);
-    setTransitionError(null);
-    const result = await transitionBookingAction(booking.id, newState, meta);
-    if ('error' in result) {
-      setTransitionError(result.error ?? 'Unknown error');
-    } else {
-      setPendingTransition(null);
-      router.refresh();
-    }
-    setTransitioning(false);
-  }
-
-  function confirmModal() {
-    if (!pendingTransition) return;
-    const meta = pendingTransition === 'released'
-      ? { reason: modalReason || undefined, releasedTo: modalReleasedTo || undefined }
-      : pendingTransition === 'cancelled'
-        ? { reason: modalReason || undefined, cancellationFee: modalFeeStr ? Number(modalFeeStr) : undefined }
-        : { reason: modalReason || undefined }; // written_off
-    runTransition(pendingTransition, meta);
-  }
 
   return (
     <div className="space-y-3">
@@ -236,43 +184,14 @@ export default function BookingDetail({
       {!suppressHeader && <StageStepper state={booking.state} />}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          3. ACTION STRIP — advance-to + print/tools in one row
+          3. PRINT & TOOLS STRIP — print links + workspace shortcut
+          Advance buttons moved to BookingPageHeader (top-right).
+          Call-sheet print removed — replaced by Copy team button in header.
           ═══════════════════════════════════════════════════════════════════ */}
       <div
         className="rounded-lg border px-3 py-2 flex flex-wrap items-center gap-2"
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
-        {/* Advance-to buttons */}
-        {allowedTransitions.length > 0 && (
-          <>
-            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-              Advance
-            </span>
-            {allowedTransitions.map((state) => {
-              const isExit = state === 'released' || state === 'cancelled' || state === 'written_off';
-              const isBack = state === 'quote_drafted' && booking.state === 'quote_sent';
-              return (
-                <button
-                  key={state}
-                  onClick={() => openTransition(state)}
-                  disabled={transitioning}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium"
-                  style={{
-                    background: isExit ? `${PALETTE.danger}22` : isBack ? `${PALETTE.warning}22` : PALETTE.accent,
-                    color: isExit ? PALETTE.danger : isBack ? PALETTE.warning : PALETTE.bg,
-                    border: (isExit || isBack) ? `1px solid ${isExit ? PALETTE.danger : PALETTE.warning}44` : 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {isBack ? '← ' : '→ '}{BOOKING_STATE_LABELS[state]}
-                </button>
-              );
-            })}
-            <span className="self-stretch border-l mx-1" style={{ borderColor: PALETTE.border }} />
-          </>
-        )}
-
-        {/* Print & tools */}
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
           Print &amp; tools
         </span>
@@ -293,15 +212,6 @@ export default function BookingDetail({
           style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
         >
           Invoice
-        </Link>
-        <Link
-          href={`/print/bookings/${booking.id}/call-sheet`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Call sheet
         </Link>
         <Link
           href={`/print/bookings/${booking.id}/confirmation`}
@@ -336,123 +246,10 @@ export default function BookingDetail({
         )}
       </div>
 
-      {/* Transition modal — shown for released / cancelled / written_off */}
-      {pendingTransition && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.55)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setPendingTransition(null); }}
-        >
-          <div
-            className="w-full max-w-sm rounded-lg border p-5 space-y-4"
-            style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-          >
-            <h3 className="text-sm font-semibold" style={{ color: PALETTE.text }}>
-              {pendingTransition === 'released' && 'Mark as Released'}
-              {pendingTransition === 'cancelled' && 'Cancel Booking'}
-              {pendingTransition === 'written_off' && 'Write Off Invoice'}
-            </h3>
-            <p className="text-[11px]" style={{ color: PALETTE.muted }}>
-              {pendingTransition === 'released' && 'The booking was released to another agency. Record the outcome below.'}
-              {pendingTransition === 'cancelled' && 'The booking has been cancelled. Record the reason and any applicable fee.'}
-              {pendingTransition === 'written_off' && 'The client invoice is unrecoverable. This moves the booking to a closed terminal state.'}
-            </p>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>
-                  {pendingTransition === 'released' ? 'Release reason (optional)' : pendingTransition === 'written_off' ? 'Write-off reason (optional)' : 'Cancellation reason (optional)'}
-                </label>
-                <input
-                  type="text"
-                  value={modalReason}
-                  onChange={(e) => setModalReason(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') confirmModal(); if (e.key === 'Escape') setPendingTransition(null); }}
-                  autoFocus
-                  placeholder={pendingTransition === 'released' ? 'e.g. Client went direct' : pendingTransition === 'written_off' ? 'e.g. Client in liquidation' : 'e.g. Client pulled budget'}
-                  className="w-full rounded border px-3 py-2 text-sm"
-                  style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text, fontFamily: 'inherit', outline: 'none' }}
-                />
-              </div>
-
-              {pendingTransition === 'released' && (
-                <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>
-                    Won by (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={modalReleasedTo}
-                    onChange={(e) => setModalReleasedTo(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') confirmModal(); if (e.key === 'Escape') setPendingTransition(null); }}
-                    placeholder="e.g. Viviens, IMG"
-                    className="w-full rounded border px-3 py-2 text-sm"
-                    style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text, fontFamily: 'inherit', outline: 'none' }}
-                  />
-                </div>
-              )}
-
-              {pendingTransition === 'cancelled' && (
-                <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>
-                    Cancellation fee ($, leave blank if none)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={modalFeeStr}
-                    onChange={(e) => setModalFeeStr(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') confirmModal(); if (e.key === 'Escape') setPendingTransition(null); }}
-                    placeholder="0.00"
-                    className="w-full rounded border px-3 py-2 text-sm"
-                    style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text, fontFamily: 'inherit', outline: 'none' }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {transitionError && (
-              <div className="text-[11px]" style={{ color: PALETTE.danger }}>{transitionError}</div>
-            )}
-
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setPendingTransition(null)}
-                className="rounded px-3 py-1.5 text-xs"
-                style={{ background: 'transparent', border: `1px solid ${PALETTE.border}`, color: PALETTE.muted, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmModal}
-                disabled={transitioning}
-                className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                style={{
-                  background: PALETTE.danger,
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {transitioning ? 'Saving…' : `Confirm ${BOOKING_STATE_LABELS[pendingTransition]}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {transitionError && !pendingTransition && (
-        <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: PALETTE.danger, color: PALETTE.danger }}>
-          {transitionError}
-        </div>
-      )}
-
       {/* ═══════════════════════════════════════════════════════════════════
           4. WHAT'S NEXT — stage checklist + warnings (OT window, cancellation)
-          Hidden when suppressHeader=true (checklist rendered in two-column layout)
+          Hidden when suppressHeader=true (checklist rendered in two-column layout
+          and advance buttons live in BookingAdvanceButtons in the page header).
           ═══════════════════════════════════════════════════════════════════ */}
       {!suppressHeader && <StageChecklist checklist={checklist} />}
 
@@ -495,8 +292,10 @@ export default function BookingDetail({
 
       {/* ═══════════════════════════════════════════════════════════════════
           5. BRIEF — compact summary + expandable inline fields
+          Hidden when suppressHeader=true (BookingJobFacts on right column
+          renders these fields inline-editable instead).
           ═══════════════════════════════════════════════════════════════════ */}
-      <section
+      {!suppressHeader && (<section
         className="rounded-lg border p-3 space-y-2"
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
@@ -704,7 +503,7 @@ export default function BookingDetail({
         </div>
           </>
         )}
-      </section>
+      </section>)}
 
       {/* ═══════════════════════════════════════════════════════════════════
           6. INVOICE & PAYMENT — only renders once invoice has been issued

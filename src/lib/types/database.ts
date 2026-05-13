@@ -390,6 +390,8 @@ export interface BookingCrew {
   notes: string | null;
   /** Set when Atelier pays this crew member. Null = not yet paid. */
   artist_paid_at: string | null;
+  /** Per-day assignment for multi-day shoots. NULL/empty = all days. */
+  assigned_dates: string[] | null;
   // Joined
   crew?: Crew;
 }

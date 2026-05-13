@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingTalent } from '@/lib/types/database';
+import type { BookingRoster } from '@/lib/data/booking-roster';
 import StageStepper from '@/components/bookings/StageStepper';
+import BookingAdvanceButtons from '@/components/bookings/BookingAdvanceButtons';
+import BookingLifecycleControls from '@/components/bookings/BookingLifecycleControls';
+import CopyTeamButton from '@/components/bookings/CopyTeamButton';
 import { PALETTE, BOOKING_STATE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
@@ -9,9 +13,10 @@ import { dateRangeToInputs } from '@/lib/utils/daterange';
 type Props = {
   booking: BookingDetailRow;
   primaryTalent: (BookingTalent & { talent?: { working_name?: string; name?: string } | null }) | null;
+  roster: BookingRoster | null;
 };
 
-export default function BookingPageHeader({ booking, primaryTalent }: Props) {
+export default function BookingPageHeader({ booking, primaryTalent, roster }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
   const talentName = (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.working_name
     ?? (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.name
@@ -25,11 +30,11 @@ export default function BookingPageHeader({ booking, primaryTalent }: Props) {
     : booking.shoot_date_notes ?? '—';
 
   const meta: { label: string; value: string }[] = [
-    { label: 'Client',      value: clientName ?? '—' },
-    { label: 'Talent',      value: talentName ?? '—' },
-    { label: 'Shoot date',  value: dateStr },
-    { label: 'Budget',      value: booking.grand_total > 0 ? formatCurrency(booking.grand_total, 'AUD') : '—' },
-    { label: 'Status',      value: BOOKING_STATE_LABELS[booking.state] },
+    { label: 'Client',     value: clientName ?? '—' },
+    { label: 'Talent',     value: talentName ?? '—' },
+    { label: 'Shoot date', value: dateStr },
+    { label: 'Budget',     value: booking.grand_total > 0 ? formatCurrency(booking.grand_total, 'AUD') : '—' },
+    { label: 'Status',     value: BOOKING_STATE_LABELS[booking.state] },
   ];
 
   return (
@@ -56,9 +61,9 @@ export default function BookingPageHeader({ booking, primaryTalent }: Props) {
           <span style={{ color: PALETTE.text }}>{booking.title}</span>
         </nav>
 
-        {/* Title row */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        {/* Title row + action bar */}
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div className="min-w-0 flex-1">
             <h1
               className="text-3xl font-normal leading-tight truncate"
               style={{
@@ -73,6 +78,24 @@ export default function BookingPageHeader({ booking, primaryTalent }: Props) {
               JOB / {booking.booking_ref ?? '—'}
             </div>
           </div>
+
+          {/* Right-side actions: Advance → Copy team → Archive */}
+          <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+            <BookingAdvanceButtons bookingId={booking.id} bookingState={booking.state} />
+            <div className="h-5 w-px" style={{ background: PALETTE.border }} />
+            <CopyTeamButton
+              roster={roster}
+              bookingRef={booking.booking_ref}
+              bookingTitle={booking.title}
+            />
+            <BookingLifecycleControls
+              bookingId={booking.id}
+              bookingRef={booking.booking_ref}
+              bookingState={booking.state}
+              isArchived={(booking as { is_archived?: boolean }).is_archived ?? false}
+              compact
+            />
+          </div>
         </div>
 
         {/* Stage pill bar */}
@@ -80,21 +103,21 @@ export default function BookingPageHeader({ booking, primaryTalent }: Props) {
           <StageStepper state={booking.state} />
         </div>
 
-        {/* Metadata strip */}
+        {/* Metadata strip — generous padding so text doesn't crowd the dividers */}
         <div
-          className="mt-4 grid border-t"
+          className="mt-5 grid border-t"
           style={{
             borderColor: PALETTE.border,
             gridTemplateColumns: `repeat(${meta.length}, 1fr)`,
           }}
         >
-          {meta.map(({ label, value }) => (
+          {meta.map(({ label, value }, i) => (
             <div
               key={label}
-              className="py-3 pr-4 border-r last:border-r-0"
-              style={{ borderColor: PALETTE.border }}
+              className="py-4 px-5 border-r last:border-r-0"
+              style={{ borderColor: PALETTE.border, paddingLeft: i === 0 ? 0 : undefined }}
             >
-              <div className="text-[9px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: PALETTE.muted }}>
+              <div className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: PALETTE.muted }}>
                 {label}
               </div>
               <div className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>
