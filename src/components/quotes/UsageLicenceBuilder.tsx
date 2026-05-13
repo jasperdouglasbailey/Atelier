@@ -130,7 +130,7 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h3 className="section-title">
           Usage Licences ({licences.length})
         </h3>
         <button

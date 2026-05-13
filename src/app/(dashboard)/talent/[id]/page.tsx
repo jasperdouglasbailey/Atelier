@@ -152,7 +152,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Contact */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
+          <h3 className="section-title mb-3">Contact</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Email" value={talent.email} />
             <Field label="Mobile" value={talent.mobile} />
@@ -168,7 +168,7 @@ export default async function TalentDetailPage({ params }: Props) {
         {/* Call sheet */}
         {(talent.dietary || talent.drink_order) && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
+            <h3 className="section-title mb-3">Call Sheet</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Dietary" value={talent.dietary} />
               <Field label="Drink Order" value={talent.drink_order} />
@@ -178,7 +178,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Business */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
+          <h3 className="section-title mb-3">Business</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {talent.default_day_rate != null && (
               <Field
@@ -202,7 +202,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Super */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Superannuation</h3>
+          <h3 className="section-title mb-3">Superannuation</h3>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Fund Name" value={talent.super_fund_name} />
             <Field label="Member Number" value={talent.super_member_number} />
@@ -213,7 +213,7 @@ export default async function TalentDetailPage({ params }: Props) {
         {/* Bank Account */}
         {(talent.bank_account_name || talent.bank_bsb || talent.bank_account_number) && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+            <h3 className="section-title mb-3">Bank Account</h3>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Account Name" value={talent.bank_account_name} />
               <Field label="BSB" value={talent.bank_bsb} />
@@ -225,7 +225,7 @@ export default async function TalentDetailPage({ params }: Props) {
         {/* Emergency Contact */}
         {(talent.emergency_name || talent.emergency_mobile) && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Emergency Contact</h3>
+            <h3 className="section-title mb-3">Emergency Contact</h3>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Name" value={talent.emergency_name} />
               <Field label="Relationship" value={talent.emergency_relationship} />
@@ -236,7 +236,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Documents */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Documents & Compliance</h3>
+          <h3 className="section-title mb-3">Documents & Compliance</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Passport Expiry" value={talent.passport_expiry ? formatDate(talent.passport_expiry) : null} />
             <Field label="Drivers Licence Expiry" value={talent.drivers_licence_expiry ? formatDate(talent.drivers_licence_expiry) : null} />
@@ -247,7 +247,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {talent.notes && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Notes</h3>
+            <h3 className="section-title mb-2">Notes</h3>
             <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{talent.notes}</p>
           </section>
         )}
@@ -266,7 +266,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Tasks */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h3>
+          <h3 className="section-title mb-3">Tasks</h3>
           <TasksPanel
             initial={talentTasks}
             attachment={{ type: 'talent', id: talent.id }}
@@ -276,7 +276,7 @@ export default async function TalentDetailPage({ params }: Props) {
 
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h3 className="section-title mb-3">
             Booking History ({bookingHistory.length})
           </h3>
           {bookingHistory.length === 0 ? (
@@ -332,7 +332,7 @@ export default async function TalentDetailPage({ params }: Props) {
             the page when staffing a shoot. */}
         {totalBookings > 0 && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
+            <h3 className="section-title mb-3">Stats</h3>
             <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
               <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
               <Stat label="Active" value={activeBookings} sublabel="not yet paid" />

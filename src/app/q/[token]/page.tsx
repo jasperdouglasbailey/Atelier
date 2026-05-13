@@ -294,7 +294,7 @@ function ExpiredQuoteView({ agencyEmail }: { agencyEmail: string | null }) {
         </p>
         <p style={{ fontSize: 14, color: '#525252', marginTop: 12, lineHeight: 1.55 }}>
           {agencyEmail
-            ? <>Please contact <a href={`mailto:${agencyEmail}`} style={{ color: '#6c8aff' }}>{agencyEmail}</a> to receive an updated quote.</>
+            ? <>Please contact <a href={`mailto:${agencyEmail}`} style={{ color: '#C4A882' }}>{agencyEmail}</a> to receive an updated quote.</>
             : <>Please contact Saunders &amp; Co to receive an updated quote.</>}
         </p>
       </div>

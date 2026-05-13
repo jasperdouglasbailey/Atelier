@@ -248,6 +248,26 @@ export async function getFeeLinesByVersionAction(versionId: string): Promise<Fee
   return listFeeLines(versionId);
 }
 
+/** Reorder fee lines by updating sort_order for each id in the supplied array. */
+export async function reorderFeeLinesAction(
+  orderedIds: string[],
+  bookingId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+
+  // Assign sort_order in steps of 10 so future inserts slot in between
+  const updates = orderedIds.map((id, i) => ({ id, sort_order: i * 10 }));
+  const { error } = await supabase
+    .from('atelier_fee_lines')
+    .upsert(updates, { onConflict: 'id' });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/bookings/${bookingId}`);
+  return { ok: true };
+}
+
 // ============================================================
 // Booking talent + crew
 // ============================================================

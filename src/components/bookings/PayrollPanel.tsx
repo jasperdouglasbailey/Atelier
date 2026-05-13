@@ -64,7 +64,7 @@ export default function PayrollPanel({ bookingId, bookingTalent, bookingCrew }: 
   return (
     <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h3 className="section-title">
           Payroll
         </h3>
         {allPaid ? (

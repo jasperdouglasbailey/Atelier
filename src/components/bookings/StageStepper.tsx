@@ -1,83 +1,116 @@
 import type { BookingState } from '@/lib/types/database';
-import {
-  STAGE_GROUPS, stageOf, stageIndex, type BookingStageGroup,
-} from '@/lib/utils/booking-stages';
 import { PALETTE } from '@/lib/utils/constants';
 
-// Display labels that match the industry vernacular in the mockup
-const PILL_LABELS: Record<BookingStageGroup, string> = {
-  brief:      'Enquiry',
-  quote:      'Quote',
-  production: 'Pre-Production',
-  delivery:   'Post',
-  closed:     'Wrap',
+// 6 display stages for the stepper — maps over the 16 internal states.
+// The internal state machine is unchanged; this is presentation only.
+type DisplayStage = 'enquiry' | 'quote' | 'preProduction' | 'shoot' | 'post' | 'wrap';
+
+const DISPLAY_STAGES: DisplayStage[] = [
+  'enquiry', 'quote', 'preProduction', 'shoot', 'post', 'wrap',
+];
+
+const DISPLAY_LABELS: Record<DisplayStage, string> = {
+  enquiry:       'Enquiry',
+  quote:         'Quote',
+  preProduction: 'Pre-Production',
+  shoot:         'Shoot',
+  post:          'Post',
+  wrap:          'Wrap',
+};
+
+const STATE_TO_DISPLAY: Record<BookingState, DisplayStage> = {
+  brief_received:      'enquiry',
+  brief_parsed:        'enquiry',
+  quote_drafted:       'quote',
+  quote_sent:          'quote',
+  artists_crew_held:   'quote',
+  quote_confirmed:     'quote',
+  pre_production:      'preProduction',
+  shoot_live:          'shoot',
+  morning_after_check: 'shoot',
+  post_production:     'post',
+  final_delivery:      'post',
+  invoice_issued:      'post',
+  paid:                'post',
+  released:            'wrap',
+  cancelled:           'wrap',
+  written_off:         'wrap',
 };
 
 type Props = { state: BookingState };
 
 export default function StageStepper({ state }: Props) {
-  const currentGroup = stageOf(state);
-  const currentIndex = stageIndex(currentGroup);
-  const isClosedExit = currentGroup === 'closed';
+  const currentDisplay = STATE_TO_DISPLAY[state];
+  const currentIndex = DISPLAY_STAGES.indexOf(currentDisplay);
+  const isTerminal = state === 'released' || state === 'cancelled' || state === 'written_off';
 
   return (
-    <div className="flex items-center gap-0">
-      {STAGE_GROUPS.map((group, i) => {
-        const isCurrent = group === currentGroup;
-        const isPast = !isClosedExit && i < currentIndex;
-        const num = String(i + 1).padStart(2, '0');
+    <div className="flex items-center gap-0 flex-wrap">
+      {DISPLAY_STAGES.map((stage, i) => {
+        const isCurrent = stage === currentDisplay;
+        const isPast = !isTerminal && i < currentIndex;
 
         let pillBg: string;
         let pillText: string;
-        let numBg: string;
-        let numText: string;
+        let pillBorder: string;
+        let showCheck: boolean;
 
         if (isCurrent) {
           pillBg = PALETTE.text;
           pillText = PALETTE.bg;
-          numBg = PALETTE.bg;
-          numText = PALETTE.text;
+          pillBorder = `1px solid ${PALETTE.text}`;
+          showCheck = false;
         } else if (isPast) {
           pillBg = 'transparent';
           pillText = PALETTE.muted;
-          numBg = 'transparent';
-          numText = PALETTE.muted;
+          pillBorder = `1px solid ${PALETTE.muted}`;
+          showCheck = true;
         } else {
           pillBg = 'transparent';
-          pillText = PALETTE.border;
-          numBg = 'transparent';
-          numText = PALETTE.border;
+          pillText = PALETTE.muted;
+          pillBorder = `1px dashed ${PALETTE.border}`;
+          showCheck = false;
         }
 
         return (
-          <div key={group} className="flex items-center">
-            {/* Pill */}
+          <div key={stage} className="flex items-center">
             <div
-              className="flex items-center gap-1.5 rounded-full px-3 py-1"
+              className="flex items-center gap-1.5 px-3 py-1"
               style={{
                 background: pillBg,
-                border: isCurrent ? 'none' : `1px solid ${isPast ? PALETTE.border : PALETTE.border}`,
+                border: pillBorder,
+                borderRadius: 20,
               }}
             >
+              {showCheck && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    color: PALETTE.muted,
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  ✓
+                </span>
+              )}
               <span
-                className="text-[9px] font-semibold tabular-nums"
-                style={{ color: isCurrent ? pillText : numText, letterSpacing: '0.05em' }}
+                className="uppercase"
+                style={{
+                  fontSize: 10,
+                  fontWeight: isCurrent ? 600 : 400,
+                  letterSpacing: '0.06em',
+                  color: pillText,
+                  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+                }}
               >
-                {isPast ? '✓' : num}
-              </span>
-              <span
-                className="text-[10px] font-medium uppercase tracking-wide"
-                style={{ color: pillText }}
-              >
-                {PILL_LABELS[group]}
+                {DISPLAY_LABELS[stage]}
               </span>
             </div>
 
-            {/* Arrow connector */}
-            {i < STAGE_GROUPS.length - 1 && (
+            {i < DISPLAY_STAGES.length - 1 && (
               <span
-                className="mx-1 text-[10px] select-none"
-                style={{ color: PALETTE.border }}
+                className="mx-1 select-none"
+                style={{ fontSize: 10, color: PALETTE.border }}
               >
                 →
               </span>
@@ -89,5 +122,6 @@ export default function StageStepper({ state }: Props) {
   );
 }
 
-export { stageOf };
-export type { BookingStageGroup };
+// Re-export stageOf for callers that imported it from here
+export { stageOf } from '@/lib/utils/booking-stages';
+export type { BookingStageGroup } from '@/lib/utils/booking-stages';

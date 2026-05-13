@@ -61,7 +61,7 @@ export default function QuickCompose({ bookingId, bookingRef, bookingTitle, defa
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
-        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <span className="section-title">
           Quick email
         </span>
         <span className="text-[11px]" style={{ color: PALETTE.accent }}>

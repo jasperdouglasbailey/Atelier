@@ -28,10 +28,17 @@ export default function BookingTabs({
 
   return (
     <div>
-      {/* Tab bar */}
+      {/* Tab bar — paper-2 bg strip, sand underline on active */}
       <div
-        className="flex gap-1 mb-6 border-b"
-        style={{ borderColor: PALETTE.border }}
+        className="flex gap-0 mb-6 border-b"
+        style={{
+          borderColor: PALETTE.border,
+          background: 'var(--p-surface)',
+          marginLeft: -16,
+          marginRight: -16,
+          paddingLeft: 16,
+          paddingRight: 16,
+        }}
       >
         {TABS.map(({ key, label }) => {
           const isActive = active === key;
@@ -39,16 +46,18 @@ export default function BookingTabs({
             <button
               key={key}
               onClick={() => setActive(key)}
-              className="text-sm transition-colors"
+              className="uppercase transition-colors"
               style={{
-                fontWeight: isActive ? 500 : 400,
+                fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+                fontWeight: isActive ? 600 : 400,
+                fontSize: 11,
+                letterSpacing: '0.06em',
                 color: isActive ? PALETTE.text : PALETTE.muted,
-                borderBottom: isActive ? `2px solid ${PALETTE.text}` : '2px solid transparent',
+                borderBottom: isActive ? `2px solid ${PALETTE.accent}` : '2px solid transparent',
                 marginBottom: '-1px',
                 background: 'none',
                 cursor: 'pointer',
-                padding: '0.5rem 1rem',
-                letterSpacing: '0.01em',
+                padding: '0.625rem 1rem',
               }}
             >
               {label}

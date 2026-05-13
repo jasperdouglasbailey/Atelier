@@ -383,9 +383,7 @@ export default async function DashboardPage() {
                 style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
               >
                 <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-                    Top artists
-                  </h2>
+                  <h2 className="section-title">Top artists</h2>
                   <Link href="/talent" className="text-[11px]" style={{ color: PALETTE.accent }}>
                     All →
                   </Link>
@@ -437,9 +435,7 @@ export default async function DashboardPage() {
                 style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
               >
                 <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-                    Pipeline
-                  </h2>
+                  <h2 className="section-title">Pipeline</h2>
                   <Link href="/bookings" className="text-[11px]" style={{ color: PALETTE.accent }}>
                     All →
                   </Link>

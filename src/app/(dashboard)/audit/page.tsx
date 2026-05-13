@@ -77,7 +77,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           <button
             type="submit"
             className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: '#6c8aff', color: '#0a0a0a' }}
+            style={{ background: '#C4A882', color: '#0E0E0C' }}
           >
             Apply
           </button>
@@ -131,7 +131,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
                       {r.user_id ?? <span style={{ color: '#6b6b6b' }}>system</span>}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      <code style={{ color: isFailure ? '#f87171' : '#6c8aff' }}>{r.action}</code>
+                      <code style={{ color: isFailure ? '#f87171' : '#C4A882' }}>{r.action}</code>
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>{r.table_name}</td>
                     <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#8b8b8b' }}>

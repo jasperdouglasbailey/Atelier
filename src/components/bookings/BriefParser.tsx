@@ -129,7 +129,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Brief Auto-Parser</h3>
+          <h3 className="section-title">Brief Auto-Parser</h3>
           <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Extract structured fields from the raw brief text.
             {suggestions?.llmAvailable === false && (

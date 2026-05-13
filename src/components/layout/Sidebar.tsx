@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { signOutAction } from '@/app/actions/auth';
 
 type NavItem = { label: string; href: string; badge?: number; num?: string };
-type NavSection = { title?: string; items: NavItem[]; numbered?: boolean };
+type NavSection = { title?: string; items: NavItem[] };
 type Props = { inboxCount?: number; userEmail?: string | null };
 
 function NavInner({
@@ -25,8 +25,15 @@ function NavInner({
           <div key={idx} className={idx > 0 ? 'mt-7' : ''}>
             {section.title && (
               <div
-                className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[0.18em]"
-                style={{ color: 'var(--p-muted)' }}
+                className="mb-2 px-2"
+                style={{
+                  color: 'var(--p-mid-2)',
+                  fontFamily: 'var(--font-dm-mono), monospace',
+                  fontSize: 9,
+                  fontWeight: 500,
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                }}
               >
                 {section.title}
               </div>
@@ -38,18 +45,24 @@ function NavInner({
                   <li key={href}>
                     <Link
                       href={href}
-                      className="flex items-center justify-between rounded px-2 py-1.5 transition-colors"
+                      className="flex items-center justify-between px-2 py-1.5 transition-colors"
                       style={{
                         color: active ? 'var(--p-text)' : 'var(--p-muted)',
-                        background: active ? 'var(--p-border)' : 'transparent',
+                        background: active ? 'rgba(196,168,130,0.10)' : 'transparent',
+                        boxShadow: active ? 'inset 2px 0 0 0 var(--p-accent)' : 'none',
+                        borderRadius: active ? '0 3px 3px 0' : 3,
                         fontSize: 13,
                       }}
                     >
                       <span className="flex items-baseline gap-2.5">
                         {num && (
                           <span
-                            className="text-[10px] font-medium tabular-nums"
-                            style={{ color: active ? 'var(--p-muted)' : 'var(--p-border)', letterSpacing: '0.04em' }}
+                            style={{
+                              fontFamily: 'var(--font-dm-mono), monospace',
+                              fontSize: 10,
+                              color: active ? 'var(--p-muted)' : 'var(--p-border)',
+                              letterSpacing: '0.04em',
+                            }}
                           >
                             {num}
                           </span>
@@ -58,8 +71,16 @@ function NavInner({
                       </span>
                       {badge != null && badge > 0 && (
                         <span
-                          className="ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                          style={{ background: 'var(--p-accent)', color: '#fff', minWidth: 18, textAlign: 'center' }}
+                          className="ml-auto rounded-full px-1.5 py-0.5 leading-none"
+                          style={{
+                            background: 'var(--p-bg)',
+                            border: '1px solid var(--p-border)',
+                            color: 'var(--p-text)',
+                            fontFamily: 'var(--font-dm-mono), monospace',
+                            fontSize: 10,
+                            minWidth: 18,
+                            textAlign: 'center',
+                          }}
                         >
                           {badge > 99 ? '99+' : badge}
                         </span>
@@ -80,15 +101,20 @@ function NavInner({
           style={{ borderColor: 'var(--p-border)' }}
         >
           <div
-            className="mb-1 px-2 text-[10px] font-medium truncate"
-            style={{ color: 'var(--p-muted)', letterSpacing: '0.04em' }}
+            className="mb-1 px-2 truncate"
+            style={{
+              color: 'var(--p-muted)',
+              fontFamily: 'var(--font-dm-mono), monospace',
+              fontSize: 10,
+              letterSpacing: '0.04em',
+            }}
             title={userEmail}
           >
             {userEmail}
           </div>
           <button
             type="submit"
-            className="w-full rounded px-2 py-1.5 text-left transition-colors"
+            className="w-full px-2 py-1.5 text-left transition-colors"
             style={{ color: 'var(--p-muted)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12 }}
           >
             Sign out
@@ -103,13 +129,11 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Close drawer whenever the user navigates to a new page
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const sections: NavSection[] = [
     {
-      numbered: true,
       items: [
         { label: 'Dashboard',    href: '/',             num: '01' },
         { label: 'Inbox',        href: '/inbox',        num: '02', badge: inboxCount },
@@ -124,20 +148,28 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
     {
       title: 'Analytics',
       items: [
-        { label: 'Reports', href: '/reports' },
-        { label: 'Costs',   href: '/costs'   },
+        { label: 'Reports', href: '/reports', num: '09' },
+        { label: 'Costs',   href: '/costs',   num: '10' },
       ],
     },
     {
       title: 'System',
       items: [
-        { label: 'Compliance', href: '/settings/compliance'        },
-        { label: 'Renewals',   href: '/settings/business-renewals' },
-        { label: 'Audit',      href: '/audit'                      },
-        { label: 'Settings',   href: '/settings'                   },
+        { label: 'Compliance', href: '/settings/compliance',        num: '11' },
+        { label: 'Renewals',   href: '/settings/business-renewals', num: '12' },
+        { label: 'Audit',      href: '/audit',                      num: '13' },
+        { label: 'Settings',   href: '/settings',                   num: '14' },
       ],
     },
   ];
+
+  const brandStyle: React.CSSProperties = {
+    color: 'var(--p-text)',
+    fontFamily: 'var(--font-fraunces), Georgia, serif',
+    fontSize: 15,
+    fontWeight: 400,
+    letterSpacing: '0.12em',
+  };
 
   return (
     <>
@@ -147,9 +179,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
       >
         <div className="flex h-14 items-center px-5 border-b" style={{ borderColor: 'var(--p-border)' }}>
-          <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 15, fontWeight: 400, letterSpacing: '0.12em' }}>
-            ATELIER.
-          </span>
+          <span style={brandStyle}>ATELIER.</span>
         </div>
         <NavInner sections={sections} userEmail={userEmail} pathname={pathname} />
       </aside>
@@ -159,15 +189,19 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         className="flex md:hidden h-12 flex-shrink-0 items-center justify-between border-b px-4"
         style={{ background: 'var(--p-surface)', borderColor: 'var(--p-border)' }}
       >
-        <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, letterSpacing: '0.12em' }}>
-          ATELIER.
-        </span>
+        <span style={{ ...brandStyle, fontSize: 14 }}>ATELIER.</span>
         <div className="flex items-center gap-3">
           {inboxCount > 0 && (
             <Link
               href="/inbox"
-              className="relative flex items-center justify-center rounded-full w-7 h-7 text-[11px] font-semibold"
-              style={{ background: 'var(--p-accent)', color: 'var(--p-bg)' }}
+              className="relative flex items-center justify-center rounded-full w-7 h-7"
+              style={{
+                background: 'var(--p-bg)',
+                border: '1px solid var(--p-border)',
+                color: 'var(--p-text)',
+                fontFamily: 'var(--font-dm-mono), monospace',
+                fontSize: 10,
+              }}
               aria-label={`Inbox — ${inboxCount} pending`}
             >
               {inboxCount > 9 ? '9+' : inboxCount}
@@ -177,7 +211,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
             type="button"
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation"
-            className="flex flex-col items-center justify-center w-8 h-8 rounded-md gap-1.5"
+            className="flex flex-col items-center justify-center w-8 h-8 gap-1.5"
             style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
           >
             <span className="block w-5 h-px" style={{ background: 'var(--p-muted)' }} />
@@ -190,33 +224,26 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
       {/* ── MOBILE drawer overlay ───────────────────────────────────── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          {/* Backdrop */}
           <div
             className="absolute inset-0"
             style={{ background: 'rgba(0,0,0,0.55)' }}
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          {/* Drawer */}
           <aside
             className="absolute left-0 top-0 bottom-0 flex w-72 flex-col"
-            style={{
-              background: 'var(--p-surface)',
-              borderRight: '1px solid var(--p-border)',
-            }}
+            style={{ background: 'var(--p-surface)', borderRight: '1px solid var(--p-border)' }}
           >
             <div
               className="flex h-14 items-center justify-between border-b px-5"
               style={{ borderColor: 'var(--p-border)' }}
             >
-              <span style={{ color: 'var(--p-text)', fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, letterSpacing: '0.12em' }}>
-                ATELIER.
-              </span>
+              <span style={{ ...brandStyle, fontSize: 14 }}>ATELIER.</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close navigation"
-                className="flex items-center justify-center w-8 h-8 rounded-md text-lg"
+                className="flex items-center justify-center w-8 h-8 text-lg"
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--p-muted)' }}
               >
                 ✕

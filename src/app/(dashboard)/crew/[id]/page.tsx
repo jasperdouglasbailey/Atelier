@@ -162,7 +162,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
             {/* Contact */}
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contact</h3>
+              <h3 className="section-title mb-3">Contact</h3>
               <div className="grid gap-3 grid-cols-2">
                 <Field label="Email" value={crew.email} />
                 <Field label="Mobile" value={crew.mobile} />
@@ -178,7 +178,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
             {/* Business */}
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Business</h3>
+              <h3 className="section-title mb-3">Business</h3>
               <div className="grid gap-3 grid-cols-2">
                 <Field label="ABN" value={crew.abn} />
                 <Field label="GST Registered" value={crew.gst_registered ? 'Yes' : 'No'} />
@@ -200,7 +200,7 @@ export default async function CrewDetailPage({ params }: Props) {
             {/* Call sheet preferences */}
             {(crew.dietary || crew.drink_order) && (
               <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call Sheet</h3>
+                <h3 className="section-title mb-3">Call Sheet</h3>
                 <div className="grid gap-3 grid-cols-2">
                   <Field label="Dietary" value={crew.dietary} />
                   <Field label="Drink Order" value={crew.drink_order} />
@@ -216,7 +216,7 @@ export default async function CrewDetailPage({ params }: Props) {
             {/* Bank Account */}
             {(crew.bank_account_name || crew.bank_bsb || crew.bank_account_number) && (
               <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Bank Account</h3>
+                <h3 className="section-title mb-3">Bank Account</h3>
                 <div className="grid gap-3 grid-cols-1">
                   <Field label="Account Name" value={crew.bank_account_name} />
                   <Field label="BSB" value={crew.bank_bsb} />
@@ -227,7 +227,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
             {/* Super */}
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Superannuation</h3>
+              <h3 className="section-title mb-3">Superannuation</h3>
               <div className="grid gap-3 grid-cols-2">
                 <div className="col-span-2">
                   <Field label="Fund Name" value={crew.super_fund_name} />
@@ -239,7 +239,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
             {/* Kit & Certs */}
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Equipment & Certifications</h3>
+              <h3 className="section-title mb-3">Equipment & Certifications</h3>
               <div className="space-y-3">
                 <Field label="Kit List" value={crew.kit_list} />
                 <Field label="Certifications" value={crew.certifications?.join(', ')} />
@@ -249,7 +249,7 @@ export default async function CrewDetailPage({ params }: Props) {
             {/* Notes */}
             {crew.notes && (
               <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Notes</h3>
+                <h3 className="section-title mb-2">Notes</h3>
                 <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{crew.notes}</p>
               </section>
             )}
@@ -260,7 +260,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
         {/* Booking history — full width */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h3 className="section-title mb-3">
             Booking History ({bookingRows.length})
           </h3>
           {bookingRows.length === 0 ? (
@@ -318,7 +318,7 @@ export default async function CrewDetailPage({ params }: Props) {
 
         {/* Tasks */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h3>
+          <h3 className="section-title mb-3">Tasks</h3>
           <TasksPanel
             initial={crewTasks}
             attachment={{ type: 'crew', id: crew.id }}
@@ -329,7 +329,7 @@ export default async function CrewDetailPage({ params }: Props) {
         {/* Stats */}
         {totalBookings > 0 && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Stats</h3>
+            <h3 className="section-title mb-3">Stats</h3>
             <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
               <Stat label="Bookings" value={totalBookings} sublabel={`${confirmedBookings} confirmed`} />
               <Stat label="Active" value={activeBookings} sublabel="not yet paid" />

@@ -188,7 +188,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
       {/* Talent */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h3 className="section-title">
             Talent ({bookingTalent.length})
           </h3>
           <button
@@ -362,7 +362,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
       {/* Crew */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h3 className="section-title">
             Crew ({bookingCrew.length})
           </h3>
           <button

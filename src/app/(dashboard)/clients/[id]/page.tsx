@@ -164,7 +164,7 @@ export default async function ClientDetailPage({ params }: Props) {
         {/* Top artists */}
         {topTalent.length > 0 && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+            <h3 className="section-title mb-3">
               Frequent Artists
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -192,7 +192,7 @@ export default async function ClientDetailPage({ params }: Props) {
 
         {/* Details */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Details</h3>
+          <h3 className="section-title mb-3">Details</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Company" value={client.company} />
             <Field label="Email" value={client.email} />
@@ -229,7 +229,7 @@ export default async function ClientDetailPage({ params }: Props) {
         {/* Additional contacts */}
         {Array.isArray(client.contacts) && client.contacts.length > 0 && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Contacts</h3>
+            <h3 className="section-title mb-3">Contacts</h3>
             <div className="space-y-3">
               {(client.contacts as ClientContact[]).map((c, i) => (
                 <div key={i} className="rounded-md border p-3" style={{ borderColor: PALETTE.border }}>
@@ -258,7 +258,7 @@ export default async function ClientDetailPage({ params }: Props) {
 
         {client.notes && (
           <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Notes</h3>
+            <h3 className="section-title mb-2">Notes</h3>
             <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{client.notes}</p>
           </section>
         )}
@@ -266,7 +266,7 @@ export default async function ClientDetailPage({ params }: Props) {
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+            <h3 className="section-title">
               Bookings ({bookings.length})
             </h3>
             {bookings.length > 0 && (
