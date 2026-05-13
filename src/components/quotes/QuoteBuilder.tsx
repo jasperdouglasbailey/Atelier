@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent, BookingCrew } from '@/lib/types/database';
@@ -12,6 +12,7 @@ import {
   createQuoteVersionAction,
   addFeeLineAction, removeFeeLineAction, updateFeeLineAction,
   getFeeLinesByVersionAction, generateQuoteFromTemplateAction,
+  reorderFeeLinesAction,
 } from '@/app/actions/quotes';
 
 type Props = {
@@ -95,6 +96,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   // as just "Grand Total" at a glance. Click to expand the full GST
   // passthrough + agency margin internals.
   const [showFullBreakdown, setShowFullBreakdown] = useState(false);
+
+  // Drag-to-reorder state
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const [, startReorderTransition] = useTransition();
 
   // Compute totals with live preview when a row is being edited
   const previewLines = feeLines.map((l) => {
@@ -231,6 +237,20 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       setError(result.error ?? 'Failed');
       setFeeLines(snapshot); // revert
     }
+  }
+
+  function handleReorder(fromIdx: number | null, toIdx: number) {
+    if (fromIdx === null || fromIdx === toIdx) return;
+    const newLines = [...feeLines];
+    const [moved] = newLines.splice(fromIdx, 1);
+    newLines.splice(toIdx, 0, moved);
+    setFeeLines(newLines);
+    setDraggingIdx(null);
+    setDropIdx(null);
+    const orderedIds = newLines.map((l) => l.id);
+    startReorderTransition(async () => {
+      await reorderFeeLinesAction(orderedIds, bookingId);
+    });
   }
 
   return (
@@ -458,23 +478,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         );
       })()}
 
-      {/* Add line form */}
-      {showAddLine && latestVersion && isLatestVersion && (
-        <AddLineForm
-          quoteVersionId={latestVersion.id}
-          bookingId={bookingId}
-          onSubmit={handleAddLine}
-          onCancel={() => setShowAddLine(false)}
-          busy={busy}
-          primaryTalent={bookingTalent[0] ?? null}
-          attachedCrew={(bookingCrew ?? []).map((bc) => ({
-            crew_id: bc.crew_id,
-            name: bc.crew?.name ?? bc.crew_id,
-            gst_registered: bc.crew?.gst_registered ?? false,
-          }))}
-        />
-      )}
-
       {/* Fee lines table */}
       {feeLines.length > 0 && (
         <div
@@ -483,6 +486,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         >
           <table className="w-full text-xs" style={{ color: PALETTE.text, tableLayout: 'fixed' }}>
             <colgroup>
+              <col style={{ width: '20px' }} /> {/* Drag handle */}
               <col style={{ width: '13%' }} />  {/* Type */}
               <col />                            {/* Description — takes remaining space */}
               <col style={{ width: '52px' }} /> {/* Qty */}
@@ -495,6 +499,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </colgroup>
             <thead>
               <tr style={{ background: PALETTE.surface }}>
+                <th className="px-1 py-2"></th>
                 <th className="px-3 py-2 text-left font-medium" style={{ color: PALETTE.muted }}>Type</th>
                 <th className="px-3 py-2 text-left font-medium" style={{ color: PALETTE.muted }}>Description</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Qty</th>
@@ -519,6 +524,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
                   return (
                     <tr key={line.id} className="border-t" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
+                      <td className="px-1 py-2" />
                       <td className="px-3 py-1.5">
                         <select
                           value={editValues.line_type}
@@ -595,10 +601,26 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                   <tr
                     key={line.id}
                     className={`border-t group ${isLatestVersion ? 'cursor-pointer hover:bg-white/5' : ''}`}
-                    style={{ borderColor: PALETTE.border }}
+                    style={{
+                      borderColor: PALETTE.border,
+                      borderTop: isLatestVersion && dropIdx === i && draggingIdx !== i ? `2px solid ${PALETTE.accent}` : undefined,
+                      opacity: draggingIdx === i ? 0.4 : 1,
+                    }}
+                    draggable={isLatestVersion}
+                    onDragStart={isLatestVersion ? () => { setDraggingIdx(i); setDropIdx(null); } : undefined}
+                    onDragOver={isLatestVersion ? (e) => { e.preventDefault(); setDropIdx(i); } : undefined}
+                    onDrop={isLatestVersion ? (e) => { e.preventDefault(); handleReorder(draggingIdx, i); } : undefined}
+                    onDragEnd={isLatestVersion ? () => { setDraggingIdx(null); setDropIdx(null); } : undefined}
                     onClick={isLatestVersion ? () => startEdit(line) : undefined}
-                    title={isLatestVersion ? 'Click to edit' : undefined}
+                    title={isLatestVersion ? 'Click to edit · drag to reorder' : undefined}
                   >
+                    <td
+                      className="px-1 py-2 text-center"
+                      style={{ cursor: isLatestVersion ? 'grab' : 'default', color: PALETTE.muted, opacity: 0.35, userSelect: 'none' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isLatestVersion && '⠿'}
+                    </td>
                     <td className="px-3 py-2">
                       <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: isOutgoing ? `${PALETTE.warning}18` : `${PALETTE.accent}15`, color: isOutgoing ? PALETTE.warning : PALETTE.accent }}>
                         {FEE_LINE_TYPE_LABELS[line.line_type]}
@@ -641,6 +663,23 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Add line form — below the table so new lines appear at the bottom */}
+      {showAddLine && latestVersion && isLatestVersion && (
+        <AddLineForm
+          quoteVersionId={latestVersion.id}
+          bookingId={bookingId}
+          onSubmit={handleAddLine}
+          onCancel={() => setShowAddLine(false)}
+          busy={busy}
+          primaryTalent={bookingTalent[0] ?? null}
+          attachedCrew={(bookingCrew ?? []).map((bc) => ({
+            crew_id: bc.crew_id,
+            name: bc.crew?.name ?? bc.crew_id,
+            gst_registered: bc.crew?.gst_registered ?? false,
+          }))}
+        />
       )}
 
       {/* Totals */}
