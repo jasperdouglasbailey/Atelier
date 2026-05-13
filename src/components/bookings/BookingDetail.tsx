@@ -92,13 +92,17 @@ export default function BookingDetail({
             {clientName && (
               <>
                 <span>·</span>
-                <Link
-                  href={booking.client?.id ? `/clients/${booking.client.id}` : '#'}
-                  className="hover:underline"
-                  style={{ color: PALETTE.accent }}
-                >
-                  {clientName}
-                </Link>
+                {booking.client?.id ? (
+                  <Link
+                    href={`/clients/${booking.client.id}`}
+                    className="hover:underline"
+                    style={{ color: PALETTE.accent }}
+                  >
+                    {clientName}
+                  </Link>
+                ) : (
+                  <span style={{ color: PALETTE.accent }}>{clientName}</span>
+                )}
               </>
             )}
             {brandName && (
