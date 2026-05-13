@@ -68,13 +68,23 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
               className="text-3xl font-normal leading-tight truncate"
               style={{
                 color: PALETTE.text,
-                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontFamily: 'var(--font-fraunces), Georgia, serif',
                 letterSpacing: '-0.01em',
               }}
             >
               {booking.title}
             </h1>
-            <div className="mt-1 text-xs font-medium" style={{ color: PALETTE.muted, letterSpacing: '0.06em' }}>
+            <div
+              className="mt-1"
+              style={{
+                fontFamily: 'var(--font-dm-mono), monospace',
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: PALETTE.muted,
+              }}
+            >
               JOB / {booking.booking_ref ?? '—'}
             </div>
           </div>
@@ -117,7 +127,17 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
               className="py-4 px-5 border-r last:border-r-0"
               style={{ borderColor: PALETTE.border, paddingLeft: i === 0 ? 0 : undefined }}
             >
-              <div className="text-[9px] font-semibold uppercase tracking-widest mb-1" style={{ color: PALETTE.muted }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-dm-mono), monospace',
+                  fontSize: 9,
+                  fontWeight: 500,
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                  color: PALETTE.muted,
+                  marginBottom: 4,
+                }}
+              >
                 {label}
               </div>
               <div className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>

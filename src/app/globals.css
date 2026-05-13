@@ -1,36 +1,54 @@
 @import "tailwindcss";
 
 /* ── Palette — light/cream (default) ─────────────────────────── */
+/* Token names keep --p- prefix for backward compat with 1200+ references */
 :root {
-  --p-bg:      #F5F0E8;
-  --p-surface: #EDE8DC;
-  --p-border:  #D4CEC3;
-  --p-text:    #1C1A17;
-  --p-muted:   #7A7060;
-  /* accent, state colours stay constant across themes */
-  --p-accent:  #6c8aff;
-  --p-danger:  #f87171;
-  --p-warning: #fbbf24;
-  --p-success: #4ade80;
-  /* opacity variants — computed once, inherit theme change automatically */
+  /* Surface */
+  --p-bg:        #F8F7F4;
+  --p-surface:   #F2F0EA;
+  --p-border:    #DAD5CC;
+  /* Text */
+  --p-text:      #0E0E0C;
+  --p-muted:     #6B6862;
+  --p-mid-2:     #9A9590;
+  /* Accent — sand only. No blues ever. */
+  --p-accent:    #C4A882;
+  --p-accent-dk: #B09470;
+  /* Status semantics */
+  --p-ok:        #3D7A5A;
+  --p-ok-bg:     rgba(61,122,90,0.08);
+  --p-warn:      #B06A00;
+  --p-warn-bg:   rgba(176,106,0,0.08);
+  --p-danger:    #C0392B;
+  --p-danger-bg: rgba(192,57,43,0.08);
+  /* Legacy alias names kept for code that references --p-warning/--p-success */
+  --p-warning:   #B06A00;
+  --p-success:   #3D7A5A;
+  /* Opacity variants — computed once, inherit theme change automatically */
   --p-bg-soft: color-mix(in srgb, var(--p-bg) 53%, transparent);
   --p-bg-high: color-mix(in srgb, var(--p-bg) 80%, transparent);
 }
 
 /* ── Palette — dark ───────────────────────────────────────────── */
 html.dark {
-  --p-bg:      #0a0a0a;
-  --p-surface: #141414;
-  --p-border:  #262626;
-  --p-text:    #ededed;
-  --p-muted:   #8b8b8b;
+  --p-bg:        #0a0a0a;
+  --p-surface:   #141414;
+  --p-border:    #262626;
+  --p-text:      #ededed;
+  --p-muted:     #8b8b8b;
+  --p-mid-2:     #666666;
+  --p-accent:    #C4A882;
+  --p-accent-dk: #B09470;
+  --p-warning:   #B06A00;
+  --p-success:   #3D7A5A;
+  --p-danger:    #C0392B;
 }
 
 @theme inline {
   --color-background: var(--p-bg);
   --color-foreground: var(--p-text);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-dm-mono);
 }
 
 html,
@@ -41,10 +59,84 @@ body {
 body {
   background: var(--p-bg);
   color: var(--p-text);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 * {
   box-sizing: border-box;
 }
+
+/* ── Spec typography utilities (§2.4–2.5) ───────────────────── */
+.section-title {
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.micro-label {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-mid-2);
+}
+
+/* ── Spec button vocabulary (§5.13) ─────────────────────────── */
+.btn-primary {
+  background: var(--p-text);
+  color: var(--p-bg);
+  border: 1px solid var(--p-text);
+  padding: 0.375rem 0.875rem;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.4; cursor: default; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--p-text);
+  border: 1px solid var(--p-border);
+  padding: 0.375rem 0.875rem;
+  font-size: 13px;
+  font-weight: 400;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--p-muted); }
+.btn-ghost:disabled { opacity: 0.4; cursor: default; }
+
+.btn-danger {
+  background: var(--p-danger);
+  color: #fff;
+  border: 1px solid var(--p-danger);
+  padding: 0.375rem 0.875rem;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.btn-danger:hover:not(:disabled) { opacity: 0.85; }
+.btn-danger:disabled { opacity: 0.4; cursor: default; }

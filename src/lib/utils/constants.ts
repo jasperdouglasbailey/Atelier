@@ -217,53 +217,64 @@ export const CREW_STATUS_LABELS: Record<CrewStatus, string> = {
   released: 'Released',
 };
 
-// UI palette
-// Refined editorial dark — true blacks, neutral grays, accent used sparingly.
-// References: prodn.com, art-direction-led fashion sites.
+// UI palette — editorial warm-cream system from spec §3.
+// Sand (#C4A882) is the only accent. No blues. No purples.
 export const PALETTE = {
   // Themed via CSS vars (dark/light toggle swaps :root values)
-  bg:      'var(--p-bg)',
-  surface: 'var(--p-surface)',
-  border:  'var(--p-border)',
-  text:    'var(--p-text)',
-  muted:   'var(--p-muted)',
+  bg:       'var(--p-bg)',
+  surface:  'var(--p-surface)',
+  border:   'var(--p-border)',
+  text:     'var(--p-text)',
+  muted:    'var(--p-muted)',
+  mid2:     'var(--p-mid-2)',
   // Opacity variants — pre-computed in CSS, always up-to-date with theme
-  bgSoft:  'var(--p-bg-soft)',   // bg at ~53% (subtle overlay / pre-code blocks)
-  bgHigh:  'var(--p-bg-high)',   // bg at ~80% (dim out-of-month cells)
-  // State / brand colours — constant across themes
-  accent:  '#6c8aff',
-  danger:  '#f87171',
-  warning: '#fbbf24',
-  success: '#4ade80',
-  // Dim opaque fills used for active kill-switch banners and similar
-  // attention states. Avoid alpha overlays here because the banners sit
-  // over multiple stacked surfaces — opaque dim hex reads cleaner.
-  dangerFill:        '#7f1d1d',  // intense red used on Active-state buttons
-  dangerFillDim:     '#3d1a1a',  // banner background when Red is active
-  dangerFillBorder:  '#5c2626',  // banner border when Red is active
-  warningFill:       '#854d0e',  // intense amber used on Active-state buttons
-  warningFillDim:    '#3d2e0f',  // banner background when Amber is active
-  warningFillBorder: '#6b4f1a',  // banner border when Amber is active
+  bgSoft:   'var(--p-bg-soft)',
+  bgHigh:   'var(--p-bg-high)',
+  // Accent — sand only
+  accent:   '#C4A882',
+  accentDk: '#B09470',
+  // Status semantics
+  ok:       'var(--p-ok)',
+  okBg:     'var(--p-ok-bg)',
+  warn:     'var(--p-warn)',
+  warnBg:   'var(--p-warn-bg)',
+  danger:   'var(--p-danger)',
+  dangerBg: 'var(--p-danger-bg)',
+  // Legacy aliases — kept for code written before the redesign
+  warning: 'var(--p-warn)',
+  success: 'var(--p-ok)',
+  // Dim opaque fills for kill-switch banners — always dark regardless of theme
+  dangerFill:        '#7f1d1d',
+  dangerFillDim:     '#3d1a1a',
+  dangerFillBorder:  '#5c2626',
+  warningFill:       '#854d0e',
+  warningFillDim:    '#3d2e0f',
+  warningFillBorder: '#6b4f1a',
 } as const;
 
-// State colours for badges
+// State colours for badges — semantic only, no blues or purples (spec §3.3)
 export const STATE_COLORS: Record<BookingState, string> = {
-  brief_received: '#6c8aff',
-  brief_parsed: '#818cf8',
-  quote_drafted: '#a78bfa',
-  quote_sent: '#c084fc',
-  artists_crew_held: '#e879f9',
-  quote_confirmed: '#4ade80',
-  pre_production: '#34d399',
-  shoot_live: '#fbbf24',
-  morning_after_check: '#fb923c',
-  post_production: '#f97316',
-  final_delivery: '#38bdf8',
-  invoice_issued: '#22d3ee',
-  paid: '#4ade80',
-  released: '#8b8b8b',
-  cancelled: '#f87171',
-  written_off: '#94a3b8',
+  // Enquiry — neutral ink tones
+  brief_received:      '#9A9590',
+  brief_parsed:        '#6B6862',
+  // Quote — sand accent signals active deal-making
+  quote_drafted:       '#C4A882',
+  quote_sent:          '#B09470',
+  artists_crew_held:   '#B09470',
+  quote_confirmed:     '#3D7A5A',
+  // Production — green for prep, amber for live shoot
+  pre_production:      '#3D7A5A',
+  shoot_live:          '#B06A00',
+  morning_after_check: '#B06A00',
+  // Delivery — muted ink for post work, sand for invoicing
+  post_production:     '#6B6862',
+  final_delivery:      '#6B6862',
+  invoice_issued:      '#C4A882',
+  paid:                '#3D7A5A',
+  // Closed states
+  released:            '#9A9590',
+  cancelled:           '#C0392B',
+  written_off:         '#C0392B',
 };
 
 // ============================================================

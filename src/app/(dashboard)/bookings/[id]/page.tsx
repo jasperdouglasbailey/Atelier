@@ -33,6 +33,8 @@ import BookingPageHeader from '@/components/bookings/BookingPageHeader';
 import BookingJobFacts from '@/components/bookings/BookingJobFacts';
 import StageChecklist from '@/components/bookings/StageChecklist';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
+import BookingMiniCalendar from '@/components/bookings/BookingMiniCalendar';
+import ActivityFeed from '@/components/bookings/ActivityFeed';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -150,9 +152,9 @@ export default async function BookingDetailPage({ params }: Props) {
         <BookingTabs
           overview={
             <>
-              {/* Two-column layout: What's Left | Job Facts */}
-              <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
-                {/* LEFT — checklist + advance strip + brief panel */}
+              {/* Two-column layout: main content | fixed right rail */}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+                {/* LEFT — checklist + CTA strip + job facts + brief parser */}
                 <div className="space-y-4">
                   <StageChecklist checklist={checklist} />
 
@@ -172,6 +174,8 @@ export default async function BookingDetailPage({ params }: Props) {
                     }}
                   />
 
+                  <BookingJobFacts booking={booking} schedules={schedules} />
+
                   {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
                     <BriefParser
                       bookingId={id}
@@ -187,8 +191,14 @@ export default async function BookingDetailPage({ params }: Props) {
                   )}
                 </div>
 
-                {/* RIGHT — job facts panel (brief + dates + location + call times + deliverables, inline-editable) */}
-                <BookingJobFacts booking={booking} schedules={schedules} />
+                {/* RIGHT RAIL — mini calendar + activity feed */}
+                <div
+                  className="hidden lg:block sticky top-6 rounded border overflow-hidden"
+                  style={{ borderColor: 'var(--p-border)', background: 'var(--p-surface)' }}
+                >
+                  <BookingMiniCalendar shootDates={booking.shoot_dates} />
+                  <ActivityFeed events={events} />
+                </div>
               </div>
             </>
           }
@@ -272,12 +282,12 @@ export default async function BookingDetailPage({ params }: Props) {
               />
 
               <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Schedule</h2>
+                <h2 className="section-title mb-3">Schedule</h2>
                 <SchedulesPanel bookingId={id} initial={schedules} shootDays={shootDays} />
               </section>
 
               <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tasks</h2>
+                <h2 className="section-title mb-3">Tasks</h2>
                 <TasksPanel
                   initial={bookingTasks}
                   attachment={{ type: 'booking', id }}

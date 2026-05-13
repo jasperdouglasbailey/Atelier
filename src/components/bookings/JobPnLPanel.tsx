@@ -40,7 +40,7 @@ export default function JobPnLPanel({ feeLines, latestQuote }: Props) {
       className="rounded-lg border p-4"
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+      <h3 className="section-title mb-3">
         Job P&amp;L
       </h3>
 

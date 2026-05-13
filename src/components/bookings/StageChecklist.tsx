@@ -4,13 +4,10 @@ import { PALETTE } from '@/lib/utils/constants';
 type Props = { checklist: ChecklistData };
 
 const STATUS_STYLES: Record<ChecklistData['items'][number]['status'], { bg: string; fg: string; symbol: string; label: string }> = {
-  done:     { bg: PALETTE.success, fg: '#fff',         symbol: '✓', label: 'Done' },
-  pending:  { bg: PALETTE.warning, fg: '#1a1a1a',      symbol: '!', label: 'Needed' },
-  // Optional items — same amber as pending so incomplete things never read as "blank",
-  // but with a softer dot symbol so the difference between "needed" and "optional"
-  // is still legible at a glance.
-  optional: { bg: PALETTE.warning, fg: '#1a1a1a',      symbol: '·', label: 'Optional' },
-  blocked:  { bg: PALETTE.muted,   fg: '#fff',         symbol: '×', label: 'Blocked' },
+  done:     { bg: PALETTE.ok,   fg: '#fff',    symbol: '✓', label: 'Done' },
+  pending:  { bg: PALETTE.warn, fg: '#fff',    symbol: '!', label: 'Needed' },
+  optional: { bg: PALETTE.warn, fg: '#fff',    symbol: '·', label: 'Optional' },
+  blocked:  { bg: PALETTE.muted, fg: '#fff',   symbol: '×', label: 'Blocked' },
 };
 
 /**
@@ -28,9 +25,7 @@ export default function StageChecklist({ checklist }: Props) {
     <div className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-            What’s left
-          </div>
+          <div className="micro-label mb-1">What’s left</div>
           <p className="mt-0.5 text-sm" style={{ color: PALETTE.text }}>{summary}</p>
         </div>
         {nextAction && (

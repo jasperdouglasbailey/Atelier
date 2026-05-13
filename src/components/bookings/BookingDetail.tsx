@@ -521,7 +521,7 @@ export default function BookingDetail({
               borderColor: booking.paid_at ? `${PALETTE.success}66` : overdue ? `${PALETTE.danger}66` : PALETTE.border,
             }}
           >
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+            <h3 className="section-title mb-3">
               Invoice &amp; payment
             </h3>
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">

@@ -238,7 +238,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h3 className="section-title">
             Quote
           </h3>
           {/* Version tabs */}

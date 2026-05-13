@@ -21,7 +21,7 @@ export default function BookingComms({ bookingRef, threads, isConfigured }: Prop
   return (
     <section className="rounded-lg border" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
       <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: PALETTE.border }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h3 className="section-title">
           Comms — {bookingRef}
         </h3>
         {!isConfigured && (

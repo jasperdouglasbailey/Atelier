@@ -62,7 +62,7 @@ export default function PrecedentSignals({
       className="rounded-lg border p-4 space-y-3"
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
-      <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+      <h3 className="section-title">
         Precedent signals
       </h3>
 

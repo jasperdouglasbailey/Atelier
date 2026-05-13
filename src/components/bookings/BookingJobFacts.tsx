@@ -30,11 +30,7 @@ type Props = {
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: PALETTE.muted }}>
-      {children}
-    </div>
-  );
+  return <div className="micro-label mb-2">{children}</div>;
 }
 
 function Row({ children }: { children: React.ReactNode }) {
@@ -56,9 +52,17 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <SectionLabel>Job facts</SectionLabel>
-        <span className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: PALETTE.border }}>
+        <div className="section-title">Job facts</div>
+        <span
+          style={{
+            fontFamily: 'var(--font-dm-mono), monospace',
+            fontSize: 9,
+            letterSpacing: '0.08em',
+            color: PALETTE.muted,
+            opacity: 0.7,
+          }}
+        >
           Click any field to edit
         </span>
       </div>
@@ -66,9 +70,7 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       {/* Brief excerpt — read-only display of source brief */}
       {booking.brief_raw_text && (
         <Row>
-          <div className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: PALETTE.muted }}>
-            Brief
-          </div>
+          <div className="micro-label mb-1.5">Brief</div>
           <p className="text-sm leading-relaxed italic" style={{ color: PALETTE.muted }}>
             &ldquo;{booking.brief_raw_text.slice(0, 280)}{booking.brief_raw_text.length > 280 ? '…' : ''}&rdquo;
           </p>
@@ -99,9 +101,7 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       {/* Call times — show per-day schedules if present, else flat call_time */}
       {callTimeSchedules.length > 0 ? (
         <Row>
-          <div className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: PALETTE.muted }}>
-            Call times
-          </div>
+          <div className="micro-label mb-1.5">Call times</div>
           <div className="space-y-1">
             {callTimeSchedules.map((s) => (
               <div key={s.id} className="text-[11px]" style={{ color: PALETTE.muted }}>

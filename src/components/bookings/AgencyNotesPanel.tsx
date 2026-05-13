@@ -15,7 +15,7 @@ export default function AgencyNotesPanel({ bookingId, agencyNotes }: Props) {
   return (
     <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h3 className="section-title">
           Agency notes
         </h3>
         <span className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>

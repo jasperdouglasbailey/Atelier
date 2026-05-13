@@ -190,7 +190,7 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
 
   return (
     <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+      <h3 className="section-title mb-2">
         Booking lifecycle
       </h3>
       <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
