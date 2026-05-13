@@ -50,7 +50,7 @@ export async function createTaskAction(
 
   if (input.booking_id) {
     revalidatePath(`/bookings/${input.booking_id}`);
-    revalidateTag('bookings');
+    revalidateTag('bookings', {});
   }
   if (input.talent_id) revalidatePath(`/talent/${input.talent_id}`);
   if (input.crew_id) revalidatePath(`/crew/${input.crew_id}`);
@@ -77,7 +77,7 @@ export async function completeTaskAction(
 
   if (error) return err(error.message);
 
-  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings'); }
+  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);
   if (task?.crew_id) revalidatePath(`/crew/${task.crew_id}`);
   return { ok: true };
@@ -103,7 +103,7 @@ export async function reopenTaskAction(
 
   if (error) return err(error.message);
 
-  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings'); }
+  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);
   if (task?.crew_id) revalidatePath(`/crew/${task.crew_id}`);
   return { ok: true };
@@ -129,7 +129,7 @@ export async function deleteTaskAction(
 
   if (error) return err(error.message);
 
-  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings'); }
+  if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);
   if (task?.crew_id) revalidatePath(`/crew/${task.crew_id}`);
   return { ok: true };

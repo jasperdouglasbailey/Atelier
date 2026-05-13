@@ -23,9 +23,8 @@ export async function acceptQuoteByTokenAction(token: string): Promise<QuoteActi
     return { ok: false, error: 'This quote has already been actioned' };
   }
 
-  const targetState = booking.state === 'artists_crew_held' ? 'quote_confirmed' : 'quote_confirmed';
-  const result = await transitionState(booking.id, targetState, {});
-  if ('error' in result) return { ok: false, error: result.error ?? 'Could not confirm booking' };
+  const result = await transitionState(booking.id, 'quote_confirmed', {});
+  if (!result.ok) return { ok: false, error: result.error };
 
   const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || 'Client';
@@ -62,7 +61,7 @@ export async function declineQuoteByTokenAction(token: string): Promise<QuoteAct
   const result = await transitionState(booking.id, 'released', {
     reason: 'Client declined quote via self-service link',
   });
-  if ('error' in result) return { ok: false, error: result.error ?? 'Could not process' };
+  if (!result.ok) return { ok: false, error: result.error };
 
   const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || 'Client';

@@ -170,9 +170,9 @@ export default async function BookingConfirmationPage({ params }: Props) {
             <tbody>
               {usageLicences.map((lic) => (
                 <tr key={lic.id}>
-                  <td style={tdStyle}>{lic.media_type ?? '—'}</td>
-                  <td style={tdStyle}>{lic.territory ?? '—'}</td>
-                  <td style={tdStyle}>{lic.duration ?? '—'}</td>
+                  <td style={tdStyle}>{lic.media.length > 0 ? lic.media.join(', ') : '—'}</td>
+                  <td style={tdStyle}>{lic.territory.length > 0 ? lic.territory.join(', ') : '—'}</td>
+                  <td style={tdStyle}>{lic.duration_months ? `${lic.duration_months} months` : '—'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>{lic.fee ? formatCurrency(lic.fee) : '—'}</td>
                 </tr>
               ))}

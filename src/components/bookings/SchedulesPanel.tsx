@@ -18,10 +18,6 @@ function formatTime(t: string | null) {
   return t.slice(0, 5);
 }
 
-function toInputDate(iso: string) {
-  return iso.slice(0, 10);
-}
-
 export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: Props) {
   const [schedules, setSchedules] = useState<BookingSchedule[]>(initial);
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);

@@ -31,7 +31,7 @@ export async function upsertScheduleAction(
 
   if (error) return err(error.message);
   revalidatePath(`/bookings/${bookingId}`);
-  revalidateTag('bookings');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 
@@ -50,6 +50,6 @@ export async function deleteScheduleAction(
 
   if (error) return err(error.message);
   revalidatePath(`/bookings/${bookingId}`);
-  revalidateTag('bookings');
+  revalidateTag('bookings', {});
   return { ok: true };
 }
