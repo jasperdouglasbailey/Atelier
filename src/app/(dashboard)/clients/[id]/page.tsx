@@ -101,37 +101,58 @@ export default async function ClientDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6 max-w-3xl space-y-4">
         <Link href="/clients" className="text-xs" style={{ color: PALETTE.accent }}>← Clients</Link>
 
-        {/* Header */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{client.name}</h2>
-              {client.is_creative_agency && (
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                  Agency
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {client.drive_folder_link && (
-                <a
-                  href={client.drive_folder_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded px-3 py-1 text-xs font-medium"
-                  style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
-                >
-                  Drive ↗
-                </a>
-              )}
-              <Link
-                href={`/clients/${client.id}/edit`}
+        {/* Header — three tidy rows: identity / status badges / actions */}
+        <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          {/* Row 1 — identity */}
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{client.name}</h2>
+            {client.company && client.company !== client.name && (
+              <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>{client.company}</div>
+            )}
+            {client.email && (
+              <div className="text-[10px] mt-0.5" style={{ color: PALETTE.muted }}>{client.email}</div>
+            )}
+          </div>
+
+          {/* Row 2 — status badges */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            {client.is_creative_agency && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
+                Agency
+              </span>
+            )}
+            {client.payment_terms_days != null && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.muted}22`, color: PALETTE.muted }}>
+                {client.payment_terms_days}d terms
+              </span>
+            )}
+            {client.communication_style && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.muted}22`, color: PALETTE.muted }}>
+                {COMMUNICATION_STYLE_LABELS[client.communication_style as CommunicationStyle] ?? client.communication_style} tone
+              </span>
+            )}
+          </div>
+
+          {/* Row 3 — actions */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
+            <Link
+              href={`/clients/${client.id}/edit`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+            >
+              ✏ Edit
+            </Link>
+            {client.drive_folder_link && (
+              <a
+                href={client.drive_folder_link}
+                target="_blank"
+                rel="noreferrer"
                 className="rounded px-3 py-1 text-xs font-medium"
-                style={{ background: PALETTE.surface, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
               >
-                Edit
-              </Link>
-            </div>
+                Drive ↗
+              </a>
+            )}
           </div>
         </section>
 
