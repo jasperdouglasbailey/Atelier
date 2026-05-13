@@ -20,7 +20,7 @@ export async function approveAction(id: string) {
   if (!result) return { error: 'Failed to approve' };
   revalidatePath('/inbox');
   revalidatePath('/');
-  return { ok: true };
+  return { ok: true, effectWarning: result.effectWarning ?? null };
 }
 
 export async function rejectAction(id: string, reason?: string) {
