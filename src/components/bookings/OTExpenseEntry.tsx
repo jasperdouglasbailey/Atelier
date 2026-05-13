@@ -111,7 +111,7 @@ export default function OTExpenseEntry({ bookingId, quoteVersionId, windowEnd, i
   if (isLocked) {
     return (
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h3 className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>OT & Expenses</h3>
+        <h3 className="section-title mb-1">OT & Expenses</h3>
         <p className="text-xs" style={{ color: PALETTE.muted }}>Window closed — financial state is locked.</p>
       </section>
     );
@@ -121,7 +121,7 @@ export default function OTExpenseEntry({ bookingId, quoteVersionId, windowEnd, i
     <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.warning + '66' }}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.warning }}>OT & Expense Entry</h3>
+          <h3 className="section-title" style={{ color: PALETTE.warning }}>OT & Expense Entry</h3>
           <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Window {windowExpired ? 'closed' : `open — closes ${windowEndDate.toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}`}
             {!windowExpired && hoursLeft < 24 && (
