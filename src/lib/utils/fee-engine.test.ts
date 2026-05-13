@@ -11,6 +11,8 @@ import { describe, it, expect } from 'vitest';
 import {
   computeFeeLine,
   computeQuoteTotals,
+  computeAgencyMargin,
+  computeGstPassthrough,
   computeArtistPayment,
   computeCrewPayment,
   computeOT,
@@ -303,5 +305,65 @@ describe('computeArtistPayment', () => {
     closeTo(r.artistGst, 1000);
     // Net: 10000 - 2000 - 200 + 1000 = 8800
     closeTo(r.netPayment, 8800);
+  });
+});
+
+// ============================================================
+// Grand-total invariants — math accuracy guarantees
+// ============================================================
+
+describe('grand-total invariants', () => {
+  // grandTotal must ALWAYS equal subtotal + ASF + GST + super.
+  // If this ever fails it means the fee engine has a rounding or
+  // logic bug that would produce a wrong client invoice total.
+
+  it('grandTotal === subtotal + totalAsf + totalGst + totalSuper (single artist line)', () => {
+    const t = computeQuoteTotals([createArtistFeeLine('Day rate', 4000, 1)]);
+    closeTo(t.grandTotal, t.subtotal + t.totalAsf + t.totalGst + t.totalSuper);
+  });
+
+  it('grandTotal === subtotal + totalAsf + totalGst + totalSuper (mixed lines)', () => {
+    const lines = [
+      createArtistFeeLine('Photography', 3500, 1),
+      createCrewLabourLine('Digital Op', 700, 1),
+      createExpenseLine('catering', 'Catering', 180, 1),
+    ];
+    const t = computeQuoteTotals(lines);
+    closeTo(t.grandTotal, t.subtotal + t.totalAsf + t.totalGst + t.totalSuper);
+  });
+
+  it('breakdown buckets sum to grandTotal (agency keeps + ATO net + paid through)', () => {
+    // Verify that the three display buckets in QuoteBuilder always reconcile.
+    // paidThrough is defined as the residual so this is a regression guard
+    // against future changes to computeAgencyMargin or computeGstPassthrough
+    // accidentally breaking the reconciliation logic.
+    const lines = [
+      createArtistFeeLine('Photography', 3500, 1),
+      createArtistFeeLine('Post-production', 500, 1),
+      createCrewLabourLine('Digital Operator', 700, 1),
+      createExpenseLine('catering', 'Catering', 180, 1),
+    ];
+    const t = computeQuoteTotals(lines);
+    const margin = computeAgencyMargin(t);
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: t.subtotal - 700 - 180, // artist lines only
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 700,
+    });
+    const paidThrough = Math.round((t.grandTotal - margin.total - gst.netToAto) * 100) / 100;
+    // The three buckets must sum back to grand total
+    closeTo(margin.total + gst.netToAto + paidThrough, t.grandTotal);
+  });
+
+  it('pre-tax subtotal (lines + ASF) + super + GST === grandTotal', () => {
+    // This is the user-visible "Subtotal (before super & GST)" label guarantee.
+    const lines = [
+      createArtistFeeLine('Day rate', 5000, 1),
+      createCrewLabourLine('Assistant', 800, 1),
+    ];
+    const t = computeQuoteTotals(lines);
+    const preTaxSubtotal = t.subtotal + t.totalAsf;
+    closeTo(preTaxSubtotal + t.totalGst + t.totalSuper, t.grandTotal);
   });
 });

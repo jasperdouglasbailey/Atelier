@@ -176,6 +176,7 @@ export type CreateFeeLineInput = {
   commission_rate?: number;
   sort_order?: number;
   notes?: string | null;
+  is_artist_reimbursement?: boolean;
 };
 
 export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | null> {

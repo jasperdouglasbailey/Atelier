@@ -33,15 +33,22 @@ function computePaidOut(
   lines: FeeLine[],
   bookingTalent: BookingTalent[],
   bookingCrew: BookingCrew[],
-): { artistTotal: number; crewTotal: number; total: number } {
+): { artistTotal: number; crewTotal: number; reimbursementTotal: number; total: number } {
   const primaryArtist = bookingTalent[0]?.talent;
   const artistGstRegistered = primaryArtist?.gst_registered ?? false;
   const artistSubtotal = lines
-    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type))
+    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
     .reduce((s, l) => s + (l.subtotal ?? 0), 0);
-  const artistOut = artistSubtotal > 0
+  const artistNet = artistSubtotal > 0
     ? computeArtistPayment(artistSubtotal, artistGstRegistered).netPayment
     : 0;
+
+  // Reimbursements are pass-through: no commission, paid back 1:1 to artist
+  const reimbursementTotal = lines
+    .filter((l) => l.is_artist_reimbursement)
+    .reduce((s, l) => s + (l.subtotal ?? 0), 0);
+
+  const artistOut = Math.round((artistNet + reimbursementTotal) * 100) / 100;
 
   const crewByPersonLabour = new Map<string, number>();
   const crewByPersonExpenses = new Map<string, number>();
@@ -68,7 +75,7 @@ function computePaidOut(
   }
 
   const total = Math.round((artistOut + crewOut) * 100) / 100;
-  return { artistTotal: artistOut, crewTotal: crewOut, total };
+  return { artistTotal: artistOut, crewTotal: crewOut, reimbursementTotal, total };
 }
 
 export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [], bookingCrew = [] }: Props) {
@@ -121,7 +128,11 @@ export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [],
         <KpiRow
           label="Paid out"
           value={paidOut.total}
-          sub={`Artist ${formatCurrency(paidOut.artistTotal)} · crew ${formatCurrency(paidOut.crewTotal)}`}
+          sub={[
+            `Artist ${formatCurrency(paidOut.artistTotal)}`,
+            `crew ${formatCurrency(paidOut.crewTotal)}`,
+            paidOut.reimbursementTotal > 0 && `reimb. ${formatCurrency(paidOut.reimbursementTotal)}`,
+          ].filter(Boolean).join(' · ')}
           muted
         />
         <KpiRow

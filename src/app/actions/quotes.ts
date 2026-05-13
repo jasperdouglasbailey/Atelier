@@ -133,6 +133,8 @@ export async function addFeeLineAction(formData: FormData) {
   const subtotal = Math.round(quantity * unitPrice * 100) / 100;
   const asfAmount = Math.round(subtotal * asfRate * 100) / 100;
 
+  const isArtistReimbursement = formData.get('is_artist_reimbursement') === 'true';
+
   const input: CreateFeeLineInput = {
     quote_version_id: quoteVersionId,
     booking_id: bookingId,
@@ -152,6 +154,7 @@ export async function addFeeLineAction(formData: FormData) {
     talent_id: (formData.get('talent_id') as string) || null,
     crew_id: (formData.get('crew_id') as string) || null,
     notes: (formData.get('notes') as string) || null,
+    is_artist_reimbursement: isArtistReimbursement,
   };
 
   const line = await addFeeLine(input);
@@ -211,6 +214,11 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
 
   const notes = formData.get('notes');
   if (notes != null) updates.notes = notes || null;
+
+  const reimbursementRaw = formData.get('is_artist_reimbursement');
+  if (reimbursementRaw != null && reimbursementRaw !== '') {
+    updates.is_artist_reimbursement = reimbursementRaw === 'true';
+  }
 
   const result = await updateFeeLine(id, updates);
   if (!result) return { error: 'Failed to update fee line' };
