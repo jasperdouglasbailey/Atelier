@@ -3,7 +3,6 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getCurrentAppUser } from '@/lib/data/app-users';
-import { getCurrentActor } from '@/lib/utils/actor';
 
 type TaskInput = {
   title: string;
@@ -31,7 +30,6 @@ export async function createTaskAction(
   const user = await requireOwnerOrPartner();
   if (!user) return err('Not authorised');
 
-  const actorId = await getCurrentActor();
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from('atelier_tasks')
@@ -48,7 +46,6 @@ export async function createTaskAction(
     .select('id')
     .single();
 
-  void actorId; // used for audit trail — actor string is the user_id
   if (error) return err(error.message);
 
   if (input.booking_id) {

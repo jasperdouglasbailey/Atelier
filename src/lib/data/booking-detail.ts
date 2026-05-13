@@ -19,10 +19,9 @@ import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
 import { getCrewUnavailabilityForRange, getTalentUnavailabilityForRange } from '@/lib/data/portal';
 import { listBookingSchedules } from '@/lib/data/booking-schedules';
-import type { BookingSchedule } from '@/lib/types/database';
 import { listEvents } from '@/lib/utils/events';
 import { parseDateRangeRaw } from '@/lib/utils/daterange';
-import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew } from '@/lib/types/database';
+import type { QuoteVersion, FeeLine, UsageLicence, Talent, Crew, BookingSchedule } from '@/lib/types/database';
 
 export type CrewConflict = {
   bookingId: string;
