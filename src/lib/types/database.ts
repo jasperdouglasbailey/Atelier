@@ -438,6 +438,8 @@ export interface FeeLine {
   commission_rate: number;
   sort_order: number;
   notes: string | null;
+  /** Expense the artist fronted; passed through to client and reimbursed at payment. No commission. */
+  is_artist_reimbursement: boolean;
 }
 
 export interface UsageLicence {

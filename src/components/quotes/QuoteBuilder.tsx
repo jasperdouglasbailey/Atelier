@@ -90,6 +90,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     quantity: string;
     unit_price: string;
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
+    is_artist_reimbursement: boolean;
   } | null>(null);
 
   // Totals breakdown — collapsed by default so the quote totals panel reads
@@ -125,6 +126,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       quantity: String(line.quantity),
       unit_price: String(line.unit_price),
       asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
+      is_artist_reimbursement: line.is_artist_reimbursement ?? false,
     });
     setShowAddLine(false);
   }
@@ -143,6 +145,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     fd.set('quantity', editValues.quantity);
     fd.set('unit_price', editValues.unit_price);
     fd.set('booking_id', bookingId);
+    fd.set('is_artist_reimbursement', String(editValues.is_artist_reimbursement));
     const asfPct = parseFloat(editValues.asf_rate);
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
@@ -160,6 +163,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       subtotal: Math.round(newQty * newPrice * 100) / 100,
       asf_rate: newAsfRate,
       asf_amount: Math.round(newQty * newPrice * newAsfRate * 100) / 100,
+      is_artist_reimbursement: editValues.is_artist_reimbursement,
     };
     setFeeLines((prev) => prev.map((l) => l.id === line.id ? optimistic : l));
     cancelEdit();
@@ -586,7 +590,24 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                       <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{formatCurrency(previewComputed?.gstAmount ?? 0)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(previewComputed?.lineTotal ?? 0)}</td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-col gap-0.5 items-end">
+                        <div className="flex flex-col gap-1 items-end">
+                          <label
+                            className="flex items-center gap-1 rounded px-1.5 py-0.5 cursor-pointer text-[10px] select-none"
+                            style={{
+                              background: editValues.is_artist_reimbursement ? `${PALETTE.ok}18` : 'transparent',
+                              color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted,
+                              border: `1px solid ${editValues.is_artist_reimbursement ? PALETTE.ok + '55' : PALETTE.border}`,
+                            }}
+                            title="Mark as artist reimbursement — amount is added to artist payout in P&L"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editValues.is_artist_reimbursement}
+                              onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
+                              className="w-3 h-3"
+                            />
+                            Reimburse
+                          </label>
                           <button onClick={() => commitEdit(line)} disabled={busy} className="text-[10px] font-medium hover:underline disabled:opacity-50" style={{ color: PALETTE.accent }}>Save</button>
                           <button onClick={cancelEdit} className="text-[10px] hover:underline" style={{ color: PALETTE.muted }}>Esc</button>
                         </div>
@@ -626,6 +647,15 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                     </td>
                     <td className="px-3 py-2">
                       <span>{line.description}</span>
+                      {line.is_artist_reimbursement && (
+                        <span
+                          className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                          style={{ background: `${PALETTE.ok}18`, color: PALETTE.ok }}
+                          title="Artist reimbursement — added to artist payout in P&L"
+                        >
+                          reimb.
+                        </span>
+                      )}
                       {isLatestVersion && <span className="ml-1.5 opacity-0 group-hover:opacity-100 text-[9px] transition-opacity" style={{ color: PALETTE.muted }}>edit</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums align-top">{line.quantity}</td>
@@ -685,12 +715,28 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       {/* Totals */}
       {feeLines.length > 0 && (
         <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          {/* Subtotal excl. GST + Grand Total incl. GST — always visible */}
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs uppercase tracking-wider" style={{ color: PALETTE.muted }}>Subtotal excl. GST</span>
-            <span className="text-sm tabular-nums" style={{ color: PALETTE.muted }}>
-              {formatCurrency(totals.subtotal)}
-            </span>
+          {/* Pre-tax subtotal (lines + ASF) + Grand Total — always visible */}
+          <div className="space-y-1">
+            {totals.totalAsf > 0 && (
+              <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                <span>Line subtotals</span>
+                <span className="tabular-nums">{formatCurrency(totals.subtotal)}</span>
+              </div>
+            )}
+            {totals.totalAsf > 0 && (
+              <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+                <span>+ ASF</span>
+                <span className="tabular-nums">{formatCurrency(totals.totalAsf)}</span>
+              </div>
+            )}
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs uppercase tracking-wider" style={{ color: PALETTE.muted }}>
+                {totals.totalAsf > 0 ? 'Subtotal (before super & GST)' : 'Subtotal excl. super & GST'}
+              </span>
+              <span className="text-sm tabular-nums" style={{ color: PALETTE.muted }}>
+                {formatCurrency(totals.subtotal + totals.totalAsf)}
+              </span>
+            </div>
           </div>
           <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t" style={{ borderColor: PALETTE.border }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total incl. GST</span>
@@ -763,15 +809,30 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
                 {/* 3. Paid through — subtotal of every line in the table (what flows out
                        to artist net, crew net, vendor invoices, super to fund). */}
-                <BreakdownBucket
-                  label="Paid through to artist + crew + vendors"
-                  total={Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100}
-                  muted
-                  rows={[
-                    { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
-                    totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
-                    { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
-                  ].filter(Boolean) as { l: string; v: number }[]}
+                {(() => {
+                  const paidThrough = Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100;
+                  return (
+                    <BreakdownBucket
+                      label="Paid through to artist + crew + vendors"
+                      total={paidThrough}
+                      muted
+                      rows={[
+                        { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
+                        totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
+                        { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
+                      ].filter(Boolean) as { l: string; v: number }[]}
+                    />
+                  );
+                })()}
+
+                {/* Reconciliation strip — running subtraction verifies math */}
+                <RunningDeductions
+                  grandTotal={totals.grandTotal}
+                  buckets={[
+                    { label: 'Agency keeps', amount: margin.total },
+                    gst.netToAto > 0 && { label: 'Owed to ATO', amount: gst.netToAto },
+                    { label: 'Paid through', amount: Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100 },
+                  ].filter(Boolean) as { label: string; amount: number }[]}
                 />
               </div>
             );
@@ -830,6 +891,49 @@ function BreakdownBucket({
   );
 }
 
+function RunningDeductions({
+  grandTotal, buckets,
+}: {
+  grandTotal: number;
+  buckets: { label: string; amount: number }[];
+}) {
+  const rows: { label: string; deduction: number; balance: number }[] = [];
+  let running = grandTotal;
+  for (const b of buckets) {
+    running = Math.round((running - b.amount) * 100) / 100;
+    rows.push({ label: b.label, deduction: b.amount, balance: running });
+  }
+  const balanced = Math.abs(running) < 0.01;
+  return (
+    <div
+      className="rounded-md px-3 py-2.5 space-y-1.5"
+      style={{ background: PALETTE.bg, border: `1px solid ${PALETTE.border}` }}
+    >
+      <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: PALETTE.muted }}>
+        Reconciliation check
+      </div>
+      <div className="flex items-baseline justify-between text-[11px]">
+        <span style={{ color: PALETTE.muted }}>Grand Total</span>
+        <span className="tabular-nums font-semibold" style={{ color: PALETTE.text }}>{formatCurrency(grandTotal)}</span>
+      </div>
+      {rows.map(({ label, deduction, balance }, i) => {
+        const isLast = i === rows.length - 1;
+        return (
+          <div key={label} className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+            <span>− {label}</span>
+            <span className="tabular-nums">
+              {formatCurrency(deduction)}{' '}
+              <span style={{ color: isLast ? (balanced ? PALETTE.ok : PALETTE.danger) : PALETTE.muted }}>
+                → {formatCurrency(balance)}{isLast && balanced ? ' ✓' : ''}
+              </span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ============================================================
 // Add line form (inline)
 // ============================================================
@@ -864,6 +968,7 @@ function AddLineForm({
   const [lineType, setLineType] = useState<FeeLineType>('artist_fee');
   const [chargeAsf, setChargeAsf] = useState<boolean>(!ASF_OFF_BY_DEFAULT.has('artist_fee'));
   const [selectedCrewId, setSelectedCrewId] = useState<string>('');
+  const [isArtistReimbursement, setIsArtistReimbursement] = useState<boolean>(false);
 
   // GST exempt: artist lines → based on primary talent's registration; crew lines → based on selected crew; expenses → not exempt
   const primaryTalentGstRegistered = primaryTalent?.talent?.gst_registered ?? true;
@@ -1031,6 +1136,25 @@ function AddLineForm({
           style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
         />
       </div>
+
+      <label
+        className="flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs cursor-pointer select-none w-fit"
+        style={{
+          background: isArtistReimbursement ? `${PALETTE.ok}10` : PALETTE.bg,
+          borderColor: isArtistReimbursement ? `${PALETTE.ok}55` : PALETTE.border,
+          color: isArtistReimbursement ? PALETTE.ok : PALETTE.muted,
+        }}
+        title="Mark this line as an expense the artist paid upfront — it will be reimbursed from booking proceeds and tracked separately in P&L"
+      >
+        <input
+          type="checkbox"
+          checked={isArtistReimbursement}
+          onChange={(e) => setIsArtistReimbursement(e.target.checked)}
+          className="accent-[#C4A882]"
+        />
+        <span>Artist reimbursement (pass-through expense)</span>
+      </label>
+      <input type="hidden" name="is_artist_reimbursement" value={String(isArtistReimbursement)} />
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={busy} className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ background: PALETTE.accent, color: PALETTE.bg }}>
