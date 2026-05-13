@@ -73,17 +73,12 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
   const talentById = Object.fromEntries(allTalent.map(t => [t.id, t]));
   const crewById = Object.fromEntries(allCrew.map(c => [c.id, c]));
 
-  // Sort attached crew so local crew (city matches shoot location) come first.
-  // Within each group, keep insertion order so the user's manual order is
-  // preserved.
-  const sortedBookingCrew = useMemo(() => {
-    if (!shootLocation) return bookingCrew;
-    return [...bookingCrew].sort((a, b) => {
-      const aLocal = isLocalCrew(a.crew?.city, shootLocation) ? 0 : 1;
-      const bLocal = isLocalCrew(b.crew?.city, shootLocation) ? 0 : 1;
-      return aLocal - bLocal;
-    });
-  }, [bookingCrew, shootLocation]);
+  // Crew is rendered as a horizontal strip left→right in the order they were
+  // added to the booking. The query orders by created_at ASC so we just pass
+  // bookingCrew straight through. Local-vs-not is shown via the city badge,
+  // not via sort, so the strip order reflects the operator's mental model
+  // ("who did I bring in first").
+  const sortedBookingCrew = bookingCrew;
 
   // Sort order for the "Add Crew" dropdown:
   //   1. Primary artist's preferred crew (their go-to people, ★)
@@ -449,28 +444,41 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         {bookingCrew.length === 0 ? (
           <p className="text-[11px]" style={{ color: PALETTE.muted }}>No crew assigned yet.</p>
         ) : (
-          <div className="space-y-2">
+          // Horizontal strip — flex-wrap so cards flow onto the next row when
+          // the booking grows. Order is left→right by created_at ASC (earliest
+          // added on the left). Each card is a fixed minimum width so they
+          // stay readable; on narrow screens they take the full row width.
+          <div className="flex flex-wrap gap-3">
             {sortedBookingCrew.map((bc) => {
               const c = bc.crew;
               const local = isLocalCrew(c?.city, shootLocation);
               const conflicts = bc.crew_id ? crewConflictsByCrewId[bc.crew_id] : undefined;
-              // Free-text role on this booking takes priority; fall back to the
-              // crew member's stored primary role. Both go through humanise so
-              // "digital_operator" reads as "Digital operator".
               const roleDisplay = bc.role_on_booking
                 ? humanise(bc.role_on_booking)
                 : (c?.primary_role
                   ? [c.primary_role, ...(c.secondary_roles ?? [])].map(humanise).join(' / ')
                   : null);
               return (
-                <div key={bc.id} className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
+                <div
+                  key={bc.id}
+                  className="rounded border p-3 flex flex-col gap-2"
+                  style={{
+                    borderColor: PALETTE.border,
+                    background: PALETTE.bg,
+                    width: 280,
+                    flex: '1 1 280px',
+                    maxWidth: 360,
+                  }}
+                >
+                  {/* Header — name + city badge */}
                   <div>
-                    <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
-                      {c?.name ?? 'Unknown'}
-                      {roleDisplay && <span className="ml-2 text-[10px]" style={{ color: PALETTE.muted }}>{roleDisplay}</span>}
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="text-xs font-medium truncate" style={{ color: PALETTE.text }}>
+                        {c?.name ?? 'Unknown'}
+                      </div>
                       {c?.city && (
                         <span
-                          className="ml-2 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider"
+                          className="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider flex-shrink-0"
                           style={
                             local
                               ? { background: `${PALETTE.success}22`, color: PALETTE.success }
@@ -482,30 +490,38 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
-                      {/* Fees live in the quote — only show booking-relevant status here */}
-                      <CrewStatusSelect bookingCrewId={bc.id} bookingId={bookingId} status={bc.status} />
-                      {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
-                    </div>
-                    {conflicts && conflicts.length > 0 && (
-                      <div
-                        className="mt-1.5 rounded px-2 py-1 text-[10px]"
-                        style={{ background: `${PALETTE.warning}18`, color: PALETTE.warning }}
-                        title={conflicts.map((c) => `${c.bookingRef ?? c.title} (${c.start}${c.end !== c.start ? ' – ' + c.end : ''})`).join('\n')}
-                      >
-                        ⚠ Also on {conflicts.map((c) => c.bookingRef ?? c.title).join(', ')}
-                      </div>
-                    )}
-                    {isMultiDay && (
-                      <CrewDayPicker
-                        bookingCrewId={bc.id}
-                        bookingId={bookingId}
-                        shootDays={shootDays}
-                        assignedDates={bc.assigned_dates}
-                      />
+                    {roleDisplay && (
+                      <div className="text-[10px] mt-0.5 truncate" style={{ color: PALETTE.muted }}>{roleDisplay}</div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+
+                  {/* Status + tier */}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
+                    <CrewStatusSelect bookingCrewId={bc.id} bookingId={bookingId} status={bc.status} />
+                    {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
+                  </div>
+
+                  {conflicts && conflicts.length > 0 && (
+                    <div
+                      className="rounded px-2 py-1 text-[10px]"
+                      style={{ background: `${PALETTE.warning}18`, color: PALETTE.warning }}
+                      title={conflicts.map((c) => `${c.bookingRef ?? c.title} (${c.start}${c.end !== c.start ? ' – ' + c.end : ''})`).join('\n')}
+                    >
+                      ⚠ Also on {conflicts.map((c) => c.bookingRef ?? c.title).join(', ')}
+                    </div>
+                  )}
+
+                  {isMultiDay && (
+                    <CrewDayPicker
+                      bookingCrewId={bc.id}
+                      bookingId={bookingId}
+                      shootDays={shootDays}
+                      assignedDates={bc.assigned_dates}
+                    />
+                  )}
+
+                  {/* Footer actions */}
+                  <div className="flex items-center justify-end gap-3 mt-auto pt-1 border-t" style={{ borderColor: PALETTE.border }}>
                     <a
                       href={`/print/bookings/${bookingId}/crew/${bc.crew_id}`}
                       target="_blank"
