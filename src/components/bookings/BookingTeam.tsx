@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/quotes';
 import CrewStatusSelect from './CrewStatusSelect';
 import CrewDayPicker from './CrewDayPicker';
+import HoldExpiryBadge from './HoldExpiryBadge';
 
 type Props = {
   bookingId: string;
@@ -260,8 +261,15 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                         )}
                       </div>
                       {/* Fees live in the quote — this row is just "who's on the booking" */}
-                      <div className="text-[10px]" style={{ color: PALETTE.muted }}>
-                        {bt.confirmed ? 'Confirmed' : 'Pencilled'}
+                      <div className="text-[10px] flex items-center gap-2 flex-wrap" style={{ color: PALETTE.muted }}>
+                        <span>{bt.confirmed ? 'Confirmed' : 'Pencilled'}</span>
+                        <HoldExpiryBadge
+                          tableKind="talent"
+                          id={bt.id}
+                          bookingId={bookingId}
+                          expiresAt={bt.hold_expires_at}
+                          isConfirmed={bt.confirmed}
+                        />
                       </div>
                       {bt.talent_id && talentUnavailByTalentId[bt.talent_id]?.length > 0 && (
                         <div className="text-[10px] mt-0.5" style={{ color: PALETTE.warning }}>
@@ -499,6 +507,13 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                   <div className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: PALETTE.muted }}>
                     <CrewStatusSelect bookingCrewId={bc.id} bookingId={bookingId} status={bc.status} />
                     {c?.tier && <span>{CREW_TIER_LABELS[c.tier]}</span>}
+                    <HoldExpiryBadge
+                      tableKind="crew"
+                      id={bc.id}
+                      bookingId={bookingId}
+                      expiresAt={bc.hold_expires_at}
+                      isConfirmed={bc.status === 'confirmed'}
+                    />
                   </div>
 
                   {conflicts && conflicts.length > 0 && (
@@ -517,6 +532,8 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
                       bookingId={bookingId}
                       shootDays={shootDays}
                       assignedDates={bc.assigned_dates}
+                      fallbackDayRate={bc.day_rate}
+                      rateOverrides={bc.assigned_dates_rate_overrides ?? {}}
                     />
                   )}
 

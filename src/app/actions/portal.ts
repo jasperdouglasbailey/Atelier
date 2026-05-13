@@ -54,6 +54,9 @@ export async function respondToCrewHoldAction(
       status: newStatus,
       confirmed: response === 'confirmed',
       confirmed_at: response === 'confirmed' ? new Date().toISOString() : null,
+      // Once confirmed, the hold sunset is moot. Decline keeps the row but
+      // also clears expiry since the hold is no longer active.
+      hold_expires_at: null,
     })
     .eq('id', bookingCrewId);
 
@@ -102,6 +105,7 @@ export async function respondToTalentHoldAction(
       status: newStatus,
       confirmed: response === 'confirmed',
       confirmed_at: response === 'confirmed' ? new Date().toISOString() : null,
+      hold_expires_at: null,
     })
     .eq('id', bookingTalentId);
 
