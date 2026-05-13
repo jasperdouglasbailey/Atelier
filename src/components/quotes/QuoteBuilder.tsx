@@ -1044,7 +1044,7 @@ function AddLineForm({
               type="checkbox"
               checked={chargeAsf}
               onChange={(e) => setChargeAsf(e.target.checked)}
-              className="accent-blue-400"
+              className="accent-[#C4A882]"
             />
             <span>Charge {(DEFAULT_ASF_RATE * 100).toFixed(0)}%</span>
           </label>
@@ -1071,7 +1071,7 @@ function AddLineForm({
               type="checkbox"
               checked={gstExempt}
               onChange={(e) => setGstExempt(e.target.checked)}
-              className="accent-yellow-400"
+              className="accent-[#C4A882]"
             />
             <span>{gstExempt ? 'Exempt' : 'Applying'}</span>
           </label>

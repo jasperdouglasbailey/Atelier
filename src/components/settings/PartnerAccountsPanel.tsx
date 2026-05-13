@@ -82,7 +82,7 @@ export default function PartnerAccountsPanel({ users, currentUserId, talent, cre
     <div className="space-y-4">
       {/* Provision form */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Provision a new account
         </h2>
 
@@ -176,7 +176,7 @@ export default function PartnerAccountsPanel({ users, currentUserId, talent, cre
 
       {/* Existing users */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Existing accounts ({users.length})
         </h2>
         {users.length === 0 ? (

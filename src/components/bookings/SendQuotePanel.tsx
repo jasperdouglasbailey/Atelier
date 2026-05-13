@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { sendQuoteEmailAction } from '@/app/actions/bookings';
 
 /** Server-side pre-flight data for the "ready to quote?" checks. */
@@ -152,8 +153,8 @@ export default function SendQuotePanel({
       `To confirm, please reply to this email. We'll hold the dates and issue paperwork once we hear from you.`,
       '',
       'Jasper Bailey',
-      'Saunders & Co',
-      'info@saundersandco.com.au',
+      getAgencyConfig().name,
+      getAgencyConfig().email ?? '',
     ].filter(l => l !== null).join('\n');
 
     await navigator.clipboard.writeText(text);

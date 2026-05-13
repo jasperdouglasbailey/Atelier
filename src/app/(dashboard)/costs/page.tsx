@@ -65,7 +65,7 @@ export default async function CostsPage() {
         </section>
 
         <section className="mt-6">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+          <h2 className="section-title mb-3">
             Spend by agent · this month
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,7 @@
 import Topbar from '@/components/layout/Topbar';
 import { listAudit } from '@/lib/utils/audit';
 import { formatDateTime } from '@/lib/utils/format';
+import { PALETTE } from '@/lib/utils/constants';
 import Link from 'next/link';
 
 type SearchParams = Promise<{
@@ -25,8 +26,12 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
   });
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const filterClass = 'rounded-md border bg-transparent px-2 py-1 text-xs';
-  const filterStyle = { borderColor: '#262626', color: '#ededed', background: '#0a0a0a' };
+
+  const inputStyle: React.CSSProperties = {
+    background: PALETTE.bg,
+    borderColor: PALETTE.border,
+    color: PALETTE.text,
+  };
 
   const buildPageHref = (p: number) => {
     const sp = new URLSearchParams();
@@ -44,47 +49,47 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
       <Topbar title="Audit" />
       <div className="p-4 sm:p-6">
         <form className="mb-4 flex flex-wrap items-end gap-3" method="get">
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
             From
-            <input type="date" name="from" defaultValue={params.from} className={filterClass} style={filterStyle} />
+            <input type="date" name="from" defaultValue={params.from} className="rounded-md border px-2 py-1 text-xs" style={inputStyle} />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
             To
-            <input type="date" name="to" defaultValue={params.to} className={filterClass} style={filterStyle} />
+            <input type="date" name="to" defaultValue={params.to} className="rounded-md border px-2 py-1 text-xs" style={inputStyle} />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
             Action
             <input
               type="text"
               name="action"
               placeholder="e.g. update"
               defaultValue={params.action}
-              className={filterClass}
-              style={filterStyle}
+              className="rounded-md border px-2 py-1 text-xs"
+              style={inputStyle}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: '#8b8b8b' }}>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
             Table
             <input
               type="text"
               name="table"
               placeholder="e.g. bookings"
               defaultValue={params.table}
-              className={filterClass}
-              style={filterStyle}
+              className="rounded-md border px-2 py-1 text-xs"
+              style={inputStyle}
             />
           </label>
           <button
             type="submit"
             className="rounded-md px-3 py-1.5 text-xs font-medium"
-            style={{ background: '#C4A882', color: '#0E0E0C' }}
+            style={{ background: PALETTE.accent, color: PALETTE.bg }}
           >
             Apply
           </button>
           <Link
             href="/audit"
             className="rounded-md border px-3 py-1.5 text-xs"
-            style={{ borderColor: '#262626', color: '#8b8b8b' }}
+            style={{ borderColor: PALETTE.border, color: PALETTE.muted }}
           >
             Reset
           </Link>
@@ -92,11 +97,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
         <div
           className="overflow-x-auto rounded-lg border"
-          style={{ borderColor: '#262626', background: '#141414' }}
+          style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
         >
           <table className="min-w-full text-sm">
             <thead>
-              <tr style={{ background: '#0a0a0a', color: '#8b8b8b' }} className="text-left text-xs uppercase tracking-wide">
+              <tr
+                className="text-left text-xs uppercase tracking-wide border-b"
+                style={{ background: PALETTE.bg, color: PALETTE.muted, borderColor: PALETTE.border }}
+              >
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Action</th>
@@ -108,7 +116,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: '#8b8b8b' }}>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: PALETTE.muted }}>
                     No audit entries match the current filters.
                   </td>
                 </tr>
@@ -120,21 +128,21 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
                     key={r.id}
                     className="border-t"
                     style={{
-                      borderColor: '#262626',
-                      background: isFailure ? 'rgba(248,113,113,0.06)' : undefined,
+                      borderColor: PALETTE.border,
+                      background: isFailure ? `${PALETTE.danger}08` : undefined,
                     }}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: '#8b8b8b' }}>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
                       {formatDateTime(r.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>
-                      {r.user_id ?? <span style={{ color: '#6b6b6b' }}>system</span>}
+                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.text }}>
+                      {r.user_id ?? <span style={{ color: PALETTE.muted }}>system</span>}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      <code style={{ color: isFailure ? '#f87171' : '#C4A882' }}>{r.action}</code>
+                      <code style={{ color: isFailure ? PALETTE.danger : PALETTE.accent }}>{r.action}</code>
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: '#ededed' }}>{r.table_name}</td>
-                    <td className="px-4 py-3 font-mono text-[11px]" style={{ color: '#8b8b8b' }}>
+                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.text }}>{r.table_name}</td>
+                    <td className="px-4 py-3 font-mono text-[11px]" style={{ color: PALETTE.muted }}>
                       {r.record_id ?? '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -147,7 +155,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs" style={{ color: '#8b8b8b' }}>
+        <div className="mt-4 flex items-center justify-between text-xs" style={{ color: PALETTE.muted }}>
           <span>
             {total === 0 ? '0 entries' : `Showing page ${page} of ${totalPages} · ${total} total`}
           </span>
@@ -157,8 +165,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
               href={buildPageHref(Math.max(1, page - 1))}
               className="rounded-md border px-3 py-1.5"
               style={{
-                borderColor: '#262626',
-                color: page <= 1 ? '#4b5060' : '#ededed',
+                borderColor: PALETTE.border,
+                color: page <= 1 ? PALETTE.border : PALETTE.text,
                 pointerEvents: page <= 1 ? 'none' : 'auto',
               }}
             >
@@ -169,8 +177,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
               href={buildPageHref(Math.min(totalPages, page + 1))}
               className="rounded-md border px-3 py-1.5"
               style={{
-                borderColor: '#262626',
-                color: page >= totalPages ? '#4b5060' : '#ededed',
+                borderColor: PALETTE.border,
+                color: page >= totalPages ? PALETTE.border : PALETTE.text,
                 pointerEvents: page >= totalPages ? 'none' : 'auto',
               }}
             >
@@ -185,12 +193,12 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
 function ChangeSummary({ oldValue, newValue }: { oldValue: unknown; newValue: unknown }) {
   if (!oldValue && !newValue) {
-    return <span style={{ color: '#6b6b6b' }}>—</span>;
+    return <span style={{ color: PALETTE.muted }}>—</span>;
   }
   const summary = JSON.stringify(newValue ?? oldValue);
   const truncated = summary.length > 80 ? `${summary.slice(0, 80)}…` : summary;
   return (
-    <code className="text-[11px]" style={{ color: '#8b8b8b' }}>
+    <code className="text-[11px]" style={{ color: PALETTE.muted }}>
       {truncated}
     </code>
   );

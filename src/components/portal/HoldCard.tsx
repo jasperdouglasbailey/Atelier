@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { formatCurrency } from '@/lib/utils/format';
 
 type Props = {
@@ -42,7 +43,7 @@ export default function HoldCard({
       >
         <span className="font-semibold">{bookingRef ?? title}</span>
         {' — '}
-        {done === 'confirmed' ? 'Confirmed. See you on set.' : 'Declined. Saunders & Co has been notified.'}
+        {done === 'confirmed' ? 'Confirmed. See you on set.' : `Declined. ${getAgencyConfig().name} has been notified.`}
       </div>
     );
   }

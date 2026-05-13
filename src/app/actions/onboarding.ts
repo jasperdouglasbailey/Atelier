@@ -9,6 +9,8 @@ import {
 } from '@/lib/data/onboarding';
 import { sendEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { checkKillSwitch } from '@/lib/utils/kill-switch';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { createServiceClient } from '@/lib/supabase/service';
@@ -93,10 +95,15 @@ export async function sendOnboardingLinkAction(
     };
   }
 
+  const ks = await checkKillSwitch();
+  if (!ks.canSendOutbound) {
+    return { ok: true, mode: 'manual', url, reason: 'Outbound email is paused — paste this link to them yourself.' };
+  }
+
   try {
     await sendEmail({
       to: [email],
-      subject: 'Your Saunders & Co onboarding link',
+      subject: `Your ${getAgencyConfig().name} onboarding link`,
       bodyType: 'html',
       body: buildOnboardingEmailHtml({ displayName, url }),
     });

@@ -144,7 +144,7 @@ export default async function CrewPortalPage() {
 
       {/* Confirmed upcoming bookings */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Confirmed bookings ({upcoming.length})
         </h2>
         {upcoming.length === 0 ? (
@@ -156,7 +156,7 @@ export default async function CrewPortalPage() {
 
       {/* Past bookings */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           Past bookings ({past.length})
         </h2>
         {past.length === 0 ? (
