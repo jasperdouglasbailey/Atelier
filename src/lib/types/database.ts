@@ -380,6 +380,8 @@ export interface BookingTalent {
 
 export interface BookingCrew {
   id: string;
+  /** When the crew member was added to the booking. Used to order the team strip left→right. */
+  created_at: string;
   booking_id: string;
   crew_id: string;
   talent_id: string | null;

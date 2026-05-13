@@ -302,7 +302,8 @@ export async function listBookingCrew(bookingId: string) {
   const { data, error } = await supabase
     .from(BC_TABLE)
     .select('*, crew:atelier_crew(*)')
-    .eq('booking_id', bookingId);
+    .eq('booking_id', bookingId)
+    .order('created_at', { ascending: true });
 
   if (error) { reportDataError('[quotes] booking crew', error); return []; }
   return data ?? [];
