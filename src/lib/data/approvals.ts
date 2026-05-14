@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
 import { applyApprovalDecisionEffects } from '@/lib/automation/approval-effects';
 import { getCurrentActor } from '@/lib/utils/actor';
+import { sendPushToOwners } from '@/lib/integrations/push';
 
 const TABLE = 'atelier_approvals';
 
@@ -134,5 +135,13 @@ export async function createApproval(input: {
     reportDataError('[approvals] create', error);
     return { approval: null, duplicate: false };
   }
+
+  // Fire-and-forget push to all owner devices — does not block the response.
+  sendPushToOwners({
+    title: 'Atelier — action required',
+    body: input.summary.slice(0, 120),
+    url: '/inbox',
+  }).catch(() => {/* push failures are non-fatal */});
+
   return { approval: data as Approval, duplicate: false };
 }

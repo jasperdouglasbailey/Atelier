@@ -54,20 +54,57 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
 }
 
 /**
- * Pull existing booking refs so we can exclude already-converted emails
- * from the candidate list. Limited to active bookings — old refs almost
- * never appear as fresh briefs.
+ * Pull context for brief detection: existing booking refs (to exclude
+ * already-converted emails), client emails (always surface emails from
+ * known clients), and talent names/nicknames (surface emails asking about
+ * specific artists by name).
  */
 async function fetchPotentialBriefs() {
   if (!isGoogleConfigured()) return [];
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('atelier_bookings')
-    .select('booking_ref')
-    .not('booking_ref', 'is', null)
-    .limit(500);
-  const refs = ((data ?? []) as { booking_ref: string | null }[])
+
+  const [bookingsResult, clientsResult, talentResult] = await Promise.all([
+    supabase
+      .from('atelier_bookings')
+      .select('booking_ref')
+      .not('booking_ref', 'is', null)
+      .limit(500),
+    supabase
+      .from('atelier_clients')
+      .select('email')
+      .not('email', 'is', null),
+    supabase
+      .from('atelier_talent')
+      .select('working_name')
+      .eq('is_active', true),
+  ]);
+
+  const refs = ((bookingsResult.data ?? []) as { booking_ref: string | null }[])
     .map((r) => r.booking_ref)
     .filter((r): r is string => Boolean(r));
-  return findPotentialBriefs({ existingRefs: refs, limit: 12 });
+
+  const clientEmails = ((clientsResult.data ?? []) as { email: string | null }[])
+    .map((r) => r.email)
+    .filter((e): e is string => Boolean(e));
+
+  // Include both full working names and first names as separate search tokens.
+  // "Oliver Begg" catches full-name mentions; "Oliver" + "Oly" catches
+  // informal references. Keep first names only when they're specific enough
+  // (≥4 chars) to avoid noisy single-syllable matches.
+  const talentNames: string[] = [];
+  for (const { working_name } of (talentResult.data ?? []) as { working_name: string }[]) {
+    if (!working_name) continue;
+    talentNames.push(working_name);
+    const firstName = working_name.split(' ')[0];
+    if (firstName && firstName.length >= 4) talentNames.push(firstName);
+  }
+  // Add known nicknames — extend this list as needed.
+  const NICKNAMES: Record<string, string[]> = {
+    'Oliver': ['Oly'],
+  };
+  for (const names of Object.values(NICKNAMES)) {
+    talentNames.push(...names);
+  }
+
+  return findPotentialBriefs({ existingRefs: refs, clientEmails, talentNames, limit: 12 });
 }

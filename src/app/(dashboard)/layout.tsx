@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import KillSwitchBanner from '@/components/layout/KillSwitchBanner';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts';
+import PullToRefresh from '@/components/layout/PullToRefresh';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { getPendingCount } from '@/lib/data/approvals';
 import { getCurrentAppUser } from '@/lib/data/app-users';
@@ -35,6 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
       <KeyboardShortcuts />
+      <PullToRefresh />
     </div>
   );
 }
