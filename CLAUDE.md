@@ -40,6 +40,25 @@ src/
 - Australian spelling in user-facing copy ("organisation", "colour"). US in
   code identifiers ("organization") because that's npm convention.
 
+## Fee model rules (canonical, locked in 2026-05-14)
+
+Per Jasper's spec — applies to defaults in `lineTypeDefaults()` in `src/app/actions/quotes.ts` and `defaultChargeGst()` / `ASF_OFF_BY_DEFAULT` / `ALWAYS_GST_LINE_TYPES` in `src/components/quotes/QuoteBuilder.tsx`.
+
+| Line type | Commission 20% | ASF 15% default | GST default | Super (15% charged / 12% paid) |
+|---|---|---|---|---|
+| `artist_fee`, `usage_licence`, `file_management`, `retouching`, `post_production`, `artist_overtime` | ✅ Yes | ✅ On | Follows artist's `gst_registered` | ❌ No |
+| `crew_labour` (day rate) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ✅ **Yes — only on day rate** |
+| `overtime` (crew overtime) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ❌ **No — overtime is NOT super-bearing** |
+| `equipment_rental`, `crew_equipment`, `studio_hire` | ❌ No | ✅ On | ✅ **Always ON regardless of payee** — supplier invoice has GST | ❌ No |
+| `travel`, `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense` | ❌ No | ✅ On | Follows crew GST status if crew_id linked; ON by default | ❌ No |
+
+**Other invariants:**
+- ASF is toggleable per line — user can flip it off for genuine pass-through cost
+- GST toggle is "Charge GST" (positive sense). Checked = applied
+- Commissionable lines can NEVER be reimbursements (enforced server-side in `addFeeLineAction`/`updateFeeLineAction`)
+- Super spread (15% − 12% = 3%) is agency margin, computed in `computeAgencyMargin`
+- Net GST to ATO = collected from client − input credits paid to GST-registered talent/crew
+
 ## Development discipline rules (added 2026-05-13 — violations caused CI failures)
 
 These are not aspirational. They are required. Every one has caused a real bug or CI failure.

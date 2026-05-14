@@ -100,35 +100,35 @@ export async function createQuoteVersionAction(bookingId: string, notes?: string
 // Fee lines
 // ============================================================
 
+// =================================================================
+// Canonical fee-engine rules — see CLAUDE.md "Fee model rules" block.
+// =================================================================
+// Artist labour — commissionable (20%), ASF default on, no super.
 const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime'];
-const CREW_LABOUR_LINE_TYPES = ['crew_labour', 'overtime'];
+// Super-bearing — ONLY crew_labour (the day rate). Crew overtime,
+// crew equipment, crew travel, crew expenses do NOT bear super.
+const SUPER_BEARING_LINE_TYPES = ['crew_labour'];
 
 /** True when a line type is commissionable — these can never be reimbursable. */
 function isCommissionableType(t: FeeLineType): boolean {
   return ARTIST_LABOUR_LINE_TYPES.includes(t);
 }
-// Pass-through costs — no ASF by default (client is reimbursing a real expenditure)
-const FRINGE_LINE_TYPES = [
-  'crew_equipment', 'equipment_rental', 'studio_hire', 'travel',
-  'catering', 'wardrobe', 'props', 'casting', 'location_fee',
-  'permits', 'insurance', 'other_expense',
-];
 
-/** Determine defaults based on line type */
+/** ASF defaults to 15% on every line type — the agency adds margin on
+ * labour AND production expenses. Toggleable per line for genuine
+ * pass-through cases. */
 function lineTypeDefaults(lineType: FeeLineType) {
   const isArtist = ARTIST_LABOUR_LINE_TYPES.includes(lineType);
-  const isCrew = CREW_LABOUR_LINE_TYPES.includes(lineType);
-  const isFringe = FRINGE_LINE_TYPES.includes(lineType);
+  const bearsSupervalue = SUPER_BEARING_LINE_TYPES.includes(lineType);
 
   return {
     is_commissionable: isArtist,
     commission_rate: isArtist ? DEFAULT_COMMISSION_RATE : 0,
-    is_super_bearing: isCrew,
-    super_rate_charged: isCrew ? SUPER_RATE_CHARGED : 0,
-    super_rate_paid: isCrew ? SUPER_RATE_PAID : 0,
+    is_super_bearing: bearsSupervalue,
+    super_rate_charged: bearsSupervalue ? SUPER_RATE_CHARGED : 0,
+    super_rate_paid: bearsSupervalue ? SUPER_RATE_PAID : 0,
     is_gst_exempt: false,
-    // Fringe/expense lines are pass-through costs — no ASF by default
-    asf_rate: isFringe ? 0 : DEFAULT_ASF_RATE,
+    asf_rate: DEFAULT_ASF_RATE,
   };
 }
 
