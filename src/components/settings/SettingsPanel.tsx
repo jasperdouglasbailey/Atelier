@@ -233,6 +233,7 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
           <div className="space-y-1.5">
             {cronHealth.map(({ name, last_run }) => {
               const label = name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+              // eslint-disable-next-line react-hooks/purity
               const ageMs = last_run ? Date.now() - new Date(last_run).getTime() : null;
               const color = ageMs === null
                 ? PALETTE.danger

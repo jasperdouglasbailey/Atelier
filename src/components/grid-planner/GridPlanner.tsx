@@ -294,25 +294,17 @@ export default function GridPlanner() {
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [igStats, setIgStats] = useState<IGStats | null>(null);
-  const [hasSavedData, setHasSavedData] = useState(false);
-
-  // Detect if there is any saved data on mount
-  useEffect(() => {
-    const persisted = loadPersistedSlots();
-    if (persisted && persisted.some((p) => p.caption || p.label || p.status === 'live')) {
-      setHasSavedData(true);
-    }
-  }, []);
 
   // Persist caption/status/label on every slots change
   useEffect(() => {
     try {
       const toSave: PersistedSlot[] = slots.map((s) => ({ caption: s.caption, status: s.status, label: s.label }));
       localStorage.setItem(LS_KEY, JSON.stringify(toSave));
-      const hasData = toSave.some((p) => p.caption || p.label || p.status === 'live');
-      setHasSavedData(hasData);
     } catch { /* storage unavailable */ }
   }, [slots]);
+
+  // Derived: any slot has non-default data worth clearing
+  const hasSavedData = slots.some((s) => s.caption || s.label || s.status === 'live');
 
   // Fetch live Instagram stats on mount
   useEffect(() => {
@@ -370,7 +362,6 @@ export default function GridPlanner() {
     try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
     setSlots(initSlots(totalSlots));
     setSelectedIndex(null);
-    setHasSavedData(false);
   }
 
   const filledCount = slots.filter((s) => s.imageUrl).length;

@@ -28,6 +28,7 @@ export type CronHealthEntry = { name: string; last_run: string | null };
 
 export default async function SettingsPage() {
   const supabase = createServiceClient();
+  // eslint-disable-next-line react-hooks/purity
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
 
   const [ks, agency, googleStatus, emailFailuresResult, cronRunsResult] = await Promise.all([
