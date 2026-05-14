@@ -72,7 +72,7 @@ export type UsageTerritory =
 export type FeeLineType =
   | 'artist_fee' | 'usage_licence' | 'file_management' | 'retouching'
   | 'crew_labour' | 'crew_equipment' | 'equipment_rental'
-  | 'studio_hire' | 'travel' | 'catering' | 'wardrobe' | 'props'
+  | 'studio_hire' | 'travel' | 'artist_travel' | 'catering' | 'wardrobe' | 'props'
   | 'casting' | 'location_fee' | 'permits' | 'insurance'
   | 'post_production' | 'overtime' | 'artist_overtime' | 'other_expense';
 

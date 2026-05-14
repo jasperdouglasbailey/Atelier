@@ -27,7 +27,7 @@ type Props = {
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
   'artist_fee', 'usage_licence', 'file_management', 'retouching',
   'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'travel', 'catering', 'wardrobe', 'props',
+  'studio_hire', 'travel', 'artist_travel', 'catering', 'wardrobe', 'props',
   'casting', 'location_fee', 'permits', 'insurance',
   'post_production', 'artist_overtime', 'overtime', 'other_expense',
 ];
@@ -1030,17 +1030,27 @@ function RunningDeductions({
 // Add line form (inline)
 // ============================================================
 
-// Pass-through/fringe types where ASF defaults to off (client is reimbursing real costs).
-const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>([
-  'crew_equipment', 'equipment_rental', 'studio_hire', 'travel',
-  'catering', 'wardrobe', 'props', 'casting', 'location_fee',
-  'permits', 'insurance', 'other_expense',
+// ASF defaults to 15% on every line type. The agency adds margin on
+// labour AND production expenses (this is the canonical fee model). Per
+// the doctrine in CLAUDE.md "Fee model rules". Toggleable per line if
+// the user wants to pass a line through at cost.
+const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>();
+
+// Equipment-class lines ALWAYS apply GST regardless of the linked
+// payee's GST registration. Rationale: the supplier invoice has GST on
+// it; the agency passes that through to the client even when the artist
+// is reimbursed for kit they hired (because the artist paid GST to the
+// supplier on the way in).
+const ALWAYS_GST_LINE_TYPES = new Set<FeeLineType>([
+  'equipment_rental', 'crew_equipment', 'studio_hire',
 ]);
 
 // Artist-side line types — GST exempt when the payee is not GST-registered.
 // Also the set that's commissionable, so reimbursement is disallowed.
+// `artist_travel` is here (commissionable, follows artist GST status);
+// plain `travel` is NOT here (crew/production travel, not commissionable).
 const ARTIST_LINE_TYPES = new Set<FeeLineType>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime',
+  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
 
 // Crew labour line types — GST exempt when the crew member is not GST-registered.
@@ -1070,10 +1080,13 @@ function AddLineForm({
 
   // GST: default on. Only flips off when the payee is a known non-GST-
   // registered person (artist line + non-registered talent, or crew line
-  // with a non-registered crew member selected). Expenses + studio + props
-  // etc. are always GST-applied by default.
+  // with a non-registered crew member selected). Equipment lines always
+  // apply GST regardless of payee (the supplier invoice has GST on it).
+  // Expenses + studio + props etc. default on, flip off only via crew
+  // GST status.
   const primaryTalentGstRegistered = primaryTalent?.talent?.gst_registered ?? true;
   function defaultChargeGst(t: FeeLineType, crewId?: string): boolean {
+    if (ALWAYS_GST_LINE_TYPES.has(t)) return true;
     if (ARTIST_LINE_TYPES.has(t)) return primaryTalentGstRegistered;
     if (CREW_LINE_TYPES_SET.has(t) && crewId) {
       const crew = attachedCrew.find((c) => c.crew_id === crewId);

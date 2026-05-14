@@ -2265,6 +2265,7 @@ export type Database = {
         | "equipment_rental"
         | "studio_hire"
         | "travel"
+        | "artist_travel"
         | "catering"
         | "wardrobe"
         | "props"
@@ -2519,6 +2520,7 @@ export const Constants = {
         "equipment_rental",
         "studio_hire",
         "travel",
+        "artist_travel",
         "catering",
         "wardrobe",
         "props",
