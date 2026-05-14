@@ -167,7 +167,7 @@ export async function findByOnboardingToken(
 export async function applyOnboardingByToken(
   token: string,
   payload: OnboardingPayload,
-): Promise<{ ok: true; type: OnboardingEntityType } | { ok: false; error: string }> {
+): Promise<{ ok: true; type: OnboardingEntityType; entityId: string } | { ok: false; error: string }> {
   const target = await findByOnboardingToken(token);
   if (!target) return { ok: false, error: 'Link is invalid or has expired.' };
 
@@ -223,5 +223,5 @@ export async function applyOnboardingByToken(
     }
   }
 
-  return { ok: true, type: target.type };
+  return { ok: true, type: target.type, entityId: target.id };
 }
