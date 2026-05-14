@@ -57,6 +57,28 @@ export async function runHealthProbes(): Promise<QueryProbe[]> {
     probe('listFeeLines', async () =>
       supabase.from('atelier_fee_lines').select('id, line_type, asf_rate').limit(1),
     ),
+    // Schema-drift probe: explicitly selects columns added by recent
+    // migrations. If a migration didn't make it to prod, this probe
+    // fails with "column does not exist" — catches the exact class of
+    // bug where local code expects a column that the live DB lacks.
+    // Update this list whenever a new column is added that fee-line
+    // mutations or reads depend on.
+    probe('feeLineSchema (post-0044 columns)', async () =>
+      supabase
+        .from('atelier_fee_lines')
+        .select('id, is_artist_reimbursement, is_super_bearing, is_commissionable')
+        .limit(1),
+    ),
+    // Casting 'artist_overtime' through PostgREST's .eq() forces the value
+    // to be validated against the enum. If the migration didn't land, this
+    // returns "invalid input value for enum atelier_fee_line_type".
+    probe('feeLineEnum (artist_overtime, post-0046)', async () =>
+      supabase
+        .from('atelier_fee_lines')
+        .select('id')
+        .eq('line_type', 'artist_overtime')
+        .limit(1),
+    ),
     probe('listBookingTalent', async () =>
       supabase.from('atelier_booking_talent').select('id, booking_id, talent_id, created_at').limit(1),
     ),

@@ -247,8 +247,14 @@ const CALL_SHEET_STATES: BookingState[] = [
 
 /**
  * Returns call-sheet details for upcoming bookings visible to a portal user.
- * Uses the service client after verifying attachment — team names and roles
- * only, no rates or client details.
+ *
+ * Uses the service client to read the booking + team data (bypassing the
+ * portal user's column-restricted view), then **verifies attachment** by
+ * looking up the viewer's own assignment rows. Only bookings the viewer
+ * is actually attached to are returned — so even if a caller passed in a
+ * `bookingIds` list it shouldn't have access to, the response is filtered.
+ *
+ * Returns team names + roles + mobiles only. No rates, no client details.
  */
 export async function getPortalCallSheets(
   viewerType: 'talent' | 'crew',
@@ -256,14 +262,32 @@ export async function getPortalCallSheets(
   bookingIds: string[],
 ): Promise<PortalCallSheet[]> {
   if (bookingIds.length === 0) return [];
+  if (!viewerId) return [];
 
   const supabase = createServiceClient();
 
-  // Only return call sheets for relevant states
+  // 1) Verify attachment: only return bookings where the viewer is
+  //    actually on the talent or crew roster.
+  const attachmentTable = viewerType === 'talent' ? 'atelier_booking_talent' : 'atelier_booking_crew';
+  const attachmentIdCol = viewerType === 'talent' ? 'talent_id' : 'crew_id';
+  const { data: attached, error: attachErr } = await supabase
+    .from(attachmentTable)
+    .select('booking_id')
+    .eq(attachmentIdCol, viewerId)
+    .in('booking_id', bookingIds);
+  if (attachErr) {
+    reportDataError('[portal] call-sheet attachment check', attachErr);
+    return [];
+  }
+  const attachedIds = Array.from(new Set((attached ?? []).map((r) => r.booking_id as string)));
+  if (attachedIds.length === 0) return [];
+
+  // 2) Now look up the bookings — restricted to those the viewer is
+  //    attached to AND in a state where a call sheet is meaningful.
   const { data: bookings } = await supabase
     .from('atelier_bookings')
     .select('id, booking_ref, title, shoot_location, shoot_date_notes, state')
-    .in('id', bookingIds)
+    .in('id', attachedIds)
     .in('state', CALL_SHEET_STATES);
 
   if (!bookings || bookings.length === 0) return [];

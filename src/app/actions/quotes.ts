@@ -313,8 +313,10 @@ export async function reorderFeeLinesAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const authError = await requireOwnerOrPartner();
   if (authError) return { ok: false, error: authError.error };
-  const { createClient } = await import('@/lib/supabase/server');
-  const supabase = await createClient();
+  // Service client for the write — auth already verified above. Same pattern
+  // as updateFeeLine in the data layer (avoids RLS edge cases).
+  const { createServiceClient } = await import('@/lib/supabase/service');
+  const supabase = createServiceClient();
 
   // Assign sort_order in steps of 10 so future inserts slot in between
   const updates = orderedIds.map((id, i) => ({ id, sort_order: i * 10 }));
