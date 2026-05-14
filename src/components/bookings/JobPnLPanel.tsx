@@ -12,9 +12,9 @@ type Props = {
   bookingCrew?: BookingCrew[];
 };
 
-const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['overtime', 'other_expense']);
+const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['overtime', 'artist_overtime', 'other_expense']);
 const ARTIST_LINE_TYPES = new Set<FeeLine['line_type']>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
+  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime',
 ]);
 const CREW_LABOUR_LINE_TYPES = new Set<FeeLine['line_type']>(['crew_labour', 'overtime']);
 

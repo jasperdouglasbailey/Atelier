@@ -29,7 +29,7 @@ const LINE_TYPE_OPTIONS: FeeLineType[] = [
   'crew_labour', 'crew_equipment', 'equipment_rental',
   'studio_hire', 'travel', 'catering', 'wardrobe', 'props',
   'casting', 'location_fee', 'permits', 'insurance',
-  'post_production', 'overtime', 'other_expense',
+  'post_production', 'artist_overtime', 'overtime', 'other_expense',
 ];
 
 // Artist / billable vs outgoing (crew + production costs)
@@ -534,7 +534,16 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                           <div className="flex items-center gap-2 flex-wrap">
                             <select
                               value={editValues.line_type}
-                              onChange={(e) => setEditValues((v) => v && { ...v, line_type: e.target.value as FeeLineType })}
+                              onChange={(e) => {
+                                const next = e.target.value as FeeLineType;
+                                setEditValues((v) => v && {
+                                  ...v,
+                                  line_type: next,
+                                  // Switching to a commissionable type auto-clears reimbursement —
+                                  // they're mutually exclusive in the fee model.
+                                  is_artist_reimbursement: isCommissionable(next) ? false : v.is_artist_reimbursement,
+                                });
+                              }}
                               className="rounded border px-2 py-1.5 text-xs"
                               style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 160 }}
                             >
@@ -606,20 +615,30 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
                           {/* Row 4 — Reimburse toggle (left) + actions (right) */}
                           <div className="flex items-center justify-between gap-3 pt-2 border-t flex-wrap" style={{ borderColor: PALETTE.border }}>
-                            <label
-                              className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none"
-                              style={{ color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted }}
-                              title="Mark as artist reimbursement — amount is added to artist payout in P&L"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={editValues.is_artist_reimbursement}
-                                onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
-                                className="w-3.5 h-3.5"
-                                style={{ accentColor: PALETTE.ok }}
-                              />
-                              Mark as artist reimbursement
-                            </label>
+                            {isCommissionable(editValues.line_type) ? (
+                              <span
+                                className="text-[10px]"
+                                style={{ color: PALETTE.muted, opacity: 0.7 }}
+                                title="Commissionable line types cannot be reimbursements"
+                              >
+                                Reimbursement not available on commissionable lines
+                              </span>
+                            ) : (
+                              <label
+                                className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none"
+                                style={{ color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted }}
+                                title="Mark as artist reimbursement — amount is added to artist payout in P&L"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editValues.is_artist_reimbursement}
+                                  onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
+                                  className="w-3.5 h-3.5"
+                                  style={{ accentColor: PALETTE.ok }}
+                                />
+                                Mark as artist reimbursement
+                              </label>
+                            )}
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={cancelEdit}
@@ -986,12 +1005,18 @@ const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>([
 ]);
 
 // Artist-side line types — GST exempt when the payee is not GST-registered.
+// Also the set that's commissionable, so reimbursement is disallowed.
 const ARTIST_LINE_TYPES = new Set<FeeLineType>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
+  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime',
 ]);
 
 // Crew labour line types — GST exempt when the crew member is not GST-registered.
 const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'overtime']);
+
+/** Commissionable lines can never be reimbursable. */
+function isCommissionable(t: FeeLineType): boolean {
+  return ARTIST_LINE_TYPES.has(t);
+}
 
 function AddLineForm({
   quoteVersionId, bookingId, onSubmit, onCancel, busy,
@@ -1027,6 +1052,8 @@ function AddLineForm({
     setLineType(t);
     setChargeAsf(!ASF_OFF_BY_DEFAULT.has(t));
     setGstExempt(defaultGstExempt(t, selectedCrewId));
+    // Reimbursement is mutually exclusive with commissionable lines.
+    if (isCommissionable(t)) setIsArtistReimbursement(false);
   }
 
   function handleCrewChange(crewId: string) {
@@ -1177,24 +1204,31 @@ function AddLineForm({
         />
       </div>
 
-      <label
-        className="flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs cursor-pointer select-none w-fit"
-        style={{
-          background: isArtistReimbursement ? `${PALETTE.ok}10` : PALETTE.bg,
-          borderColor: isArtistReimbursement ? `${PALETTE.ok}55` : PALETTE.border,
-          color: isArtistReimbursement ? PALETTE.ok : PALETTE.muted,
-        }}
-        title="Mark this line as an expense the artist paid upfront — it will be reimbursed from booking proceeds and tracked separately in P&L"
-      >
-        <input
-          type="checkbox"
-          checked={isArtistReimbursement}
-          onChange={(e) => setIsArtistReimbursement(e.target.checked)}
-          style={{ accentColor: PALETTE.ok }}
-        />
-        <span>Artist reimbursement (pass-through expense)</span>
-      </label>
-      <input type="hidden" name="is_artist_reimbursement" value={String(isArtistReimbursement)} />
+      {/* Reimbursement — hidden on commissionable line types (artist labour). */}
+      {!isCommissionable(lineType) && (
+        <label
+          className="flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs cursor-pointer select-none w-fit"
+          style={{
+            background: isArtistReimbursement ? `${PALETTE.ok}10` : PALETTE.bg,
+            borderColor: isArtistReimbursement ? `${PALETTE.ok}55` : PALETTE.border,
+            color: isArtistReimbursement ? PALETTE.ok : PALETTE.muted,
+          }}
+          title="Mark this line as an expense the artist paid upfront — it will be reimbursed from booking proceeds and tracked separately in P&L"
+        >
+          <input
+            type="checkbox"
+            checked={isArtistReimbursement}
+            onChange={(e) => setIsArtistReimbursement(e.target.checked)}
+            style={{ accentColor: PALETTE.ok }}
+          />
+          <span>Artist reimbursement (pass-through expense)</span>
+        </label>
+      )}
+      <input
+        type="hidden"
+        name="is_artist_reimbursement"
+        value={String(!isCommissionable(lineType) && isArtistReimbursement)}
+      />
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={busy} className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ background: PALETTE.accent, color: PALETTE.bg }}>
