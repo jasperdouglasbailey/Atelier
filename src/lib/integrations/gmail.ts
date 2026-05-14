@@ -352,15 +352,24 @@ export async function searchInbox(query: string, limit = 10): Promise<{
  * filter — false positives are easy to dismiss; false negatives mean
  * lost work.
  *
- * Heuristic: subject contains "brief" / "rfp" / "shoot" / "campaign" /
- * "production" / "request for quote" / "rfq", received in the last 14
- * days, not from us, not auto-generated. Excludes anything already
- * linked to an existing booking (by checking for booking refs in the
- * subject).
+ * Heuristic: subject or body contains production-related keywords, or the
+ * sender is a known client contact, or the email mentions a known talent by
+ * name. Received in the last 30 days, not sent by us. Excludes anything
+ * already linked to an existing booking ref.
+ *
+ * Three signal layers:
+ *   1. Subject keywords — structured brief/rfp/shoot emails
+ *   2. Body phrases — informal production enquiries ("are you available", etc.)
+ *   3. From known client emails — anything from a client, regardless of content
+ *   4. Talent name mentions — emails asking about specific artists by name/nickname
  */
 export async function findPotentialBriefs(opts: {
   /** Booking refs already in our DB — used to exclude already-converted emails. */
   existingRefs?: string[];
+  /** Client email addresses — emails from these senders are always surfaced. */
+  clientEmails?: string[];
+  /** Talent working names + nicknames — emails mentioning these are surfaced. */
+  talentNames?: string[];
   limit?: number;
 } = {}): Promise<Array<{
   id: string;
@@ -370,9 +379,8 @@ export async function findPotentialBriefs(opts: {
   snippet: string;
 }>> {
   const limit = opts.limit ?? 20;
-  // Two-layer search: strict subject keywords OR high-confidence body phrases.
-  // Subject matches catch most structured inbound briefs.
-  // Body phrases catch informal emails that don't say "brief" in the subject.
+
+  // Layer 1: subject keywords — high precision
   const subjectTerms = [
     'subject:brief',
     'subject:rfp',
@@ -387,17 +395,62 @@ export async function findPotentialBriefs(opts: {
     'subject:"photo shoot"',
     'subject:"video shoot"',
     'subject:"creative brief"',
+    'subject:availability',
+    'subject:commission',
+    'subject:photographer',
+    'subject:videographer',
   ];
+
+  // Layer 2: body phrases — production-specific, low false-positive rate
   const bodyPhrases = [
     '"creative brief"',
     '"photo shoot"',
     '"video shoot"',
-    '"talent brief"',
+    '"photoshoot"',
     '"production brief"',
+    '"talent brief"',
+    '"shoot brief"',
     '"request for quote"',
     '"shoot dates"',
+    '"shoot date"',
+    '"are you available"',
+    '"your availability"',
+    '"available for the shoot"',
+    '"available to shoot"',
+    '"free for the shoot"',
+    '"free for a shoot"',
+    '"looking for a photographer"',
+    '"looking for a videographer"',
+    '"looking for a director"',
+    '"content creation"',
+    '"campaign shoot"',
   ];
-  const query = `({${subjectTerms.join(' ')}} OR {${bodyPhrases.join(' ')}}) newer_than:14d -in:sent -in:drafts -from:me`;
+
+  const queryParts: string[] = [
+    `{${subjectTerms.join(' ')} ${bodyPhrases.join(' ')}}`,
+  ];
+
+  // Layer 3: known client emails — always surface emails from clients
+  const clientEmails = (opts.clientEmails ?? []).filter(Boolean).slice(0, 50);
+  if (clientEmails.length > 0) {
+    queryParts.push(`{${clientEmails.map((e) => `from:${e}`).join(' ')}}`);
+  }
+
+  // Layer 4: talent name/nickname mentions in body or subject
+  const talentNames = (opts.talentNames ?? []).filter(Boolean);
+  if (talentNames.length > 0) {
+    // Use quoted full names — specific enough to avoid noise
+    const nameTerms = talentNames.map((n) => `"${n}"`);
+    queryParts.push(`{${nameTerms.join(' ')}}`);
+  }
+
+  const combined = queryParts.length > 1
+    ? `{${queryParts.join(' ')}}`
+    : queryParts[0];
+
+  // 30-day window (extended from 14d — briefs sometimes land weeks before a
+  // producer follows up, and we don't want to miss them).
+  const query = `${combined} newer_than:30d -in:sent -in:drafts -from:me`;
 
   const results = await searchInbox(query, limit * 2); // over-fetch then filter
 
