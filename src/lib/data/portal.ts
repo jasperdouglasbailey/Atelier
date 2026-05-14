@@ -35,11 +35,23 @@ export type PortalBookingRow = {
   confirmed: boolean;
 };
 
+/** A fee line the artist is entitled to see — own fees + shoot equipment. */
+export type PortalFeeLine = {
+  id: string;
+  lineType: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+};
+
 export type TalentPortalBookingRow = PortalBookingRow & {
   bookingTalentId: string;
   status: string;
   rateAccepted: boolean;
   briefAcknowledgedAt: string | null;
+  /** Artist's own fee lines + shoot equipment lines — so they know their budget. */
+  feeLines: PortalFeeLine[];
 };
 
 export type CrewPortalBookingRow = PortalBookingRow & {
@@ -107,6 +119,25 @@ export async function getTalentPortalData(talentId: string): Promise<{
   type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_date_notes: string | null; shoot_location: string | null };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
+  // Fetch fee lines the artist is entitled to see:
+  // (a) lines tagged to this talent, and (b) equipment/production lines for the shoot
+  const EQUIPMENT_LINE_TYPES = ['equipment_rental', 'studio_hire', 'wardrobe', 'props', 'crew_equipment'];
+  const feeLinesResp = bookingIds.length === 0
+    ? { data: [], error: null as null | { message: string } }
+    : await supabase
+        .from('atelier_fee_lines')
+        .select('id, booking_id, line_type, description, quantity, unit_price, subtotal, talent_id')
+        .in('booking_id', bookingIds)
+        .or(`talent_id.eq.${talentId},line_type.in.(${EQUIPMENT_LINE_TYPES.join(',')})`);
+
+  type FeeRow = { id: string; booking_id: string; line_type: string; description: string; quantity: number; unit_price: number; subtotal: number; talent_id: string | null };
+  const feeLinesByBooking = new Map<string, PortalFeeLine[]>();
+  for (const fl of (feeLinesResp.data ?? []) as FeeRow[]) {
+    const list = feeLinesByBooking.get(fl.booking_id) ?? [];
+    list.push({ id: fl.id, lineType: fl.line_type, description: fl.description, quantity: fl.quantity, unitPrice: fl.unit_price, subtotal: fl.subtotal });
+    feeLinesByBooking.set(fl.booking_id, list);
+  }
+
   const bookings: TalentPortalBookingRow[] = assignments
     .map((a) => {
       const b = bookingMap.get(a.booking_id as string);
@@ -126,6 +157,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
         status: (a.status as string) ?? 'hold_requested',
         rateAccepted: (a.rate_accepted as boolean) ?? false,
         briefAcknowledgedAt: a.brief_acknowledged_at as string | null,
+        feeLines: feeLinesByBooking.get(b.id) ?? [],
       };
     })
     .filter((r): r is TalentPortalBookingRow => r !== null);
