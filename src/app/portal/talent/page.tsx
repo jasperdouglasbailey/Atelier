@@ -28,6 +28,7 @@ import {
   BOOKING_STATE_LABELS,
   STATE_COLORS,
   ARTIST_DISCIPLINE_LABELS,
+  FEE_LINE_TYPE_LABELS,
 } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -236,6 +237,38 @@ function TalentBookingRow({
         {row.dayRate && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Day rate</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.dayRate)}</div></div>}
         {row.usageFee && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage fee</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.usageFee)}</div></div>}
       </div>
+
+      {/* Fee lines — artist's own fees + equipment so they know the shoot budget */}
+      {row.feeLines.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wide select-none" style={{ color: PALETTE.muted }}>
+            Fee details ({row.feeLines.length} line{row.feeLines.length > 1 ? 's' : ''}) ▸
+          </summary>
+          <div className="mt-2 rounded border overflow-hidden" style={{ borderColor: PALETTE.border }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: PALETTE.bg }}>
+                  <th className="py-1.5 px-2 text-left font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Description</th>
+                  <th className="py-1.5 px-2 text-right font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Qty</th>
+                  <th className="py-1.5 px-2 text-right font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {row.feeLines.map((fl) => (
+                  <tr key={fl.id} style={{ borderTop: `1px solid ${PALETTE.border}` }}>
+                    <td className="py-1.5 px-2" style={{ color: PALETTE.text }}>
+                      <div>{fl.description}</div>
+                      <div style={{ color: PALETTE.muted, fontSize: 10 }}>{FEE_LINE_TYPE_LABELS[fl.lineType as keyof typeof FEE_LINE_TYPE_LABELS] ?? fl.lineType}</div>
+                    </td>
+                    <td className="py-1.5 px-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{fl.quantity}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium" style={{ color: PALETTE.text }}>{formatCurrency(fl.subtotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
 
       {showRateAccept && (
         <form action={acceptTalentRateAction.bind(null, row.bookingTalentId)}>

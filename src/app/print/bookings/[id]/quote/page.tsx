@@ -2,12 +2,30 @@ import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
-import { FEE_LINE_TYPE_LABELS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
+import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine } from '@/lib/types/database';
 import PrintActions from './PrintActions';
+
+type FeeGroup = { label: string; subtotal: number; asf: number; lines: FeeLine[] };
+
+function groupFeeLines(feeLines: FeeLine[]): FeeGroup[] {
+  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production']);
+  const CREW_TYPES = new Set(['crew_labour', 'crew_equipment', 'overtime']);
+  const EXPENSE_TYPES = new Set(['equipment_rental', 'studio_hire', 'travel', 'catering', 'wardrobe', 'props', 'casting', 'location_fee', 'permits', 'insurance', 'other_expense']);
+
+  const artists = feeLines.filter((l) => ARTIST_TYPES.has(l.line_type));
+  const crew = feeLines.filter((l) => CREW_TYPES.has(l.line_type));
+  const expenses = feeLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
+
+  const groups: FeeGroup[] = [];
+  if (artists.length > 0) groups.push({ label: 'Photography & Artist Fees', subtotal: artists.reduce((s, l) => s + l.subtotal, 0), asf: artists.reduce((s, l) => s + (l.asf_amount ?? 0), 0), lines: artists });
+  if (crew.length > 0) groups.push({ label: 'Crew & Labour', subtotal: crew.reduce((s, l) => s + l.subtotal, 0), asf: crew.reduce((s, l) => s + (l.asf_amount ?? 0), 0), lines: crew });
+  if (expenses.length > 0) groups.push({ label: 'Production Expenses', subtotal: expenses.reduce((s, l) => s + l.subtotal, 0), asf: expenses.reduce((s, l) => s + (l.asf_amount ?? 0), 0), lines: expenses });
+  return groups;
+}
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -41,6 +59,7 @@ export default async function QuotePrintPage({ params }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
   const today = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
   const totals = feeLines.length > 0 ? computeQuoteTotals(feeLines) : null;
+  const groups = groupFeeLines(feeLines);
 
   const tdStyle: React.CSSProperties = {
     padding: '8px 12px',
@@ -163,23 +182,35 @@ export default async function QuotePrintPage({ params }: Props) {
               </tr>
             </thead>
             <tbody>
-              {feeLines.map((line: FeeLine) => (
-                <tr key={line.id}>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 500 }}>{line.description}</div>
-                    <div style={{ fontSize: 11, color: '#999', marginTop: 1 }}>
-                      {FEE_LINE_TYPE_LABELS[line.line_type]}
-                      {line.is_gst_exempt && ' · GST Exempt'}
-                      {line.is_super_bearing && ` · Incl. Super (${Math.round((line.super_rate_charged ?? 0.15) * 100)}%)`}
-                    </div>
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#666' }}>
-                    {line.asf_amount > 0 ? formatCurrency(line.asf_amount) : '—'}
-                  </td>
-                </tr>
+              {groups.map((group) => (
+                <>
+                  <tr key={`grp-${group.label}`}>
+                    <td colSpan={5} style={{
+                      padding: '10px 12px 4px',
+                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.06em', color: '#333',
+                      background: '#f8f8f8',
+                    }}>
+                      {group.label}
+                    </td>
+                  </tr>
+                  {group.lines.map((line: FeeLine) => (
+                    <tr key={line.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500 }}>{line.description}</div>
+                        {line.is_gst_exempt && (
+                          <div style={{ fontSize: 11, color: '#999', marginTop: 1 }}>GST Exempt</div>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', color: '#666' }}>
+                        {line.asf_amount > 0 ? formatCurrency(line.asf_amount) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ))}
             </tbody>
           </table>
@@ -193,10 +224,10 @@ export default async function QuotePrintPage({ params }: Props) {
               {totals.totalAsf > 0 && (
                 <TotalRow label="Agency Service Fee (15%)" value={formatCurrency(totals.totalAsf)} />
               )}
-              {totals.totalSuper > 0 && (
-                <TotalRow label="Superannuation (15%)" value={formatCurrency(totals.totalSuper)} />
-              )}
               <TotalRow label="GST (10%)" value={formatCurrency(totals.totalGst)} />
+              {totals.totalSuper > 0 && (
+                <TotalRow label="Crew Fringes" value={formatCurrency(totals.totalSuper)} />
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', borderTop: '2px solid #1a1a1a', marginTop: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>TOTAL DUE (AUD)</span>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>{formatCurrency(totals.grandTotal)}</span>

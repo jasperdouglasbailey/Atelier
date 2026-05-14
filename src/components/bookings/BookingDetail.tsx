@@ -206,8 +206,17 @@ export default function BookingDetail({
           className="rounded px-2 py-0.5 text-[11px]"
           style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
         >
-          Quote
+          Print quote
         </Link>
+        <a
+          href={`/api/print/quote/${booking.id}`}
+          download
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          title="Download quote as PDF"
+        >
+          Quote PDF ↓
+        </a>
         <Link
           href={`/print/bookings/${booking.id}/invoice`}
           target="_blank"
@@ -215,8 +224,17 @@ export default function BookingDetail({
           className="rounded px-2 py-0.5 text-[11px]"
           style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
         >
-          Invoice
+          Print invoice
         </Link>
+        <a
+          href={`/api/print/invoice/${booking.id}`}
+          download
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          title="Download invoice as PDF"
+        >
+          Invoice PDF ↓
+        </a>
         <Link
           href={`/print/bookings/${booking.id}/confirmation`}
           target="_blank"
@@ -224,8 +242,17 @@ export default function BookingDetail({
           className="rounded px-2 py-0.5 text-[11px]"
           style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
         >
-          Confirmation
+          Print confirmation
         </Link>
+        <a
+          href={`/api/print/confirmation/${booking.id}`}
+          download
+          className="rounded px-2 py-0.5 text-[11px]"
+          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+          title="Download booking confirmation as PDF"
+        >
+          Confirmation PDF ↓
+        </a>
         {booking.quote_token && (
           <Link
             href={`/q/${booking.quote_token}`}
