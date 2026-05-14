@@ -13,6 +13,21 @@ import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RA
 import { TEMPLATE_LINES_MAP, type QuoteTemplate } from '@/lib/utils/quote-templates';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
+import { getCurrentAppUser } from '@/lib/data/app-users';
+
+/**
+ * Guard for fee-line mutations. Surfaces a clear "Not authorised" instead
+ * of letting the action hit Supabase and get back an opaque RLS denial.
+ * Returns null when the user is allowed.
+ */
+async function requireOwnerOrPartner(): Promise<{ error: string } | null> {
+  const user = await getCurrentAppUser();
+  if (!user) return { error: 'Not signed in' };
+  if (user.role !== 'owner' && user.role !== 'partner') {
+    return { error: `Not authorised to modify fee lines (role: ${user.role})` };
+  }
+  return null;
+}
 
 /**
  * Create a new quote version pre-populated with standard template lines.
@@ -118,6 +133,8 @@ function lineTypeDefaults(lineType: FeeLineType) {
 }
 
 export async function addFeeLineAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
   const quoteVersionId = formData.get('quote_version_id') as string;
   const bookingId = formData.get('booking_id') as string;
   const lineType = formData.get('line_type') as FeeLineType;
@@ -166,7 +183,7 @@ export async function addFeeLineAction(formData: FormData) {
   };
 
   const line = await addFeeLine(input);
-  if (!line) return { error: 'Failed to add fee line' };
+  if (!line) return { ok: false as const, error: 'Failed to add fee line — likely RLS denial or invalid input. Check server logs.' };
 
   await logAudit({
     userId: await getCurrentActor(),
@@ -180,8 +197,15 @@ export async function addFeeLineAction(formData: FormData) {
   return { ok: true, id: line.id };
 }
 
-export async function updateFeeLineAction(id: string, formData: FormData) {
+type ActionResult = { ok: true } | { ok: false; error: string };
+
+export async function updateFeeLineAction(id: string, formData: FormData): Promise<ActionResult> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
   const bookingId = formData.get('booking_id') as string;
+  if (!id) return { ok: false, error: 'Missing fee line id' };
+  if (!bookingId) return { ok: false, error: 'Missing booking_id' };
+
   const updates: Record<string, unknown> = {};
 
   const lineType = formData.get('line_type') as FeeLineType | null;
@@ -192,12 +216,16 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
 
   const qty = formData.get('quantity');
   if (qty != null && qty !== '') {
-    updates.quantity = Number(qty);
+    const n = Number(qty);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: `Invalid quantity "${qty}"` };
+    updates.quantity = n;
   }
 
   const price = formData.get('unit_price');
   if (price != null && price !== '') {
-    updates.unit_price = Number(price);
+    const n = Number(price);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: `Invalid unit price "${price}"` };
+    updates.unit_price = n;
   }
 
   // ASF rate can be updated independently of qty/price — Jasper toggles it
@@ -205,7 +233,9 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
   const asfRateRaw = formData.get('asf_rate');
   const asfRateChanged = asfRateRaw != null && asfRateRaw !== '';
   if (asfRateChanged) {
-    updates.asf_rate = Number(asfRateRaw);
+    const n = Number(asfRateRaw);
+    if (!Number.isFinite(n) || n < 0 || n > 1) return { ok: false, error: `Invalid ASF rate "${asfRateRaw}" (expected 0–1)` };
+    updates.asf_rate = n;
   }
 
   // Recompute subtotal + asf_amount whenever qty, price, or asf_rate changed.
@@ -239,7 +269,7 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
   }
 
   const result = await updateFeeLine(id, updates);
-  if (!result) return { error: 'Failed to update fee line' };
+  if (!result.ok) return { ok: false, error: result.error };
 
   await logAudit({
     userId: await getCurrentActor(),
@@ -253,9 +283,11 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
   return { ok: true };
 }
 
-export async function removeFeeLineAction(id: string, bookingId: string) {
+export async function removeFeeLineAction(id: string, bookingId: string): Promise<ActionResult> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
   const ok = await removeFeeLine(id);
-  if (!ok) return { error: 'Failed to remove fee line' };
+  if (!ok) return { ok: false, error: 'Failed to remove fee line — likely RLS denial or already deleted' };
 
   await logAudit({
     userId: await getCurrentActor(),
@@ -279,6 +311,8 @@ export async function reorderFeeLinesAction(
   orderedIds: string[],
   bookingId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
