@@ -98,6 +98,9 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
 
   return (
     <div className="space-y-3">
+      <p className="text-[10px]" style={{ color: PALETTE.muted }}>
+        Per-day times and location override the booking-level defaults in the call sheet.
+      </p>
       {schedules.length === 0 && !isEditing && (
         <p className="text-xs" style={{ color: PALETTE.muted }}>
           No day-by-day schedule yet. Add one for each shoot day.

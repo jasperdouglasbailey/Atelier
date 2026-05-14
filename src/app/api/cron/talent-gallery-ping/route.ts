@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
+  await logAudit({ userId: null, action: 'cron_talent_gallery_ping_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const supabase = createServiceClient();
 
   // Bookings that reached final_delivery in the last 30 days.
@@ -249,5 +251,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await logAudit({ userId: null, action: 'cron_talent_gallery_ping_complete', tableName: 'atelier_audit_log', newValue: { queued, skipped: skipped.length } as never }).catch(() => {});
   return NextResponse.json({ queued, skipped: skipped.length });
 }

@@ -12,12 +12,15 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { logAudit } from '@/lib/utils/audit';
 import { isCronAuthorised } from '@/lib/utils/cron-auth';
 
 export async function GET(req: NextRequest) {
   if (!isCronAuthorised(req, 'LOCK_OT_WINDOWS')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  await logAudit({ userId: null, action: 'cron_lock_ot_windows_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
 
   const supabase = createServiceClient();
   const now = new Date().toISOString();
@@ -62,5 +65,6 @@ export async function GET(req: NextRequest) {
   await supabase.from('atelier_events').insert(events);
 
   console.log(`[cron/lock-ot-windows] locked ${ids.length} booking(s)`, ids);
+  await logAudit({ userId: null, action: 'cron_lock_ot_windows_complete', tableName: 'atelier_audit_log', newValue: { locked: ids.length } as never }).catch(() => {});
   return NextResponse.json({ locked: ids.length, ids });
 }

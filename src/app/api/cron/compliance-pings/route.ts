@@ -75,6 +75,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
+  await logAudit({ userId: null, action: 'cron_compliance_pings_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const supabase = createServiceClient();
 
   const { data: talent, error: fetchErr } = await supabase
@@ -225,5 +227,6 @@ ${r.notes ? `Notes on file: ${r.notes}\n\n` : ''}Action this before the expiry t
     }
   }
 
+  await logAudit({ userId: null, action: 'cron_compliance_pings_complete', tableName: 'atelier_audit_log', newValue: { queued, skipped: skipped.length } as never }).catch(() => {});
   return NextResponse.json({ queued, skipped: skipped.length });
 }

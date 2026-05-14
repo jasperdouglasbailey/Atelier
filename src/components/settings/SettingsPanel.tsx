@@ -10,7 +10,15 @@ import type { AgencyConfig } from '@/lib/utils/agency-config';
 
 type GoogleStatus = 'connected' | 'invalid_token' | 'not_configured';
 type IntegrationStatus = { googleStatus: GoogleStatus; xeroConnected: boolean; anthropicConnected: boolean };
-type Props = { killSwitch: KillSwitchState | null; agency: AgencyConfig; integrations?: IntegrationStatus };
+type EmailFailure = { action: string; created_at: string };
+type CronHealthEntry = { name: string; last_run: string | null };
+type Props = {
+  killSwitch: KillSwitchState | null;
+  agency: AgencyConfig;
+  integrations?: IntegrationStatus;
+  emailFailures?: EmailFailure[];
+  cronHealth?: CronHealthEntry[];
+};
 
 function Toggle({ label, description, checked, onChange, color }: {
   label: string;
@@ -39,7 +47,7 @@ function Toggle({ label, description, checked, onChange, color }: {
   );
 }
 
-export default function SettingsPanel({ killSwitch, agency, integrations }: Props) {
+export default function SettingsPanel({ killSwitch, agency, integrations, emailFailures = [], cronHealth = [] }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -186,6 +194,19 @@ export default function SettingsPanel({ killSwitch, agency, integrations }: Prop
               ? { label: integrations?.googleStatus === 'invalid_token' ? 'Reconnect Google' : 'Connect Google', href: '/api/auth/start/google' }
               : undefined}
           />
+          {emailFailures.length > 0 && (
+            <div className="rounded border px-3 py-2.5" style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}10` }}>
+              <div className="text-xs font-medium" style={{ color: PALETTE.warning }}>
+                {emailFailures.length} email operation{emailFailures.length !== 1 ? 's' : ''} failed in the last 7 days
+              </div>
+              <div className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
+                {[...new Set(emailFailures.map((f) => f.action))].join(' · ')}
+              </div>
+              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
+                Check Gmail connection and resend manually if required.
+              </div>
+            </div>
+          )}
           <IntegrationRow
             name="Xero"
             status={integrations?.xeroConnected ? 'connected' : 'pending'}
@@ -202,6 +223,42 @@ export default function SettingsPanel({ killSwitch, agency, integrations }: Prop
           />
         </div>
       </section>
+
+      {/* Cron health */}
+      {cronHealth.length > 0 && (
+        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
+            Scheduled Jobs
+          </h2>
+          <div className="space-y-1.5">
+            {cronHealth.map(({ name, last_run }) => {
+              const label = name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+              const ageMs = last_run ? Date.now() - new Date(last_run).getTime() : null;
+              const color = ageMs === null
+                ? PALETTE.danger
+                : ageMs < 24 * 3600_000 ? PALETTE.success
+                : ageMs < 48 * 3600_000 ? PALETTE.warning
+                : PALETTE.danger;
+              const statusLabel = ageMs === null
+                ? 'Never run'
+                : ageMs < 24 * 3600_000 ? 'Today'
+                : ageMs < 48 * 3600_000 ? 'Yesterday'
+                : `${Math.floor(ageMs / 86400_000)}d ago`;
+              return (
+                <div key={name} className="flex items-center justify-between rounded border px-3 py-1.5" style={{ borderColor: PALETTE.border }}>
+                  <span className="text-xs" style={{ color: PALETTE.text }}>{label}</span>
+                  <span className="flex items-center gap-1.5 text-[10px]" style={{ color }}>
+                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                    {last_run
+                      ? `${statusLabel} · ${new Date(last_run).toLocaleString('en-AU', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      : statusLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Unauthorised', { status: 401 });
   }
 
+  await logAudit({ userId: null, action: 'cron_tomorrow_digest_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const tomorrow = tomorrowYmdSydney();
   const supabase = createServiceClient();
 
