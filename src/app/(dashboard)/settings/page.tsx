@@ -2,7 +2,7 @@ import Topbar from '@/components/layout/Topbar';
 import SettingsPanel from '@/components/settings/SettingsPanel';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
-import { checkGoogleTokenValid } from '@/lib/integrations/google-auth';
+import { checkGoogleTokenValid, getGrantedScopes } from '@/lib/integrations/google-auth';
 import { createServiceClient } from '@/lib/supabase/service';
 
 const EMAIL_FAILED_ACTIONS = [
@@ -31,10 +31,11 @@ export default async function SettingsPage() {
   // eslint-disable-next-line react-hooks/purity
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
 
-  const [ks, agency, googleStatus, emailFailuresResult, cronRunsResult] = await Promise.all([
+  const [ks, agency, googleStatus, googleScopes, emailFailuresResult, cronRunsResult] = await Promise.all([
     getKillSwitchState(),
     Promise.resolve(getAgencyConfig()),
     checkGoogleTokenValid(),
+    getGrantedScopes(),
     supabase
       .from('atelier_audit_log')
       .select('action, created_at')
@@ -59,6 +60,7 @@ export default async function SettingsPage() {
 
   const integrations = {
     googleStatus,
+    googleScopes,
     xeroConnected: Boolean(process.env.XERO_CLIENT_ID && process.env.XERO_REFRESH_TOKEN),
     anthropicConnected: Boolean(process.env.ANTHROPIC_API_KEY),
   };

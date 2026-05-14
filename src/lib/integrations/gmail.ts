@@ -370,8 +370,9 @@ export async function findPotentialBriefs(opts: {
   snippet: string;
 }>> {
   const limit = opts.limit ?? 20;
-  // Gmail OR query — any of these subject keywords, received in last 14d,
-  // not from our own domain (very rough — ‘from:’ negation is a heuristic).
+  // Two-layer search: strict subject keywords OR high-confidence body phrases.
+  // Subject matches catch most structured inbound briefs.
+  // Body phrases catch informal emails that don't say "brief" in the subject.
   const subjectTerms = [
     'subject:brief',
     'subject:rfp',
@@ -380,8 +381,23 @@ export async function findPotentialBriefs(opts: {
     'subject:campaign',
     'subject:production',
     'subject:"request for quote"',
+    'subject:inquiry',
+    'subject:enquiry',
+    'subject:booking',
+    'subject:"photo shoot"',
+    'subject:"video shoot"',
+    'subject:"creative brief"',
   ];
-  const query = `{${subjectTerms.join(' ')}} newer_than:14d -in:sent -in:drafts -from:me`;
+  const bodyPhrases = [
+    '"creative brief"',
+    '"photo shoot"',
+    '"video shoot"',
+    '"talent brief"',
+    '"production brief"',
+    '"request for quote"',
+    '"shoot dates"',
+  ];
+  const query = `({${subjectTerms.join(' ')}} OR {${bodyPhrases.join(' ')}}) newer_than:14d -in:sent -in:drafts -from:me`;
 
   const results = await searchInbox(query, limit * 2); // over-fetch then filter
 

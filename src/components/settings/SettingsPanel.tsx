@@ -9,7 +9,7 @@ import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RAT
 import type { AgencyConfig } from '@/lib/utils/agency-config';
 
 type GoogleStatus = 'connected' | 'invalid_token' | 'not_configured';
-type IntegrationStatus = { googleStatus: GoogleStatus; xeroConnected: boolean; anthropicConnected: boolean };
+type IntegrationStatus = { googleStatus: GoogleStatus; googleScopes?: string[]; xeroConnected: boolean; anthropicConnected: boolean };
 type EmailFailure = { action: string; created_at: string };
 type CronHealthEntry = { name: string; last_run: string | null };
 type Props = {
@@ -185,15 +185,32 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
             }
             detail={
               integrations?.googleStatus === 'connected'
-                ? 'Connected — Gmail, Drive, and Calendar active'
+                ? 'Token valid — see scope breakdown below'
               : integrations?.googleStatus === 'invalid_token'
                 ? 'Token expired or revoked — reconnect to restore email drafts and Drive'
               : 'Email relay, file delivery, shoot day events — single OAuth grant'
             }
-            action={integrations?.googleStatus !== 'connected'
-              ? { label: integrations?.googleStatus === 'invalid_token' ? 'Reconnect Google' : 'Connect Google', href: '/api/auth/start/google' }
-              : undefined}
+            action={{ label: integrations?.googleStatus === 'not_configured' ? 'Connect Google' : 'Reconnect Google', href: '/api/auth/start/google' }}
           />
+          {integrations?.googleStatus === 'connected' && (
+            <div className="ml-4 grid grid-cols-2 gap-x-4 gap-y-1 rounded border px-3 py-2.5 text-[11px]" style={{ borderColor: PALETTE.border }}>
+              {[
+                { label: 'Inbox search (briefs)', scope: 'https://www.googleapis.com/auth/gmail.readonly' },
+                { label: 'Gmail drafts', scope: 'https://www.googleapis.com/auth/gmail.modify' },
+                { label: 'Send email', scope: 'https://www.googleapis.com/auth/gmail.send' },
+                { label: 'Drive folders', scope: 'https://www.googleapis.com/auth/drive.file' },
+                { label: 'Calendar events', scope: 'https://www.googleapis.com/auth/calendar.events' },
+              ].map(({ label, scope }) => {
+                const granted = integrations.googleScopes?.includes(scope);
+                return (
+                  <div key={scope} className="flex items-center gap-1.5">
+                    <span style={{ color: granted ? PALETTE.success : PALETTE.danger }}>{granted ? '✓' : '✗'}</span>
+                    <span style={{ color: granted ? PALETTE.text : PALETTE.muted }}>{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {emailFailures.length > 0 && (
             <div className="rounded border px-3 py-2.5" style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}10` }}>
               <div className="text-xs font-medium" style={{ color: PALETTE.warning }}>

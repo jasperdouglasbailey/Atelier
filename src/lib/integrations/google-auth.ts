@@ -170,6 +170,26 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /**
+ * Returns the list of OAuth scopes actually granted on the current token.
+ * Calls Google's tokeninfo endpoint using a fresh access token.
+ * Returns [] if not configured or on any error.
+ */
+export async function getGrantedScopes(): Promise<string[]> {
+  if (!isGoogleConfigured()) return [];
+  try {
+    const token = await getAccessToken();
+    const res = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as { scope?: string };
+    return data.scope ? data.scope.split(' ') : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * For tests: clear the in-memory access-token cache.
  */
 export function _clearTokenCache(): void {
