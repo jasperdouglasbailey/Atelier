@@ -138,12 +138,12 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
                 <div className="text-xs font-semibold" style={{ color: PALETTE.text }}>
                   {s.schedule_date}
                 </div>
-                <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]" style={{ color: PALETTE.muted }}>
+                <div className="mt-1 space-y-0.5 text-[11px]" style={{ color: PALETTE.muted }}>
                   {(s.call_time || s.wrap_time) && (
-                    <div>Call {formatTime(s.call_time)} → Wrap {formatTime(s.wrap_time)}</div>
+                    <div className="whitespace-nowrap">Call {formatTime(s.call_time)} → Wrap {formatTime(s.wrap_time)}</div>
                   )}
                   {s.location && <div>{s.location}</div>}
-                  {s.notes && <div className="col-span-2 mt-0.5">{s.notes}</div>}
+                  {s.notes && <div>{s.notes}</div>}
                 </div>
               </div>
               <div className="flex gap-2 shrink-0 text-[10px]">

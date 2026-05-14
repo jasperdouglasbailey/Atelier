@@ -522,94 +522,123 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                 if (isEditing && editValues && isLatestVersion) {
                   const previewQty = parseFloat(editValues.quantity) || line.quantity;
                   const previewPrice = parseFloat(editValues.unit_price) || line.unit_price;
+                  const previewSubtotal = previewQty * previewPrice;
                   const previewComputed = totals.lines[i];
+                  const onKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); };
 
                   return (
                     <tr key={line.id} className="border-t" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
-                      <td className="px-1 py-2" />
-                      <td className="px-3 py-1.5">
-                        <select
-                          value={editValues.line_type}
-                          onChange={(e) => setEditValues((v) => v && { ...v, line_type: e.target.value as FeeLineType })}
-                          className="w-full rounded border px-1.5 py-1 text-[10px]"
-                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
-                        >
-                          {LINE_TYPE_OPTIONS.map((t) => (
-                            <option key={t} value={t}>{FEE_LINE_TYPE_LABELS[t]}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <input
-                          autoFocus
-                          value={editValues.description}
-                          onChange={(e) => setEditValues((v) => v && { ...v, description: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); }}
-                          className="w-full rounded border px-2 py-1 text-xs"
-                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        <input
-                          type="number" step="0.5" min="0"
-                          value={editValues.quantity}
-                          onChange={(e) => setEditValues((v) => v && { ...v, quantity: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); }}
-                          className="w-16 rounded border px-2 py-1 text-xs text-right tabular-nums"
-                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={editValues.unit_price}
-                          onChange={(e) => setEditValues((v) => v && { ...v, unit_price: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); }}
-                          className="w-24 rounded border px-2 py-1 text-xs text-right tabular-nums"
-                          style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.accent }}>{formatCurrency(previewQty * previewPrice)}</td>
-                      <td className="px-3 py-1.5 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <input
-                            type="number" step="1" min="0" max="100"
-                            value={editValues.asf_rate}
-                            onChange={(e) => setEditValues((v) => v && { ...v, asf_rate: e.target.value })}
-                            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(line); if (e.key === 'Escape') cancelEdit(); }}
-                            className="w-12 rounded border px-1.5 py-1 text-xs text-right tabular-nums"
-                            style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
-                            title="ASF rate (%) — set to 0 to skip ASF on this line"
-                          />
-                          <span className="text-[10px]" style={{ color: PALETTE.muted }}>%</span>
-                        </div>
-                        <div className="mt-0.5 text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
-                          {formatCurrency(previewComputed?.asfAmount ?? 0)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{formatCurrency(previewComputed?.gstAmount ?? 0)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">{formatCurrency(previewComputed?.lineTotal ?? 0)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-1 items-end">
-                          <label
-                            className="flex items-center gap-1 rounded px-1.5 py-0.5 cursor-pointer text-[10px] select-none"
-                            style={{
-                              background: editValues.is_artist_reimbursement ? `${PALETTE.ok}18` : 'transparent',
-                              color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted,
-                              border: `1px solid ${editValues.is_artist_reimbursement ? PALETTE.ok + '55' : PALETTE.border}`,
-                            }}
-                            title="Mark as artist reimbursement — amount is added to artist payout in P&L"
-                          >
+                      <td colSpan={10} className="p-3">
+                        <div className="flex flex-col gap-3">
+                          {/* Row 1 — Type + Description (full width) */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                              value={editValues.line_type}
+                              onChange={(e) => setEditValues((v) => v && { ...v, line_type: e.target.value as FeeLineType })}
+                              className="rounded border px-2 py-1.5 text-xs"
+                              style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 160 }}
+                            >
+                              {LINE_TYPE_OPTIONS.map((t) => (
+                                <option key={t} value={t}>{FEE_LINE_TYPE_LABELS[t]}</option>
+                              ))}
+                            </select>
                             <input
-                              type="checkbox"
-                              checked={editValues.is_artist_reimbursement}
-                              onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
-                              className="w-3 h-3"
+                              autoFocus
+                              value={editValues.description}
+                              onChange={(e) => setEditValues((v) => v && { ...v, description: e.target.value })}
+                              onKeyDown={onKey}
+                              placeholder="Description"
+                              className="flex-1 rounded border px-2 py-1.5 text-xs"
+                              style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 240 }}
                             />
-                            Reimburse
-                          </label>
-                          <button onClick={() => commitEdit(line)} disabled={busy} className="text-[10px] font-medium hover:underline disabled:opacity-50" style={{ color: PALETTE.accent }}>Save</button>
-                          <button onClick={cancelEdit} className="text-[10px] hover:underline" style={{ color: PALETTE.muted }}>Esc</button>
+                          </div>
+
+                          {/* Row 2 — Numeric fields aligned left, subtotal on the right */}
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: PALETTE.muted }}>
+                              Qty
+                              <input
+                                type="number" step="0.5" min="0"
+                                value={editValues.quantity}
+                                onChange={(e) => setEditValues((v) => v && { ...v, quantity: e.target.value })}
+                                onKeyDown={onKey}
+                                className="w-20 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                                style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                              />
+                            </label>
+                            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: PALETTE.muted }}>
+                              Unit $
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={editValues.unit_price}
+                                onChange={(e) => setEditValues((v) => v && { ...v, unit_price: e.target.value })}
+                                onKeyDown={onKey}
+                                className="w-28 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                                style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                              />
+                            </label>
+                            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: PALETTE.muted }}>
+                              ASF
+                              <input
+                                type="number" step="1" min="0" max="100"
+                                value={editValues.asf_rate}
+                                onChange={(e) => setEditValues((v) => v && { ...v, asf_rate: e.target.value })}
+                                onKeyDown={onKey}
+                                className="w-16 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                                style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text }}
+                                title="ASF rate (%) — set to 0 to skip ASF on this line"
+                              />
+                              %
+                            </label>
+                            <span className="ml-auto text-[11px] tabular-nums" style={{ color: PALETTE.muted }}>
+                              Subtotal <span className="font-medium" style={{ color: PALETTE.text }}>{formatCurrency(previewSubtotal)}</span>
+                            </span>
+                          </div>
+
+                          {/* Row 3 — Live computed preview */}
+                          <div className="text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
+                            ASF <span style={{ color: PALETTE.text }}>{formatCurrency(previewComputed?.asfAmount ?? 0)}</span>
+                            <span className="mx-1.5">·</span>
+                            GST <span style={{ color: PALETTE.text }}>{formatCurrency(previewComputed?.gstAmount ?? 0)}</span>
+                            <span className="mx-1.5">·</span>
+                            Line Total <span className="font-semibold" style={{ color: PALETTE.text }}>{formatCurrency(previewComputed?.lineTotal ?? 0)}</span>
+                          </div>
+
+                          {/* Row 4 — Reimburse toggle (left) + actions (right) */}
+                          <div className="flex items-center justify-between gap-3 pt-2 border-t flex-wrap" style={{ borderColor: PALETTE.border }}>
+                            <label
+                              className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none"
+                              style={{ color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted }}
+                              title="Mark as artist reimbursement — amount is added to artist payout in P&L"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editValues.is_artist_reimbursement}
+                                onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
+                                className="w-3.5 h-3.5"
+                                style={{ accentColor: PALETTE.ok }}
+                              />
+                              Mark as artist reimbursement
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={cancelEdit}
+                                disabled={busy}
+                                className="rounded px-3 py-1 text-[11px] disabled:opacity-50"
+                                style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+                              >
+                                Cancel <span style={{ opacity: 0.6 }}>(Esc)</span>
+                              </button>
+                              <button
+                                onClick={() => commitEdit(line)}
+                                disabled={busy}
+                                className="rounded px-3 py-1 text-[11px] font-medium disabled:opacity-50"
+                                style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none' }}
+                              >
+                                {busy ? 'Saving…' : 'Save (↵)'}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -636,7 +665,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                     <td
                       className="px-1 py-2 text-center"
                       title={isLatestVersion ? 'Drag to reorder' : undefined}
-                      style={{ cursor: isLatestVersion ? 'grab' : 'default', color: PALETTE.muted, opacity: isLatestVersion ? 0.55 : 0, userSelect: 'none' }}
+                      style={{ cursor: isLatestVersion ? 'grab' : 'default', color: PALETTE.muted, opacity: isLatestVersion ? 0.75 : 0, userSelect: 'none' }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {isLatestVersion && '⠿'}
@@ -713,9 +742,19 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         />
       )}
 
-      {/* Totals */}
+      {/* Totals — sticky to viewport bottom so Grand Total stays visible on long quotes */}
       {feeLines.length > 0 && (
-        <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <div
+          className="rounded-lg border p-4 space-y-3"
+          style={{
+            background: PALETTE.surface,
+            borderColor: PALETTE.border,
+            position: 'sticky',
+            bottom: 12,
+            zIndex: 10,
+            boxShadow: '0 -4px 12px -6px rgba(0,0,0,0.18)',
+          }}
+        >
           {/* Pre-tax subtotal (lines + ASF) + Grand Total — always visible */}
           <div className="space-y-1">
             {totals.totalAsf > 0 && (
@@ -1094,7 +1133,7 @@ function AddLineForm({
               type="checkbox"
               checked={chargeAsf}
               onChange={(e) => setChargeAsf(e.target.checked)}
-              className="accent-[#C4A882]"
+              style={{ accentColor: PALETTE.accent }}
             />
             <span>Charge {(DEFAULT_ASF_RATE * 100).toFixed(0)}%</span>
           </label>
@@ -1121,7 +1160,7 @@ function AddLineForm({
               type="checkbox"
               checked={gstExempt}
               onChange={(e) => setGstExempt(e.target.checked)}
-              className="accent-[#C4A882]"
+              style={{ accentColor: PALETTE.accent }}
             />
             <span>{gstExempt ? 'Exempt' : 'Applying'}</span>
           </label>
@@ -1151,7 +1190,7 @@ function AddLineForm({
           type="checkbox"
           checked={isArtistReimbursement}
           onChange={(e) => setIsArtistReimbursement(e.target.checked)}
-          className="accent-[#C4A882]"
+          style={{ accentColor: PALETTE.ok }}
         />
         <span>Artist reimbursement (pass-through expense)</span>
       </label>
