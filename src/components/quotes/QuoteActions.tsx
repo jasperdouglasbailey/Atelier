@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { acceptQuoteByTokenAction, declineQuoteByTokenAction } from '@/app/actions/quotes-public';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export default function QuoteActions({ token, bookingRef, agencyEmail }: Props) {
+  const router = useRouter();
   const [state, setState] = useState<'idle' | 'accepted' | 'declined' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
@@ -20,6 +22,7 @@ export default function QuoteActions({ token, bookingRef, agencyEmail }: Props) 
       const result = await acceptQuoteByTokenAction(token);
       if (result.ok) {
         setState('accepted');
+        router.refresh();
       } else {
         setErrorMsg(result.error);
         setState('error');
@@ -32,6 +35,7 @@ export default function QuoteActions({ token, bookingRef, agencyEmail }: Props) 
       const result = await declineQuoteByTokenAction(token);
       if (result.ok) {
         setState('declined');
+        router.refresh();
       } else {
         setErrorMsg(result.error);
         setState('error');

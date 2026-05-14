@@ -241,7 +241,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         )}
 
         {bookingTalent.length === 0 ? (
-          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No talent assigned yet.</p>
+          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No talent assigned yet — use &lsquo;+ Add talent&rsquo; above.</p>
         ) : (
           <div className="space-y-2">
             {bookingTalent.map((bt) => {
@@ -450,7 +450,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         )}
 
         {bookingCrew.length === 0 ? (
-          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No crew assigned yet.</p>
+          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No crew assigned yet — use &lsquo;+ Add crew&rsquo; above.</p>
         ) : (
           // Horizontal strip — flex-wrap so cards flow onto the next row when
           // the booking grows. Order is left→right by created_at ASC (earliest

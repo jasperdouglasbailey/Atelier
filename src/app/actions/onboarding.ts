@@ -160,5 +160,7 @@ export async function submitOnboardingAction(
     newValue: { legal_name: payload.legal_name, email: payload.email } as unknown as import('@/lib/types/database').Json,
   });
 
+  revalidatePath('/settings/compliance');
+
   return result;
 }
