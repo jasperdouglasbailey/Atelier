@@ -380,25 +380,26 @@ export async function findPotentialBriefs(opts: {
 }>> {
   const limit = opts.limit ?? 20;
 
-  // Layer 1: subject keywords — high precision
+  // Layer 1: subject keywords — deliberately narrow to avoid automated noise.
+  // "production" and "campaign" removed — too generic (match Vercel deploys,
+  // marketing tools). "booking" removed — matches hotel/airline confirmations.
   const subjectTerms = [
     'subject:brief',
     'subject:rfp',
     'subject:rfq',
-    'subject:shoot',
-    'subject:campaign',
-    'subject:production',
-    'subject:"request for quote"',
-    'subject:inquiry',
-    'subject:enquiry',
-    'subject:booking',
     'subject:"photo shoot"',
     'subject:"video shoot"',
     'subject:"creative brief"',
+    'subject:"content shoot"',
+    'subject:"talent brief"',
+    'subject:"shoot brief"',
+    'subject:"request for quote"',
+    'subject:inquiry',
+    'subject:enquiry',
     'subject:availability',
-    'subject:commission',
     'subject:photographer',
     'subject:videographer',
+    'subject:commission',
   ];
 
   // Layer 2: body phrases — production-specific, low false-positive rate
@@ -448,15 +449,36 @@ export async function findPotentialBriefs(opts: {
     ? `{${queryParts.join(' ')}}`
     : queryParts[0];
 
-  // 30-day window (extended from 14d — briefs sometimes land weeks before a
-  // producer follows up, and we don't want to miss them).
-  const query = `${combined} newer_than:30d -in:sent -in:drafts -from:me`;
+  // Blocklist — automated senders that generate false positives.
+  // "production" in Vercel deploy emails and "campaign" in Klaviyo/Mailchimp
+  // triggered matches; these exclusions prevent that class of noise.
+  const blockedDomains = [
+    'vercel.com', 'github.com', 'atlassian.com', 'slack.com',
+    'notion.so', 'linear.app', 'figma.com', 'stripe.com',
+    'amazonaws.com', 'heroku.com', 'netlify.com', 'railway.app',
+  ];
+  const domainExclusions = blockedDomains.map((d) => `-from:${d}`).join(' ');
+  // Exclude common automated sender patterns regardless of domain.
+  const senderExclusions = '-from:noreply -from:no-reply -from:donotreply -from:notifications -from:automated -from:mailer';
+
+  // 30-day window — briefs sometimes land weeks before a producer follows up.
+  const query = `${combined} newer_than:30d -in:sent -in:drafts -from:me ${domainExclusions} ${senderExclusions}`;
 
   const results = await searchInbox(query, limit * 2); // over-fetch then filter
 
-  // Drop anything where the subject already contains a known booking ref
+  // Secondary pass: drop anything matching obvious automated-sender patterns
+  // that the Gmail query might have missed (subdomain variations, etc.).
+  const AUTOMATED_PATTERNS = [
+    /noreply/i, /no-reply/i, /donotreply/i, /do-not-reply/i,
+    /automated/i, /notifications?@/i, /alerts?@/i, /mailer@/i,
+    /@vercel\.com$/i, /@github\.com$/i,
+  ];
+  const isAutomated = (from: string) => AUTOMATED_PATTERNS.some((p) => p.test(from));
+
+  // Drop already-converted emails and automated senders.
   const refSet = new Set((opts.existingRefs ?? []).map((r) => r.toUpperCase()));
   const filtered = results.filter((r) => {
+    if (isAutomated(r.from)) return false;
     const upper = r.subject.toUpperCase();
     for (const ref of refSet) {
       if (upper.includes(ref)) return false;
