@@ -85,10 +85,25 @@ export default async function BookingConfirmationPage({ params }: Props) {
     borderBottom: '2px solid #d0d0d0',
   };
 
+  const CONFIRMED_STATES = new Set(['quote_confirmed', 'pre_production', 'shoot_live', 'morning_after_check', 'final_delivery', 'invoice_issued', 'paid']);
+  const isDraft = !CONFIRMED_STATES.has(booking.state);
+
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', background: '#fff', padding: '40px', maxWidth: 780, margin: '0 auto' }}>
 
       <PrintActions />
+
+      {/* DRAFT watermark — shown for any state before quote_confirmed */}
+      {isDraft && (
+        <div style={{
+          position: 'fixed', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%) rotate(-45deg)',
+          fontSize: 120, fontWeight: 900, color: '#0000000a',
+          pointerEvents: 'none', zIndex: 0, userSelect: 'none', whiteSpace: 'nowrap',
+        }}>
+          DRAFT
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1a1a1a', paddingBottom: 16, marginBottom: 24 }}>
@@ -101,7 +116,9 @@ export default async function BookingConfirmationPage({ params }: Props) {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: '-0.02em', color: '#1a1a1a' }}>BOOKING CONFIRMATION</div>
+          <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: '-0.02em', color: '#1a1a1a' }}>
+            {isDraft ? 'DRAFT CONFIRMATION' : 'BOOKING CONFIRMATION'}
+          </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{today}</div>
         </div>
       </div>
@@ -141,7 +158,7 @@ export default async function BookingConfirmationPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Talent team */}
+      {/* Talent team — Name + Role only (no individual rates on client-facing document) */}
       {bookingTalent.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa', marginBottom: 10 }}>Creative Team</div>
@@ -150,7 +167,6 @@ export default async function BookingConfirmationPage({ params }: Props) {
               <tr>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Role</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Day Rate</th>
               </tr>
             </thead>
             <tbody>
@@ -160,9 +176,6 @@ export default async function BookingConfirmationPage({ params }: Props) {
                   <tr key={bt.id}>
                     <td style={tdStyle}>{t?.working_name ?? '—'}</td>
                     <td style={tdStyle}>{bt.role_on_booking ?? '—'}</td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      {bt.day_rate ? formatCurrency(bt.day_rate as number) : '—'}
-                    </td>
                   </tr>
                 );
               })}
