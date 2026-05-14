@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  await logAudit({ userId: null, action: 'cron_data_retention_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const supabase = createServiceClient();
   const result: Record<string, number | string> = {};
 
@@ -92,14 +94,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Audit-log the run so we have evidence the sweep happened
-  await logAudit({
-    userId: 'cron',
-    action: 'cron_data_retention',
-    tableName: 'atelier_approvals',
-    recordId: null,
-    newValue: result as never,
-  }).catch((err) => console.error('[cron/data-retention] audit log failed', err));
+  await logAudit({ userId: null, action: 'cron_data_retention_complete', tableName: 'atelier_audit_log', newValue: result as never }).catch(() => {});
 
   return NextResponse.json(result);
 }

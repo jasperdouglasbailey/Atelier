@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { decideApproval } from '@/lib/data/approvals';
 import { getCurrentAppUser } from '@/lib/data/app-users';
+import { createClient } from '@/lib/supabase/server';
 
 async function assertOwnerOrPartner() {
   const user = await getCurrentAppUser();
@@ -32,4 +33,34 @@ export async function rejectAction(id: string, reason?: string) {
   revalidatePath('/inbox');
   revalidatePath('/');
   return { ok: true };
+}
+
+export async function approveAllHoldsAction(
+  bookingId: string,
+): Promise<{ approved: number; failed: number } | { error: string }> {
+  const authError = await assertOwnerOrPartner();
+  if (authError) return authError;
+
+  const supabase = await createClient();
+  const { data: pending, error: fetchErr } = await supabase
+    .from('atelier_approvals')
+    .select('id')
+    .eq('booking_id', bookingId)
+    .eq('action_type', 'crew_hold_request')
+    .eq('status', 'pending');
+
+  if (fetchErr) return { error: fetchErr.message };
+
+  let approved = 0;
+  let failed = 0;
+  for (const row of pending ?? []) {
+    const result = await decideApproval(row.id, 'approved');
+    if (result) approved++;
+    else failed++;
+  }
+
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath('/inbox');
+  revalidatePath('/');
+  return { approved, failed };
 }

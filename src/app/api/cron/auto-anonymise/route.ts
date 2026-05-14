@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Unauthorised', { status: 401 });
   }
 
+  await logAudit({ userId: null, action: 'cron_auto_anonymise_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const cutoffIso = new Date(Date.now() - SEVEN_YEARS_MS).toISOString();
   const supabase = createServiceClient();
 

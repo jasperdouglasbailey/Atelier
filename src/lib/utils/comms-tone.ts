@@ -170,3 +170,16 @@ export function buildBriefClarifyEmail(opts: {
     body: `${salutation(style, clientName)}\n\n${intro}\n\n${numberedQuestions}\n\n${outro}\n\n${close(style)}`,
   };
 }
+
+export function buildRemittanceEmail(
+  recipient: { working_name: string; email: string },
+  booking: { booking_ref: string; title?: string | null },
+  totalAud: number,
+): { subject: string; body: string } {
+  const campaign = booking.title ?? booking.booking_ref;
+  const formatted = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(totalAud);
+  return {
+    subject: `Payment processed — ${booking.booking_ref}`,
+    body: `Hi ${recipient.working_name},\n\nJust letting you know your fee of ${formatted} for ${booking.booking_ref} (${campaign}) has been processed. You should see it in your account within 2–3 business days.\n\nThanks,\nJasper`,
+  };
+}

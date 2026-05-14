@@ -26,6 +26,7 @@ import { getAgencyConfig } from '@/lib/utils/agency-config';
 const GRID_COLS = 3;
 const DEFAULT_ROWS = 4;   // 12 slots to start
 const PHONE_OUTER_W = 330; // px — outer phone frame width
+const LS_KEY = 'atelier_grid_planner_slots';
 
 type GridSlot = {
   id: string;
@@ -55,6 +56,27 @@ function makeSlot(index: number): GridSlot {
 
 function initSlots(count: number): GridSlot[] {
   return Array.from({ length: count }, (_, i) => makeSlot(i));
+}
+
+type PersistedSlot = { caption: string; status: 'planned' | 'live'; label: string };
+
+function loadPersistedSlots(): PersistedSlot[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedSlot[];
+  } catch {
+    return null;
+  }
+}
+
+function mergePersistedSlots(slots: GridSlot[], persisted: PersistedSlot[]): GridSlot[] {
+  return slots.map((s, i) => {
+    const p = persisted[i];
+    if (!p) return s;
+    return { ...s, caption: p.caption ?? '', status: p.status ?? 'planned', label: p.label ?? '' };
+  });
 }
 
 /** Phone frame wrapper — fixed 330 px wide, white IG interior */
@@ -263,11 +285,26 @@ function SlotCell({
 
 export default function GridPlanner() {
   const totalSlots = DEFAULT_ROWS * GRID_COLS;
-  const [slots, setSlots] = useState<GridSlot[]>(() => initSlots(totalSlots));
+  const [slots, setSlots] = useState<GridSlot[]>(() => {
+    const base = initSlots(totalSlots);
+    const persisted = loadPersistedSlots();
+    return persisted ? mergePersistedSlots(base, persisted) : base;
+  });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [igStats, setIgStats] = useState<IGStats | null>(null);
+
+  // Persist caption/status/label on every slots change
+  useEffect(() => {
+    try {
+      const toSave: PersistedSlot[] = slots.map((s) => ({ caption: s.caption, status: s.status, label: s.label }));
+      localStorage.setItem(LS_KEY, JSON.stringify(toSave));
+    } catch { /* storage unavailable */ }
+  }, [slots]);
+
+  // Derived: any slot has non-default data worth clearing
+  const hasSavedData = slots.some((s) => s.caption || s.label || s.status === 'live');
 
   // Fetch live Instagram stats on mount
   useEffect(() => {
@@ -319,6 +356,12 @@ export default function GridPlanner() {
   function addRow() {
     const currentCount = slots.length;
     setSlots((prev) => [...prev, ...Array.from({ length: GRID_COLS }, (_, i) => makeSlot(currentCount + i))]);
+  }
+
+  function clearSavedData() {
+    try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+    setSlots(initSlots(totalSlots));
+    setSelectedIndex(null);
   }
 
   const filledCount = slots.filter((s) => s.imageUrl).length;
@@ -510,8 +553,20 @@ export default function GridPlanner() {
             </div>
           )}
 
-          <div className="text-[10px] px-1" style={{ color: PALETTE.muted }}>
-            Images are stored locally — this planner is session-only and does not save to the server.
+          <div className="text-[10px] px-1 flex items-center gap-2" style={{ color: PALETTE.muted }}>
+            <span>
+              {hasSavedData ? 'Captions, labels and status saved locally.' : 'Images are not saved between sessions.'}
+            </span>
+            {hasSavedData && (
+              <button
+                type="button"
+                onClick={clearSavedData}
+                className="underline"
+                style={{ color: PALETTE.danger, background: 'none', border: 'none', cursor: 'pointer', fontSize: 'inherit' }}
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </div>

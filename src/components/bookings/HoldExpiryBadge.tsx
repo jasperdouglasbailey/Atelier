@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateHoldExpiryAction } from '@/app/actions/quotes';
 import { PALETTE } from '@/lib/utils/constants';
@@ -32,6 +32,13 @@ export default function HoldExpiryBadge({ tableKind, id, bookingId, expiresAt, i
   const [draft, setDraft] = useState<string>(toDateInputValue(expiresAt));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Force re-render every 60s so the "expires in Xd" label doesn't go stale.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id_ = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id_);
+  }, [expiresAt]);
 
   // Confirmed rows don't need a hold sunset.
   if (isConfirmed) return null;

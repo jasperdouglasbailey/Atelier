@@ -99,6 +99,18 @@ export default function ApprovalQueue({ approvals }: Props) {
                     {humanise(a.action_type)}
                   </span>
                 </div>
+                {/* Recipient hint for email approvals — visible without expanding the draft */}
+                {(EMAIL_ACTION_TYPES.has(a.action_type) || a.action_type === 'crew_hold_request') && (() => {
+                  const c = a.draft_content as Record<string, unknown> | null;
+                  let to: string | null = null;
+                  if (c && Array.isArray(c.to)) to = (c.to as string[]).join(', ');
+                  else if (c && typeof c.email === 'object' && c.email !== null && typeof (c.email as Record<string, unknown>).to === 'string') {
+                    to = (c.email as Record<string, unknown>).to as string;
+                  }
+                  return to ? (
+                    <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>To: {to}</div>
+                  ) : null;
+                })()}
                 <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
 
                 {/* Confidence bar + uncertainty */}

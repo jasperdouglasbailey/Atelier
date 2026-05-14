@@ -6,7 +6,7 @@ type Props = { checklist: ChecklistData };
 const STATUS_STYLES: Record<ChecklistData['items'][number]['status'], { bg: string; fg: string; symbol: string; label: string }> = {
   done:     { bg: PALETTE.ok,   fg: '#fff',    symbol: '✓', label: 'Done' },
   pending:  { bg: PALETTE.warn, fg: '#fff',    symbol: '!', label: 'Needed' },
-  optional: { bg: PALETTE.warn, fg: '#fff',    symbol: '·', label: 'Optional' },
+  optional: { bg: PALETTE.muted, fg: '#fff',   symbol: '–', label: 'Optional' },
   blocked:  { bg: PALETTE.muted, fg: '#fff',   symbol: '×', label: 'Blocked' },
 };
 

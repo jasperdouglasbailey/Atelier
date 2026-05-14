@@ -71,6 +71,13 @@ export default async function DashboardPage() {
     ? ((summary.revenueThisMonth - summary.revenueLastMonth) / summary.revenueLastMonth) * 100
     : null;
 
+  const URGENCY_WEIGHT = { high: 3, medium: 2, low: 1 } as const;
+  const sortedAttentionItems = [...attentionItems].sort((a, b) => {
+    const aW = URGENCY_WEIGHT[ATTENTION_CONFIG[a.state]?.urgency ?? 'low'];
+    const bW = URGENCY_WEIGHT[ATTENTION_CONFIG[b.state]?.urgency ?? 'low'];
+    return bW - aW;
+  });
+
   const totalAttentionCount =
     overdueInvoices.length + attentionItems.length + (pendingApprovals > 0 ? 1 : 0);
 
@@ -228,7 +235,7 @@ export default async function DashboardPage() {
                   })}
 
                   {/* Attention items */}
-                  {attentionItems.map((item) => {
+                  {sortedAttentionItems.map((item) => {
                     const cfg = ATTENTION_CONFIG[item.state] ?? { action: 'Review', urgency: 'low' };
                     const color = urgencyColor[cfg.urgency];
                     const clientLabel = item.client_company || item.client_name || null;

@@ -518,7 +518,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Qty</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Unit $</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Subtotal</th>
-                <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>ASF</th>
+                <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }} title="Agency Service Fee — 15% of each line by default. Covers agency overhead, coordination and the talent's booking guarantee.">ASF ⓘ</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>GST</th>
                 <th className="px-3 py-2 text-right font-medium" style={{ color: PALETTE.muted }}>Line Total</th>
                 <th className="px-3 py-2"></th>

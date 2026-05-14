@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BookingTalent, BookingCrew, Talent, Crew } from '@/lib/types/database';
 import { PALETTE, CREW_TIER_LABELS } from '@/lib/utils/constants';
@@ -10,6 +10,7 @@ import {
   addBookingCrewAction, removeBookingCrewAction,
   substituteTalentAction,
 } from '@/app/actions/quotes';
+import { approveAllHoldsAction } from '@/app/actions/approvals';
 import CrewStatusSelect from './CrewStatusSelect';
 import CrewDayPicker from './CrewDayPicker';
 import HoldExpiryBadge from './HoldExpiryBadge';
@@ -43,6 +44,8 @@ type Props = {
   preferredCrewIds?: string[];
   /** Primary artist's name — used in the "★ Oliver's preferred" group label. */
   primaryTalentName?: string | null;
+  /** Count of pending crew_hold_request approvals for this booking. Shows "Approve all holds" button when > 0. */
+  pendingHoldCount?: number;
 };
 
 /**
@@ -60,10 +63,11 @@ function isLocalCrew(crewCity: string | null | undefined, shootLocation: string 
     .some((token) => token.trim().length > 0 && haystack.includes(token.trim()));
 }
 
-export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootDays = [], shootLocation, crewConflictsByCrewId = {}, talentUnavailByTalentId = {}, preferredCrewIds = [], primaryTalentName = null }: Props) {
+export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, allTalent, allCrew, shootDays = [], shootLocation, crewConflictsByCrewId = {}, talentUnavailByTalentId = {}, preferredCrewIds = [], primaryTalentName = null, pendingHoldCount = 0 }: Props) {
   const isMultiDay = shootDays.length > 1;
   const preferredSet = useMemo(() => new Set(preferredCrewIds), [preferredCrewIds]);
   const router = useRouter();
+  const [approvingHolds, startApproveHolds] = useTransition();
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [showAddCrew, setShowAddCrew] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -241,7 +245,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         )}
 
         {bookingTalent.length === 0 ? (
-          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No talent assigned yet.</p>
+          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No talent assigned yet — use &lsquo;+ Add talent&rsquo; above.</p>
         ) : (
           <div className="space-y-2">
             {bookingTalent.map((bt) => {
@@ -368,13 +372,29 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
           <h3 className="section-title">
             Crew ({bookingCrew.length})
           </h3>
-          <button
-            onClick={() => setShowAddCrew(!showAddCrew)}
-            className="rounded px-2 py-0.5 text-[10px] font-medium"
-            style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}
-          >
-            {showAddCrew ? 'Cancel' : '+ Add'}
-          </button>
+          <div className="flex items-center gap-2">
+            {pendingHoldCount > 0 && (
+              <button
+                type="button"
+                disabled={approvingHolds}
+                onClick={() => startApproveHolds(async () => {
+                  await approveAllHoldsAction(bookingId);
+                  router.refresh();
+                })}
+                className="rounded px-2 py-0.5 text-[10px] font-medium disabled:opacity-50"
+                style={{ background: `${PALETTE.success}22`, color: PALETTE.success, border: `1px solid ${PALETTE.success}44` }}
+              >
+                {approvingHolds ? 'Approving…' : `Approve all holds (${pendingHoldCount})`}
+              </button>
+            )}
+            <button
+              onClick={() => setShowAddCrew(!showAddCrew)}
+              className="rounded px-2 py-0.5 text-[10px] font-medium"
+              style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}
+            >
+              {showAddCrew ? 'Cancel' : '+ Add'}
+            </button>
+          </div>
         </div>
 
         {showAddCrew && (
@@ -450,7 +470,7 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
         )}
 
         {bookingCrew.length === 0 ? (
-          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No crew assigned yet.</p>
+          <p className="text-[11px]" style={{ color: PALETTE.muted }}>No crew assigned yet — use &lsquo;+ Add crew&rsquo; above.</p>
         ) : (
           // Horizontal strip — flex-wrap so cards flow onto the next row when
           // the booking grows. Order is left→right by created_at ASC (earliest

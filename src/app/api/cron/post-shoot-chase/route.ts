@@ -42,6 +42,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
+  await logAudit({ userId: null, action: 'cron_post_shoot_chase_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const supabase = createServiceClient();
 
   // Time-bound: chasing a delivery older than 90 days is never useful.
@@ -137,5 +139,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await logAudit({ userId: null, action: 'cron_post_shoot_chase_complete', tableName: 'atelier_audit_log', newValue: { queued, skipped: skipped.length } as never }).catch(() => {});
   return NextResponse.json({ queued, skipped: skipped.length });
 }

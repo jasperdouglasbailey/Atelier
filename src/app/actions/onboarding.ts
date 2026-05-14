@@ -160,5 +160,23 @@ export async function submitOnboardingAction(
     newValue: { legal_name: payload.legal_name, email: payload.email } as unknown as import('@/lib/types/database').Json,
   });
 
+  // Queue an inbox item so Jasper knows to review + activate
+  const displayName = payload.display_name || payload.legal_name;
+  const supabase = createServiceClient();
+  try {
+    await supabase.from('atelier_approvals').insert({
+      agent: 'system',
+      action_type: 'onboarding_review',
+      booking_id: null,
+      summary: `${displayName} has completed onboarding — review their details and activate.`,
+      draft_content: { entityType: result.type, entityId: result.entityId, email: payload.email },
+      status: 'pending',
+      idempotency_key: `onboarding_complete_${result.entityId}`,
+    });
+  } catch { /* fire-and-forget — notification failure must not block onboarding */ }
+
+  revalidatePath('/settings/compliance');
+  revalidatePath('/inbox');
+
   return result;
 }

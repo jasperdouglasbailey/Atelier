@@ -233,7 +233,11 @@ export default async function PublicQuotePage({ params }: Props) {
           {/* Footer */}
           <div style={{ borderTop: '1px solid #ebebeb', paddingTop: 20, fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>
             <p style={{ margin: '0 0 4px' }}>
-              This quote is valid for {agency.quoteValidityDays} days from issue. All amounts are in Australian Dollars (AUD) and inclusive of GST where applicable.
+              This quote is valid for {agency.quoteValidityDays} days from issue
+              {booking.quote_token_expires_at && (
+                <> (until {new Date(booking.quote_token_expires_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })})</>
+              )}
+              . All amounts are in Australian Dollars (AUD) and inclusive of GST where applicable.
             </p>
             <p style={{ margin: '0 0 4px' }}>
               Quote is subject to talent and crew availability. Cancellation terms apply once a booking is confirmed.

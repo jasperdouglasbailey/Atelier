@@ -25,6 +25,7 @@ import { PALETTE } from '@/lib/utils/constants';
 import { getStageChecklist, stageOf } from '@/lib/utils/booking-stages';
 import { listTasksForBooking } from '@/lib/data/tasks';
 import { listAppUsers } from '@/lib/data/app-users';
+import { countPendingHoldApprovals } from '@/lib/data/approvals';
 import TasksPanel from '@/components/tasks/TasksPanel';
 import SchedulesPanel from '@/components/bookings/SchedulesPanel';
 import { parseDateRangeRaw } from '@/lib/utils/daterange';
@@ -92,10 +93,11 @@ export default async function BookingDetailPage({ params }: Props) {
   const detail = await getBookingDetail(id);
   if (!detail) notFound();
 
-  const [bookingTasks, allAppUsers, rosterMap] = await Promise.all([
+  const [bookingTasks, allAppUsers, rosterMap, pendingHoldCount] = await Promise.all([
     listTasksForBooking(id),
     listAppUsers(),
     getBookingsRoster([id]),
+    countPendingHoldApprovals(id),
   ]);
   const roster = rosterMap.get(id) ?? null;
 
@@ -276,6 +278,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 talentUnavailByTalentId={talentUnavailByTalentId}
                 preferredCrewIds={preferredCrewIds}
                 primaryTalentName={bookingTalent[0]?.talent?.name ?? null}
+                pendingHoldCount={pendingHoldCount}
               />
 
               <HoldRequestsTrigger

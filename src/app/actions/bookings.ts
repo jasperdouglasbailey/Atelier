@@ -17,6 +17,7 @@ import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { callLLM } from '@/lib/integrations/anthropic';
 import { critiqueDraft, jasperVoicePromptBlock } from '@/lib/automation/agent-primitives';
+import { buildRemittanceEmail } from '@/lib/utils/comms-tone';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { createClient as createSupabaseServer } from '@/lib/supabase/server';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
@@ -266,6 +267,33 @@ export async function updateBookingAction(id: string, formData: FormData) {
     }
   }
 
+  // Schedule auto-populate: when shoot_dates changes, ensure each new date has at
+  // least a skeleton schedule row so the call sheet has something to populate.
+  // Existing rows are never deleted — only missing dates are inserted.
+  if (updates.shoot_dates) {
+    const { start, end } = dateRangeToInputs(updates.shoot_dates as string);
+    if (start) {
+      const supabase = await createSupabaseServer();
+      const dates: string[] = [];
+      const cur = new Date(start + 'T00:00:00Z');
+      const endDate = new Date((end || start) + 'T00:00:00Z');
+      while (cur <= endDate) {
+        dates.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      if (dates.length > 0 && dates.length <= 60) {
+        try {
+          await supabase.from('atelier_booking_schedules').upsert(
+            dates.map((d) => ({ booking_id: id, schedule_date: d })),
+            { onConflict: 'booking_id,schedule_date', ignoreDuplicates: true },
+          );
+        } catch (err) {
+          reportDataError('[updateBookingAction] schedule upsert failed', err);
+        }
+      }
+    }
+  }
+
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
   revalidateTag('bookings', {});
@@ -429,13 +457,20 @@ export async function transitionBookingAction(
   if (newState === 'quote_sent') {
     const ks = await checkKillSwitch();
     if (ks.canProceed) {
-      proposeHoldRequests(id)
-        .then(() => {
-          // Hold-request rows surface in the inbox count + booking team panel
-          revalidatePath(`/bookings/${id}`);
-          revalidatePath('/inbox');
-        })
-        .catch((err) => reportDataError('[transitionBookingAction] auto hold-request failed', err));
+      try {
+        await proposeHoldRequests(id);
+        revalidatePath(`/bookings/${id}`);
+        revalidatePath('/inbox');
+      } catch (err) {
+        reportDataError('[transitionBookingAction] auto hold-request failed', err);
+        await logAudit({
+          userId: await getCurrentActor(),
+          action: 'propose_holds_failed',
+          tableName: 'atelier_bookings',
+          recordId: id,
+          newValue: { error: String(err) } as unknown as import('@/lib/types/database').Json,
+        }).catch(() => {});
+      }
     }
   }
 
@@ -993,12 +1028,45 @@ export async function markTalentPaidAction(
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
+  // Fetch the booking_talent row to get talent_id
+  const { data: bt } = await supabase
+    .from('atelier_booking_talent')
+    .select('talent_id')
+    .eq('id', bookingTalentId)
+    .single();
+
   const { error } = await supabase
     .from('atelier_booking_talent')
     .update({ artist_paid_at: new Date().toISOString() })
     .eq('id', bookingTalentId);
 
   if (error) return { error: error.message };
+
+  // Send remittance advice email if we have talent details
+  if (bt?.talent_id && checkKillSwitch && isGoogleConfigured()) {
+    try {
+      const ks = await checkKillSwitch();
+      if (ks.canSendOutbound) {
+        const [talentResult, feeLinesResult] = await Promise.all([
+          supabase.from('atelier_talent').select('email, working_name').eq('id', bt.talent_id).maybeSingle(),
+          supabase.from('atelier_fee_lines').select('subtotal').eq('booking_id', bookingId).eq('talent_id', bt.talent_id),
+        ]);
+        const talent = talentResult.data;
+        if (talent?.email && talent?.working_name) {
+          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.subtotal), 0);
+          const email = buildRemittanceEmail(
+            { working_name: talent.working_name, email: talent.email },
+            { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },
+            total,
+          );
+          await sendEmail({ to: [talent.email], subject: email.subject, body: email.body });
+          await logAudit({ userId: await getCurrentActor(), action: 'remittance_email_sent', tableName: 'atelier_booking_talent', recordId: bookingTalentId, newValue: { to: talent.email, bookingId } });
+        }
+      }
+    } catch (err) {
+      await logAudit({ userId: await getCurrentActor(), action: 'remittance_email_failed', tableName: 'atelier_booking_talent', recordId: bookingTalentId, newValue: { error: String(err), bookingId } }).catch(() => {});
+    }
+  }
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };
@@ -1026,12 +1094,45 @@ export async function markCrewPaidAction(
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
+  // Fetch the booking_crew row to get crew_id
+  const { data: bc } = await supabase
+    .from('atelier_booking_crew')
+    .select('crew_id')
+    .eq('id', bookingCrewId)
+    .single();
+
   const { error } = await supabase
     .from('atelier_booking_crew')
     .update({ artist_paid_at: new Date().toISOString() })
     .eq('id', bookingCrewId);
 
   if (error) return { error: error.message };
+
+  // Send remittance advice email if we have crew details
+  if (bc?.crew_id && checkKillSwitch && isGoogleConfigured()) {
+    try {
+      const ks = await checkKillSwitch();
+      if (ks.canSendOutbound) {
+        const [crewResult, feeLinesResult] = await Promise.all([
+          supabase.from('atelier_crew').select('email, name').eq('id', bc.crew_id).maybeSingle(),
+          supabase.from('atelier_fee_lines').select('subtotal').eq('booking_id', bookingId).eq('crew_id', bc.crew_id),
+        ]);
+        const crew = crewResult.data;
+        if (crew?.email && crew?.name) {
+          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.subtotal), 0);
+          const email = buildRemittanceEmail(
+            { working_name: crew.name, email: crew.email },
+            { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },
+            total,
+          );
+          await sendEmail({ to: [crew.email], subject: email.subject, body: email.body });
+          await logAudit({ userId: await getCurrentActor(), action: 'remittance_email_sent', tableName: 'atelier_booking_crew', recordId: bookingCrewId, newValue: { to: crew.email, bookingId } });
+        }
+      }
+    } catch (err) {
+      await logAudit({ userId: await getCurrentActor(), action: 'remittance_email_failed', tableName: 'atelier_booking_crew', recordId: bookingCrewId, newValue: { error: String(err), bookingId } }).catch(() => {});
+    }
+  }
 
   revalidatePath(`/bookings/${bookingId}`);
   return { ok: true };

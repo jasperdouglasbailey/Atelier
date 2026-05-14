@@ -71,7 +71,27 @@ export async function respondToCrewHoldAction(
     newValue: { status: newStatus } as unknown as import('@/lib/types/database').Json,
   }).catch(() => {});
 
+  // Notify owner via inbox
+  const [crewData, bookingData] = await Promise.all([
+    supabase.from('atelier_crew').select('name').eq('id', user.crew_id).maybeSingle(),
+    supabase.from('atelier_bookings').select('booking_ref').eq('id', row.booking_id).maybeSingle(),
+  ]);
+  const crewName = crewData.data?.name ?? 'Crew member';
+  const bookingRef = bookingData.data?.booking_ref ?? 'booking';
+  try {
+    await supabase.from('atelier_approvals').insert({
+      agent: 'system',
+      action_type: 'hold_response_notify',
+      booking_id: row.booking_id,
+      summary: `${crewName} has ${response === 'confirmed' ? 'accepted' : 'declined'} the hold for ${bookingRef}.`,
+      draft_content: { entityType: 'crew', entityId: user.crew_id, status: response, bookingRef },
+      status: 'pending',
+      idempotency_key: `hold_response_${row.booking_id}_${user.crew_id}_${response}`,
+    });
+  } catch { /* fire-and-forget */ }
+
   revalidatePath('/portal/crew');
+  revalidatePath('/inbox');
   revalidateTag('bookings', {});
   return { ok: true };
 }
@@ -121,7 +141,27 @@ export async function respondToTalentHoldAction(
     newValue: { status: newStatus } as unknown as import('@/lib/types/database').Json,
   }).catch(() => {});
 
+  // Notify owner via inbox
+  const [talentData, bookingData] = await Promise.all([
+    supabase.from('atelier_talent').select('working_name').eq('id', user.talent_id).maybeSingle(),
+    supabase.from('atelier_bookings').select('booking_ref').eq('id', row.booking_id).maybeSingle(),
+  ]);
+  const talentName = talentData.data?.working_name ?? 'Talent';
+  const bookingRef = bookingData.data?.booking_ref ?? 'booking';
+  try {
+    await supabase.from('atelier_approvals').insert({
+      agent: 'system',
+      action_type: 'hold_response_notify',
+      booking_id: row.booking_id,
+      summary: `${talentName} has ${response === 'confirmed' ? 'accepted' : 'declined'} the hold for ${bookingRef}.`,
+      draft_content: { entityType: 'talent', entityId: user.talent_id, status: response, bookingRef },
+      status: 'pending',
+      idempotency_key: `hold_response_${row.booking_id}_${user.talent_id}_${response}`,
+    });
+  } catch { /* fire-and-forget */ }
+
   revalidatePath('/portal/talent');
+  revalidatePath('/inbox');
   revalidateTag('bookings', {});
   return { ok: true };
 }

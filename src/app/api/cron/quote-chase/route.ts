@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
+  await logAudit({ userId: null, action: 'cron_quote_chase_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});
+
   const supabase = createServiceClient();
 
   // Bookings stuck in quote_sent for 3+ days. Cap at 30 days back so we
@@ -149,5 +151,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await logAudit({ userId: null, action: 'cron_quote_chase_complete', tableName: 'atelier_audit_log', newValue: { queued, skipped: skipped.length } as never }).catch(() => {});
   return NextResponse.json({ queued, skipped: skipped.length });
 }
