@@ -13,7 +13,7 @@ type Props = { params: Promise<{ id: string }> };
 type InvoiceGroup = { label: string; subtotal: number; lines: FeeLine[] };
 
 function groupFeeLines(feeLines: FeeLine[]): InvoiceGroup[] {
-  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime']);
+  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel']);
   const CREW_TYPES = new Set(['crew_labour', 'crew_equipment', 'overtime']);
   const EXPENSE_TYPES = new Set(['equipment_rental', 'studio_hire', 'travel', 'catering', 'wardrobe', 'props', 'casting', 'location_fee', 'permits', 'insurance', 'other_expense']);
 

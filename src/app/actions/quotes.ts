@@ -104,7 +104,9 @@ export async function createQuoteVersionAction(bookingId: string, notes?: string
 // Canonical fee-engine rules — see CLAUDE.md "Fee model rules" block.
 // =================================================================
 // Artist labour — commissionable (20%), ASF default on, no super.
-const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime'];
+// Includes artist_travel (artist's paid travel time) but NOT plain
+// `travel` which is crew/production travel and is not commissionable.
+const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel'];
 // Super-bearing — ONLY crew_labour (the day rate). Crew overtime,
 // crew equipment, crew travel, crew expenses do NOT bear super.
 const SUPER_BEARING_LINE_TYPES = ['crew_labour'];

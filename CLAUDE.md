@@ -46,11 +46,13 @@ Per Jasper's spec — applies to defaults in `lineTypeDefaults()` in `src/app/ac
 
 | Line type | Commission 20% | ASF 15% default | GST default | Super (15% charged / 12% paid) |
 |---|---|---|---|---|
-| `artist_fee`, `usage_licence`, `file_management`, `retouching`, `post_production`, `artist_overtime` | ✅ Yes | ✅ On | Follows artist's `gst_registered` | ❌ No |
+| `artist_fee`, `usage_licence`, `file_management`, `retouching`, `post_production`, `artist_overtime`, **`artist_travel`** | ✅ Yes | ✅ On | Follows artist's `gst_registered` | ❌ No |
 | `crew_labour` (day rate) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ✅ **Yes — only on day rate** |
 | `overtime` (crew overtime) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ❌ **No — overtime is NOT super-bearing** |
 | `equipment_rental`, `crew_equipment`, `studio_hire` | ❌ No | ✅ On | ✅ **Always ON regardless of payee** — supplier invoice has GST | ❌ No |
-| `travel`, `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense` | ❌ No | ✅ On | Follows crew GST status if crew_id linked; ON by default | ❌ No |
+| `travel` (crew/production travel), `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense` | ❌ No | ✅ On | Follows crew GST status if crew_id linked; ON by default | ❌ No |
+
+**Travel split:** `artist_travel` (commissionable, artist's paid travel time) is distinct from `travel` (crew + production travel, not commissionable). Same pattern as `artist_overtime` vs `overtime`.
 
 **Other invariants:**
 - ASF is toggleable per line — user can flip it off for genuine pass-through cost

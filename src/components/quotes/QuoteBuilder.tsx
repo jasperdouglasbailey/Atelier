@@ -27,7 +27,7 @@ type Props = {
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
   'artist_fee', 'usage_licence', 'file_management', 'retouching',
   'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'travel', 'catering', 'wardrobe', 'props',
+  'studio_hire', 'travel', 'artist_travel', 'catering', 'wardrobe', 'props',
   'casting', 'location_fee', 'permits', 'insurance',
   'post_production', 'artist_overtime', 'overtime', 'other_expense',
 ];
@@ -1047,8 +1047,10 @@ const ALWAYS_GST_LINE_TYPES = new Set<FeeLineType>([
 
 // Artist-side line types — GST exempt when the payee is not GST-registered.
 // Also the set that's commissionable, so reimbursement is disallowed.
+// `artist_travel` is here (commissionable, follows artist GST status);
+// plain `travel` is NOT here (crew/production travel, not commissionable).
 const ARTIST_LINE_TYPES = new Set<FeeLineType>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime',
+  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
 
 // Crew labour line types — GST exempt when the crew member is not GST-registered.
