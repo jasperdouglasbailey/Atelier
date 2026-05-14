@@ -179,13 +179,18 @@ export type CreateFeeLineInput = {
   is_artist_reimbursement?: boolean;
 };
 
+/**
+ * Insert a fee line. The auth-context client reads sort_order (RLS allows
+ * owner/partner to read all rows), then the service client writes — same
+ * pattern as updateFeeLine for consistent reliability.
+ */
 export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | null> {
-  const supabase = await createClient();
+  const readClient = await createClient();
 
   // Get max sort_order if not provided
   let sortOrder = input.sort_order;
   if (sortOrder == null) {
-    const { data: maxRow } = await supabase
+    const { data: maxRow } = await readClient
       .from(LINE_TABLE)
       .select('sort_order')
       .eq('quote_version_id', input.quote_version_id)
@@ -195,7 +200,8 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
     sortOrder = ((maxRow as { sort_order?: number } | null)?.sort_order ?? 0) + 10;
   }
 
-  const { data, error } = await supabase
+  const writeClient = createServiceClient();
+  const { data, error } = await writeClient
     .from(LINE_TABLE)
     .insert({
       ...input,
@@ -225,28 +231,75 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
 }
 
 /**
- * Update a fee line. Returns the updated row on success, or a structured
- * error result whose `error` field carries the *actual* DB message — so the
- * action / client can surface it instead of a generic "Failed to update".
+ * Update a fee line. Returns the updated row on success or a structured
+ * error result with the *actual* DB message so the caller can surface it.
  *
- * The generic-null return was hiding RLS denials, enum mismatches, check
- * constraint failures, and trigger errors behind one opaque message; making
- * the real error visible is the cheapest debugging tool we have.
+ * **Uses the service-role client for the write.** The action layer
+ * (updateFeeLineAction) has already verified the caller is owner/partner
+ * via requireOwnerOrPartner(), so RLS would be redundant at this point.
+ * Using the service client here avoids two classes of silent failure
+ * that were producing the opaque "Failed to update fee line" message:
+ *   - RLS policy quirks (column-level grants, policy ordering, etc.)
+ *   - PostgREST returning 0 rows after a successful update because the
+ *     post-update SELECT was filtered out by RLS
+ *
+ * Same pattern is already in use for atelier_app_users writes (see
+ * createAppUser / setAppUserActive in src/lib/data/app-users.ts) — the
+ * regular client reads, the service client writes after the action
+ * layer has gated the call.
+ *
+ * The updates payload is also explicitly whitelisted to a known set of
+ * columns so a stray key from a future refactor can't poison the request.
  */
+const FEE_LINE_UPDATABLE_COLUMNS = [
+  'line_type', 'description', 'quantity', 'unit_price', 'subtotal',
+  'asf_rate', 'asf_amount', 'is_gst_exempt', 'is_super_bearing',
+  'super_rate_charged', 'super_rate_paid', 'is_commissionable',
+  'commission_rate', 'talent_id', 'crew_id', 'notes',
+  'is_artist_reimbursement', 'sort_order',
+] as const;
+
 export async function updateFeeLine(
   id: string,
   updates: Partial<FeeLine>,
 ): Promise<{ ok: true; data: FeeLine } | { ok: false; error: string }> {
-  const supabase = await createClient();
-
-  delete updates.id;
-  delete updates.created_at;
-  delete updates.quote_version_id;
-  delete updates.booking_id;
-
-  const { data, error } = await supabase
+  // Pre-flight: verify the row exists and we can read it. If RLS denies the
+  // read, the user shouldn't be editing it via the QuoteBuilder either —
+  // surface that as a clear error instead of letting the write fall through.
+  const readClient = await createClient();
+  const { data: existing, error: readErr } = await readClient
     .from(LINE_TABLE)
-    .update(updates)
+    .select('id, quote_version_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (readErr) {
+    reportDataError('[quotes] update line read-check', readErr);
+    return { ok: false, error: `Cannot read fee line for update: ${readErr.message}` };
+  }
+  if (!existing) {
+    return { ok: false, error: `Fee line ${id} not found (may have been deleted or RLS-hidden)` };
+  }
+
+  // Whitelist allowed columns — drop anything else, including computed
+  // fields we never want a client to set.
+  const safeUpdates: Record<string, unknown> = {};
+  for (const key of FEE_LINE_UPDATABLE_COLUMNS) {
+    if (key in updates) {
+      const v = (updates as Record<string, unknown>)[key];
+      if (v !== undefined) safeUpdates[key] = v;
+    }
+  }
+
+  if (Object.keys(safeUpdates).length === 0) {
+    return { ok: false, error: 'No updatable fields supplied' };
+  }
+
+  // Use the service client for the write — auth has already been verified
+  // at the action layer. See the comment block above.
+  const writeClient = createServiceClient();
+  const { data, error } = await writeClient
+    .from(LINE_TABLE)
+    .update(safeUpdates)
     .eq('id', id)
     .select()
     .single();
@@ -257,7 +310,7 @@ export async function updateFeeLine(
     return { ok: false, error: parts.join(' · ') || 'Unknown DB error' };
   }
   if (!data) {
-    return { ok: false, error: 'Row not found or not updatable (RLS may have blocked the write)' };
+    return { ok: false, error: `Update returned no row (fee line ${id} may have been deleted concurrently)` };
   }
 
   const line = data as FeeLine;
@@ -266,10 +319,10 @@ export async function updateFeeLine(
 }
 
 export async function removeFeeLine(id: string): Promise<boolean> {
-  const supabase = await createClient();
+  const readClient = await createClient();
 
   // Get the line first to know the quote version
-  const { data: existing } = await supabase
+  const { data: existing } = await readClient
     .from(LINE_TABLE)
     .select('quote_version_id')
     .eq('id', id)
@@ -277,7 +330,9 @@ export async function removeFeeLine(id: string): Promise<boolean> {
 
   if (!existing) return false;
 
-  const { error } = await supabase
+  // Service client for the write — auth already gated at the action layer.
+  const writeClient = createServiceClient();
+  const { error } = await writeClient
     .from(LINE_TABLE)
     .delete()
     .eq('id', id);
