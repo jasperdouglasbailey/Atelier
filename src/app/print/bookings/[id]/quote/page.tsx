@@ -170,7 +170,6 @@ export default async function QuotePrintPage({ params }: Props) {
                     <div style={{ fontSize: 11, color: '#999', marginTop: 1 }}>
                       {FEE_LINE_TYPE_LABELS[line.line_type]}
                       {line.is_gst_exempt && ' · GST Exempt'}
-                      {line.is_super_bearing && ` · Incl. Super (${Math.round((line.super_rate_charged ?? 0.15) * 100)}%)`}
                     </div>
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
@@ -193,10 +192,10 @@ export default async function QuotePrintPage({ params }: Props) {
               {totals.totalAsf > 0 && (
                 <TotalRow label="Agency Service Fee (15%)" value={formatCurrency(totals.totalAsf)} />
               )}
-              {totals.totalSuper > 0 && (
-                <TotalRow label="Superannuation (15%)" value={formatCurrency(totals.totalSuper)} />
-              )}
               <TotalRow label="GST (10%)" value={formatCurrency(totals.totalGst)} />
+              {totals.totalSuper > 0 && (
+                <TotalRow label="Crew Fringes" value={formatCurrency(totals.totalSuper)} />
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', borderTop: '2px solid #1a1a1a', marginTop: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>TOTAL DUE (AUD)</span>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>{formatCurrency(totals.grandTotal)}</span>

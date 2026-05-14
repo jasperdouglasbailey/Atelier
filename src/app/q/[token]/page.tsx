@@ -173,11 +173,6 @@ export default async function PublicQuotePage({ params }: Props) {
                     <tr key={line.id}>
                       <td style={tdStyle}>
                         <div style={{ fontWeight: 500 }}>{line.description}</div>
-                        {line.is_super_bearing && (
-                          <div style={{ fontSize: 11, color: '#aaa', marginTop: 1 }}>
-                            Incl. superannuation ({Math.round((line.super_rate_charged ?? 0.15) * 100)}%)
-                          </div>
-                        )}
                         {line.is_gst_exempt && (
                           <div style={{ fontSize: 11, color: '#aaa', marginTop: 1 }}>GST exempt</div>
                         )}
