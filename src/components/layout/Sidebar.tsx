@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { signOutAction } from '@/app/actions/auth';
+import { useRealtimeInboxCount } from '@/lib/hooks/useRealtimeInboxCount';
 
 type NavItem = { label: string; href: string; badge?: number; num?: string };
 type NavSection = { title?: string; items: NavItem[] };
@@ -128,6 +129,7 @@ function NavInner({
 export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const liveInboxCount = useRealtimeInboxCount(inboxCount);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -136,7 +138,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
     {
       items: [
         { label: 'Dashboard',    href: '/',             num: '01' },
-        { label: 'Inbox',        href: '/inbox',        num: '02', badge: inboxCount },
+        { label: 'Inbox',        href: '/inbox',        num: '02', badge: liveInboxCount },
         { label: 'Bookings',     href: '/bookings',     num: '03' },
         { label: 'Talent',       href: '/talent',       num: '04' },
         { label: 'Crew',         href: '/crew',         num: '05' },
@@ -191,7 +193,7 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
       >
         <span style={{ ...brandStyle, fontSize: 14 }}>ATELIER.</span>
         <div className="flex items-center gap-3">
-          {inboxCount > 0 && (
+          {liveInboxCount > 0 && (
             <Link
               href="/inbox"
               className="relative flex items-center justify-center rounded-full w-7 h-7"
@@ -202,9 +204,9 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
                 fontFamily: 'var(--font-dm-mono), monospace',
                 fontSize: 10,
               }}
-              aria-label={`Inbox — ${inboxCount} pending`}
+              aria-label={`Inbox — ${liveInboxCount} pending`}
             >
-              {inboxCount > 9 ? '9+' : inboxCount}
+              {liveInboxCount > 9 ? '9+' : liveInboxCount}
             </Link>
           )}
           <button

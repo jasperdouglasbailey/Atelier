@@ -6,6 +6,8 @@ import { updateClientAction } from '@/app/actions/entities';
 import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS, COMMUNICATION_STYLE_OPTIONS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
 import type { Client, ClientContact } from '@/lib/types/database';
 import EmailTonePreview from './EmailTonePreview';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
+import SaveIndicator from '@/components/ui/SaveIndicator';
 
 type Props = { client: Client };
 
@@ -15,6 +17,9 @@ export default function ClientEditForm({ client }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { saveStatus, formRef, handleChange } = useAutoSave(
+    (fd) => updateClientAction(client.id, fd),
+  );
   const [contacts, setContacts] = useState<ClientContact[]>(
     Array.isArray(client.contacts) && client.contacts.length > 0
       ? client.contacts
@@ -80,7 +85,7 @@ export default function ClientEditForm({ client }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} onChange={handleChange} className="space-y-6">
       {/* Basic info */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Basic Information</h3>
@@ -296,7 +301,7 @@ export default function ClientEditForm({ client }: Props) {
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={saving}
@@ -305,6 +310,7 @@ export default function ClientEditForm({ client }: Props) {
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
+        <SaveIndicator status={saveStatus} />
         <button
           type="button"
           onClick={() => router.push(`/clients/${client.id}`)}

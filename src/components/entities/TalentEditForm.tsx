@@ -9,6 +9,8 @@ import {
   PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS,
 } from '@/lib/utils/constants';
 import type { Talent } from '@/lib/types/database';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
+import SaveIndicator from '@/components/ui/SaveIndicator';
 
 type Props = { talent: Talent };
 
@@ -30,6 +32,9 @@ export default function TalentEditForm({ talent }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { saveStatus, formRef, handleChange } = useAutoSave(
+    (fd) => updateTalentAction(talent.id, fd),
+  );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -71,7 +76,7 @@ export default function TalentEditForm({ talent }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} onChange={handleChange} className="space-y-6">
       {/* Identity */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Identity</h3>
@@ -378,7 +383,7 @@ export default function TalentEditForm({ talent }: Props) {
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={saving}
@@ -387,6 +392,7 @@ export default function TalentEditForm({ talent }: Props) {
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
+        <SaveIndicator status={saveStatus} />
         <button
           type="button"
           onClick={() => router.push(`/talent/${talent.id}`)}

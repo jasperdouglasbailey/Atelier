@@ -6,6 +6,8 @@ import { updateCrewAction } from '@/app/actions/entities';
 import { PALETTE, CREW_ROLES, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
 import { humanise } from '@/lib/utils/humanise';
 import type { Crew } from '@/lib/types/database';
+import { useAutoSave } from '@/lib/hooks/useAutoSave';
+import SaveIndicator from '@/components/ui/SaveIndicator';
 
 type Props = { crew: Crew };
 
@@ -25,6 +27,9 @@ export default function CrewEditForm({ crew }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { saveStatus, formRef, handleChange } = useAutoSave(
+    (fd) => updateCrewAction(crew.id, fd),
+  );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,7 +71,7 @@ export default function CrewEditForm({ crew }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} onChange={handleChange} className="space-y-6">
       {/* Basic info */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Basic Information</h3>
@@ -318,7 +323,7 @@ export default function CrewEditForm({ crew }: Props) {
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={saving}
@@ -327,6 +332,7 @@ export default function CrewEditForm({ crew }: Props) {
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
+        <SaveIndicator status={saveStatus} />
         <button
           type="button"
           onClick={() => router.push(`/crew/${crew.id}`)}

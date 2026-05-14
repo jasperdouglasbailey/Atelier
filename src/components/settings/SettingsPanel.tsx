@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
 import type { KillSwitchState } from '@/lib/types/database';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
@@ -241,6 +242,9 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
         </div>
       </section>
 
+      {/* Push notifications */}
+      <PushNotificationsSection />
+
       {/* Cron health */}
       {cronHealth.length > 0 && (
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
@@ -278,6 +282,53 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
         </section>
       )}
     </div>
+  );
+}
+
+function PushNotificationsSection() {
+  const { state, enable, disable } = usePushNotifications();
+
+  if (state === 'unsupported') return null;
+
+  const statusLabel =
+    state === 'loading' ? 'Checking…'
+    : state === 'granted' ? 'Enabled on this device'
+    : state === 'denied' ? 'Blocked by browser — allow in site settings'
+    : 'Not enabled';
+
+  const statusColor =
+    state === 'granted' ? PALETTE.success
+    : state === 'denied' ? PALETTE.danger
+    : PALETTE.muted;
+
+  return (
+    <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+      <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        Push Notifications
+      </h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm" style={{ color: PALETTE.text }}>
+            Receive browser notifications for new inbox items, hold responses, and onboarding completions.
+          </p>
+          <p className="text-[11px] mt-0.5" style={{ color: statusColor }}>{statusLabel}</p>
+        </div>
+        {state !== 'loading' && state !== 'denied' && (
+          <button
+            type="button"
+            onClick={state === 'granted' ? disable : enable}
+            className="ml-4 rounded px-3 py-1 text-xs font-medium flex-shrink-0"
+            style={
+              state === 'granted'
+                ? { background: `${PALETTE.danger}18`, color: PALETTE.danger, border: `1px solid ${PALETTE.danger}33` }
+                : { background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33` }
+            }
+          >
+            {state === 'granted' ? 'Disable' : 'Enable notifications'}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
