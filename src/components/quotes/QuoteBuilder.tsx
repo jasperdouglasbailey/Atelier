@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent, BookingCrew } from '@/lib/types/database';
