@@ -139,6 +139,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   async function commitEdit(line: FeeLine) {
     if (!editValues) return;
     setBusy(true);
+    setError(null);
     const fd = new FormData();
     fd.set('line_type', editValues.line_type);
     fd.set('description', editValues.description);
@@ -150,7 +151,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
     }
-    // Optimistic: update local state immediately so the UI snaps without waiting for router.refresh()
+    // Optimistic: update local state immediately so the QuoteBuilder snaps
+    // without waiting for the round-trip.
     const newQty = parseFloat(editValues.quantity) || line.quantity;
     const newPrice = parseFloat(editValues.unit_price) || line.unit_price;
     const newAsfRate = Number.isFinite(asfPct) ? asfPct / 100 : (line.asf_rate ?? DEFAULT_ASF_RATE);
@@ -173,7 +175,13 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       setError(result.error ?? 'Failed to save');
       // Revert on error
       setFeeLines((prev) => prev.map((l) => l.id === line.id ? line : l));
+      setBusy(false);
+      return;
     }
+    // Refresh so every panel that reads booking data (JobPnLPanel, fee
+    // summaries, P&L drift, etc.) reflects the saved change — not just
+    // the QuoteBuilder's optimistic local state.
+    router.refresh();
     setBusy(false);
   }
 
@@ -238,7 +246,9 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (!result.ok) {
       setError(result.error ?? 'Failed');
       setFeeLines(snapshot); // revert
+      return;
     }
+    router.refresh();
   }
 
   function handleReorder(fromIdx: number | null, toIdx: number) {
@@ -252,6 +262,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     const orderedIds = newLines.map((l) => l.id);
     startReorderTransition(async () => {
       await reorderFeeLinesAction(orderedIds, bookingId);
+      router.refresh();
     });
   }
 
@@ -622,6 +633,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                             </label>
                             <div className="flex items-center gap-2">
                               <button
+                                type="button"
                                 onClick={cancelEdit}
                                 disabled={busy}
                                 className="rounded px-3 py-1 text-[11px] disabled:opacity-50"
@@ -630,10 +642,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                                 Cancel <span style={{ opacity: 0.6 }}>(Esc)</span>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => commitEdit(line)}
                                 disabled={busy}
                                 className="rounded px-3 py-1 text-[11px] font-medium disabled:opacity-50"
-                                style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none' }}
+                                style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: busy ? 'wait' : 'pointer' }}
                               >
                                 {busy ? 'Saving…' : 'Save (↵)'}
                               </button>
