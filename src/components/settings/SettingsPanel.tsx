@@ -245,6 +245,7 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
       {/* Push notifications */}
       <PushNotificationsSection />
 
+
       {/* Cron health */}
       {cronHealth.length > 0 && (
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
