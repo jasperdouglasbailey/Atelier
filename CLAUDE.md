@@ -260,6 +260,12 @@ The work is sequenced so dependencies stack naturally and the Xero block doesn't
   - PR-D: `logAudit('quote_accept_by_token')` + `logAudit('quote_decline_by_token')` in quotes-public.ts. `key={filter}` on `<ApprovalQueue>` in inbox. `BookingTabs` syncs active tab to `?tab=` URL param.
   - PR-E: Hardcoded hexes replaced in ApprovalQueue (#6b6b6b), SeedButton (#262626/#8b8b8b), BookingsCalendar (#404560). Five inline-styled `<h3>` headings converted to `.section-title` class.
   - PR-F: `JobPnLPanel` shows empty-state card when no quote (was null). Paid Out row hidden when zero. QuoteBuilder drag handle opacity raised (0.35→0.55) + tooltip added.
+- **PR#87 — print template fixes + artist portal fees + PDF performance:**
+  - PR-1: Removed incorrect "Incl. Super (15%)" sub-label from Quote PDF and `/q/[token]` viewer fee lines. Reordered totals GST before Crew Fringes. Renamed "Superannuation" → "Crew Fringes" on Quote + Invoice.
+  - PR-2: Category grouping (Photography & Artist Fees / Crew & Labour / Production Expenses) added to Quote PDF and Booking Confirmation PDF, matching Invoice format.
+  - PR-3: Booking Confirmation PDF reworked as proper client-facing document: removed individual talent day rates, added DRAFT watermark for pre-confirmed states, full totals breakdown (ASF + GST + Crew Fringes).
+  - PR-4: Artist portal now shows collapsible fee details per booking — own fee lines + equipment lines so artists know their budget.
+  - PR-5: Shared `pdf-renderer.ts` utility (blocks images/fonts, uses `'load'` not `'networkidle0'`). New `/api/print/invoice/[id]` + `/api/print/confirmation/[id]` endpoints. BookingDetail tools row has "Print X" + "X PDF ↓" for all three document types. `loading.tsx` skeleton for print routes.
 
 ### In progress / partially wired
 - Gmail outbound: wired, needs GOOGLE_REFRESH_TOKEN credentials set
