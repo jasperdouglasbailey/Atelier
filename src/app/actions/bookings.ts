@@ -266,6 +266,33 @@ export async function updateBookingAction(id: string, formData: FormData) {
     }
   }
 
+  // Schedule auto-populate: when shoot_dates changes, ensure each new date has at
+  // least a skeleton schedule row so the call sheet has something to populate.
+  // Existing rows are never deleted — only missing dates are inserted.
+  if (updates.shoot_dates) {
+    const { start, end } = dateRangeToInputs(updates.shoot_dates as string);
+    if (start) {
+      const supabase = await createSupabaseServer();
+      const dates: string[] = [];
+      const cur = new Date(start + 'T00:00:00Z');
+      const endDate = new Date((end || start) + 'T00:00:00Z');
+      while (cur <= endDate) {
+        dates.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      if (dates.length > 0 && dates.length <= 60) {
+        try {
+          await supabase.from('atelier_booking_schedules').upsert(
+            dates.map((d) => ({ booking_id: id, schedule_date: d })),
+            { onConflict: 'booking_id,schedule_date', ignoreDuplicates: true },
+          );
+        } catch (err) {
+          reportDataError('[updateBookingAction] schedule upsert failed', err);
+        }
+      }
+    }
+  }
+
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/bookings');
   revalidateTag('bookings', {});
@@ -429,13 +456,20 @@ export async function transitionBookingAction(
   if (newState === 'quote_sent') {
     const ks = await checkKillSwitch();
     if (ks.canProceed) {
-      proposeHoldRequests(id)
-        .then(() => {
-          // Hold-request rows surface in the inbox count + booking team panel
-          revalidatePath(`/bookings/${id}`);
-          revalidatePath('/inbox');
-        })
-        .catch((err) => reportDataError('[transitionBookingAction] auto hold-request failed', err));
+      try {
+        await proposeHoldRequests(id);
+        revalidatePath(`/bookings/${id}`);
+        revalidatePath('/inbox');
+      } catch (err) {
+        reportDataError('[transitionBookingAction] auto hold-request failed', err);
+        await logAudit({
+          userId: await getCurrentActor(),
+          action: 'propose_holds_failed',
+          tableName: 'atelier_bookings',
+          recordId: id,
+          newValue: { error: String(err) } as unknown as import('@/lib/types/database').Json,
+        }).catch(() => {});
+      }
     }
   }
 
