@@ -29,10 +29,6 @@ type Props = {
   schedules: BookingSchedule[];
 };
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="micro-label mb-2">{children}</div>;
-}
-
 function Row({ children }: { children: React.ReactNode }) {
   return (
     <div className="border-t px-4 py-3" style={{ borderColor: PALETTE.border }}>
