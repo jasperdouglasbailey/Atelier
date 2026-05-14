@@ -224,10 +224,19 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
   return data as FeeLine;
 }
 
+/**
+ * Update a fee line. Returns the updated row on success, or a structured
+ * error result whose `error` field carries the *actual* DB message — so the
+ * action / client can surface it instead of a generic "Failed to update".
+ *
+ * The generic-null return was hiding RLS denials, enum mismatches, check
+ * constraint failures, and trigger errors behind one opaque message; making
+ * the real error visible is the cheapest debugging tool we have.
+ */
 export async function updateFeeLine(
   id: string,
   updates: Partial<FeeLine>,
-): Promise<FeeLine | null> {
+): Promise<{ ok: true; data: FeeLine } | { ok: false; error: string }> {
   const supabase = await createClient();
 
   delete updates.id;
@@ -242,11 +251,18 @@ export async function updateFeeLine(
     .select()
     .single();
 
-  if (error) { reportDataError('[quotes] update line', error); return null; }
+  if (error) {
+    reportDataError('[quotes] update line', error);
+    const parts = [error.message, error.code, error.details, error.hint].filter(Boolean);
+    return { ok: false, error: parts.join(' · ') || 'Unknown DB error' };
+  }
+  if (!data) {
+    return { ok: false, error: 'Row not found or not updatable (RLS may have blocked the write)' };
+  }
 
   const line = data as FeeLine;
   await recalcQuoteTotals(line.quote_version_id);
-  return line;
+  return { ok: true, data: line };
 }
 
 export async function removeFeeLine(id: string): Promise<boolean> {
