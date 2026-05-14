@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!booking) return new Response('Not found', { status: 404 });
 
   const origin = new URL(req.url).origin;
-  const printUrl = `${origin}/print/bookings/${id}/quote?pdf=1`;
+  const printUrl = `${origin}/print/bookings/${id}/invoice?pdf=1`;
   const cookieHeader = req.headers.get('cookie') ?? '';
 
   let pdfBuffer: Buffer;
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="quote-${ref}.pdf"`,
+      'Content-Disposition': `attachment; filename="invoice-${ref}.pdf"`,
       'Cache-Control': 'no-store',
     },
   });
