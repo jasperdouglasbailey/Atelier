@@ -167,7 +167,8 @@ export const FEE_LINE_TYPE_LABELS: Record<FeeLineType, string> = {
   permits: 'Permits',
   insurance: 'Insurance',
   post_production: 'Post-Production',
-  overtime: 'Overtime',
+  overtime: 'Crew Overtime',
+  artist_overtime: 'Artist Overtime',
   other_expense: 'Other Expense',
 };
 

@@ -18,7 +18,7 @@ import PrintActions from '../quote/PrintActions';
 type FeeGroup = { label: string; subtotal: number; lines: FeeLine[] };
 
 function groupFeeLines(feeLines: FeeLine[]): FeeGroup[] {
-  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production']);
+  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime']);
   const CREW_TYPES = new Set(['crew_labour', 'crew_equipment', 'overtime']);
   const EXPENSE_TYPES = new Set(['equipment_rental', 'studio_hire', 'travel', 'catering', 'wardrobe', 'props', 'casting', 'location_fee', 'permits', 'insurance', 'other_expense']);
   const artists = feeLines.filter((l) => ARTIST_TYPES.has(l.line_type));

@@ -2274,6 +2274,7 @@ export type Database = {
         | "insurance"
         | "post_production"
         | "overtime"
+        | "artist_overtime"
         | "other_expense"
       atelier_post_production_ownership:
         | "us_via_artist"
@@ -2527,6 +2528,7 @@ export const Constants = {
         "insurance",
         "post_production",
         "overtime",
+        "artist_overtime",
         "other_expense",
       ],
       atelier_post_production_ownership: [

@@ -85,8 +85,13 @@ export async function createQuoteVersionAction(bookingId: string, notes?: string
 // Fee lines
 // ============================================================
 
-const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production'];
+const ARTIST_LABOUR_LINE_TYPES = ['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime'];
 const CREW_LABOUR_LINE_TYPES = ['crew_labour', 'overtime'];
+
+/** True when a line type is commissionable — these can never be reimbursable. */
+function isCommissionableType(t: FeeLineType): boolean {
+  return ARTIST_LABOUR_LINE_TYPES.includes(t);
+}
 // Pass-through costs — no ASF by default (client is reimbursing a real expenditure)
 const FRINGE_LINE_TYPES = [
   'crew_equipment', 'equipment_rental', 'studio_hire', 'travel',
@@ -133,7 +138,10 @@ export async function addFeeLineAction(formData: FormData) {
   const subtotal = Math.round(quantity * unitPrice * 100) / 100;
   const asfAmount = Math.round(subtotal * asfRate * 100) / 100;
 
-  const isArtistReimbursement = formData.get('is_artist_reimbursement') === 'true';
+  // Commissionable lines (artist labour) can never be reimbursable — the
+  // agency takes commission off them, they're not a pass-through expense.
+  const isArtistReimbursement = !isCommissionableType(lineType)
+    && formData.get('is_artist_reimbursement') === 'true';
 
   const input: CreateFeeLineInput = {
     quote_version_id: quoteVersionId,
@@ -217,7 +225,17 @@ export async function updateFeeLineAction(id: string, formData: FormData) {
 
   const reimbursementRaw = formData.get('is_artist_reimbursement');
   if (reimbursementRaw != null && reimbursementRaw !== '') {
-    updates.is_artist_reimbursement = reimbursementRaw === 'true';
+    // Commissionable lines can never be reimbursable. If the line is being
+    // changed to a commissionable type in this update (or it already is),
+    // force the flag off — even if the client submitted it as true.
+    const effectiveType = (lineType ?? (await getFeeLine(id))?.line_type) as FeeLineType | undefined;
+    const commissionable = effectiveType ? isCommissionableType(effectiveType) : false;
+    updates.is_artist_reimbursement = !commissionable && reimbursementRaw === 'true';
+  } else if (lineType && isCommissionableType(lineType)) {
+    // Type changed to a commissionable type and no explicit reimbursement
+    // flag in the payload — still clear the existing flag so a previously
+    // reimbursable non-artist line doesn't carry the flag into an artist type.
+    updates.is_artist_reimbursement = false;
   }
 
   const result = await updateFeeLine(id, updates);

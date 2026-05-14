@@ -74,7 +74,7 @@ export type FeeLineType =
   | 'crew_labour' | 'crew_equipment' | 'equipment_rental'
   | 'studio_hire' | 'travel' | 'catering' | 'wardrobe' | 'props'
   | 'casting' | 'location_fee' | 'permits' | 'insurance'
-  | 'post_production' | 'overtime' | 'other_expense';
+  | 'post_production' | 'overtime' | 'artist_overtime' | 'other_expense';
 
 export type PostProductionOwnership = 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced';
 
