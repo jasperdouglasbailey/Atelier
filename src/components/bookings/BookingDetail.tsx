@@ -11,6 +11,7 @@ import StageStepper from '@/components/bookings/StageStepper';
 import StageChecklist from '@/components/bookings/StageChecklist';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
+import PrintDocsMenu from '@/components/bookings/PrintDocsMenu';
 import InlineField from '@/components/bookings/InlineField';
 import InlineDateRange from '@/components/bookings/InlineDateRange';
 import {
@@ -199,60 +200,7 @@ export default function BookingDetail({
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>
           Print &amp; tools
         </span>
-        <Link
-          href={`/print/bookings/${booking.id}/quote`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Print quote
-        </Link>
-        <a
-          href={`/api/print/quote/${booking.id}`}
-          download
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          title="Download quote as PDF"
-        >
-          Quote PDF ↓
-        </a>
-        <Link
-          href={`/print/bookings/${booking.id}/invoice`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Print invoice
-        </Link>
-        <a
-          href={`/api/print/invoice/${booking.id}`}
-          download
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          title="Download invoice as PDF"
-        >
-          Invoice PDF ↓
-        </a>
-        <Link
-          href={`/print/bookings/${booking.id}/confirmation`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-        >
-          Print confirmation
-        </Link>
-        <a
-          href={`/api/print/confirmation/${booking.id}`}
-          download
-          className="rounded px-2 py-0.5 text-[11px]"
-          style={{ background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
-          title="Download booking confirmation as PDF"
-        >
-          Confirmation PDF ↓
-        </a>
+        <PrintDocsMenu bookingId={booking.id} />
         {booking.quote_token && (
           <Link
             href={`/q/${booking.quote_token}`}
