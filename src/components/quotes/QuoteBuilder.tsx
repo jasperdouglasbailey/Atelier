@@ -775,7 +775,31 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       )}
 
       {/* Totals — sticky to viewport bottom so Grand Total stays visible on long quotes */}
-      {feeLines.length > 0 && (
+      {feeLines.length > 0 && (() => {
+        // Compute the three buckets up front so the always-visible summary
+        // and the expandable full working both have the numbers.
+        const margin = computeAgencyMargin(totals);
+        const primaryArtist = bookingTalent[0]?.talent;
+        const artistGstRegistered = primaryArtist?.gst_registered ?? false;
+        const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+        const crewLabourSubtotalGstRegistered = previewLines
+          .filter((l) => CREW_LABOUR_TYPES.has(l.line_type) && l.crew_id != null)
+          .reduce((sum, l) => {
+            const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
+            return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
+          }, 0);
+        const gst = computeGstPassthrough({
+          totals,
+          artistFeeSubtotal: artistTotals.subtotal,
+          artistGstRegistered,
+          crewLabourSubtotalGstRegistered,
+        });
+        // "Paid through" = grand total minus what agency keeps and ATO net.
+        // This is the residual that flows out to artist/crew/vendors.
+        const paidThrough = Math.max(0, Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100);
+        const marginPct = totals.grandTotal > 0 ? (margin.total / totals.grandTotal) * 100 : 0;
+
+        return (
         <div
           className="rounded-lg border p-4 space-y-3"
           style={{
@@ -787,30 +811,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             boxShadow: '0 -4px 12px -6px rgba(0,0,0,0.18)',
           }}
         >
-          {/* Pre-tax subtotal (lines + ASF) + Grand Total — always visible */}
-          <div className="space-y-1">
-            {totals.totalAsf > 0 && (
-              <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                <span>Line subtotals</span>
-                <span className="tabular-nums">{formatCurrency(totals.subtotal)}</span>
-              </div>
-            )}
-            {totals.totalAsf > 0 && (
-              <div className="flex items-baseline justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-                <span>+ ASF</span>
-                <span className="tabular-nums">{formatCurrency(totals.totalAsf)}</span>
-              </div>
-            )}
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-                {totals.totalAsf > 0 ? 'Subtotal (before super & GST)' : 'Subtotal excl. super & GST'}
-              </span>
-              <span className="text-sm tabular-nums" style={{ color: PALETTE.muted }}>
-                {formatCurrency(totals.subtotal + totals.totalAsf)}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t" style={{ borderColor: PALETTE.border }}>
+          {/* GRAND TOTAL — the headline */}
+          <div className="flex items-baseline justify-between pb-2 border-b" style={{ borderColor: PALETTE.border }}>
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Grand Total incl. GST</span>
             <span
               className="text-2xl font-bold tabular-nums transition-colors"
@@ -820,97 +822,94 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </span>
           </div>
 
-          {/* Toggle — click to reveal the full breakdown (subtotals, GST passthrough, agency margin) */}
+          {/* Where the money goes — plain-English waterfall, no accounting
+              jargon. Producer sees at a glance: client pays X, team takes Y,
+              ATO takes Z, agency keeps W. */}
+          <div className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+              Where every dollar goes
+            </div>
+            <FlowRow label="Out to team &amp; vendors" sub="Artist + crew + production costs" value={-paidThrough} />
+            <FlowRow label="Tax (net GST to ATO)" sub="Collected from client minus credits paid to GST-registered payees" value={-gst.netToAto} />
+            <div className="flex items-baseline justify-between pt-2 mt-1 border-t" style={{ borderColor: PALETTE.border }}>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: PALETTE.accent }}>Agency keeps</div>
+                <div className="text-[10px]" style={{ color: PALETTE.muted }}>Commission + ASF + super spread</div>
+              </div>
+              <div className="text-right">
+                <div className="text-base font-bold tabular-nums" style={{ color: PALETTE.accent }}>{formatCurrency(margin.total)}</div>
+                <div className="text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>{marginPct.toFixed(1)}% of total</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Toggle — show the line-by-line working that adds up to those three buckets. */}
           <button
             type="button"
             onClick={() => setShowFullBreakdown((v) => !v)}
             className="text-[11px] font-medium underline-offset-2 hover:underline"
             style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
           >
-            {showFullBreakdown ? '▴ Hide breakdown' : '▾ Show full breakdown'}
+            {showFullBreakdown ? '▴ Hide full working' : '▾ Show full working'}
           </button>
 
-          {showFullBreakdown && (() => {
-            const margin = computeAgencyMargin(totals);
-            const primaryArtist = bookingTalent[0]?.talent;
-            const artistGstRegistered = primaryArtist?.gst_registered ?? false;
-            const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
-            const crewLabourSubtotalGstRegistered = previewLines
-              .filter((l) => CREW_LABOUR_TYPES.has(l.line_type) && l.crew_id != null)
-              .reduce((sum, l) => {
-                const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
-                return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
-              }, 0);
-            const gst = computeGstPassthrough({
-              totals,
-              artistFeeSubtotal: artistTotals.subtotal,
-              artistGstRegistered,
-              crewLabourSubtotalGstRegistered,
-            });
-
-            return (
-              <div className="border-t pt-3 space-y-3" style={{ borderColor: PALETTE.border }}>
-                {/* Money flow — three named buckets that sum to the grand total */}
-                <div className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
-                  Every dollar the client pays lands in one of three places:
-                </div>
-
-                {/* 1. Agency keeps */}
-                <BreakdownBucket
-                  label="Agency keeps"
-                  total={margin.total}
-                  accent
-                  rows={[
-                    margin.commission > 0 && { l: 'Commission · 20% on artist labour', v: margin.commission },
-                    margin.asf > 0 && { l: 'ASF · charged per line', v: margin.asf },
-                    margin.superSpread > 0 && { l: 'Super spread · 15% charged − 12% paid', v: margin.superSpread },
-                  ].filter(Boolean) as { l: string; v: number }[]}
-                />
-
-                {/* 2. Owed to ATO (net GST) */}
-                {gst.collectedTotal > 0 && (
-                  <BreakdownBucket
-                    label="Owed to ATO · net GST"
-                    total={gst.netToAto}
-                    rows={[
-                      { l: 'Collected from client', v: gst.collectedTotal, sign: '+' as const },
-                      gst.inputCreditsTotal > 0 && { l: 'Input credits (paid to GST-registered talent/crew)', v: gst.inputCreditsTotal, sign: '−' as const },
-                    ].filter(Boolean) as { l: string; v: number; sign?: '+' | '−' }[]}
-                  />
-                )}
-
-                {/* 3. Paid through — subtotal of every line in the table (what flows out
-                       to artist net, crew net, vendor invoices, super to fund). */}
-                {(() => {
-                  const paidThrough = Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100;
-                  return (
-                    <BreakdownBucket
-                      label="Paid through to artist + crew + vendors"
-                      total={paidThrough}
-                      muted
-                      rows={[
-                        { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
-                        totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
-                        { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
-                      ].filter(Boolean) as { l: string; v: number }[]}
-                    />
-                  );
-                })()}
-
-                {/* Reconciliation strip — running subtraction verifies math */}
-                <RunningDeductions
-                  grandTotal={totals.grandTotal}
-                  buckets={[
-                    { label: 'Agency keeps', amount: margin.total },
-                    gst.netToAto > 0 && { label: 'Owed to ATO', amount: gst.netToAto },
-                    { label: 'Paid through', amount: Math.round((totals.grandTotal - margin.total - gst.netToAto) * 100) / 100 },
-                  ].filter(Boolean) as { label: string; amount: number }[]}
-                />
+          {showFullBreakdown && (
+            <div className="border-t pt-3 space-y-3" style={{ borderColor: PALETTE.border }}>
+              <div className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+                The full working — how the three buckets above are computed line by line.
               </div>
-            );
-          })()}
+
+              {/* 1. Agency keeps */}
+              <BreakdownBucket
+                label="Agency keeps"
+                total={margin.total}
+                accent
+                rows={[
+                  margin.commission > 0 && { l: 'Commission · 20% on artist labour', v: margin.commission },
+                  margin.asf > 0 && { l: 'ASF · charged per line', v: margin.asf },
+                  margin.superSpread > 0 && { l: 'Super spread · 15% charged − 12% paid', v: margin.superSpread },
+                ].filter(Boolean) as { l: string; v: number }[]}
+              />
+
+              {/* 2. Owed to ATO (net GST) */}
+              {gst.collectedTotal > 0 && (
+                <BreakdownBucket
+                  label="Owed to ATO · net GST"
+                  total={gst.netToAto}
+                  rows={[
+                    { l: 'Collected from client', v: gst.collectedTotal, sign: '+' as const },
+                    gst.inputCreditsTotal > 0 && { l: 'Input credits (paid to GST-registered talent/crew)', v: gst.inputCreditsTotal, sign: '−' as const },
+                  ].filter(Boolean) as { l: string; v: number; sign?: '+' | '−' }[]}
+                />
+              )}
+
+              {/* 3. Paid through — subtotal of every line in the table (what flows out
+                     to artist net, crew net, vendor invoices, super to fund). */}
+              <BreakdownBucket
+                label="Paid through to artist + crew + vendors"
+                total={paidThrough}
+                muted
+                rows={[
+                  { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
+                  totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
+                  { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
+                ].filter(Boolean) as { l: string; v: number }[]}
+              />
+
+              {/* Reconciliation strip — running subtraction verifies math */}
+              <RunningDeductions
+                grandTotal={totals.grandTotal}
+                buckets={[
+                  { label: 'Agency keeps', amount: margin.total },
+                  gst.netToAto > 0 && { label: 'Owed to ATO', amount: gst.netToAto },
+                  { label: 'Paid through', amount: paidThrough },
+                ].filter(Boolean) as { label: string; amount: number }[]}
+              />
+            </div>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Version notes */}
       {selectedVersion?.notes && (
@@ -919,6 +918,27 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * One row in the "Where every dollar goes" waterfall. Shows a negative
+ * amount in muted-text on the right (since money is leaving the pool).
+ * Used in the always-visible summary above the toggle.
+ */
+function FlowRow({ label, sub, value }: { label: string; sub?: string; value: number }) {
+  const isNegative = value < 0;
+  const display = Math.abs(value);
+  return (
+    <div className="flex items-baseline justify-between">
+      <div>
+        <div className="text-xs" style={{ color: PALETTE.text }}>{label}</div>
+        {sub && <div className="text-[10px]" style={{ color: PALETTE.muted, opacity: 0.8 }}>{sub}</div>}
+      </div>
+      <div className="text-sm tabular-nums" style={{ color: PALETTE.muted }}>
+        {isNegative ? '−' : ''}{formatCurrency(display)}
+      </div>
+    </div>
   );
 }
 
@@ -1048,30 +1068,33 @@ function AddLineForm({
   const [selectedCrewId, setSelectedCrewId] = useState<string>('');
   const [isArtistReimbursement, setIsArtistReimbursement] = useState<boolean>(false);
 
-  // GST exempt: artist lines → based on primary talent's registration; crew lines → based on selected crew; expenses → not exempt
+  // GST: default on. Only flips off when the payee is a known non-GST-
+  // registered person (artist line + non-registered talent, or crew line
+  // with a non-registered crew member selected). Expenses + studio + props
+  // etc. are always GST-applied by default.
   const primaryTalentGstRegistered = primaryTalent?.talent?.gst_registered ?? true;
-  function defaultGstExempt(t: FeeLineType, crewId?: string): boolean {
-    if (ARTIST_LINE_TYPES.has(t)) return !primaryTalentGstRegistered;
+  function defaultChargeGst(t: FeeLineType, crewId?: string): boolean {
+    if (ARTIST_LINE_TYPES.has(t)) return primaryTalentGstRegistered;
     if (CREW_LINE_TYPES_SET.has(t) && crewId) {
       const crew = attachedCrew.find((c) => c.crew_id === crewId);
-      return crew ? !crew.gst_registered : false;
+      return crew ? crew.gst_registered : true;
     }
-    return false;
+    return true;
   }
-  const [gstExempt, setGstExempt] = useState<boolean>(() => defaultGstExempt('artist_fee'));
+  const [chargeGst, setChargeGst] = useState<boolean>(() => defaultChargeGst('artist_fee'));
 
   // Re-default ASF + GST toggles whenever line type changes — Jasper can still override.
   function handleLineTypeChange(t: FeeLineType) {
     setLineType(t);
     setChargeAsf(!ASF_OFF_BY_DEFAULT.has(t));
-    setGstExempt(defaultGstExempt(t, selectedCrewId));
+    setChargeGst(defaultChargeGst(t, selectedCrewId));
     // Reimbursement is mutually exclusive with commissionable lines.
     if (isCommissionable(t)) setIsArtistReimbursement(false);
   }
 
   function handleCrewChange(crewId: string) {
     setSelectedCrewId(crewId);
-    setGstExempt(defaultGstExempt(lineType, crewId));
+    setChargeGst(defaultChargeGst(lineType, crewId));
   }
 
   const isCrewLine = CREW_LINE_TYPES_SET.has(lineType);
@@ -1186,25 +1209,25 @@ function AddLineForm({
           <label
             className="mt-0.5 flex items-center gap-2 rounded border px-2 py-1.5 text-xs cursor-pointer select-none"
             style={{
-              background: gstExempt ? `${PALETTE.warning}10` : PALETTE.bg,
-              borderColor: gstExempt ? `${PALETTE.warning}55` : PALETTE.border,
-              color: gstExempt ? PALETTE.warning : PALETTE.muted,
+              background: chargeGst ? `${PALETTE.accent}0d` : `${PALETTE.warning}10`,
+              borderColor: chargeGst ? `${PALETTE.accent}55` : `${PALETTE.warning}55`,
+              color: chargeGst ? PALETTE.accent : PALETTE.warning,
             }}
             title={
               isArtistLine
-                ? `Artist is ${primaryTalentGstRegistered ? 'GST registered — GST applies' : 'not GST registered — exempt by default'}`
-                : 'Check if this payee is not GST registered'
+                ? `Artist is ${primaryTalentGstRegistered ? 'GST registered — GST applies (default)' : 'not GST registered — GST does NOT apply (default)'}`
+                : 'Tick when the payee is GST-registered. Untick for non-GST-registered payees so GST is excluded from this line.'
             }
           >
             <input
               type="checkbox"
-              checked={gstExempt}
-              onChange={(e) => setGstExempt(e.target.checked)}
+              checked={chargeGst}
+              onChange={(e) => setChargeGst(e.target.checked)}
               style={{ accentColor: PALETTE.accent }}
             />
-            <span>{gstExempt ? 'Exempt' : 'Applying'}</span>
+            <span>{chargeGst ? 'Charge GST' : 'GST exempt'}</span>
           </label>
-          <input type="hidden" name="gst_exempt" value={String(gstExempt)} />
+          <input type="hidden" name="gst_exempt" value={String(!chargeGst)} />
         </div>
       </div>
 
