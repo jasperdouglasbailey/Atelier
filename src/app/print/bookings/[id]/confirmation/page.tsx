@@ -15,6 +15,22 @@ import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { FeeLine } from '@/lib/types/database';
 import PrintActions from '../quote/PrintActions';
 
+type FeeGroup = { label: string; subtotal: number; lines: FeeLine[] };
+
+function groupFeeLines(feeLines: FeeLine[]): FeeGroup[] {
+  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production']);
+  const CREW_TYPES = new Set(['crew_labour', 'crew_equipment', 'overtime']);
+  const EXPENSE_TYPES = new Set(['equipment_rental', 'studio_hire', 'travel', 'catering', 'wardrobe', 'props', 'casting', 'location_fee', 'permits', 'insurance', 'other_expense']);
+  const artists = feeLines.filter((l) => ARTIST_TYPES.has(l.line_type));
+  const crew = feeLines.filter((l) => CREW_TYPES.has(l.line_type));
+  const expenses = feeLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
+  const groups: FeeGroup[] = [];
+  if (artists.length > 0) groups.push({ label: 'Photography & Artist Fees', subtotal: artists.reduce((s, l) => s + l.subtotal, 0), lines: artists });
+  if (crew.length > 0) groups.push({ label: 'Crew & Labour', subtotal: crew.reduce((s, l) => s + l.subtotal, 0), lines: crew });
+  if (expenses.length > 0) groups.push({ label: 'Production Expenses', subtotal: expenses.reduce((s, l) => s + l.subtotal, 0), lines: expenses });
+  return groups;
+}
+
 type Props = { params: Promise<{ id: string }> };
 
 function formatShootDates(range: string | null): string | null {
@@ -48,6 +64,7 @@ export default async function BookingConfirmationPage({ params }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
   const today = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
   const totals = feeLines.length > 0 ? computeQuoteTotals(feeLines as FeeLine[]) : null;
+  const groups = groupFeeLines(feeLines as FeeLine[]);
   const shootDateStr = formatShootDates(booking.shoot_dates) ?? booking.shoot_date_notes ?? '—';
 
   const tdStyle: React.CSSProperties = {
@@ -181,18 +198,58 @@ export default async function BookingConfirmationPage({ params }: Props) {
         </div>
       )}
 
-      {/* Fee totals */}
+      {/* Fee schedule */}
+      {feeLines.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa', marginBottom: 10 }}>Fee Schedule</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, width: '55%' }}>Description</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: '12%' }}>Qty</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: '15%' }}>Unit Rate</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: '18%' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <>
+                  <tr key={`grp-${group.label}`}>
+                    <td colSpan={4} style={{
+                      padding: '10px 12px 4px',
+                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.05em', color: '#333', background: '#f8f8f8',
+                    }}>
+                      {group.label}
+                    </td>
+                  </tr>
+                  {group.lines.map((line: FeeLine) => (
+                    <tr key={line.id}>
+                      <td style={tdStyle}>{line.description}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>{formatCurrency(line.subtotal)}</td>
+                    </tr>
+                  ))}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Totals */}
       {totals && (
         <div style={{ marginBottom: 28, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ width: 260 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0', fontSize: 12 }}>
-              <span style={{ color: '#666' }}>Subtotal</span>
-              <span>{formatCurrency(totals.subtotal)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0', fontSize: 12 }}>
-              <span style={{ color: '#666' }}>GST (10%)</span>
-              <span>{formatCurrency(totals.totalGst)}</span>
-            </div>
+          <div style={{ width: 280 }}>
+            <ConfTotalRow label="Subtotal" value={formatCurrency(totals.subtotal)} />
+            {totals.totalAsf > 0 && (
+              <ConfTotalRow label="Agency Service Fee (15%)" value={formatCurrency(totals.totalAsf)} />
+            )}
+            <ConfTotalRow label="GST (10%)" value={formatCurrency(totals.totalGst)} />
+            {totals.totalSuper > 0 && (
+              <ConfTotalRow label="Crew Fringes" value={formatCurrency(totals.totalSuper)} />
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', borderTop: '2px solid #1a1a1a', marginTop: 4 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>TOTAL (AUD)</span>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{formatCurrency(totals.grandTotal)}</span>
@@ -227,6 +284,15 @@ function Row({ label, value }: { label: string; value: string }) {
     <div>
       <span style={{ color: '#aaa', fontSize: 10, fontWeight: 500 }}>{label}: </span>
       <span style={{ color: '#1a1a1a' }}>{value}</span>
+    </div>
+  );
+}
+
+function ConfTotalRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0', fontSize: 12 }}>
+      <span style={{ color: '#555' }}>{label}</span>
+      <span>{value}</span>
     </div>
   );
 }
