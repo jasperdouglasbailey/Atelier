@@ -2,12 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { createLocation, getLocation, updateLocation } from '@/lib/data/locations';
-import { createLocationFolder } from '@/lib/integrations/drive';
+import { createLocationFolder, createLocationFolderWithRooms } from '@/lib/integrations/drive';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { geocodeAddress } from '@/lib/integrations/geocode';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
-import type { StudioType, StudioRoom } from '@/lib/types/database';
+import type { StudioType, StudioRoom, Location } from '@/lib/types/database';
 
 async function requireOwnerOrPartner(): Promise<{ error: string } | null> {
   const user = await getCurrentAppUser();
@@ -54,6 +55,75 @@ function formToLocationInput(fd: FormData) {
   return out;
 }
 
+// Helper — assemble the address string we'll geocode against. Used to detect
+// whether geocoding needs to re-run (address changed) and as the search query.
+function addressKey(loc: { address?: string | null; suburb?: string | null; state?: string | null; postcode?: string | null }): string {
+  return [loc.address, loc.suburb, loc.state, loc.postcode]
+    .filter((p): p is string => Boolean(p && p.trim()))
+    .join(', ');
+}
+
+/**
+ * Background sync — geocode the location's address and create/update its
+ * Drive folder + per-room subfolders. Run after every create/update so the
+ * map and Drive structure stay in sync with the form input.
+ *
+ * Non-fatal — any failure here is logged but doesn't abort the save.
+ */
+async function syncLocationSideEffects(
+  loc: Location,
+  input: Record<string, unknown>,
+): Promise<void> {
+  // 1) Geocoding — only when the address actually changed (or never geocoded)
+  const newKey = addressKey(input as Parameters<typeof addressKey>[0]);
+  const lastKey = loc.geocoded_address ?? '';
+  if (newKey && newKey !== lastKey) {
+    try {
+      const result = await geocodeAddress(input as Parameters<typeof geocodeAddress>[0]);
+      if (result) {
+        await updateLocation(loc.id, {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          geocoded_address: newKey,
+        });
+      } else {
+        // Persist the attempted address so we don't keep retrying every save.
+        await updateLocation(loc.id, { geocoded_address: newKey });
+      }
+    } catch (err) {
+      console.error(`[locations] Geocoding failed for ${loc.name} (non-fatal):`, err);
+    }
+  }
+
+  // 2) Drive folder + room subfolders — idempotent. Run on every save so
+  //    new rooms added later auto-create their subfolders.
+  try {
+    const studioRooms = ((input.studio_rooms as StudioRoom[] | null) ?? loc.studio_rooms ?? []) as StudioRoom[];
+    const roomNames = studioRooms.map((r) => r.name).filter((n): n is string => Boolean(n && n.trim()));
+
+    if (roomNames.length > 0) {
+      const { parent } = await createLocationFolderWithRooms(loc.name, roomNames);
+      if (parent && (loc.drive_folder_id !== parent.id || loc.drive_folder_link !== parent.webViewLink)) {
+        await updateLocation(loc.id, {
+          drive_folder_id: parent.id,
+          drive_folder_link: parent.webViewLink,
+        });
+      }
+    } else if (!loc.drive_folder_id) {
+      // No rooms; just ensure the parent folder exists.
+      const driveFolder = await createLocationFolder(loc.name);
+      if (driveFolder) {
+        await updateLocation(loc.id, {
+          drive_folder_id: driveFolder.id,
+          drive_folder_link: driveFolder.webViewLink,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[locations] Drive sync failed (non-fatal):', err);
+  }
+}
+
 export async function createLocationAction(formData: FormData) {
   const authError = await requireOwnerOrPartner();
   if (authError) return authError;
@@ -66,18 +136,7 @@ export async function createLocationAction(formData: FormData) {
 
   await logAudit({ userId: await getCurrentActor(), action: 'create', tableName: 'atelier_locations', recordId: result.id, newValue: { name } as never });
 
-  // Auto-create Google Drive folder (non-blocking — failure doesn't abort creation)
-  try {
-    const driveFolder = await createLocationFolder(name);
-    if (driveFolder) {
-      await updateLocation(result.id, {
-        drive_folder_id: driveFolder.id,
-        drive_folder_link: driveFolder.webViewLink,
-      });
-    }
-  } catch (err) {
-    console.error('[locations] Drive folder creation failed (non-fatal):', err);
-  }
+  await syncLocationSideEffects(result, input);
 
   revalidatePath('/locations');
   return { ok: true, id: result.id };
@@ -91,6 +150,8 @@ export async function updateLocationAction(id: string, formData: FormData) {
   if (!result) return { error: 'Failed to update location' };
 
   await logAudit({ userId: await getCurrentActor(), action: 'update', tableName: 'atelier_locations', recordId: id, newValue: input as never });
+
+  await syncLocationSideEffects(result, input);
 
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);

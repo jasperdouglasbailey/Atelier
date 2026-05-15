@@ -1,9 +1,24 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { PALETTE } from '@/lib/utils/constants';
 import { FACILITY_OPTIONS } from './LocationForm';
 import DenseListTable, { type Column, type Filter, type GroupBy } from '@/components/ui/DenseListTable';
 import type { Location, StudioType } from '@/lib/types/database';
+
+// Lazy-load the map — Leaflet touches window directly so SSR must be off,
+// and the ~120KB leaflet bundle only ships when /locations is opened.
+const LocationsMap = dynamic(() => import('./LocationsMap'), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="rounded-lg border flex items-center justify-center"
+      style={{ background: PALETTE.surface, borderColor: PALETTE.border, height: 420 }}
+    >
+      <span style={{ color: PALETTE.muted, fontSize: 12 }}>Loading map…</span>
+    </div>
+  ),
+});
 
 const STUDIO_TYPE_LABELS: Record<StudioType, string> = {
   photo_studio: 'Photo Studio',
@@ -182,18 +197,38 @@ export default function LocationsClient({ locations }: Props) {
     toggleHeader: 'Group by type',
   };
 
+  const withoutCoords = locations.filter((l) => l.latitude == null || l.longitude == null).length;
+  const withCoords = locations.length - withoutCoords;
+
   return (
-    <DenseListTable<Location>
-      rows={locations}
-      columns={columns}
-      filters={filters}
-      hrefFor={(l) => `/locations/${l.id}`}
-      groupBy={groupBy}
-      rowDimWhen={(l) => !l.is_active}
-      emptyTitle="No locations yet."
-      emptyDescription="Add studios, outdoor spaces, and venues to pre-fill booking forms."
-      emptyCta={{ label: 'Add first location', href: '/locations/new' }}
-      countLabel={(n) => `${n} location${n !== 1 ? 's' : ''}`}
-    />
+    <div className="space-y-4">
+      <div>
+        <LocationsMap locations={locations} />
+        <div className="mt-1.5 px-1 flex items-center justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+          <span>
+            {withCoords} of {locations.length} location{locations.length === 1 ? '' : 's'} on the map
+            {withoutCoords > 0 && (
+              <> · {withoutCoords} without coordinates (add an address to plot)</>
+            )}
+          </span>
+          <span style={{ color: PALETTE.muted, opacity: 0.7 }}>
+            Hover for details · click a dot to open
+          </span>
+        </div>
+      </div>
+
+      <DenseListTable<Location>
+        rows={locations}
+        columns={columns}
+        filters={filters}
+        hrefFor={(l) => `/locations/${l.id}`}
+        groupBy={groupBy}
+        rowDimWhen={(l) => !l.is_active}
+        emptyTitle="No locations yet."
+        emptyDescription="Add studios, outdoor spaces, and venues to pre-fill booking forms."
+        emptyCta={{ label: 'Add first location', href: '/locations/new' }}
+        countLabel={(n) => `${n} location${n !== 1 ? 's' : ''}`}
+      />
+    </div>
   );
 }

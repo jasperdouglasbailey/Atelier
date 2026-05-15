@@ -331,6 +331,68 @@ export async function createEntityFolder(
 export const createLocationFolder = (name: string) => createEntityFolder('Locations', name);
 
 /**
+ * Like createLocationFolder, but for multi-room locations: in addition to
+ * the parent location folder, ensure a subfolder exists for every named
+ * room. Idempotent — re-running on the same rooms is a no-op (uses
+ * `findOrCreateFolder` per room).
+ *
+ * Does NOT delete subfolders for rooms that have been removed from the
+ * location — those stay in Drive (the assets may still be useful even
+ * if the room is decommissioned). Manual cleanup if Jasper wants them gone.
+ *
+ * Returns:
+ *   - parent: { id, webViewLink } for the location folder (or null if
+ *     Drive isn't configured / creation failed)
+ *   - rooms: array of { name, id, webViewLink } per successfully created
+ *     or found room subfolder
+ */
+export async function createLocationFolderWithRooms(
+  locationName: string,
+  roomNames: string[],
+): Promise<{
+  parent: { id: string; webViewLink: string } | null;
+  rooms: Array<{ name: string; id: string; webViewLink: string }>;
+}> {
+  const parent = await createEntityFolder('Locations', locationName);
+  if (!parent) return { parent: null, rooms: [] };
+
+  if (roomNames.length === 0) return { parent, rooms: [] };
+
+  if (!isGoogleConfigured()) {
+    return { parent, rooms: [] };
+  }
+
+  try {
+    const token = await getAccessToken();
+    const rooms: Array<{ name: string; id: string; webViewLink: string }> = [];
+
+    for (const rawName of roomNames) {
+      const roomName = rawName.trim();
+      if (!roomName) continue;
+
+      const existingId = await findFolder(token, roomName, parent.id);
+      if (existingId) {
+        const file = await driveGet<{ webViewLink: string }>(
+          `${DRIVE_BASE}/${existingId}?fields=webViewLink`,
+          token,
+        );
+        rooms.push({ name: roomName, id: existingId, webViewLink: file.webViewLink });
+        continue;
+      }
+
+      const created = await createFolder(token, roomName, parent.id);
+      console.log(`[drive] CREATED LOCATION ROOM FOLDER`, locationName, '/', roomName, created.id);
+      rooms.push({ name: roomName, id: created.id, webViewLink: created.webViewLink });
+    }
+
+    return { parent, rooms };
+  } catch (err) {
+    console.error(`[drive] createLocationFolderWithRooms(${locationName}) failed`, err);
+    return { parent, rooms: [] };
+  }
+}
+
+/**
  * Move a Drive folder to the trash. Soft-delete: Drive holds it for 30 days
  * before permanent deletion, so a mistaken anonymise can be undone in that
  * window. Used by the right-to-be-forgotten flow so PII portfolios don't
