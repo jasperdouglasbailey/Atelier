@@ -34,15 +34,29 @@ const STUDIO_TYPE_COLOR: Record<StudioType, string> = {
 };
 
 function dotIcon(color: string): L.DivIcon {
+  // Two-layer dot: soft halo + crisp coloured core. The halo carries the
+  // colour at low opacity so a cluster of dots reads visually grouped without
+  // looking like cheap default-Leaflet pins.
   return L.divIcon({
     className: 'atelier-location-dot',
-    html: `<span style="
-      display:block; width:14px; height:14px; border-radius:50%;
-      background:${color}; border:2px solid #ffffff;
-      box-shadow:0 1px 3px rgba(0,0,0,0.25);
-    "></span>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `
+      <span style="
+        position:relative; display:block; width:22px; height:22px;
+      ">
+        <span style="
+          position:absolute; inset:0; border-radius:50%;
+          background:${color}; opacity:0.18;
+        "></span>
+        <span style="
+          position:absolute; top:5px; left:5px; width:12px; height:12px;
+          border-radius:50%; background:${color};
+          border:2px solid #ffffff;
+          box-shadow:0 2px 6px rgba(0,0,0,0.25);
+        "></span>
+      </span>
+    `,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
@@ -114,15 +128,68 @@ export default function LocationsMap({ locations }: Props) {
       className="rounded-lg border overflow-hidden relative"
       style={{ background: PALETTE.surface, borderColor: PALETTE.border, height: 420 }}
     >
+      {/* Inline CSS overrides Leaflet's default tooltip / zoom button styling
+          so the map fits the Atelier sand/cream palette instead of looking
+          like a 2008 OSM widget. Scoped via the .atelier-map class on the
+          MapContainer below. */}
+      <style>{`
+        .atelier-map .leaflet-tooltip {
+          background: ${PALETTE.surface};
+          border: 1px solid ${PALETTE.border};
+          border-radius: 6px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+          padding: 8px 10px;
+          color: ${PALETTE.text};
+          font-family: inherit;
+        }
+        .atelier-map .leaflet-tooltip::before { display: none; }
+        .atelier-map .leaflet-control-zoom {
+          border: 1px solid ${PALETTE.border} !important;
+          border-radius: 6px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .atelier-map .leaflet-control-zoom a {
+          background: ${PALETTE.surface};
+          color: ${PALETTE.text};
+          width: 28px;
+          height: 28px;
+          line-height: 28px;
+          font-weight: 400;
+          font-size: 14px;
+          border-bottom: 1px solid ${PALETTE.border};
+        }
+        .atelier-map .leaflet-control-zoom a:last-child { border-bottom: none; }
+        .atelier-map .leaflet-control-zoom a:hover {
+          background: ${PALETTE.bg};
+          color: ${PALETTE.accent};
+        }
+        .atelier-map .leaflet-control-attribution {
+          background: rgba(255,255,255,0.78) !important;
+          font-size: 10px;
+          backdrop-filter: blur(4px);
+          padding: 1px 6px;
+        }
+        .atelier-map .leaflet-control-attribution a { color: ${PALETTE.muted}; }
+      `}</style>
       <MapContainer
         center={defaultCentre}
         zoom={11}
         scrollWheelZoom
-        style={{ height: '100%', width: '100%' }}
+        className="atelier-map"
+        style={{ height: '100%', width: '100%', background: '#f6f3ee' }}
       >
+        {/*
+          CartoDB Positron — clean, minimal "Apple Maps light" aesthetic that
+          sits well with the Atelier sand/cream palette. Free, no API key.
+          Subdomains a-d for parallel tile loading. Retina version (@2x) for
+          sharp tiles on high-DPI displays.
+        */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          subdomains={['a', 'b', 'c', 'd']}
+          maxZoom={19}
         />
         <FitBoundsToMarkers points={mapped} />
         {mapped.map((m) => (
