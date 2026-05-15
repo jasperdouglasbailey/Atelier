@@ -140,3 +140,31 @@ body {
 }
 .btn-danger:hover:not(:disabled) { opacity: 0.85; }
 .btn-danger:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Mobile (≤640px) — AUDIT-2026-05-15 P1 ──────────────────────
+ *
+ * 1) Form inputs at 16px font-size — anything below 16px triggers
+ *    iOS Safari's "this looks small, let me zoom in for the user"
+ *    behaviour on focus, which scrolls the layout out of position
+ *    and is consistently rated the most-hated mobile UX gotcha.
+ *
+ * 2) Min-height 44px on the primary button vocabulary and sidebar
+ *    nav links — WCAG 2.1 AA target size. Audit found per-page
+ *    touch targets <32px (sidebar 24px, action buttons 28–30px).
+ *    Scope kept narrow on purpose so dense desktop UI (calendar
+ *    bars, board cards, table rows) isn't affected.
+ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger,
+  aside nav a {
+    min-height: 44px;
+  }
+}
