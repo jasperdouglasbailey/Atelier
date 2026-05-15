@@ -54,10 +54,13 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
   const [isPending, startTransition] = useTransition();
 
   // Optimistic state — the toggle flips IMMEDIATELY on click and auto-syncs
-  // to the server prop after router.refresh() completes. React 19's
-  // useOptimistic: the optimistic value is set inside startTransition, and
-  // React auto-reverts to `killSwitch?.is_active` when the transition
-  // completes. No useEffect-sync needed.
+  // to the server prop after router.refresh() completes. Without useOptimistic,
+  // the toggle visually waits for the full server roundtrip + RSC refresh
+  // (~3-10s) before reflecting the click, which felt broken.
+  //
+  // React 19 useOptimistic: the optimistic value is set inside startTransition,
+  // and React automatically reverts to `killSwitch?.is_active` (the latest
+  // server prop) when the transition completes. No useEffect-sync needed.
   const [isActive, setOptimisticActive] = useOptimistic(killSwitch?.is_active ?? false);
   const [isPaused, setOptimisticPaused] = useOptimistic(killSwitch?.pause_outbound ?? false);
 
