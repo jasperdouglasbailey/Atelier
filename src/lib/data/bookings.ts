@@ -504,31 +504,44 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
 }
 
 /**
- * Returns confirmed/pre-prod/live bookings whose shoot dates haven't ended yet.
+ * Returns bookings whose shoot dates haven't ended yet — across any non-terminal,
+ * non-post-shoot state. "Upcoming" means future, regardless of whether the
+ * quote is still drafted or the artists are confirmed.
  *
- * Previous implementation didn't filter by date at all — it just sorted by
- * shoot_dates asc and returned the first 10. Jasper hit this on the dashboard:
- * the "Upcoming shoots" panel was showing bookings from weeks ago because they
- * were stuck in `quote_confirmed` / `pre_production` without ever advancing
- * to `morning_after_check`.
+ * Two bugs caused this to return zero results before:
  *
- * Common-sense fix: "upcoming" means in the future. Parse each booking's
- * daterange and keep only those whose inclusive end-date >= today. Default
- * limit 4 (was 10) since the dashboard panel only renders 4 anyway.
+ *   1. State filter was too narrow: only confirmed/pre-prod/live. Bookings
+ *      still in quote_drafted / quote_sent / artists_crew_held for next month
+ *      were excluded.
+ *   2. Sort + limit was inverted: `ORDER BY shoot_dates ASC LIMIT 30` returned
+ *      the 30 OLDEST bookings. If past unadvanced bookings filled the first
+ *      30 rows, no future bookings ever made it into the over-fetch and the
+ *      JS date filter dropped everything.
+ *
+ * Fix:
+ *   - Expand state filter to include every pre-shoot and at-shoot state
+ *     (drops the post-shoot and terminal states only — those genuinely aren't
+ *     "upcoming").
+ *   - Over-fetch generously (200) without a date filter at the SQL layer
+ *     (daterange comparison isn't cleanly exposed by PostgREST). 200 rows of
+ *     thin booking metadata is well under 100ms.
+ *   - Filter to future-only in JS, sort ASC, slice to `limit`.
  */
+const UPCOMING_STATES: BookingState[] = [
+  'brief_received', 'brief_parsed',
+  'quote_drafted', 'quote_sent', 'artists_crew_held', 'quote_confirmed',
+  'pre_production', 'shoot_live',
+];
+
 export async function getUpcomingShoots(limit = 4): Promise<Booking[]> {
   const supabase = await createClient();
 
-  // Over-fetch a window so we don't accidentally exclude truly-upcoming bookings
-  // when the early matches are all in the past. 30 covers months of past
-  // unadvanced bookings without paginating.
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
-    .in('state', ['quote_confirmed', 'pre_production', 'shoot_live'])
+    .in('state', UPCOMING_STATES)
     .not('shoot_dates', 'is', null)
-    .order('shoot_dates', { ascending: true })
-    .limit(30);
+    .limit(200);
 
   if (error || !data) return [];
 
@@ -536,20 +549,23 @@ export async function getUpcomingShoots(limit = 4): Promise<Booking[]> {
   today.setHours(0, 0, 0, 0);
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  // Postgres daterange is '[start,end)' — end is EXCLUSIVE. Parse the raw
-  // string and treat the day BEFORE `end` as the final shoot day.
-  const upcoming = (data as Booking[]).filter((b) => {
-    if (!b.shoot_dates) return false;
+  // Postgres daterange is '[start,end)' — end is EXCLUSIVE. The shoot is in
+  // the future if `end > today`. We then sort by start date ASC in JS.
+  const upcoming: Array<{ booking: Booking; startISO: string }> = [];
+  for (const b of data as Booking[]) {
+    if (!b.shoot_dates) continue;
     const m = b.shoot_dates.match(/^[\[(](\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})[\])]$/);
-    if (!m) return false;
+    if (!m) continue;
+    const startISO = m[1]!;
     const endExclusive = m[2]!;
-    // A booking ends "yesterday" when its daterange end (exclusive) <= today's ISO.
-    // i.e. if end='2026-05-15' and today='2026-05-15', the shoot was 14 May,
-    // which is already past — filter it out.
-    return endExclusive > todayISO;
-  });
+    // Shoot is upcoming if its inclusive last day is today or later — i.e.
+    // its exclusive end is > today. (end='2026-05-15' on today='2026-05-15'
+    // means last shoot day was 14 May, already past.)
+    if (endExclusive > todayISO) upcoming.push({ booking: b, startISO });
+  }
 
-  return upcoming.slice(0, limit);
+  upcoming.sort((a, b) => a.startISO.localeCompare(b.startISO));
+  return upcoming.slice(0, limit).map((u) => u.booking);
 }
 
 // ============================================================
