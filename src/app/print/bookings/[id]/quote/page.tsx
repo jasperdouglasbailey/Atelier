@@ -57,7 +57,17 @@ export default async function QuotePrintPage({ params }: Props) {
 
   const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || null;
-  const today = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
+
+  // "Issued" date = when the quote was actually sent to the client, not
+  // when this print template happens to be rendered. A reissue six months
+  // later should still show the original issue date, not today's.
+  const issuedSource = quoteVersion?.sent_at ?? quoteVersion?.created_at ?? new Date().toISOString();
+  const issuedDate = new Date(issuedSource);
+  const today = issuedDate.toLocaleDateString('en-AU', { dateStyle: 'long' });
+
+  // eslint-disable-next-line react-hooks/purity -- server component
+  const offerExpires = new Date(issuedDate.getTime() + agency.quoteValidityDays * 86400_000);
+
   const totals = feeLines.length > 0 ? computeQuoteTotals(feeLines) : null;
   const groups = groupFeeLines(feeLines);
 
@@ -248,7 +258,9 @@ export default async function QuotePrintPage({ params }: Props) {
       {/* Footer terms */}
       <div style={{ borderTop: '1px solid #e8e8e8', paddingTop: 20, fontSize: 11, color: '#999', lineHeight: 1.7 }}>
         <p style={{ margin: '0 0 4px' }}>
-          This estimate is valid for {agency.quoteValidityDays} days from the date of issue. All amounts are in Australian Dollars (AUD) and are inclusive of GST where applicable.
+          This estimate is valid for {agency.quoteValidityDays} days from the date of issue
+          {' '}(until {offerExpires.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}).
+          {' '}All amounts are in Australian Dollars (AUD) and are inclusive of GST where applicable.
         </p>
         <p style={{ margin: 0 }}>
           Quote is subject to talent and crew availability confirmation. Cancellation terms apply once a booking is confirmed.
