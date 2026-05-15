@@ -17,12 +17,14 @@ export function usePushNotifications() {
   const [state, setState] = useState<PushState>('loading');
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported');
       return;
     }
     const perm = Notification.permission;
     setState(perm === 'granted' ? 'granted' : perm === 'denied' ? 'denied' : 'default');
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   async function enable() {
