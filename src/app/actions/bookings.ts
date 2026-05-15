@@ -1523,6 +1523,9 @@ export async function convertEmailToBookingAction(opts: {
       brief_raw_text: body,
       usage_media: null,
       usage_territory: null,
+      // Enables the "Undo conversion" affordance on the booking detail page
+      // and excludes this message from future Potential Briefs scans.
+      source_gmail_message_id: opts.messageId,
     };
 
     const booking = await createBooking(input);
@@ -1542,6 +1545,73 @@ export async function convertEmailToBookingAction(opts: {
     revalidatePath('/bookings');
   revalidateTag('bookings', {});
     return { ok: true, bookingId: booking.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Undo an auto-conversion from Gmail.
+ *
+ * Tight guards — all four must hold:
+ *   1. Caller is owner/partner
+ *   2. Booking has `source_gmail_message_id` set (was auto-converted)
+ *   3. Booking state is still `brief_received` (no work attached yet)
+ *   4. Booking created < 24h ago (after that, it's the user's problem)
+ *
+ * On success, the booking row is deleted directly (bypassing the
+ * terminal-state guard in `deleteBookingWithCorpus` because this row
+ * is intentionally fresh and has no real data). The email then re-appears
+ * naturally in Potential Briefs on the next scan because `findPotentialBriefs`
+ * filters out converted-source IDs and that filter is now empty for it.
+ *
+ * No corpus archival — there is nothing meaningful to archive.
+ */
+export async function undoBookingConversionAction(
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const appUser = await (await import('@/lib/data/app-users')).getCurrentAppUser();
+    if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+      return { ok: false, error: 'Forbidden' };
+    }
+
+    const booking = await getBooking(bookingId);
+    if (!booking) return { ok: false, error: 'Booking not found' };
+    if (!booking.source_gmail_message_id) {
+      return { ok: false, error: 'Not eligible — this booking was not created from a Gmail import.' };
+    }
+    if (booking.state !== 'brief_received') {
+      return { ok: false, error: `Not eligible — booking has advanced to ${booking.state}. Use Archive or Delete instead.` };
+    }
+    const ageMs = Date.now() - new Date(booking.created_at).getTime();
+    if (ageMs > 24 * 3600 * 1000) {
+      return { ok: false, error: 'Not eligible — undo window (24h) has closed. Use Archive or Delete instead.' };
+    }
+
+    // Direct DELETE — FK cascade cleans up booking_talent, booking_crew,
+    // fee_lines, quote_versions, etc. No corpus archival because there's
+    // nothing of value to keep.
+    const supabase = await createSupabaseServer();
+    const { error } = await supabase.from('atelier_bookings').delete().eq('id', bookingId);
+    if (error) return { ok: false, error: error.message };
+
+    await logAudit({
+      userId: await getCurrentActor(),
+      action: 'undo_booking_conversion',
+      tableName: 'atelier_bookings',
+      recordId: bookingId,
+      newValue: ({
+        source_gmail_message_id: booking.source_gmail_message_id,
+        title: booking.title,
+      } as unknown) as import('@/lib/types/database').Json,
+    }).catch(() => {});
+
+    revalidatePath('/inbox');
+    revalidatePath('/bookings');
+    revalidateTag('bookings', {});
+    return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };

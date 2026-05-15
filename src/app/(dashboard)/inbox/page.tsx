@@ -6,6 +6,7 @@ import { findPotentialBriefs } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { createClient } from '@/lib/supabase/server';
 import { PALETTE } from '@/lib/utils/constants';
+import { listDismissedBriefIds, listDismissedBriefs } from '@/lib/data/dismissed-briefs';
 import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
 import SectionCard from '@/components/ui/SectionCard';
 
@@ -16,11 +17,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   const filter = params.filter || 'pending';
 
   // Fetch all four counts in parallel so the filter chips show numbers.
-  const [pendingList, approvedList, rejectedList, candidates] = await Promise.all([
+  // Also fetch dismissed-brief candidates so the "Show dismissed" toggle has data.
+  const [pendingList, approvedList, rejectedList, candidates, dismissedBriefs] = await Promise.all([
     listApprovals('pending'),
     listApprovals('approved'),
     listApprovals('rejected'),
     fetchPotentialBriefs(),
+    isGoogleConfigured() ? listDismissedBriefs() : Promise.resolve([]),
   ]);
 
   const allList = [...pendingList, ...approvedList, ...rejectedList];
@@ -61,9 +64,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
           />
         </KpiStrip>
 
-        {/* Potential briefs from Gmail — heuristic, human-in-the-loop */}
-        {isGoogleConfigured() && candidates.length > 0 && (
-          <PotentialBriefs candidates={candidates} />
+        {/* Potential briefs from Gmail — heuristic, human-in-the-loop.
+            Render even when candidates is empty if there are dismissed
+            rows to show in the "Show dismissed" toggle. */}
+        {isGoogleConfigured() && (candidates.length > 0 || dismissedBriefs.length > 0) && (
+          <PotentialBriefs candidates={candidates} dismissed={dismissedBriefs} />
         )}
 
         {/* Approval queue */}
@@ -110,12 +115,18 @@ async function fetchPotentialBriefs() {
   if (!isGoogleConfigured()) return [];
   const supabase = await createClient();
 
-  const [bookingsResult, clientsResult, talentResult] = await Promise.all([
+  const [bookingsResult, convertedResult, clientsResult, talentResult, dismissedIds] = await Promise.all([
     supabase
       .from('atelier_bookings')
       .select('booking_ref')
       .not('booking_ref', 'is', null)
       .limit(500),
+    // Bookings already auto-created from Gmail — filter these IDs out
+    // server-side so converted emails never reappear in Potential Briefs.
+    supabase
+      .from('atelier_bookings')
+      .select('source_gmail_message_id')
+      .not('source_gmail_message_id', 'is', null),
     supabase
       .from('atelier_clients')
       .select('email')
@@ -124,11 +135,18 @@ async function fetchPotentialBriefs() {
       .from('atelier_talent')
       .select('working_name')
       .eq('is_active', true),
+    listDismissedBriefIds(),
   ]);
 
   const refs = ((bookingsResult.data ?? []) as { booking_ref: string | null }[])
     .map((r) => r.booking_ref)
     .filter((r): r is string => Boolean(r));
+
+  const convertedSourceIds = new Set(
+    ((convertedResult.data ?? []) as { source_gmail_message_id: string | null }[])
+      .map((r) => r.source_gmail_message_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   const clientEmails = ((clientsResult.data ?? []) as { email: string | null }[])
     .map((r) => r.email)
@@ -148,5 +166,12 @@ async function fetchPotentialBriefs() {
     talentNames.push(...names);
   }
 
-  return findPotentialBriefs({ existingRefs: refs, clientEmails, talentNames, limit: 12 });
+  return findPotentialBriefs({
+    existingRefs: refs,
+    clientEmails,
+    talentNames,
+    dismissedIds,
+    convertedSourceIds,
+    limit: 12,
+  });
 }

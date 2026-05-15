@@ -189,6 +189,9 @@ export type CreateBookingInput = {
   producer_email?: string | null;
   producer_phone?: string | null;
   confirmation_deadline?: string | null;
+  /** Set when the booking was auto-converted from a Gmail message via /inbox.
+   *  Enables the "Undo conversion" affordance on the booking detail page. */
+  source_gmail_message_id?: string | null;
 };
 
 export async function createBooking(input: CreateBookingInput): Promise<Booking | null> {

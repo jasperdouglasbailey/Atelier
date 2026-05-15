@@ -370,6 +370,10 @@ export async function findPotentialBriefs(opts: {
   clientEmails?: string[];
   /** Talent working names + nicknames — emails mentioning these are surfaced. */
   talentNames?: string[];
+  /** Gmail message IDs the user has marked "Not a brief" — filtered out server-side. */
+  dismissedIds?: Set<string>;
+  /** Already-converted bookings keyed by their source_gmail_message_id — filtered out server-side. */
+  convertedSourceIds?: Set<string>;
   limit?: number;
 } = {}): Promise<Array<{
   id: string;
@@ -477,7 +481,11 @@ export async function findPotentialBriefs(opts: {
 
   // Drop already-converted emails and automated senders.
   const refSet = new Set((opts.existingRefs ?? []).map((r) => r.toUpperCase()));
+  const dismissedIds = opts.dismissedIds ?? new Set<string>();
+  const convertedSourceIds = opts.convertedSourceIds ?? new Set<string>();
   const filtered = results.filter((r) => {
+    if (dismissedIds.has(r.id)) return false;       // user marked "Not a brief"
+    if (convertedSourceIds.has(r.id)) return false; // already converted to a booking
     if (isAutomated(r.from)) return false;
     const upper = r.subject.toUpperCase();
     for (const ref of refSet) {

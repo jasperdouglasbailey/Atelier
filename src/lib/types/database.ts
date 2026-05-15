@@ -354,6 +354,10 @@ export interface Booking {
   po_number: string | null;
   /** Client or internal job/project number — appears on invoice. */
   job_number: string | null;
+  /** Gmail message ID this booking was auto-converted from via /inbox.
+   *  NULL for manually-created bookings. Drives the "Undo conversion"
+   *  affordance on the booking detail page within 24h of creation. */
+  source_gmail_message_id: string | null;
 }
 
 export interface BookingTalent {

@@ -12,6 +12,7 @@ import StageChecklist from '@/components/bookings/StageChecklist';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import PrintDocsMenu from '@/components/bookings/PrintDocsMenu';
+import UndoConversionButton from '@/components/bookings/UndoConversionButton';
 import InlineField from '@/components/bookings/InlineField';
 import InlineDateRange from '@/components/bookings/InlineDateRange';
 import {
@@ -213,6 +214,12 @@ export default function BookingDetail({
           </Link>
         )}
         <CloneBookingButton sourceBookingId={booking.id} label="Use as template" />
+        {/* Undo conversion — only when auto-imported from Gmail and still in
+            brief_received. The component itself does the < 24h check via a
+            mount-time lazy state initializer (lint forbids Date.now() in render). */}
+        {booking.source_gmail_message_id && booking.state === 'brief_received' && (
+          <UndoConversionButton bookingId={booking.id} createdAt={booking.created_at} />
+        )}
         {showWorkspaceShortcut && (
           <Link
             href={`/inbox/${booking.id}`}
