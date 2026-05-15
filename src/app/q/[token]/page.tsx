@@ -54,7 +54,19 @@ export default async function PublicQuotePage({ params }: Props) {
 
   const agency = getAgencyConfig();
   const clientName = booking.client?.company || booking.client?.name || null;
-  const today = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
+
+  // Quote "issued on" — prefer the version's sent_at (the actual moment the
+  // client received it), fall back to its created_at if the version exists
+  // but never went out, else today. Token-expiry is a separate concept
+  // (link-rot protection, ~180d) and intentionally not used here.
+  const issuedSource = qv?.sent_at ?? qv?.created_at ?? new Date().toISOString();
+  const issuedDate = new Date(issuedSource);
+  const today = issuedDate.toLocaleDateString('en-AU', { dateStyle: 'long' });
+
+  // Quote-offer expiry = issued + agency.quoteValidityDays.
+  // eslint-disable-next-line react-hooks/purity -- server component
+  const offerExpires = new Date(issuedDate.getTime() + agency.quoteValidityDays * 86400_000);
+
   const totals = lines.length > 0 ? computeQuoteTotals(lines) : null;
 
   // Only show fee lines — hide any line type that's purely internal
@@ -234,9 +246,7 @@ export default async function PublicQuotePage({ params }: Props) {
           <div style={{ borderTop: '1px solid #ebebeb', paddingTop: 20, fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>
             <p style={{ margin: '0 0 4px' }}>
               This quote is valid for {agency.quoteValidityDays} days from issue
-              {booking.quote_token_expires_at && (
-                <> (until {new Date(booking.quote_token_expires_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })})</>
-              )}
+              {' '}(until {offerExpires.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })})
               . All amounts are in Australian Dollars (AUD) and inclusive of GST where applicable.
             </p>
             <p style={{ margin: '0 0 4px' }}>
