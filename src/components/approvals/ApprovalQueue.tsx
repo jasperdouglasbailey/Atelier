@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { approveAction, rejectAction } from '@/app/actions/approvals';
+import { approveAction, rejectAction, undoRejectApprovalAction } from '@/app/actions/approvals';
 import type { Approval } from '@/lib/types/database';
 import { PALETTE } from '@/lib/utils/constants';
 import { formatDateTime } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
+import UndoToast from '@/components/ui/UndoToast';
 
 type Props = { approvals: Approval[] };
 
@@ -18,11 +19,18 @@ const statusColors: Record<string, string> = {
 };
 
 type PageWarning = { message: string; summary: string };
+type UndoState = { id: string; summary: string };
 
 export default function ApprovalQueue({ approvals }: Props) {
   const router = useRouter();
   const [acting, setActing] = useState<string | null>(null);
   const [pageWarning, setPageWarning] = useState<PageWarning | null>(null);
+  // Toast undo state — shown for 8s after a rejection so a misclick can be
+  // recovered instantly. The "Restore to pending" button on rejected rows
+  // provides persistent recovery beyond that window.
+  const [rejectUndo, setRejectUndo] = useState<UndoState | null>(null);
+  // Inline restore-busy id for the per-row Restore button on rejected approvals
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   async function handleApprove(id: string) {
     setActing(id);
@@ -39,11 +47,30 @@ export default function ApprovalQueue({ approvals }: Props) {
   }
 
   async function handleReject(id: string) {
-    const reason = prompt('Rejection reason (optional):');
+    const approval = approvals.find((a) => a.id === id);
+    // Reason prompt removed — rejection now has a toast-undo safety net, so
+    // a one-click reject feels safer than a blocking prompt. Audit log captures
+    // who+when; if a reason is needed later, the user can add it via the
+    // rejected-tab restore-then-rerejct flow.
     setActing(id);
-    await rejectAction(id, reason ?? undefined);
-    router.refresh();
+    const result = await rejectAction(id);
     setActing(null);
+    if (result && 'ok' in result && result.ok) {
+      setRejectUndo({ id, summary: approval?.summary ?? '(no summary)' });
+    }
+    router.refresh();
+  }
+
+  async function handleUndoReject(id: string) {
+    setRejectUndo(null);
+    setRestoring(id);
+    const result = await undoRejectApprovalAction(id);
+    setRestoring(null);
+    if ('error' in result) {
+      setPageWarning({ message: result.error, summary: 'Could not restore' });
+      return;
+    }
+    router.refresh();
   }
 
   return (
@@ -72,6 +99,15 @@ export default function ApprovalQueue({ approvals }: Props) {
         </div>
       )}
 
+      {/* Toast undo — fires for 8s after a rejection. */}
+      {rejectUndo && (
+        <UndoToast
+          message={<>Rejected <strong>{rejectUndo.summary}</strong> — undo within 8s to restore to pending.</>}
+          onUndo={() => handleUndoReject(rejectUndo.id)}
+          onDismiss={() => setRejectUndo(null)}
+        />
+      )}
+
       {approvals.length === 0 && !pageWarning ? (
         <div className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
           Nothing in the queue. When agents draft actions, they&apos;ll appear here for your approval.
@@ -80,10 +116,10 @@ export default function ApprovalQueue({ approvals }: Props) {
         approvals.map((a) => (
           <div
             key={a.id}
-            className="rounded-lg border p-4"
+            className="rounded-lg border p-3"
             style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -111,7 +147,7 @@ export default function ApprovalQueue({ approvals }: Props) {
                     <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>To: {to}</div>
                   ) : null;
                 })()}
-                <p className="mt-1.5 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
+                <p className="mt-1 text-sm" style={{ color: PALETTE.text }}>{a.summary}</p>
 
                 {/* Confidence bar + uncertainty */}
                 {a.confidence != null && (
@@ -187,6 +223,23 @@ export default function ApprovalQueue({ approvals }: Props) {
                     style={{ borderColor: PALETTE.danger, color: PALETTE.danger }}
                   >
                     Reject
+                  </button>
+                </div>
+              )}
+
+              {/* Persistent recovery — "Restore to pending" button on rejected rows.
+                  Lets the user undo a rejection even days later, since rejection
+                  produces no external side effects. */}
+              {a.status === 'rejected' && (
+                <div className="flex flex-row gap-2 sm:flex-col">
+                  <button
+                    onClick={() => handleUndoReject(a.id)}
+                    disabled={restoring === a.id}
+                    className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                    style={{ borderColor: PALETTE.warning, color: PALETTE.warning }}
+                    title="Move this approval back to the pending queue"
+                  >
+                    {restoring === a.id ? 'Restoring…' : 'Restore to pending'}
                   </button>
                 </div>
               )}

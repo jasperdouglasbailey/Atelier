@@ -192,6 +192,7 @@ export default function LocationsClient({ locations }: Props) {
       rowDimWhen={(l) => !l.is_active}
       emptyTitle="No locations yet."
       emptyDescription="Add studios, outdoor spaces, and venues to pre-fill booking forms."
+      emptyCta={{ label: 'Add first location', href: '/locations/new' }}
       countLabel={(n) => `${n} location${n !== 1 ? 's' : ''}`}
     />
   );

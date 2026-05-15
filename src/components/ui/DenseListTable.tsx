@@ -54,6 +54,10 @@ export type DenseListTableProps<T extends { id: string | number }> = {
   groupBy?: GroupBy<T>;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Optional CTA shown inside the empty state when no filters are active.
+   *  Used by Locations to restore the "Add first location" inline link
+   *  that was lost in the original card-grid → DenseListTable port. */
+  emptyCta?: { label: string; href: string };
   rowDimWhen?: (row: T) => boolean;
   countLabel?: (n: number) => string;   // "5 artists", "12 crew members"
   initialSort?: { key: string; dir: 'asc' | 'desc' };
@@ -74,6 +78,7 @@ export default function DenseListTable<T extends { id: string | number }>({
   groupBy,
   emptyTitle = 'No results',
   emptyDescription,
+  emptyCta,
   rowDimWhen,
   countLabel,
   initialSort,
@@ -171,7 +176,7 @@ export default function DenseListTable<T extends { id: string | number }>({
       />
 
       {sorted.length === 0 ? (
-        <EmptyState title={emptyTitle} description={emptyDescription} hasFilters={hasFilters} />
+        <EmptyState title={emptyTitle} description={emptyDescription} hasFilters={hasFilters} cta={emptyCta} />
       ) : (
         <div className="overflow-x-auto rounded-lg border" style={{ borderColor: PALETTE.border, background: PALETTE.surface }}>
           <table className="min-w-full text-sm">
@@ -394,7 +399,14 @@ function GroupRows<T extends { id: string | number }>({
   );
 }
 
-function EmptyState({ title, description, hasFilters }: { title: string; description?: string; hasFilters: boolean }) {
+function EmptyState({
+  title, description, hasFilters, cta,
+}: {
+  title: string;
+  description?: string;
+  hasFilters: boolean;
+  cta?: { label: string; href: string };
+}) {
   return (
     <div className="rounded-lg border py-12 text-center" style={{ borderColor: PALETTE.border, background: PALETTE.surface }}>
       <p className="text-sm" style={{ color: PALETTE.text }}>
@@ -402,6 +414,15 @@ function EmptyState({ title, description, hasFilters }: { title: string; descrip
       </p>
       {description && !hasFilters && (
         <p className="mt-1 text-xs" style={{ color: PALETTE.muted }}>{description}</p>
+      )}
+      {cta && !hasFilters && (
+        <a
+          href={cta.href}
+          className="mt-4 inline-block rounded-md px-3 py-1.5 text-xs font-medium"
+          style={{ background: PALETTE.accent, color: PALETTE.bg }}
+        >
+          {cta.label}
+        </a>
       )}
     </div>
   );
