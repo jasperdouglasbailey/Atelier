@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useOptimistic, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
@@ -51,16 +51,27 @@ function Toggle({ label, description, checked, onChange, color }: {
 
 export default function SettingsPanel({ killSwitch, agency, integrations, emailFailures = [], cronHealth = [], cronSecretPresent = false }: Props) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const isActive = killSwitch?.is_active ?? false;
-  const isPaused = killSwitch?.pause_outbound ?? false;
+  // Optimistic state — the toggle flips IMMEDIATELY on click and auto-syncs
+  // to the server prop after router.refresh() completes. Without useOptimistic,
+  // the toggle visually waits for the full server roundtrip + RSC refresh
+  // (~3-10s) before reflecting the click, which felt broken.
+  //
+  // React 19 useOptimistic: the optimistic value is set inside startTransition,
+  // and React automatically reverts to `killSwitch?.is_active` (the latest
+  // server prop) when the transition completes. No useEffect-sync needed.
+  const [isActive, setOptimisticActive] = useOptimistic(killSwitch?.is_active ?? false);
+  const [isPaused, setOptimisticPaused] = useOptimistic(killSwitch?.pause_outbound ?? false);
 
-  async function handleToggle(field: 'is_active' | 'pause_outbound') {
-    setBusy(true);
-    await toggleKillSwitchAction(field);
-    router.refresh();
-    setBusy(false);
+  function handleToggle(field: 'is_active' | 'pause_outbound') {
+    if (isPending) return;
+    startTransition(async () => {
+      if (field === 'is_active') setOptimisticActive(!isActive);
+      else setOptimisticPaused(!isPaused);
+      await toggleKillSwitchAction(field);
+      router.refresh();
+    });
   }
 
   // Determine current level
@@ -112,14 +123,14 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
             label="Full Freeze (Red)"
             description="Halt all agent processing immediately"
             checked={isActive}
-            onChange={() => !busy && handleToggle('is_active')}
+            onChange={() => handleToggle('is_active')}
             color={PALETTE.danger}
           />
           <Toggle
             label="Pause Outbound (Amber)"
             description="Agents draft but don't send — you review everything first"
             checked={isPaused}
-            onChange={() => !busy && handleToggle('pause_outbound')}
+            onChange={() => handleToggle('pause_outbound')}
             color={PALETTE.warning}
           />
         </div>
@@ -218,11 +229,20 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
               <div className="text-xs font-medium" style={{ color: PALETTE.warning }}>
                 {emailFailures.length} email operation{emailFailures.length !== 1 ? 's' : ''} failed in the last 7 days
               </div>
-              <div className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
-                {[...new Set(emailFailures.map((f) => f.action))].join(' · ')}
+              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
+                {[...new Set(emailFailures.map((f) => f.action))].map((action) => (
+                  <Link
+                    key={action}
+                    href={`/audit?action=${encodeURIComponent(action)}`}
+                    className="underline underline-offset-2"
+                    style={{ color: PALETTE.accent }}
+                  >
+                    {action}
+                  </Link>
+                ))}
               </div>
-              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
-                Check Gmail connection and resend manually if required.
+              <div className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
+                Click an action to see the captured error in the audit log.
               </div>
             </div>
           )}
