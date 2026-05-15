@@ -40,6 +40,63 @@ export async function getLatestQuoteVersion(bookingId: string): Promise<QuoteVer
   return data as QuoteVersion;
 }
 
+/**
+ * "Active" quote version — the one a print template or the public client
+ * viewer should render. Distinct from `getLatestQuoteVersion`, which
+ * always returns the highest version number even if it's an empty draft.
+ *
+ * Selection order:
+ *   1. The most recent version that was sent (`sent_at IS NOT NULL`) —
+ *      this is the version the client actually has in their inbox.
+ *   2. The most recent version with content (`grand_total > 0`).
+ *   3. Truly latest, fallback so callers never see null when any version
+ *      exists.
+ *
+ * Audit AUDIT-2026-05-15 caught the bug: BOOK-0001 had a V3 empty draft
+ * sitting on top of a populated V1/V2. The print/quote template called
+ * getLatestQuoteVersion → got V3 → rendered "No fee lines have been
+ * added to this quote yet." with the booking still showing $6,758 in
+ * the detail header. This function is the fix.
+ *
+ * QuoteBuilder still uses getLatestQuoteVersion so a freshly-created
+ * empty V3 is editable; only print + public viewer routes use this.
+ */
+export async function getActiveQuoteVersion(bookingId: string): Promise<QuoteVersion | null> {
+  const supabase = await createClient();
+
+  // 1. Most recent sent version
+  const sent = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .not('sent_at', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (sent.data) return sent.data as QuoteVersion;
+
+  // 2. Most recent populated version (totals computed → has line content)
+  const populated = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .gt('grand_total', 0)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (populated.data) return populated.data as QuoteVersion;
+
+  // 3. Truly-latest, fallback so empty-quote bookings still render
+  return getLatestQuoteVersion(bookingId);
+}
+
+/** Fee lines belonging to the active (print/public-facing) quote version. */
+export async function listFeeLinesForActiveQuote(bookingId: string): Promise<FeeLine[]> {
+  const active = await getActiveQuoteVersion(bookingId);
+  if (!active) return [];
+  return listFeeLines(active.id);
+}
+
 export async function createQuoteVersion(bookingId: string, notes?: string): Promise<QuoteVersion | null> {
   const supabase = await createClient();
 
@@ -673,6 +730,37 @@ export async function getLatestQuoteVersionPublic(bookingId: string): Promise<Qu
 
   if (error || !data) return null;
   return data as QuoteVersion;
+}
+
+/**
+ * Service-role variant of getActiveQuoteVersion for /q/[token]. See that
+ * function's docstring for the selection order. The token-gated route
+ * has no user session, so this uses the service client.
+ */
+export async function getActiveQuoteVersionPublic(bookingId: string): Promise<QuoteVersion | null> {
+  const supabase = createServiceClient();
+
+  const sent = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .not('sent_at', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (sent.data) return sent.data as QuoteVersion;
+
+  const populated = await supabase
+    .from(QUOTE_TABLE)
+    .select('*')
+    .eq('booking_id', bookingId)
+    .gt('grand_total', 0)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (populated.data) return populated.data as QuoteVersion;
+
+  return getLatestQuoteVersionPublic(bookingId);
 }
 
 /** Used by /q/[token] public quote viewer — no user session. */

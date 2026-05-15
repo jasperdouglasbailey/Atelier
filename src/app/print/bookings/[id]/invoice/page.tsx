@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { listFeeLinesForBooking } from '@/lib/data/quotes';
+import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -53,7 +53,7 @@ export default async function InvoicePrintPage({ params }: Props) {
 
   const [booking, feeLines] = await Promise.all([
     getBooking(id),
-    listFeeLinesForBooking(id),
+    listFeeLinesForActiveQuote(id),
   ]);
 
   if (!booking) notFound();
