@@ -48,14 +48,26 @@ const HOLD_STATES = ['hold_requested', 'sent'];
 const RATE_ACCEPT_STATES: BookingState[] = ['artists_crew_held', 'quote_confirmed', 'pre_production', 'shoot_live'];
 const BRIEF_ACK_STATES: BookingState[] = ['pre_production', 'shoot_live'];
 
-export default async function TalentPortalPage() {
+type PageProps = {
+  searchParams?: Promise<{ previewTalentId?: string }>;
+};
+
+export default async function TalentPortalPage({ searchParams }: PageProps) {
   const user = await getCurrentAppUser();
-  if (!user || user.role !== 'talent' || !user.talent_id) {
+  if (!user) redirect('/login?error=not_authorised');
+
+  // Owner / partner "view as" mode — see what any specific talent sees
+  // without logging out. Same pattern as the crew portal.
+  const params = (await searchParams) ?? {};
+  const isOwnerPreview = (user.role === 'owner' || user.role === 'partner') && Boolean(params.previewTalentId);
+  const effectiveTalentId = isOwnerPreview ? params.previewTalentId! : user.talent_id;
+
+  if (!effectiveTalentId || (!isOwnerPreview && user.role !== 'talent')) {
     redirect('/login?error=not_authorised');
   }
 
   const agency = getAgencyConfig();
-  const data = await getTalentPortalData(user.talent_id);
+  const data = await getTalentPortalData(effectiveTalentId);
   if (!data || !data.talent) {
     return (
       <div className="p-6">
@@ -73,7 +85,7 @@ export default async function TalentPortalPage() {
   const past = bookings.filter((b) => TERMINAL.includes(b.state));
 
   const upcomingIds = upcoming.map((b) => b.bookingId);
-  const callSheets = await getPortalCallSheets('talent', user.talent_id, upcomingIds);
+  const callSheets = await getPortalCallSheets('talent', effectiveTalentId, upcomingIds);
 
   const compliance = {
     abn: Boolean(talent.abn),
@@ -82,6 +94,30 @@ export default async function TalentPortalPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+
+      {isOwnerPreview && (
+        <section
+          className="rounded-lg border-l-4 px-4 py-2.5 flex items-center justify-between gap-3"
+          style={{ background: `${PALETTE.warning}14`, borderColor: PALETTE.warning }}
+        >
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.warning }}>
+              Preview mode · viewing as talent
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: PALETTE.text }}>
+              You are seeing what <strong>{talent.working_name}</strong> sees. Hold actions, rate acceptances, and other
+              writes will be attributed to you in the audit log — be careful.
+            </div>
+          </div>
+          <Link
+            href="/"
+            className="rounded px-3 py-1 text-[11px] font-medium flex-none"
+            style={{ background: PALETTE.surface, border: `1px solid ${PALETTE.border}`, color: PALETTE.text }}
+          >
+            Back to dashboard
+          </Link>
+        </section>
+      )}
 
       <GreetingHeader
         displayName={talent.working_name}

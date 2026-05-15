@@ -40,14 +40,27 @@ export const dynamic = 'force-dynamic';
 const TERMINAL = ['paid', 'released', 'cancelled', 'written_off'];
 const HOLD_STATES = ['hold_requested', 'sent'];
 
-export default async function CrewPortalPage() {
+type PageProps = {
+  searchParams?: Promise<{ previewCrewId?: string }>;
+};
+
+export default async function CrewPortalPage({ searchParams }: PageProps) {
   const user = await getCurrentAppUser();
-  if (!user || user.role !== 'crew' || !user.crew_id) {
+  if (!user) redirect('/login?error=not_authorised');
+
+  // Owner / partner "view as" mode — bypasses the crew-only gate. Lets
+  // Jasper preview what any specific crew member sees without logging out.
+  // The crew member themselves still goes through the normal flow.
+  const params = (await searchParams) ?? {};
+  const isOwnerPreview = (user.role === 'owner' || user.role === 'partner') && Boolean(params.previewCrewId);
+  const effectiveCrewId = isOwnerPreview ? params.previewCrewId! : user.crew_id;
+
+  if (!effectiveCrewId || (!isOwnerPreview && user.role !== 'crew')) {
     redirect('/login?error=not_authorised');
   }
 
   const agency = getAgencyConfig();
-  const data = await getCrewPortalData(user.crew_id);
+  const data = await getCrewPortalData(effectiveCrewId);
   if (!data || !data.crew) {
     return (
       <div className="p-6">
@@ -65,7 +78,7 @@ export default async function CrewPortalPage() {
   const past = bookings.filter((b) => TERMINAL.includes(b.state));
 
   const upcomingIds = upcoming.map((b) => b.bookingId);
-  const callSheets = await getPortalCallSheets('crew', user.crew_id, upcomingIds);
+  const callSheets = await getPortalCallSheets('crew', effectiveCrewId, upcomingIds);
 
   const compliance = {
     abn: Boolean(crew.abn),
@@ -74,6 +87,30 @@ export default async function CrewPortalPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+
+      {isOwnerPreview && (
+        <section
+          className="rounded-lg border-l-4 px-4 py-2.5 flex items-center justify-between gap-3"
+          style={{ background: `${PALETTE.warning}14`, borderColor: PALETTE.warning }}
+        >
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.warning }}>
+              Preview mode · viewing as crew
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: PALETTE.text }}>
+              You are seeing what <strong>{crew.name}</strong> sees. Hold actions, rate acceptances, and other writes
+              will be attributed to you in the audit log — be careful.
+            </div>
+          </div>
+          <Link
+            href="/"
+            className="rounded px-3 py-1 text-[11px] font-medium flex-none"
+            style={{ background: PALETTE.surface, border: `1px solid ${PALETTE.border}`, color: PALETTE.text }}
+          >
+            Back to dashboard
+          </Link>
+        </section>
+      )}
 
       <GreetingHeader
         displayName={crew.name}

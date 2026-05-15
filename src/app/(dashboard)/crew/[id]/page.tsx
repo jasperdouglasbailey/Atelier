@@ -147,6 +147,14 @@ export default async function CrewDetailPage({ params }: Props) {
                 Drive ↗
               </a>
             )}
+            <Link
+              href={`/portal/crew?previewCrewId=${crew.id}`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: `${PALETTE.warning}18`, color: PALETTE.warning, border: `1px solid ${PALETTE.warning}44` }}
+              title="Preview the crew portal as this person sees it"
+            >
+              👁 Preview portal
+            </Link>
             <ArchiveCrewButton crewId={crew.id} currentlyActive={crew.is_active} />
             {!crew.onboarding_completed && (
               <SendOnboardingLinkButton type="crew" entityId={crew.id} hasEmail={Boolean(crew.email)} />
