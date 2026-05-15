@@ -48,37 +48,29 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
     <>
       <Topbar title="Audit" />
       <div className="p-4 sm:p-6">
-        <form className="mb-4 flex flex-wrap items-end gap-3" method="get">
-          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
-            From
-            <input type="date" name="from" defaultValue={params.from} className="rounded-md border px-2 py-1 text-xs" style={inputStyle} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
-            To
-            <input type="date" name="to" defaultValue={params.to} className="rounded-md border px-2 py-1 text-xs" style={inputStyle} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
-            Action
-            <input
-              type="text"
-              name="action"
-              placeholder="e.g. update"
-              defaultValue={params.action}
-              className="rounded-md border px-2 py-1 text-xs"
-              style={inputStyle}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={{ color: PALETTE.muted }}>
-            Table
-            <input
-              type="text"
-              name="table"
-              placeholder="e.g. bookings"
-              defaultValue={params.table}
-              className="rounded-md border px-2 py-1 text-xs"
-              style={inputStyle}
-            />
-          </label>
+        <form className="mb-3 flex flex-wrap items-center gap-2" method="get">
+          <input type="date" name="from" defaultValue={params.from}
+                 className="rounded-md border px-2 py-1.5 text-xs"
+                 style={inputStyle} title="From date" />
+          <input type="date" name="to" defaultValue={params.to}
+                 className="rounded-md border px-2 py-1.5 text-xs"
+                 style={inputStyle} title="To date" />
+          <input
+            type="text"
+            name="action"
+            placeholder="Action filter (e.g. update)"
+            defaultValue={params.action}
+            className="min-w-0 flex-1 rounded-md border px-3 py-1.5 text-xs sm:max-w-xs"
+            style={inputStyle}
+          />
+          <input
+            type="text"
+            name="table"
+            placeholder="Table (e.g. bookings)"
+            defaultValue={params.table}
+            className="rounded-md border px-3 py-1.5 text-xs"
+            style={inputStyle}
+          />
           <button
             type="submit"
             className="rounded-md px-3 py-1.5 text-xs font-medium"
@@ -88,11 +80,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </button>
           <Link
             href="/audit"
-            className="rounded-md border px-3 py-1.5 text-xs"
-            style={{ borderColor: PALETTE.border, color: PALETTE.muted }}
+            className="text-xs underline"
+            style={{ color: PALETTE.muted }}
           >
-            Reset
+            Clear
           </Link>
+          <span className="ml-auto text-xs" style={{ color: PALETTE.muted }}>
+            {total === 0 ? '0 entries' : `${total.toLocaleString()} entries · page ${page} of ${totalPages}`}
+          </span>
         </form>
 
         <div
@@ -100,17 +95,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           style={{ borderColor: PALETTE.border, background: PALETTE.surface }}
         >
           <table className="min-w-full text-sm">
-            <thead>
-              <tr
-                className="text-left text-xs uppercase tracking-wide border-b"
-                style={{ background: PALETTE.bg, color: PALETTE.muted, borderColor: PALETTE.border }}
-              >
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Table</th>
-                <th className="px-4 py-3">Record</th>
-                <th className="px-4 py-3">Changes</th>
+            <thead className="sticky top-0 z-10" style={{ background: PALETTE.bg }}>
+              <tr style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Time</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide hidden md:table-cell" style={{ color: PALETTE.muted }}>User</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Action</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide hidden lg:table-cell" style={{ color: PALETTE.muted }}>Table</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide hidden lg:table-cell" style={{ color: PALETTE.muted }}>Record</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Changes</th>
               </tr>
             </thead>
             <tbody>
@@ -126,26 +118,27 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
                 return (
                   <tr
                     key={r.id}
-                    className="border-t"
                     style={{
-                      borderColor: PALETTE.border,
+                      borderTop: `1px solid ${PALETTE.border}`,
                       background: isFailure ? `${PALETTE.danger}08` : undefined,
                     }}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: PALETTE.muted }}>
+                    <td className="whitespace-nowrap px-3 py-2 text-[11px]" style={{ color: PALETTE.muted }}>
                       {formatDateTime(r.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.text }}>
-                      {r.user_id ?? <span style={{ color: PALETTE.muted }}>system</span>}
+                    <td className="px-3 py-2 text-[11px] hidden md:table-cell" style={{ color: PALETTE.text }}>
+                      {r.user_id
+                        ? <span className="font-mono">{r.user_id.slice(0, 8)}</span>
+                        : <span style={{ color: PALETTE.muted }}>system</span>}
                     </td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-3 py-2 text-[11px]">
                       <code style={{ color: isFailure ? PALETTE.danger : PALETTE.accent }}>{r.action}</code>
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: PALETTE.text }}>{r.table_name}</td>
-                    <td className="px-4 py-3 font-mono text-[11px]" style={{ color: PALETTE.muted }}>
-                      {r.record_id ?? '—'}
+                    <td className="px-3 py-2 text-[11px] hidden lg:table-cell" style={{ color: PALETTE.text }}>{r.table_name}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] hidden lg:table-cell" style={{ color: PALETTE.muted }}>
+                      {r.record_id ? r.record_id.slice(0, 8) : '—'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <ChangeSummary oldValue={r.old_value} newValue={r.new_value} />
                     </td>
                   </tr>
@@ -155,36 +148,31 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs" style={{ color: PALETTE.muted }}>
-          <span>
-            {total === 0 ? '0 entries' : `Showing page ${page} of ${totalPages} · ${total} total`}
-          </span>
-          <div className="flex gap-2">
-            <Link
-              aria-disabled={page <= 1}
-              href={buildPageHref(Math.max(1, page - 1))}
-              className="rounded-md border px-3 py-1.5"
-              style={{
-                borderColor: PALETTE.border,
-                color: page <= 1 ? PALETTE.border : PALETTE.text,
-                pointerEvents: page <= 1 ? 'none' : 'auto',
-              }}
-            >
-              Previous
-            </Link>
-            <Link
-              aria-disabled={page >= totalPages}
-              href={buildPageHref(Math.min(totalPages, page + 1))}
-              className="rounded-md border px-3 py-1.5"
-              style={{
-                borderColor: PALETTE.border,
-                color: page >= totalPages ? PALETTE.border : PALETTE.text,
-                pointerEvents: page >= totalPages ? 'none' : 'auto',
-              }}
-            >
-              Next
-            </Link>
-          </div>
+        <div className="mt-3 flex items-center justify-end gap-2 text-xs" style={{ color: PALETTE.muted }}>
+          <Link
+            aria-disabled={page <= 1}
+            href={buildPageHref(Math.max(1, page - 1))}
+            className="rounded-md border px-3 py-1.5"
+            style={{
+              borderColor: PALETTE.border,
+              color: page <= 1 ? PALETTE.border : PALETTE.text,
+              pointerEvents: page <= 1 ? 'none' : 'auto',
+            }}
+          >
+            ← Previous
+          </Link>
+          <Link
+            aria-disabled={page >= totalPages}
+            href={buildPageHref(Math.min(totalPages, page + 1))}
+            className="rounded-md border px-3 py-1.5"
+            style={{
+              borderColor: PALETTE.border,
+              color: page >= totalPages ? PALETTE.border : PALETTE.text,
+              pointerEvents: page >= totalPages ? 'none' : 'auto',
+            }}
+          >
+            Next →
+          </Link>
         </div>
       </div>
     </>

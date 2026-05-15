@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { PALETTE } from '@/lib/utils/constants';
 import { FACILITY_OPTIONS } from './LocationForm';
+import DenseListTable, { type Column, type Filter, type GroupBy } from '@/components/ui/DenseListTable';
 import type { Location, StudioType } from '@/lib/types/database';
 
 const STUDIO_TYPE_LABELS: Record<StudioType, string> = {
@@ -18,202 +17,182 @@ const STUDIO_TYPE_LABELS: Record<StudioType, string> = {
 
 function formatRate(half: number | null, full: number | null) {
   if (!half && !full) return null;
-  const parts: string[] = [];
-  if (half) parts.push(`$${half.toLocaleString()} half`);
-  if (full) parts.push(`$${full.toLocaleString()} full`);
-  return parts.join(' · ');
+  if (half && full) return `$${half.toLocaleString()} / $${full.toLocaleString()}`;
+  if (half) return `$${half.toLocaleString()} half`;
+  return `$${full!.toLocaleString()} full`;
 }
 
-const FACILITY_LABEL: Record<string, string> = Object.fromEntries(
-  FACILITY_OPTIONS.map((f) => [f.value, f.label]),
-);
-
-type Props = {
-  locations: Location[];
-};
+type Props = { locations: Location[] };
 
 export default function LocationsClient({ locations }: Props) {
-  const [search, setSearch] = useState('');
-  const [activeFacilities, setActiveFacilities] = useState<Set<string>>(new Set());
+  // Surface only facility filters that are actually used by some location.
+  const usedFacilities = new Set<string>();
+  for (const loc of locations) for (const f of loc.facilities ?? []) usedFacilities.add(f);
+  const facilityOptions = FACILITY_OPTIONS.filter((f) => usedFacilities.has(f.value));
 
-  const toggleFacility = (f: string) => {
-    setActiveFacilities((prev) => {
-      const next = new Set(prev);
-      if (next.has(f)) next.delete(f);
-      else next.add(f);
-      return next;
-    });
+  const columns: Column<Location>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      sortable: true,
+      sortValue: (l) => l.name?.toLowerCase() ?? '',
+      width: 'minmax(220px, 1.5fr)',
+      render: (l) => (
+        <div className="min-w-0">
+          <div className="font-medium truncate" style={{ color: PALETTE.text }}>{l.name}</div>
+          {l.alias && (
+            <div className="text-[11px] truncate" style={{ color: PALETTE.muted }}>{l.alias}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      sortable: true,
+      sortValue: (l) => l.studio_type,
+      width: '140px',
+      render: (l) => (
+        <span
+          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+          style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent }}
+        >
+          {STUDIO_TYPE_LABELS[l.studio_type]}
+        </span>
+      ),
+    },
+    {
+      key: 'location',
+      label: 'Where',
+      hideBelow: 'md',
+      width: 'minmax(160px, 1fr)',
+      render: (l) => (
+        <span className="truncate block" style={{ color: PALETTE.muted }}>
+          {l.suburb ? `${l.suburb}${l.state ? `, ${l.state}` : ''}` : l.address ?? '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'rate',
+      label: 'Rate (½ / full)',
+      sortable: true,
+      sortValue: (l) => l.full_day_rate ?? l.half_day_rate ?? 0,
+      hideBelow: 'md',
+      width: '160px',
+      align: 'right',
+      render: (l) => {
+        const rate = formatRate(l.half_day_rate, l.full_day_rate);
+        return rate
+          ? <span className="tabular-nums" style={{ color: PALETTE.text }}>{rate}</span>
+          : <span style={{ color: PALETTE.muted }}>—</span>;
+      },
+    },
+    {
+      key: 'rooms',
+      label: 'Rooms',
+      hideBelow: 'lg',
+      width: '80px',
+      align: 'right',
+      sortable: true,
+      sortValue: (l) => l.studio_rooms?.length ?? 0,
+      render: (l) => l.studio_rooms?.length
+        ? <span style={{ color: PALETTE.text }}>{l.studio_rooms.length}</span>
+        : <span style={{ color: PALETTE.muted }}>—</span>,
+    },
+    {
+      key: 'contact',
+      label: 'Contact',
+      hideBelow: 'lg',
+      width: '160px',
+      render: (l) => <span className="truncate block" style={{ color: PALETTE.muted }}>{l.contact_name ?? '—'}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      width: '130px',
+      align: 'right',
+      render: (l) => (
+        <div className="flex items-center justify-end gap-1">
+          {l.drive_folder_link && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ background: `${PALETTE.success}18`, color: PALETTE.success }}
+            >
+              Drive
+            </span>
+          )}
+          {!l.is_active && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ background: `${PALETTE.muted}22`, color: PALETTE.muted }}
+            >
+              Inactive
+            </span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const filters: Filter<Location>[] = [
+    {
+      kind: 'search',
+      key: 'q',
+      placeholder: 'Search by name, suburb, alias…',
+      predicate: (l, q) => {
+        const needle = q.toLowerCase().trim();
+        if (!needle) return true;
+        const hay = [l.name, l.alias, l.suburb, l.address, l.state]
+          .filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(needle);
+      },
+    },
+    {
+      kind: 'select',
+      key: 'type',
+      label: 'All types',
+      options: Object.entries(STUDIO_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v })),
+      predicate: (l, v) => l.studio_type === v,
+    },
+    ...(facilityOptions.length > 0 ? [{
+      kind: 'select' as const,
+      key: 'facility',
+      label: 'Any facility',
+      options: facilityOptions.map((f) => ({ value: f.value, label: f.label })),
+      predicate: (l: Location, v: string) => (l.facilities ?? []).includes(v),
+    }] : []),
+    {
+      kind: 'select',
+      key: 'active',
+      label: 'Active only',
+      options: [
+        { value: 'active', label: 'Active only' },
+        { value: 'inactive', label: 'Inactive only' },
+      ],
+      predicate: (l, v) => v === 'active' ? l.is_active : !l.is_active,
+      defaultValue: 'active',
+    },
+  ];
+
+  const groupBy: GroupBy<Location> = {
+    getValue: (l) => l.studio_type,
+    labelFor: (k) => STUDIO_TYPE_LABELS[k as StudioType] ?? k,
+    persistKey: 'locations',
+    enabledByDefault: false,
+    toggleHeader: 'Group by type',
   };
 
-  const { filtered, facilityOptions } = useMemo(() => {
-    // Collect only facilities that appear in at least one active location
-    const usedFacilities = new Set<string>();
-    for (const loc of locations) {
-      for (const f of loc.facilities ?? []) usedFacilities.add(f);
-    }
-    const facilityOptions = FACILITY_OPTIONS.filter((f) => usedFacilities.has(f.value));
-
-    const q = search.toLowerCase().trim();
-    const filtered = locations.filter((loc) => {
-      if (q) {
-        const hay = [loc.name, loc.alias, loc.suburb, loc.address, loc.state]
-          .filter(Boolean).join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      for (const f of activeFacilities) {
-        if (!(loc.facilities ?? []).includes(f)) return false;
-      }
-      return true;
-    });
-
-    return { filtered, facilityOptions };
-  }, [locations, search, activeFacilities]);
-
-  const active = filtered.filter((l) => l.is_active);
-  const inactive = filtered.filter((l) => !l.is_active);
-  const hasFilters = search || activeFacilities.size > 0;
-
   return (
-    <>
-      {/* Search + facility chips */}
-      <div className="mb-5 space-y-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or suburb…"
-          className="w-full max-w-sm rounded-md border bg-transparent px-3 py-2 text-sm"
-          style={{ borderColor: PALETTE.border, color: PALETTE.text }}
-        />
-
-        {facilityOptions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {facilityOptions.map((f) => {
-              const on = activeFacilities.has(f.value);
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => toggleFacility(f.value)}
-                  className="rounded-full px-3 py-0.5 text-[11px] font-medium transition"
-                  style={{
-                    background: on ? PALETTE.accent : `${PALETTE.accent}18`,
-                    color: on ? PALETTE.bg : PALETTE.accent,
-                    border: `1px solid ${on ? PALETTE.accent : 'transparent'}`,
-                  }}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-            {activeFacilities.size > 0 && (
-              <button
-                type="button"
-                onClick={() => setActiveFacilities(new Set())}
-                className="rounded-full px-3 py-0.5 text-[11px]"
-                style={{ color: PALETTE.muted }}
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-        )}
-
-        {hasFilters && (
-          <p className="text-xs" style={{ color: PALETTE.muted }}>
-            {filtered.length} location{filtered.length !== 1 ? 's' : ''} match
-          </p>
-        )}
-      </div>
-
-      {active.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {active.map((loc) => {
-            const rate = formatRate(loc.half_day_rate, loc.full_day_rate);
-            return (
-              <Link
-                key={loc.id}
-                href={`/locations/${loc.id}`}
-                className="block rounded-lg border p-4 hover:border-opacity-80 transition"
-                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate" style={{ color: PALETTE.text }}>{loc.name}</div>
-                    {loc.alias && (
-                      <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>{loc.alias}</div>
-                    )}
-                  </div>
-                  <span
-                    className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent }}
-                  >
-                    {STUDIO_TYPE_LABELS[loc.studio_type]}
-                  </span>
-                </div>
-
-                <div className="mt-2 space-y-0.5">
-                  {(loc.suburb || loc.address) && (
-                    <div className="text-[11px] truncate" style={{ color: PALETTE.muted }}>
-                      {loc.suburb ? `${loc.suburb}, ${loc.state}` : loc.address}
-                    </div>
-                  )}
-                  {rate && (
-                    <div className="text-[11px]" style={{ color: PALETTE.muted }}>{rate}</div>
-                  )}
-                  {loc.contact_name && (
-                    <div className="text-[11px]" style={{ color: PALETTE.muted }}>Contact: {loc.contact_name}</div>
-                  )}
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                  {loc.studio_rooms && loc.studio_rooms.length > 0 && (
-                    <span className="rounded-full px-2 py-0.5" style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent }}>
-                      {loc.studio_rooms.length} room{loc.studio_rooms.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {loc.drive_folder_link && (
-                    <span className="rounded-full px-2 py-0.5" style={{ background: `${PALETTE.success}18`, color: PALETTE.success }}>
-                      Drive folder
-                    </span>
-                  )}
-                  {(loc.facilities ?? []).filter((f) => activeFacilities.has(f)).map((f) => (
-                    <span key={f} className="rounded-full px-2 py-0.5" style={{ background: `${PALETTE.accent}30`, color: PALETTE.accent }}>
-                      {FACILITY_LABEL[f] ?? f}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {inactive.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-            Inactive ({inactive.length})
-          </h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {inactive.map((loc) => (
-              <Link
-                key={loc.id}
-                href={`/locations/${loc.id}`}
-                className="block rounded border px-4 py-3 opacity-60"
-                style={{ borderColor: PALETTE.border }}
-              >
-                <span className="text-sm" style={{ color: PALETTE.muted }}>{loc.name}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {filtered.length === 0 && (
-        <div className="py-12 text-center text-sm" style={{ color: PALETTE.muted }}>
-          No locations match{activeFacilities.size > 0 ? ' these filters' : ' this search'}.
-        </div>
-      )}
-    </>
+    <DenseListTable<Location>
+      rows={locations}
+      columns={columns}
+      filters={filters}
+      hrefFor={(l) => `/locations/${l.id}`}
+      groupBy={groupBy}
+      rowDimWhen={(l) => !l.is_active}
+      emptyTitle="No locations yet."
+      emptyDescription="Add studios, outdoor spaces, and venues to pre-fill booking forms."
+      countLabel={(n) => `${n} location${n !== 1 ? 's' : ''}`}
+    />
   );
 }
