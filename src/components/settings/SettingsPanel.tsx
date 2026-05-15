@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
@@ -51,16 +51,36 @@ function Toggle({ label, description, checked, onChange, color }: {
 
 export default function SettingsPanel({ killSwitch, agency, integrations, emailFailures = [], cronHealth = [], cronSecretPresent = false }: Props) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const isActive = killSwitch?.is_active ?? false;
-  const isPaused = killSwitch?.pause_outbound ?? false;
+  // Optimistic local state — the toggle flips IMMEDIATELY on click.
+  // Server confirms via router.refresh() in the background; if the action
+  // fails we roll back. Without this, the toggle visually waits for the
+  // full server roundtrip + RSC refresh (~3-10s) before reflecting the
+  // click, which felt broken.
+  const [isActive, setIsActive] = useState(killSwitch?.is_active ?? false);
+  const [isPaused, setIsPaused] = useState(killSwitch?.pause_outbound ?? false);
 
-  async function handleToggle(field: 'is_active' | 'pause_outbound') {
-    setBusy(true);
-    await toggleKillSwitchAction(field);
-    router.refresh();
-    setBusy(false);
+  // Sync local state when server props change (e.g. another tab toggled,
+  // realtime event fired, or initial load).
+  useEffect(() => { setIsActive(killSwitch?.is_active ?? false); }, [killSwitch?.is_active]);
+  useEffect(() => { setIsPaused(killSwitch?.pause_outbound ?? false); }, [killSwitch?.pause_outbound]);
+
+  function handleToggle(field: 'is_active' | 'pause_outbound') {
+    if (isPending) return;
+    // Flip optimistically.
+    if (field === 'is_active') setIsActive((v) => !v);
+    else setIsPaused((v) => !v);
+
+    startTransition(async () => {
+      const result = await toggleKillSwitchAction(field);
+      if (!result) {
+        // Server rejected — revert.
+        if (field === 'is_active') setIsActive(killSwitch?.is_active ?? false);
+        else setIsPaused(killSwitch?.pause_outbound ?? false);
+      }
+      router.refresh();
+    });
   }
 
   // Determine current level
@@ -112,14 +132,14 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
             label="Full Freeze (Red)"
             description="Halt all agent processing immediately"
             checked={isActive}
-            onChange={() => !busy && handleToggle('is_active')}
+            onChange={() => handleToggle('is_active')}
             color={PALETTE.danger}
           />
           <Toggle
             label="Pause Outbound (Amber)"
             description="Agents draft but don't send — you review everything first"
             checked={isPaused}
-            onChange={() => !busy && handleToggle('pause_outbound')}
+            onChange={() => handleToggle('pause_outbound')}
             color={PALETTE.warning}
           />
         </div>
@@ -218,11 +238,20 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
               <div className="text-xs font-medium" style={{ color: PALETTE.warning }}>
                 {emailFailures.length} email operation{emailFailures.length !== 1 ? 's' : ''} failed in the last 7 days
               </div>
-              <div className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
-                {[...new Set(emailFailures.map((f) => f.action))].join(' · ')}
+              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
+                {[...new Set(emailFailures.map((f) => f.action))].map((action) => (
+                  <Link
+                    key={action}
+                    href={`/audit?action=${encodeURIComponent(action)}`}
+                    className="underline underline-offset-2"
+                    style={{ color: PALETTE.accent }}
+                  >
+                    {action}
+                  </Link>
+                ))}
               </div>
-              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
-                Check Gmail connection and resend manually if required.
+              <div className="mt-1 text-[10px]" style={{ color: PALETTE.muted }}>
+                Click an action to see the captured error in the audit log.
               </div>
             </div>
           )}
