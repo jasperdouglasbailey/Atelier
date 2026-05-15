@@ -14,6 +14,7 @@ import { TEMPLATE_LINES_MAP, type QuoteTemplate } from '@/lib/utils/quote-templa
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { getCurrentAppUser } from '@/lib/data/app-users';
+import { reportDataError } from '@/lib/utils/data-errors';
 
 /**
  * Guard for fee-line mutations. Surfaces a clear "Not authorised" instead
@@ -377,27 +378,68 @@ export async function getFeeLinesByVersionAction(versionId: string): Promise<Fee
   return listFeeLines(versionId);
 }
 
-/** Reorder fee lines by updating sort_order for each id in the supplied array. */
+/**
+ * Reorder fee lines by updating sort_order for each id in the supplied array.
+ *
+ * Reported by Jasper 2026-05-15 — dragging a fee line to a new position
+ * sometimes didn't persist (item snapped back after refresh). The previous
+ * implementation used `.upsert(updates, { onConflict: 'id' })` which is
+ * unreliable for partial-column writes — PostgREST validates the INSERT
+ * side of ON CONFLICT against NOT NULL columns even when every row exists,
+ * so a payload of just `{ id, sort_order }` can be rejected silently.
+ *
+ * Fix: individual UPDATEs, one per row. N round-trips for N rows but for a
+ * quote with ~10 fee lines that's well under 200ms. Each update returns an
+ * error if it fails, so a real failure surfaces to the user instead of
+ * silently letting the order snap back.
+ */
 export async function reorderFeeLinesAction(
   orderedIds: string[],
   bookingId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const authError = await requireOwnerOrPartner();
   if (authError) return { ok: false, error: authError.error };
-  // Service client for the write — auth already verified above. Same pattern
-  // as updateFeeLine in the data layer (avoids RLS edge cases).
+  if (orderedIds.length === 0) return { ok: true };
+
   const { createServiceClient } = await import('@/lib/supabase/service');
   const supabase = createServiceClient();
 
-  // Assign sort_order in steps of 10 so future inserts slot in between
-  const updates = orderedIds.map((id, i) => ({ id, sort_order: i * 10 }));
-  const { error } = await supabase
-    .from('atelier_fee_lines')
-    .upsert(updates, { onConflict: 'id' });
+  // Assign sort_order in steps of 10 so future inserts slot in between.
+  // Parallel UPDATEs — each row's sort_order changes independently.
+  const results = await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase
+        .from('atelier_fee_lines')
+        .update({ sort_order: i * 10 })
+        .eq('id', id)
+        .select('id, sort_order')
+        .single(),
+    ),
+  );
 
-  if (error) return { ok: false, error: error.message };
+  // Surface the first failure with full Supabase context so the client can
+  // show the operator what's wrong instead of silently reverting.
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.error) {
+      const msg = `Reorder failed at position ${i} (id ${orderedIds[i]}): ${r.error.message}`
+        + (r.error.code ? ` · code ${r.error.code}` : '')
+        + (r.error.details ? ` · ${r.error.details}` : '');
+      reportDataError('[reorderFeeLines]', r.error);
+      return { ok: false, error: msg };
+    }
+  }
 
-  revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'fee_line_reorder',
+    tableName: 'atelier_fee_lines',
+    recordId: bookingId,
+    newValue: { count: orderedIds.length, orderedIds } as unknown as import('@/lib/types/database').Json,
+  }).catch(() => {});
+
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidateTag('bookings', {});
   return { ok: true };
 }
 

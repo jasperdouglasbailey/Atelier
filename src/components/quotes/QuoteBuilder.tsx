@@ -289,6 +289,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
   function handleReorder(fromIdx: number | null, toIdx: number) {
     if (fromIdx === null || fromIdx === toIdx) return;
+    // Snapshot the order before mutating so we can revert if the server fails
+    // — without this, a failed reorder would optimistically show the new order,
+    // then router.refresh() would snap back to the old order, leaving the user
+    // wondering why their drag didn't stick.
+    const snapshot = feeLines;
     const newLines = [...feeLines];
     const [moved] = newLines.splice(fromIdx, 1);
     newLines.splice(toIdx, 0, moved);
@@ -297,7 +302,13 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     setDropIdx(null);
     const orderedIds = newLines.map((l) => l.id);
     startReorderTransition(async () => {
-      await reorderFeeLinesAction(orderedIds, bookingId);
+      const result = await reorderFeeLinesAction(orderedIds, bookingId);
+      if (!result.ok) {
+        // Revert the optimistic reorder and tell the user why.
+        setFeeLines(snapshot);
+        setError(result.error ?? 'Failed to save new order — please try again.');
+        return;
+      }
       router.refresh();
     });
   }
