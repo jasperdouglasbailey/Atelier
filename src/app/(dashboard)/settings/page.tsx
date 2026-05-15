@@ -65,6 +65,9 @@ export default async function SettingsPage() {
     anthropicConnected: Boolean(process.env.ANTHROPIC_API_KEY),
   };
 
+  // Sanitised presence flag only — never leak the secret value to the client.
+  const cronSecretPresent = Boolean(process.env.CRON_SECRET);
+
   return (
     <>
       <Topbar title="Settings" />
@@ -75,6 +78,7 @@ export default async function SettingsPage() {
           integrations={integrations}
           emailFailures={emailFailures}
           cronHealth={cronHealth}
+          cronSecretPresent={cronSecretPresent}
         />
       </div>
     </>
