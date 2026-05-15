@@ -5,6 +5,8 @@ import { createLocation, getLocation, updateLocation } from '@/lib/data/location
 import { createLocationFolder, createLocationFolderWithRooms } from '@/lib/integrations/drive';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { geocodeAddress } from '@/lib/integrations/geocode';
+import { parseLocationFromUrl, type ParsedLocation } from '@/lib/automation/location-parser';
+import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
@@ -156,6 +158,51 @@ export async function updateLocationAction(id: string, formData: FormData) {
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);
   return { ok: true };
+}
+
+/**
+ * AI-parse a studio's website into structured location fields. Returns the
+ * parsed values WITHOUT persisting them — the form layer shows them to the
+ * user for review before save (doctrine: never auto-apply LLM output).
+ *
+ * Kill-switch: blocked at RED (no agent activity at all). AMBER is allowed
+ * because parsing is a read-only LLM call — no outbound effects.
+ *
+ * Audit-logged as `location_website_parse` with the source URLs + confidence.
+ */
+export async function parseLocationFromUrlAction(
+  rawUrl: string,
+): Promise<{ ok: true; parsed: ParsedLocation } | { ok: false; error: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
+
+  const ks = await checkKillSwitch();
+  if (!ks.canProceed) {
+    return { ok: false, error: 'Kill switch is RED — agent activity is paused.' };
+  }
+
+  const trimmed = (rawUrl ?? '').trim();
+  if (!trimmed) return { ok: false, error: 'Please provide a website URL.' };
+
+  const parsed = await parseLocationFromUrl(trimmed);
+  if (!parsed) {
+    return { ok: false, error: 'Could not parse this URL. The site may have blocked scraping, returned no usable HTML, or the LLM is unavailable.' };
+  }
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'location_website_parse',
+    tableName: 'atelier_locations',
+    recordId: null,
+    newValue: {
+      url: trimmed,
+      sourceUrls: parsed.sourceUrls,
+      confidence: parsed.confidence,
+      uncertainty: parsed.uncertainty,
+    } as never,
+  });
+
+  return { ok: true, parsed };
 }
 
 /**
