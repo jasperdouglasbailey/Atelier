@@ -15,6 +15,8 @@ import {
 import { formatDateTime, formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import BookingHoverCard from '@/components/bookings/BookingHoverCard';
+import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
+import SectionCard from '@/components/ui/SectionCard';
 
 // ============================================================================
 // Dashboard — redesigned session 9.
@@ -84,7 +86,7 @@ export default async function DashboardPage() {
   return (
     <>
       <Topbar title="Dashboard" />
-      <div className="p-4 sm:p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4">
 
         {/* ── 1. HEALTH BANNER (failure only) ─────────────────────── */}
         {failedProbes.length > 0 && (
@@ -117,88 +119,52 @@ export default async function DashboardPage() {
         )}
 
         {/* ── 2. KPI ROW ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {/* Active bookings */}
-          <Link
+        <KpiStrip>
+          <KpiCard
+            label="Active"
+            value={totalActive}
+            sub="bookings in progress"
             href="/bookings"
-            className="rounded-lg border p-4 transition hover:opacity-80"
-            style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-          >
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>Active</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: PALETTE.text }}>{totalActive}</div>
-            <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>bookings in progress</div>
-          </Link>
-
-          {/* This week revenue */}
-          <Link
+          />
+          <KpiCard
+            label="This week"
+            value={formatCurrency(summary.revenueThisWeek)}
+            sub="confirmed shoots"
             href="/bookings?view=calendar"
-            className="rounded-lg border p-4 transition hover:opacity-80"
-            style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-          >
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>This week</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: PALETTE.text }}>
-              {formatCurrency(summary.revenueThisWeek)}
-            </div>
-            <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>confirmed shoots</div>
-          </Link>
-
-          {/* This month */}
-          <Link
-            href="/reports"
-            className="rounded-lg border p-4 transition hover:opacity-80"
-            style={{ background: PALETTE.surface, borderColor: PALETTE.accent }}
-          >
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>This month</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: PALETTE.accent }}>
-              {formatCurrency(summary.revenueThisMonth)}
-            </div>
-            <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
-              {monthDelta === null ? (
-                'no prior month data'
-              ) : (
+          />
+          <KpiCard
+            label="This month"
+            value={formatCurrency(summary.revenueThisMonth)}
+            sub={
+              monthDelta === null ? 'no prior month data' : (
                 <span style={{ color: monthDelta >= 0 ? PALETTE.success : PALETTE.danger }}>
                   {monthDelta >= 0 ? '↑' : '↓'}{Math.abs(monthDelta).toFixed(0)}% vs last month
                 </span>
-              )}
-            </div>
-          </Link>
-
-          {/* YTD */}
-          <Link
+              )
+            }
             href="/reports"
-            className="rounded-lg border p-4 transition hover:opacity-80"
-            style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-          >
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>Year to date</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: PALETTE.text }}>
-              {formatCurrency(summary.revenueThisYear)}
-            </div>
-            <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
-              avg {formatCurrency(summary.avgBookingValue)}/booking
-            </div>
-          </Link>
-        </div>
+            accent
+          />
+          <KpiCard
+            label="Year to date"
+            value={formatCurrency(summary.revenueThisYear)}
+            sub={`avg ${formatCurrency(summary.avgBookingValue)}/booking`}
+            href="/reports"
+          />
+        </KpiStrip>
 
         {/* ── 3. MAIN CONTENT GRID ────────────────────────────────── */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
 
           {/* LEFT COLUMN (2/3) — actionable + schedule */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4">
 
             {/* Needs attention */}
             {totalAttentionCount > 0 && (
-              <section
-                className="rounded-lg border p-5"
-                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+              <SectionCard
+                title="Needs attention"
+                meta={`${totalAttentionCount} item${totalAttentionCount === 1 ? '' : 's'}`}
               >
-                <div className="mb-4 flex items-baseline justify-between">
-                  <h2 className="text-sm font-semibold" style={{ color: PALETTE.text }}>
-                    Needs attention
-                  </h2>
-                  <span className="text-[11px]" style={{ color: PALETTE.muted }}>
-                    {totalAttentionCount} item{totalAttentionCount === 1 ? '' : 's'}
-                  </span>
-                </div>
                 <div className="space-y-2">
                   {/* Overdue invoices first */}
                   {overdueInvoices.map((inv) => {
@@ -300,23 +266,14 @@ export default async function DashboardPage() {
                     </Link>
                   )}
                 </div>
-              </section>
+              </SectionCard>
             )}
 
             {/* This week's shoots */}
-            <section
-              className="rounded-lg border p-5"
-              style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+            <SectionCard
+              title="This week"
+              action={{ label: 'Calendar', href: '/bookings?view=calendar' }}
             >
-              <div className="mb-4 flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold" style={{ color: PALETTE.text }}>
-                  This week
-                </h2>
-                <Link href="/bookings?view=calendar" className="text-[11px]" style={{ color: PALETTE.accent }}>
-                  Calendar →
-                </Link>
-              </div>
-
               {upcoming.length === 0 ? (
                 <p className="text-xs" style={{ color: PALETTE.muted }}>No shoots scheduled this week.</p>
               ) : (
@@ -377,24 +334,18 @@ export default async function DashboardPage() {
                   })}
                 </div>
               )}
-            </section>
+            </SectionCard>
           </div>
 
           {/* RIGHT COLUMN (1/3) — context + rankings */}
-          <div className="space-y-6">
+          <div className="space-y-4">
 
             {/* Top artists — compact list */}
             {topTalent.length > 0 && (
-              <section
-                className="rounded-lg border p-4"
-                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+              <SectionCard
+                title="Top artists"
+                action={{ label: 'All', href: '/talent' }}
               >
-                <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="section-title">Top artists</h2>
-                  <Link href="/talent" className="text-[11px]" style={{ color: PALETTE.accent }}>
-                    All →
-                  </Link>
-                </div>
                 <ul className="space-y-3">
                   {topTalent.map((t, i) => (
                     <li key={t.talentId}>
@@ -432,21 +383,15 @@ export default async function DashboardPage() {
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SectionCard>
             )}
 
             {/* Pipeline breakdown */}
             {pipeline.length > 0 && (
-              <section
-                className="rounded-lg border p-4"
-                style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+              <SectionCard
+                title="Pipeline"
+                action={{ label: 'All', href: '/bookings' }}
               >
-                <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="section-title">Pipeline</h2>
-                  <Link href="/bookings" className="text-[11px]" style={{ color: PALETTE.accent }}>
-                    All →
-                  </Link>
-                </div>
                 <ul className="space-y-2">
                   {pipeline.map(({ state, count }) => (
                     <li key={state}>
@@ -468,7 +413,7 @@ export default async function DashboardPage() {
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SectionCard>
             )}
           </div>
         </div>

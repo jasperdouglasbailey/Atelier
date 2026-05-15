@@ -1,6 +1,8 @@
 import Topbar from '@/components/layout/Topbar';
 import { listBusinessRenewals } from '@/lib/data/business-renewals';
+import { EXPIRY_DANGER_DAYS, EXPIRY_WARN_DAYS } from '@/lib/data/business-renewals-types';
 import { PALETTE } from '@/lib/utils/constants';
+import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
 import BusinessRenewalsClient from './BusinessRenewalsClient';
 
 /**
@@ -10,35 +12,57 @@ import BusinessRenewalsClient from './BusinessRenewalsClient';
  * expiries). This page tracks agency-level renewals Jasper has to
  * handle himself: insurance policies, BAS quarterly lodgement, ASIC
  * company review, domain renewals, accountant engagements.
- *
- * The cron at /api/cron/compliance-pings (extended in PR#34) sweeps
- * this table daily and queues approval-gated reminder emails to Jasper
- * when something is ≤30 days from expiry.
  */
 export default async function BusinessRenewalsPage() {
   const rows = await listBusinessRenewals();
-  const concerns = rows.filter((r) => r.status === 'expired' || r.status === 'danger' || r.status === 'warning');
+
+  const expiredCount  = rows.filter((r) => r.status === 'expired').length;
+  const dangerCount   = rows.filter((r) => r.status === 'danger').length;
+  const warningCount  = rows.filter((r) => r.status === 'warning').length;
+  const okCount       = rows.filter((r) => r.status === 'ok').length;
+  const needAttention = expiredCount + dangerCount;
 
   return (
     <>
       <Topbar title="Business Renewals" />
-      <div className="p-4 sm:p-6 max-w-5xl space-y-4">
-        <p className="text-xs" style={{ color: PALETTE.muted }}>
+      <div className="p-4 sm:p-6 space-y-4">
+
+        <KpiStrip>
+          <KpiCard
+            label="Expired"
+            value={expiredCount}
+            sub="renew immediately"
+            tone={expiredCount > 0 ? 'danger' : 'default'}
+            valueColor={expiredCount > 0 ? PALETTE.danger : undefined}
+          />
+          <KpiCard
+            label={`Due ≤${EXPIRY_DANGER_DAYS}d`}
+            value={dangerCount}
+            sub="needs renewal soon"
+            tone={dangerCount > 0 ? 'danger' : 'default'}
+            valueColor={dangerCount > 0 ? PALETTE.danger : undefined}
+          />
+          <KpiCard
+            label={`Due ≤${EXPIRY_WARN_DAYS}d`}
+            value={warningCount}
+            sub="watch list"
+            tone={warningCount > 0 ? 'warn' : 'default'}
+            valueColor={warningCount > 0 ? PALETTE.warning : undefined}
+          />
+          <KpiCard
+            label="OK"
+            value={okCount}
+            sub={`of ${rows.length} tracked`}
+            tone={needAttention === 0 && rows.length > 0 ? 'success' : 'default'}
+            valueColor={needAttention === 0 && rows.length > 0 ? PALETTE.success : undefined}
+          />
+        </KpiStrip>
+
+        <p className="text-[11px]" style={{ color: PALETTE.muted }}>
           Agency-side renewals — insurance, BAS, ASIC, domain. Pairs with{' '}
           <a href="/settings/compliance" style={{ color: PALETTE.accent }}>compliance</a>{' '}
-          (which tracks talent + crew documents).
+          (which tracks talent + crew documents). Cron at <code>/api/cron/compliance-pings</code> sweeps this daily and queues approval-gated reminders.
         </p>
-
-        {rows.length > 0 && (
-          <div className="text-xs" style={{ color: PALETTE.muted }}>
-            {rows.length} active renewal{rows.length === 1 ? '' : 's'}
-            {concerns.length > 0 && (
-              <span className="ml-2 rounded-full px-2 py-0.5 font-semibold" style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}>
-                {concerns.length} need attention
-              </span>
-            )}
-          </div>
-        )}
 
         <BusinessRenewalsClient rows={rows} />
       </div>
