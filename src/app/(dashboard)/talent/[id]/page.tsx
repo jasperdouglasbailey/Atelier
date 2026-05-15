@@ -142,6 +142,14 @@ export default async function TalentDetailPage({ params }: Props) {
                 Drive ↗
               </a>
             )}
+            <Link
+              href={`/portal/talent?previewTalentId=${talent.id}`}
+              className="rounded px-3 py-1 text-xs font-medium"
+              style={{ background: `${PALETTE.warning}18`, color: PALETTE.warning, border: `1px solid ${PALETTE.warning}44` }}
+              title="Preview the talent portal as this person sees it"
+            >
+              👁 Preview portal
+            </Link>
             <ArchiveTalentButton talentId={talent.id} currentlyActive={talent.is_active} />
             {!talent.onboarding_completed && (
               <SendOnboardingLinkButton type="talent" entityId={talent.id} hasEmail={Boolean(talent.email)} />
