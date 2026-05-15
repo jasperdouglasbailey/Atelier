@@ -13,6 +13,9 @@ type Props = {
   shootDates: string | null;
   shootDateNotes?: string | null;
   cols?: 1 | 2;
+  /** 'stacked' (default) = label above value. 'horizontal' = label-left,
+   *  value-right in a single dense row. */
+  layout?: 'stacked' | 'horizontal';
 };
 
 /**
@@ -22,7 +25,7 @@ type Props = {
  * the inputs show the inclusive last-day for sanity — the action's helper
  * handles the conversion.
  */
-export default function InlineDateRange({ bookingId, label, shootDates, shootDateNotes, cols = 1 }: Props) {
+export default function InlineDateRange({ bookingId, label, shootDates, shootDateNotes, cols = 1, layout = 'stacked' }: Props) {
   const router = useRouter();
   const initial = dateRangeToInputs(shootDates);
   const [editing, setEditing] = useState(false);
@@ -85,6 +88,44 @@ export default function InlineDateRange({ bookingId, label, shootDates, shootDat
 
   if (!editing) {
     const display = formatShootDates(shootDates) ?? shootDateNotes ?? null;
+
+    if (layout === 'horizontal') {
+      return (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={`group relative flex w-full items-center gap-3 text-left rounded-md transition ${cols === 2 ? 'col-span-2' : ''}`}
+          style={{
+            padding: '5px 28px 5px 10px',
+            border: '1px solid transparent',
+            background: 'transparent',
+            cursor: 'text',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(108,138,255,0.05)';
+            e.currentTarget.style.borderColor = PALETTE.border;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.borderColor = 'transparent';
+          }}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wider flex-none" style={{ color: PALETTE.muted, width: 130 }}>
+            {label}
+          </span>
+          <span className="text-[13px] flex-1 min-w-0 truncate" style={{ color: display ? PALETTE.text : PALETTE.muted }}>
+            {display ?? '—'}
+          </span>
+          <span
+            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-60 transition text-[11px]"
+            style={{ color: PALETTE.muted }}
+          >
+            ✎
+          </span>
+        </button>
+      );
+    }
+
     return (
       <button
         type="button"

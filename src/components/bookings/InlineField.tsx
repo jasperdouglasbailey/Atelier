@@ -8,6 +8,8 @@ type Variant = 'text' | 'textarea' | 'date' | 'time' | 'number' | 'select';
 
 type Option = { value: string; label: string };
 
+type Layout = 'stacked' | 'horizontal';
+
 type Props = {
   bookingId: string;
   field: string;
@@ -18,6 +20,10 @@ type Props = {
   placeholder?: string;
   format?: (v: string | number | null) => string | null;
   cols?: 1 | 2;
+  /** 'stacked' (default) = label above value. 'horizontal' = label-left,
+   *  value-right in a single dense row. Used in BookingJobFacts to fit
+   *  many fields without burning vertical space. */
+  layout?: Layout;
 };
 
 /**
@@ -39,6 +45,7 @@ export default function InlineField({
   placeholder,
   format,
   cols = 1,
+  layout = 'stacked',
 }: Props) {
   const [editing, setEditing] = useState(false);
   // savedValue tracks the last confirmed value so display updates immediately
@@ -117,6 +124,53 @@ export default function InlineField({
         ? null
         : String(savedValue);
 
+    const placeholderEl = placeholder
+      ? <span style={{ fontStyle: 'italic', opacity: 0.6 }}>{placeholder}</span>
+      : '—';
+
+    if (layout === 'horizontal') {
+      return (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={`group relative flex w-full items-center gap-3 text-left rounded-md transition ${cols === 2 ? 'col-span-2' : ''}`}
+          style={{
+            padding: '5px 28px 5px 10px',
+            border: '1px solid transparent',
+            background: 'transparent',
+            cursor: 'text',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(108,138,255,0.05)';
+            e.currentTarget.style.borderColor = PALETTE.border;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.borderColor = 'transparent';
+          }}
+        >
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider flex-none"
+            style={{ color: PALETTE.muted, width: 130 }}
+          >
+            {label}
+          </span>
+          <span
+            className="text-[13px] flex-1 min-w-0 truncate"
+            style={{ color: display ? PALETTE.text : PALETTE.muted, whiteSpace: variant === 'textarea' ? 'pre-wrap' : undefined }}
+          >
+            {display ?? placeholderEl}
+          </span>
+          <span
+            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-60 transition text-[11px]"
+            style={{ color: PALETTE.muted }}
+          >
+            ✎
+          </span>
+        </button>
+      );
+    }
+
     return (
       <button
         type="button"
@@ -144,7 +198,7 @@ export default function InlineField({
           {label}
         </div>
         <div className="mt-0.5 text-sm" style={{ color: display ? PALETTE.text : PALETTE.muted, whiteSpace: variant === 'textarea' ? 'pre-wrap' : undefined }}>
-          {display ?? (placeholder ? <span style={{ fontStyle: 'italic', opacity: 0.6 }}>{placeholder}</span> : '—')}
+          {display ?? placeholderEl}
         </div>
         <span
           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-60 transition text-[11px]"
@@ -168,6 +222,60 @@ export default function InlineField({
     width: '100%',
     outline: 'none',
   };
+
+  if (layout === 'horizontal') {
+    return (
+      <div
+        className={`relative flex items-center gap-3 rounded-md ${cols === 2 ? 'col-span-2' : ''}`}
+        style={{
+          padding: '5px 10px',
+          background: 'rgba(108,138,255,0.06)',
+          border: `1px solid ${PALETTE.accent}`,
+        }}
+      >
+        <span
+          className="text-[10px] font-semibold uppercase tracking-wider flex-none"
+          style={{ color: PALETTE.muted, width: 130 }}
+        >
+          {label}
+        </span>
+        <div className="flex-1 min-w-0">
+          {variant === 'select' ? (
+            <select
+              ref={(el) => { inputRef.current = el; }}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={handleKey}
+              style={{ ...inputStyle, padding: '3px 6px' }}
+              disabled={pending}
+            >
+              {(options ?? []).map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              ref={(el) => { inputRef.current = el; }}
+              type={variant === 'date' ? 'date' : variant === 'time' ? 'time' : variant === 'number' ? 'number' : 'text'}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={handleKey}
+              placeholder={placeholder}
+              style={{ ...inputStyle, padding: '3px 6px' }}
+              disabled={pending}
+            />
+          )}
+          {(error || pending) && (
+            <div className="mt-0.5 text-[10px]" style={{ color: error ? PALETTE.danger : PALETTE.muted }}>
+              {error ?? 'Saving…'}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
