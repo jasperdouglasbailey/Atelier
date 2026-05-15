@@ -184,11 +184,25 @@ export async function parseLocationFromUrlAction(
   const trimmed = (rawUrl ?? '').trim();
   if (!trimmed) return { ok: false, error: 'Please provide a website URL.' };
 
-  const parsed = await parseLocationFromUrl(trimmed);
-  if (!parsed) {
-    return { ok: false, error: 'Could not parse this URL. The site may have blocked scraping, returned no usable HTML, or the LLM is unavailable.' };
+  const result = await parseLocationFromUrl(trimmed);
+  if (!result.ok) {
+    // Surface a specific message per failure reason so the user knows
+    // whether to fix the URL, the API key, or something else.
+    switch (result.reason) {
+      case 'invalid_url':
+        return { ok: false, error: 'That doesn\'t look like a valid URL. Include the protocol (https://) and try again.' };
+      case 'fetch_failed':
+        return { ok: false, error: `Couldn't fetch ${result.url}. The site may have blocked our request, redirected, returned non-HTML, or be temporarily down.` };
+      case 'llm_unavailable':
+        return { ok: false, error: 'The AI parser needs the ANTHROPIC_API_KEY env var to be set on Vercel. Add it under Project Settings → Environment Variables → Production, then redeploy.' };
+      case 'llm_blocked':
+        return { ok: false, error: 'Kill switch is blocking agent activity. Toggle it off in /settings if you want this run to proceed.' };
+      case 'llm_invalid_response':
+        return { ok: false, error: 'The AI returned an invalid response. Try again, or report this URL — server logs will have details.' };
+    }
   }
 
+  const parsed = result.parsed;
   await logAudit({
     userId: await getCurrentActor(),
     action: 'location_website_parse',
