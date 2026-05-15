@@ -3,7 +3,7 @@
 import type { FeeLine, QuoteVersion, BookingTalent, BookingCrew } from '@/lib/types/database';
 import { computeQuoteTotals, computeAgencyMargin, computeArtistPayment, computeCrewPayment } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
-import { PALETTE } from '@/lib/utils/constants';
+import { PALETTE, GST_RATE } from '@/lib/utils/constants';
 
 type Props = {
   feeLines: FeeLine[];
@@ -43,14 +43,16 @@ function computePaidOut(
     ? Math.round(computeArtistPayment(artistSubtotal, artistGstRegistered).netPayment * 100) / 100
     : 0;
 
-  // Reimbursements are pass-through: no commission, paid back 1:1 to artist.
-  // Kept separate from artistNet so the display can show all three components
-  // (artist labour, crew, reimb) and have them sum to the bucket total —
-  // previously artistTotal merged artistNet+reimb and the display still
-  // listed reimb separately, so the sub-line numbers didn't add up.
-  const reimbursementTotal = lines
+  // Reimbursements are pass-through. When the artist is GST-registered they
+  // on-charge the agency at subtotal + 10% GST (confirmed with Jasper
+  // 2026-05-15) and the agency claims the 10% back as an input credit.
+  // The cash paid to the artist therefore includes the GST.
+  const reimbursementSubtotal = lines
     .filter((l) => l.is_artist_reimbursement)
     .reduce((s, l) => s + (l.subtotal ?? 0), 0);
+  const reimbursementTotal = reimbursementSubtotal > 0 && artistGstRegistered
+    ? Math.round(reimbursementSubtotal * (1 + GST_RATE) * 100) / 100
+    : reimbursementSubtotal;
 
   const crewByPersonLabour = new Map<string, number>();
   const crewByPersonExpenses = new Map<string, number>();
