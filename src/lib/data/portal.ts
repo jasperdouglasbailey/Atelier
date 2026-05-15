@@ -91,7 +91,12 @@ export async function getTalentPortalData(talentId: string): Promise<{
     supabase.from('atelier_talent').select('*').eq('id', talentId).maybeSingle(),
     supabase
       .from('atelier_booking_talent')
-      .select('id, booking_id, day_rate, usage_fee, confirmed, status, rate_accepted, brief_acknowledged_at, created_at')
+      // The actual column is `confirmed_at timestamptz` — we derive the boolean
+      // `confirmed` flag from `confirmed_at !== null` in JS. Earlier this column
+      // was selected as `confirmed` which doesn't exist; Postgres returned
+      // "column does not exist" and the whole portal payload errored to null,
+      // surfacing as "Could not load your profile."
+      .select('id, booking_id, day_rate, usage_fee, confirmed_at, status, rate_accepted, brief_acknowledged_at, created_at')
       .eq('talent_id', talentId)
       .order('created_at', { ascending: false }),
     supabase
@@ -153,7 +158,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
         tier: b.tier,
         dayRate: a.day_rate as number | null,
         usageFee: a.usage_fee as number | null,
-        confirmed: a.confirmed as boolean,
+        confirmed: Boolean(a.confirmed_at),
         status: (a.status as string) ?? 'hold_requested',
         rateAccepted: (a.rate_accepted as boolean) ?? false,
         briefAcknowledgedAt: a.brief_acknowledged_at as string | null,
@@ -182,7 +187,8 @@ export async function getCrewPortalData(crewId: string): Promise<{
     supabase.from('atelier_crew').select('*').eq('id', crewId).maybeSingle(),
     supabase
       .from('atelier_booking_crew')
-      .select('id, booking_id, day_rate, role_on_booking, confirmed, status, created_at')
+      // See talent-side comment — column is confirmed_at, not confirmed.
+      .select('id, booking_id, day_rate, role_on_booking, confirmed_at, status, created_at')
       .eq('crew_id', crewId)
       .order('created_at', { ascending: false }),
     supabase
@@ -225,7 +231,7 @@ export async function getCrewPortalData(crewId: string): Promise<{
         tier: b.tier,
         dayRate: a.day_rate as number | null,
         usageFee: null as number | null,
-        confirmed: a.confirmed as boolean,
+        confirmed: Boolean(a.confirmed_at),
         roleOnBooking: a.role_on_booking as string | null,
         status: (a.status as string) ?? 'hold_requested',
       };
@@ -294,22 +300,23 @@ export async function getPortalCallSheets(
 
   const activeIds = bookings.map((b) => b.id);
 
-  // Fetch talent and crew in parallel
+  // Fetch talent and crew in parallel. Filter to those confirmed on the
+  // booking (confirmed_at is set) — exclude pending holds from call sheets.
   const [talentRows, crewRows] = await Promise.all([
     supabase
       .from('atelier_booking_talent')
-      .select('booking_id, confirmed, talent:atelier_talent!atelier_booking_talent_talent_id_fkey(working_name, mobile)')
+      .select('booking_id, confirmed_at, talent:atelier_talent!atelier_booking_talent_talent_id_fkey(working_name, mobile)')
       .in('booking_id', activeIds)
-      .eq('confirmed', true),
+      .not('confirmed_at', 'is', null),
     supabase
       .from('atelier_booking_crew')
-      .select('booking_id, role_on_booking, confirmed, crew:atelier_crew!atelier_booking_crew_crew_id_fkey(name, mobile)')
+      .select('booking_id, role_on_booking, confirmed_at, crew:atelier_crew!atelier_booking_crew_crew_id_fkey(name, mobile)')
       .in('booking_id', activeIds)
-      .eq('confirmed', true),
+      .not('confirmed_at', 'is', null),
   ]);
 
-  type TRow = { booking_id: string; confirmed: boolean; talent: { working_name: string; mobile: string | null } | { working_name: string; mobile: string | null }[] | null };
-  type CRow = { booking_id: string; role_on_booking: string | null; confirmed: boolean; crew: { name: string; mobile: string | null } | { name: string; mobile: string | null }[] | null };
+  type TRow = { booking_id: string; confirmed_at: string | null; talent: { working_name: string; mobile: string | null } | { working_name: string; mobile: string | null }[] | null };
+  type CRow = { booking_id: string; role_on_booking: string | null; confirmed_at: string | null; crew: { name: string; mobile: string | null } | { name: string; mobile: string | null }[] | null };
 
   const talentByBooking = new Map<string, PortalTeamMember[]>();
   const crewByBooking = new Map<string, PortalTeamMember[]>();
