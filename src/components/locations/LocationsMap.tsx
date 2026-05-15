@@ -75,48 +75,20 @@ function FitBoundsToMarkers({ points }: { points: Array<{ lat: number; lng: numb
   return null;
 }
 
-/**
- * Tile-style options. Each picks a different background tile provider —
- * markers + interactions are identical across all of them.
- *
- *   voyager — CartoDB Voyager. Light pastel base WITH proper colour (green
- *             parks, blue water, readable streets). Less muted than Positron.
- *   osm     — Stock OpenStreetMap. Maximum colour, slightly busier look.
- *   positron — CartoDB Positron. The previous default — very minimal cream/grey.
- */
-export type MapTileStyle = 'voyager' | 'osm' | 'positron';
-
-const TILE_CONFIGS: Record<MapTileStyle, { url: string; subdomains: string[]; attribution: string; bg: string }> = {
-  voyager: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    subdomains: ['a', 'b', 'c', 'd'],
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>',
-    bg: '#eef3f5',
-  },
-  osm: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    subdomains: ['a', 'b', 'c'],
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-    bg: '#dddddd',
-  },
-  positron: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    subdomains: ['a', 'b', 'c', 'd'],
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>',
-    bg: '#f6f3ee',
-  },
-};
+// CartoDB Voyager — pastel base with proper colour (parks green, water blue,
+// readable street labels). Free, no API key, retina-aware.
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
+const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>';
+const TILE_BG = '#eef3f5';
 
 type Props = {
   locations: Location[];
-  /** Background tile provider. Default 'voyager' (colourful but tasteful). */
-  tileStyle?: MapTileStyle;
 };
 
-export default function LocationsMap({ locations, tileStyle = 'voyager' }: Props) {
+export default function LocationsMap({ locations }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const tile = TILE_CONFIGS[tileStyle];
 
   const mapped = useMemo(
     () => locations
@@ -212,12 +184,12 @@ export default function LocationsMap({ locations, tileStyle = 'voyager' }: Props
         zoom={11}
         scrollWheelZoom
         className="atelier-map"
-        style={{ height: '100%', width: '100%', background: tile.bg }}
+        style={{ height: '100%', width: '100%', background: TILE_BG }}
       >
         <TileLayer
-          attribution={tile.attribution}
-          url={tile.url}
-          subdomains={tile.subdomains}
+          attribution={TILE_ATTRIBUTION}
+          url={TILE_URL}
+          subdomains={TILE_SUBDOMAINS}
           maxZoom={19}
         />
         <FitBoundsToMarkers points={mapped} />

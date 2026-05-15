@@ -202,36 +202,19 @@ export default function LocationsClient({ locations }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Two maps stacked for side-by-side style comparison. Same data, same
-          interactions — only the tile provider differs. Pick a favourite and
-          we'll drop the other in a follow-up. */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between px-1 text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-            <span>Option A · CartoDB Voyager</span>
-            <span style={{ opacity: 0.7 }}>Coloured but tasteful</span>
-          </div>
-          <LocationsMap locations={locations} tileStyle="voyager" />
+      <div>
+        <LocationsMap locations={locations} />
+        <div className="mt-1.5 px-1 flex items-center justify-between text-[11px]" style={{ color: PALETTE.muted }}>
+          <span>
+            {withCoords} of {locations.length} location{locations.length === 1 ? '' : 's'} on the map
+            {withoutCoords > 0 && (
+              <> · {withoutCoords} without coordinates (add an address to plot)</>
+            )}
+          </span>
+          <span style={{ color: PALETTE.muted, opacity: 0.7 }}>
+            Hover for details · click a dot to open
+          </span>
         </div>
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between px-1 text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-            <span>Option B · OpenStreetMap</span>
-            <span style={{ opacity: 0.7 }}>Maximum colour, busier</span>
-          </div>
-          <LocationsMap locations={locations} tileStyle="osm" />
-        </div>
-      </div>
-
-      <div className="px-1 flex items-center justify-between text-[11px]" style={{ color: PALETTE.muted }}>
-        <span>
-          {withCoords} of {locations.length} location{locations.length === 1 ? '' : 's'} on the map
-          {withoutCoords > 0 && (
-            <> · {withoutCoords} without coordinates (add an address to plot)</>
-          )}
-        </span>
-        <span style={{ color: PALETTE.muted, opacity: 0.7 }}>
-          Hover for details · click a dot to open · let me know which you prefer
-        </span>
       </div>
 
       <DenseListTable<Location>
