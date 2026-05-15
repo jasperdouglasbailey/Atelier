@@ -545,9 +545,10 @@ export async function getUpcomingShoots(limit = 4): Promise<Booking[]> {
 
   if (error || !data) return [];
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // "Today" must be in Sydney TZ, not UTC — at 1:20am Sydney we'd otherwise
+  // still treat yesterday's UTC date as today. (See src/lib/utils/sydney-time.ts.)
+  const { sydneyTodayISO } = await import('@/lib/utils/sydney-time');
+  const todayISO = sydneyTodayISO();
 
   // Postgres daterange is '[start,end)' — end is EXCLUSIVE. The shoot is in
   // the future if `end > today`. We then sort by start date ASC in JS.

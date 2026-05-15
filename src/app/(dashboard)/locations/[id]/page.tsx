@@ -241,6 +241,24 @@ export default async function LocationDetailPage({ params }: Props) {
           </section>
         )}
 
+        {/* Tags */}
+        {loc.tags && loc.tags.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: PALETTE.muted }}>Tags</h2>
+            <div className="flex flex-wrap gap-1.5">
+              {loc.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full px-2.5 py-0.5 text-xs"
+                  style={{ background: `${PALETTE.accent}24`, color: PALETTE.accent }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Space */}
         {(loc.square_metres || loc.max_capacity) && (
           <section className="mb-6">

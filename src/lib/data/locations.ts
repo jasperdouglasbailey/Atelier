@@ -36,3 +36,29 @@ export async function updateLocation(id: string, updates: Partial<Omit<Location,
   if (error) { reportDataError('[locations] update', error); return null; }
   return data as Location;
 }
+
+/**
+ * Union of every tag across every (active) location. Powers the tag-input
+ * autocomplete so a tag typed once on Location A appears as a suggestion
+ * when adding tags to Location B.
+ *
+ * Trimmed + deduped + sorted alphabetically. Null tags arrays are skipped.
+ */
+export async function getAllLocationTags(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('tags')
+    .not('tags', 'is', null);
+
+  if (error) { reportDataError('[locations] all tags', error); return []; }
+
+  const all = new Set<string>();
+  for (const row of (data ?? []) as Array<{ tags: string[] | null }>) {
+    for (const t of row.tags ?? []) {
+      const trimmed = t.trim();
+      if (trimmed) all.add(trimmed);
+    }
+  }
+  return Array.from(all).sort((a, b) => a.localeCompare(b, 'en-AU', { sensitivity: 'base' }));
+}

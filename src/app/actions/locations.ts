@@ -52,6 +52,29 @@ function formToLocationInput(fd: FormData) {
     try { out.studio_rooms = JSON.parse(roomsRaw as string) as StudioRoom[]; } catch { out.studio_rooms = null; }
   }
 
+  // Tags — JSON array from the form
+  const tagsRaw = fd.get('tags');
+  if (tagsRaw) {
+    try {
+      const parsed = JSON.parse(tagsRaw as string);
+      if (Array.isArray(parsed)) {
+        // Trim + dedupe (case-insensitive) before persisting
+        const seen = new Set<string>();
+        const clean: string[] = [];
+        for (const t of parsed) {
+          if (typeof t !== 'string') continue;
+          const trimmed = t.trim();
+          if (!trimmed) continue;
+          const key = trimmed.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          clean.push(trimmed);
+        }
+        out.tags = clean;
+      }
+    } catch { /* keep undefined → no change */ }
+  }
+
   return out;
 }
 

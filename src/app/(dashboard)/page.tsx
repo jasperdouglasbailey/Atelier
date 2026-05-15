@@ -16,8 +16,8 @@ import {
   getThisWeekRoster,
   getJobsNeedingCrew,
   getBookingsInRange,
-  thisWeekRange,
 } from '@/lib/data/dashboard';
+import { sydneyDateParts, sydneyThisWeekRange } from '@/lib/utils/sydney-time';
 import {
   BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS,
   PALETTE, ACTIVE_STATES,
@@ -68,10 +68,15 @@ const urgencyColor: Record<string, string> = {
 
 export default async function DashboardPage() {
   // Server components are allowed to call new Date() (purity rule scoped to client).
+  // Vercel runs in UTC, so derive "today" from Australia/Sydney explicitly —
+  // otherwise at 1:20am Sydney we'd still show yesterday's UTC date.
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const week = thisWeekRange(now);
+  const sydney = sydneyDateParts(now);
+  const year = sydney.year;
+  const month = sydney.month;
+  // Reconstruct a "Sydney today" Date for the MiniMonthCalendar's today-marker.
+  const sydneyToday = new Date(sydney.year, sydney.month, sydney.date);
+  const week = sydneyThisWeekRange(now);
 
   const [
     counts, upcoming, attentionItems, summary,
@@ -286,7 +291,7 @@ export default async function DashboardPage() {
               year={year}
               month={month}
               shootMarkers={monthMarkers}
-              today={now}
+              today={sydneyToday}
               className="h-full w-full"
             />
           </div>
