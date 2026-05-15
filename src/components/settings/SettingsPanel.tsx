@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
@@ -125,10 +125,10 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
         </div>
 
         {killSwitch?.updated_at && (
-          <div className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
-            Last updated: {new Date(killSwitch.updated_at).toLocaleString('en-AU')}
-            {killSwitch.updated_by && ` by ${killSwitch.updated_by}`}
-          </div>
+          <LastUpdatedLine
+            updatedAt={killSwitch.updated_at}
+            updatedBy={killSwitch.updated_by ?? null}
+          />
         )}
       </section>
 
@@ -304,6 +304,39 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * Renders the Kill Switch "Last updated …" line.
+ *
+ * Why a separate component: `toLocaleString('en-AU')` returns different
+ * strings on the server (UTC) and client (browser locale + timezone) for
+ * the same ISO timestamp. React flagged this as hydration mismatch #418
+ * on /settings in AUDIT-2026-05-15. Rendering nothing until mount, then
+ * the locale-formatted value, keeps server and first-paint HTML identical
+ * and lets the client paint in its own timezone on the next tick.
+ */
+function LastUpdatedLine({ updatedAt, updatedBy }: { updatedAt: string; updatedBy: string | null }) {
+  const [formatted, setFormatted] = useState<string | null>(null);
+
+  useEffect(() => {
+    // The whole point of this component is to defer locale-dependent
+    // rendering until after mount so the server-rendered HTML and the
+    // client first-paint HTML match. setState-in-effect IS the pattern
+    // here — every alternative (useSyncExternalStore, suppressHydration-
+    // Warning, etc.) is heavier or worse.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormatted(new Date(updatedAt).toLocaleString('en-AU'));
+  }, [updatedAt]);
+
+  if (!formatted) return null;
+
+  return (
+    <div className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
+      Last updated: {formatted}
+      {updatedBy && ` by ${updatedBy}`}
     </div>
   );
 }

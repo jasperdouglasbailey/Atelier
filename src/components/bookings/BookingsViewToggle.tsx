@@ -13,6 +13,7 @@
  */
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
 
 type View = 'calendar' | 'board' | 'list';
@@ -30,10 +31,18 @@ type Props = {
 };
 
 export default function BookingsViewToggle({ current, preserveParams = {} }: Props) {
+  const router = useRouter();
+
   function handleClick(view: View) {
     // Persist the choice. 1 year cookie — view preference is sticky.
     // eslint-disable-next-line react-hooks/immutability -- writing to document.cookie is the documented way to persist a small preference; not really "modifying state outside a component" in the sense the rule guards against.
     (document as Document & { cookie: string }).cookie = `bookings_view_pref=${view}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    // Bust the Next.js router cache for /bookings so a subsequent visit
+    // without ?view= re-runs the server component and picks up the new
+    // cookie. Without this, the cached RSC payload for the no-params
+    // route can stick around and ignore the cookie — the symptom audit
+    // AUDIT-2026-05-15 reported as "cookie not being written".
+    router.refresh();
   }
 
   function buildHref(view: View): string {
