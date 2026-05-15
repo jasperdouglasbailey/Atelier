@@ -147,7 +147,7 @@ export default function PotentialBriefs({ candidates }: Props) {
       )}
 
       <p className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
-        Heuristic-based — false positives are normal, just dismiss them. Conversion drops the email body into <code>brief_raw_text</code>; you then run the existing brief parser on it.
+        Heuristic-based — false positives are normal, just dismiss them. Conversion drops the email body into a new brief that&rsquo;s ready for the parser.
       </p>
     </section>
   );
