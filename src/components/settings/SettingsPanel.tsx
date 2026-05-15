@@ -300,6 +300,12 @@ function LastUpdatedLine({ updatedAt, updatedBy }: { updatedAt: string; updatedB
   const [formatted, setFormatted] = useState<string | null>(null);
 
   useEffect(() => {
+    // The whole point of this component is to defer locale-dependent
+    // rendering until after mount so the server-rendered HTML and the
+    // client first-paint HTML match. setState-in-effect IS the pattern
+    // here — every alternative (useSyncExternalStore, suppressHydration-
+    // Warning, etc.) is heavier or worse.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormatted(new Date(updatedAt).toLocaleString('en-AU'));
   }, [updatedAt]);
 
