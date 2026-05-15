@@ -41,6 +41,7 @@ These live in `/Users/saundersandcoagency/.claude/projects/-Users-saundersandcoa
 - `feedback_monitor_polling_exit_codes.md` — **NEW session 14**: Monitor scripts polling `gh pr checks` need brace-grouped `|| true` to survive `pipefail`
 - `project_atelier.md` — platform facts not in CLAUDE.md
 - `project_undo_pattern.md` — **NEW session 14**: reversibility doctrine; actions undoable until external side effect, toast + persistent recovery layers
+- `project_prod_url.md` — **production URL is `atelier-bice-mu.vercel.app`**, NOT the custom domain. Don't guess.
 - `project_audit_2026_05_15_pr_sequence.md` — historical, all 6 PRs landed
 
 ## Doctrine established this session
@@ -69,7 +70,7 @@ For behavioural / correctness bugs (anything where "does the code do what its na
 
 1. **Duplicate Jasper account** at `/settings/partners` — two Owner rows (work email + personal `jasperdouglasbailey@gmail.com`). One click on `Remove` for the work-email row.
 2. **Patrick portal activity** — Patrick Mackey appears as Crew with linked entity in `/settings/partners`. Whether he's actually using the portal is unknown. Check `/audit?action=portal_*` filtered to his user_id, or just ask him.
-3. **Scheduled jobs "Never run"** — verify Vercel dashboard shows `CRON_SECRET` is set in the Production env scope (not just Preview/Dev), and that the deployed branch IS the production deployment. Once a daily schedule ticks after a fresh production deployment, crons should fire. URL was `atelier-bice-mu.vercel.app` — confirm that's the production URL.
+3. **Scheduled jobs "Never run"** — production URL is confirmed `atelier-bice-mu.vercel.app` (see `project_prod_url.md`), so deployment topology is fine. Remaining check: verify `CRON_SECRET` is set in Vercel's **Production** env scope (not just Preview/Dev). If it's set there, the next daily cron tick should fire and the Scheduled Jobs section in `/settings` will start populating.
 
 ## Open items deferred (code work, future PRs)
 
