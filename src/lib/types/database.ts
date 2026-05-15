@@ -553,6 +553,11 @@ export interface Location {
   drive_folder_id: string | null;
   /** Shareable Drive link shown in the location detail view. */
   drive_folder_link: string | null;
+  /** Decimal degrees, geocoded from address. NULL when not yet geocoded. */
+  latitude: number | null;
+  longitude: number | null;
+  /** The address string we last geocoded against — used to detect changes. */
+  geocoded_address: string | null;
 }
 
 export interface BusinessRenewal {
