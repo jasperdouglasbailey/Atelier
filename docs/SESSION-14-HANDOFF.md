@@ -76,6 +76,18 @@ For behavioural / correctness bugs (anything where "does the code do what its na
 
 - **Grid Planner redesign** — explicitly deferred. 575-line component with intentional Instagram brand colours (do NOT migrate to `PALETTE`). Right-side controls already use `PALETTE`; the phone-mock area is supposed to look like Instagram. A real refactor would need to touch interactive content, not just chrome — schedule a dedicated session.
 
+- **Quoted-billed vs paid-cost split on fee lines** — REQUESTED 2026-05-16. Right now `atelier_fee_lines.subtotal` drives BOTH the client-invoice math AND the payee-paid math. If a crew member or vendor invoices less than what was quoted (e.g. digital op quoted at $600, actually bills $550), the system can't represent that windfall as captured margin — there's no way to keep the client side at the quoted amount while logging actual cost separately.
+
+  **Scope**:
+  - Migration: add nullable `cost_subtotal numeric` to `atelier_fee_lines` (falls back to `subtotal` when null, so existing data is untouched)
+  - Engine: `computeCrewPayment` / `computeArtistPayment` / `computeAgencyMargin` / `computeGstPassthrough` read `cost_subtotal ?? subtotal` for the paid-out side; `subtotal` continues to drive the client-invoice side
+  - UI: optional "Cost (if different from billed)" field in the fee-line editor row, hidden by default, expandable per line
+  - JobPnL: new "True margin" row showing client-billed − cost-paid; spread captured row shows the windfall amount
+  - Tests: extend the AJE eComm #3579 canonical test with a new variant where cost < billed to verify margin math
+  - **Estimate**: 2-3 hours start to merge
+
+  Until built, the user is told to leave the line at quoted amount + manually track the spread externally. Engine math is correct *given inputs* but the data model can't express this case.
+
 ## Known limitations / "things we tried and decided not to do"
 
 - **Substitute talent** has no undo. The inline-panel with required-reason field provides some misclick protection. If misclick rate is high, add toast undo — but no signal yet.
