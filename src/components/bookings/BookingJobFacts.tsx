@@ -29,14 +29,22 @@ type Props = {
   schedules: BookingSchedule[];
 };
 
-function Row({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="border-t px-4 py-3" style={{ borderColor: PALETTE.border }}>
-      {children}
-    </div>
-  );
-}
-
+/**
+ * Compact job-facts panel — dense horizontal rows instead of the previous
+ * 60-80px-tall stacked fields. Reorganised so the operationally-critical
+ * facts (dates, location, tier, deliverables, producer contact) are
+ * always visible, with the longer tail (post-prod ownership, grade scope,
+ * looks per talent, deadline, producer phone, title) tucked behind an
+ * "Additional details" expander.
+ *
+ * Title is dropped from primary — it's already in the page header and
+ * rarely edited. Tier is promoted to primary because it determines the
+ * fee defaults applied to every line item; producers should see it.
+ *
+ * Layout: each row is ~30px tall with the label fixed-width on the left
+ * and the value (click-to-edit) flex-1 on the right. Two-column grid for
+ * paired fields like Call/Wrap and Producer/Email.
+ */
 export default function BookingJobFacts({ booking, schedules }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -48,7 +56,7 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: PALETTE.border }}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: PALETTE.border }}>
         <div className="section-title">Job facts</div>
         <span
           style={{
@@ -63,63 +71,88 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
         </span>
       </div>
 
-      {/* Brief excerpt — read-only display of source brief */}
+      {/* Brief excerpt — italic blockquote, separate from the field rows */}
       {booking.brief_raw_text && (
-        <Row>
-          <div className="micro-label mb-1.5">Brief</div>
-          <p className="text-sm leading-relaxed italic" style={{ color: PALETTE.muted }}>
-            &ldquo;{booking.brief_raw_text.slice(0, 280)}{booking.brief_raw_text.length > 280 ? '…' : ''}&rdquo;
+        <div className="border-b px-4 py-2.5" style={{ borderColor: PALETTE.border }}>
+          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.muted }}>Brief</div>
+          <p className="text-xs leading-relaxed italic" style={{ color: PALETTE.muted }}>
+            &ldquo;{booking.brief_raw_text.slice(0, 220)}{booking.brief_raw_text.length > 220 ? '…' : ''}&rdquo;
           </p>
-        </Row>
+        </div>
       )}
 
-      {/* Dates */}
-      <Row>
+      {/* Primary rows — always visible, the integral operational facts. */}
+      <div className="px-2 py-1">
         <InlineDateRange
           bookingId={booking.id}
           label="Dates"
           shootDates={booking.shoot_dates}
           shootDateNotes={booking.shoot_date_notes}
+          layout="horizontal"
         />
-      </Row>
-
-      {/* Location */}
-      <Row>
         <InlineField
           bookingId={booking.id}
           field="shoot_location"
           label="Location"
           value={booking.shoot_location}
           placeholder="e.g. Sun Studios, Alexandria"
+          layout="horizontal"
         />
-      </Row>
+        <InlineField
+          bookingId={booking.id}
+          field="tier"
+          label="Tier"
+          value={booking.tier}
+          variant="select"
+          options={TIER_OPTIONS}
+          layout="horizontal"
+        />
+        <InlineField
+          bookingId={booking.id}
+          field="deliverables_type"
+          label="Deliverables"
+          value={booking.deliverables_type}
+          placeholder="e.g. Stills + motion"
+          layout="horizontal"
+        />
+        <InlineField
+          bookingId={booking.id}
+          field="deliverables_count"
+          label="Count"
+          value={booking.deliverables_count}
+          variant="number"
+          placeholder="e.g. 12"
+          layout="horizontal"
+        />
 
-      {/* Call times — show per-day schedules if present, else flat call_time */}
-      {callTimeSchedules.length > 0 ? (
-        <Row>
-          <div className="micro-label mb-1.5">Call times</div>
-          <div className="space-y-1">
-            {callTimeSchedules.map((s) => (
-              <div key={s.id} className="text-[11px]" style={{ color: PALETTE.muted }}>
-                <span className="font-medium" style={{ color: PALETTE.text }}>
-                  {formatDate(s.schedule_date)}
-                </span>
-                {s.call_time && <> · Call {s.call_time}</>}
-                {s.wrap_time && <> · Wrap {s.wrap_time}</>}
-                {s.location && <> · {s.location}</>}
-              </div>
-            ))}
+        {/* Call/Wrap — per-day if schedules exist, else flat call_time/wrap_time */}
+        {callTimeSchedules.length > 0 ? (
+          <div className="px-2.5 py-1.5 flex items-start gap-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wider flex-none" style={{ color: PALETTE.muted, width: 130 }}>
+              Call times
+            </span>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              {callTimeSchedules.map((s) => (
+                <div key={s.id} className="text-[12px]" style={{ color: PALETTE.text }}>
+                  <span className="font-medium">{formatDate(s.schedule_date)}</span>
+                  <span style={{ color: PALETTE.muted }}>
+                    {s.call_time && <> · Call {s.call_time.slice(0, 5)}</>}
+                    {s.wrap_time && <> · Wrap {s.wrap_time.slice(0, 5)}</>}
+                    {s.location && <> · {s.location}</>}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </Row>
-      ) : (
-        <Row>
-          <div className="grid gap-3 sm:grid-cols-2">
+        ) : (
+          <>
             <InlineField
               bookingId={booking.id}
               field="call_time"
               label="Call time"
               value={booking.call_time}
               variant="time"
+              layout="horizontal"
             />
             <InlineField
               bookingId={booking.id}
@@ -127,132 +160,92 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
               label="Wrap time"
               value={booking.wrap_time}
               variant="time"
+              layout="horizontal"
             />
-          </div>
-        </Row>
-      )}
+          </>
+        )}
 
-      {/* Deliverables */}
-      <Row>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <InlineField
-            bookingId={booking.id}
-            field="deliverables_type"
-            label="Deliverables"
-            value={booking.deliverables_type}
-            placeholder="e.g. Stills + motion"
-          />
-          <InlineField
-            bookingId={booking.id}
-            field="deliverables_count"
-            label="Deliverables count"
-            value={booking.deliverables_count}
-            variant="number"
-            placeholder="e.g. 12"
-          />
-        </div>
-      </Row>
+        <InlineField
+          bookingId={booking.id}
+          field="producer_name"
+          label="Producer"
+          value={booking.producer_name}
+          placeholder="Lead contact"
+          layout="horizontal"
+        />
+        <InlineField
+          bookingId={booking.id}
+          field="producer_email"
+          label="Producer email"
+          value={booking.producer_email}
+          placeholder="natarsha@..."
+          layout="horizontal"
+        />
+      </div>
 
       {/* Expand for the long tail of fields */}
       <div className="border-t" style={{ borderColor: PALETTE.border }}>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full px-4 py-2.5 text-left text-[11px] font-medium"
+          className="w-full px-4 py-2 text-left text-[11px] font-medium"
           style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer' }}
         >
-          {expanded ? '− Hide additional details' : '+ More details (post, grade, producer, deadline…)'}
+          {expanded ? '− Hide additional details' : '+ More details (post, grade, looks, deadline, phone…)'}
         </button>
       </div>
 
       {expanded && (
-        <>
-          <Row>
-            <InlineField
-              bookingId={booking.id}
-              field="title"
-              label="Title"
-              value={booking.title}
-            />
-          </Row>
-
-          <Row>
-            <InlineField
-              bookingId={booking.id}
-              field="tier"
-              label="Tier"
-              value={booking.tier}
-              variant="select"
-              options={TIER_OPTIONS}
-            />
-          </Row>
-
-          <Row>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InlineField
-                bookingId={booking.id}
-                field="post_production_ownership"
-                label="Post-production"
-                value={booking.post_production_ownership}
-                variant="select"
-                options={POST_PROD_OPTIONS}
-              />
-              <InlineField
-                bookingId={booking.id}
-                field="grade_retouch_scope"
-                label="Grade scope"
-                value={booking.grade_retouch_scope}
-                variant="select"
-                options={GRADE_RETOUCH_OPTIONS}
-              />
-            </div>
-          </Row>
-
-          <Row>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InlineField
-                bookingId={booking.id}
-                field="looks_per_talent"
-                label="Looks per talent"
-                value={booking.looks_per_talent}
-                placeholder="e.g. 12"
-              />
-              <InlineField
-                bookingId={booking.id}
-                field="confirmation_deadline"
-                label="Confirmation deadline"
-                value={booking.confirmation_deadline}
-                variant="date"
-              />
-            </div>
-          </Row>
-
-          <Row>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InlineField
-                bookingId={booking.id}
-                field="producer_name"
-                label="Producer"
-                value={booking.producer_name}
-              />
-              <InlineField
-                bookingId={booking.id}
-                field="producer_email"
-                label="Producer email"
-                value={booking.producer_email}
-              />
-            </div>
-          </Row>
-
-          <Row>
-            <InlineField
-              bookingId={booking.id}
-              field="producer_phone"
-              label="Producer phone"
-              value={booking.producer_phone}
-            />
-          </Row>
-        </>
+        <div className="border-t px-2 py-1" style={{ borderColor: PALETTE.border }}>
+          <InlineField
+            bookingId={booking.id}
+            field="post_production_ownership"
+            label="Post-production"
+            value={booking.post_production_ownership}
+            variant="select"
+            options={POST_PROD_OPTIONS}
+            layout="horizontal"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="grade_retouch_scope"
+            label="Grade scope"
+            value={booking.grade_retouch_scope}
+            variant="select"
+            options={GRADE_RETOUCH_OPTIONS}
+            layout="horizontal"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="looks_per_talent"
+            label="Looks per talent"
+            value={booking.looks_per_talent}
+            placeholder="e.g. 12"
+            layout="horizontal"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="confirmation_deadline"
+            label="Confirmation due"
+            value={booking.confirmation_deadline}
+            variant="date"
+            layout="horizontal"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="producer_phone"
+            label="Producer phone"
+            value={booking.producer_phone}
+            layout="horizontal"
+          />
+          <InlineField
+            bookingId={booking.id}
+            field="title"
+            label="Title"
+            value={booking.title}
+            layout="horizontal"
+          />
+        </div>
       )}
     </div>
   );
