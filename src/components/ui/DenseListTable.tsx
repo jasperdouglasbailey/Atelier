@@ -354,19 +354,24 @@ function GroupRows<T extends { id: string | number }>({
   const storageKey = persistKey ? `${persistKey}:${rawKey}:collapsed` : null;
   const [collapsed, setCollapsed] = useState(false);
 
-  // Hydrate collapse state from localStorage (client-only).
+  // Hydrate collapse state from localStorage after mount. Matches the
+  // existing pattern in CollapsibleCityGroup.tsx — one-shot read of a
+  // persisted preference, which must run on the client to avoid SSR/CSR
+  // mismatch (the server has no localStorage so it always renders `false`).
   useEffect(() => {
     if (!storageKey) return;
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null;
-    if (stored === '1') setCollapsed(true);
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot read of persisted preference after hydration; intentional pattern to avoid SSR/CSR mismatch
+      if (stored === '1') setCollapsed(true);
+    } catch { /* localStorage may be disabled — ignore */ }
   }, [storageKey]);
 
   function toggle() {
     const next = !collapsed;
     setCollapsed(next);
-    if (storageKey && typeof window !== 'undefined') {
-      window.localStorage.setItem(storageKey, next ? '1' : '0');
-    }
+    if (!storageKey) return;
+    try { window.localStorage.setItem(storageKey, next ? '1' : '0'); } catch { /* ignore */ }
   }
 
   return (

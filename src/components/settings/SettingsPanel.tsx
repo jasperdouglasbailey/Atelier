@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useOptimistic, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
@@ -53,32 +53,20 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Optimistic local state — the toggle flips IMMEDIATELY on click.
-  // Server confirms via router.refresh() in the background; if the action
-  // fails we roll back. Without this, the toggle visually waits for the
-  // full server roundtrip + RSC refresh (~3-10s) before reflecting the
-  // click, which felt broken.
-  const [isActive, setIsActive] = useState(killSwitch?.is_active ?? false);
-  const [isPaused, setIsPaused] = useState(killSwitch?.pause_outbound ?? false);
-
-  // Sync local state when server props change (e.g. another tab toggled,
-  // realtime event fired, or initial load).
-  useEffect(() => { setIsActive(killSwitch?.is_active ?? false); }, [killSwitch?.is_active]);
-  useEffect(() => { setIsPaused(killSwitch?.pause_outbound ?? false); }, [killSwitch?.pause_outbound]);
+  // Optimistic state — the toggle flips IMMEDIATELY on click and auto-syncs
+  // to the server prop after router.refresh() completes. React 19's
+  // useOptimistic: the optimistic value is set inside startTransition, and
+  // React auto-reverts to `killSwitch?.is_active` when the transition
+  // completes. No useEffect-sync needed.
+  const [isActive, setOptimisticActive] = useOptimistic(killSwitch?.is_active ?? false);
+  const [isPaused, setOptimisticPaused] = useOptimistic(killSwitch?.pause_outbound ?? false);
 
   function handleToggle(field: 'is_active' | 'pause_outbound') {
     if (isPending) return;
-    // Flip optimistically.
-    if (field === 'is_active') setIsActive((v) => !v);
-    else setIsPaused((v) => !v);
-
     startTransition(async () => {
-      const result = await toggleKillSwitchAction(field);
-      if (!result) {
-        // Server rejected — revert.
-        if (field === 'is_active') setIsActive(killSwitch?.is_active ?? false);
-        else setIsPaused(killSwitch?.pause_outbound ?? false);
-      }
+      if (field === 'is_active') setOptimisticActive(!isActive);
+      else setOptimisticPaused(!isPaused);
+      await toggleKillSwitchAction(field);
       router.refresh();
     });
   }
