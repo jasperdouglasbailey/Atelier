@@ -32,6 +32,12 @@ export default function PrintDocsMenu({ bookingId }: Props) {
       pdfHref: `/api/print/confirmation/${bookingId}`,
       pdfTitle: 'Download booking confirmation as PDF',
     },
+    {
+      label: 'Accounting statement',
+      printHref: `/print/bookings/${bookingId}/accounting`,
+      pdfHref: `/api/print/accounting/${bookingId}`,
+      pdfTitle: 'Download job accounting statement (full GST + cash-flow reconciliation) as PDF',
+    },
   ];
 
   return (

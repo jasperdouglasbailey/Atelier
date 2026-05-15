@@ -846,11 +846,18 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
             return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
           }, 0);
+        // Artist reimbursement subtotal — when the artist is GST-registered
+        // they on-charge these at +10% GST, so the agency claims that 10%
+        // back as input credit and passes the cash to the artist.
+        const artistReimbursementSubtotal = previewLines
+          .filter((l) => l.is_artist_reimbursement)
+          .reduce((sum, l) => sum + (l.subtotal ?? 0), 0);
         const gst = computeGstPassthrough({
           totals,
           artistFeeSubtotal: artistTotals.subtotal,
           artistGstRegistered,
           crewLabourSubtotalGstRegistered,
+          artistReimbursementSubtotal,
         });
         // "Paid through" = grand total minus what agency keeps and ATO net.
         // This is the residual that flows out to artist/crew/vendors.

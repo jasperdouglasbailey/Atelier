@@ -192,14 +192,25 @@ export function computeGstPassthrough(args: {
   artistFeeSubtotal: number;
   artistGstRegistered: boolean;
   crewLabourSubtotalGstRegistered: number;
+  /** Sum of lines flagged `is_artist_reimbursement`. When the artist is
+   *  GST-registered and owns the gear (or paid the vendor's tax invoice),
+   *  their on-charge to the agency includes 10% GST — agency claims it
+   *  back from the ATO and passes the cash to the artist. Confirmed with
+   *  Jasper 2026-05-15 for the typical Atelier flow. */
+  artistReimbursementSubtotal?: number;
 }): GstPassthrough {
-  const { totals, artistFeeSubtotal, artistGstRegistered, crewLabourSubtotalGstRegistered } = args;
+  const { totals, artistFeeSubtotal, artistGstRegistered, crewLabourSubtotalGstRegistered, artistReimbursementSubtotal = 0 } = args;
 
   const collectedOnLines = totals.totalGst;
   const collectedOnCommission = totals.totalCommissionGst;
   const collectedTotal = r2(collectedOnLines + collectedOnCommission);
 
-  const artistInputCredits = artistGstRegistered ? r2(artistFeeSubtotal * GST_RATE) : 0;
+  // Artist input credits: GST on artist labour subtotal + GST on artist
+  // reimbursement subtotal (both passed through to the artist when GST
+  // registered).
+  const artistInputCredits = artistGstRegistered
+    ? r2((artistFeeSubtotal + artistReimbursementSubtotal) * GST_RATE)
+    : 0;
   const crewInputCredits = r2(crewLabourSubtotalGstRegistered * GST_RATE);
   const inputCreditsTotal = r2(artistInputCredits + crewInputCredits);
 
