@@ -21,6 +21,7 @@ import PortalDataRights from '@/components/portal/PortalDataRights';
 import HoldCard from '@/components/portal/HoldCard';
 import UnavailabilityManager from '@/components/portal/UnavailabilityManager';
 import CallSheetCard from '@/components/portal/CallSheetCard';
+import GreetingHeader from '@/components/dashboard/GreetingHeader';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -72,7 +73,13 @@ export default async function CrewPortalPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+
+      <GreetingHeader
+        displayName={crew.name}
+        email={crew.email}
+        role="crew"
+      />
 
       {/* Profile header */}
       <section className="rounded-lg border p-5" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
