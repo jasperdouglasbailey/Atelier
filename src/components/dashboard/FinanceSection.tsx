@@ -18,6 +18,7 @@ export default function FinanceSection({
   avgBookingValue,
   overdueTotal,
   overdueCount,
+  className,
 }: {
   revenueThisWeek: number;
   revenueThisMonth: number;
@@ -26,6 +27,7 @@ export default function FinanceSection({
   avgBookingValue: number;
   overdueTotal: number;
   overdueCount: number;
+  className?: string;
 }) {
   const monthDelta = revenueLastMonth > 0
     ? ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
@@ -35,8 +37,9 @@ export default function FinanceSection({
     <SectionCard
       title="Finance"
       action={{ label: 'Reports', href: '/reports' }}
+      className={className}
     >
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 h-full">
         <Metric
           label="This week"
           value={formatCurrency(revenueThisWeek)}

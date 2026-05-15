@@ -17,11 +17,13 @@ export default function MiniMonthCalendar({
   month,             // 0-indexed
   shootMarkers,      // Map<'YYYY-MM-DD', bookingIds[]>
   today = new Date(),
+  className,
 }: {
   year: number;
   month: number;
   shootMarkers: Map<string, string[]>;
   today?: Date;
+  className?: string;
 }) {
   // First day of the month, normalised to Monday-start grid.
   const first = new Date(year, month, 1);
@@ -44,7 +46,7 @@ export default function MiniMonthCalendar({
   return (
     <Link
       href="/bookings?view=calendar"
-      className="block rounded-lg border p-4 transition hover:opacity-90"
+      className={`block rounded-lg border p-4 transition hover:opacity-90 ${className ?? ''}`}
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
       <div className="mb-2 flex items-baseline justify-between">

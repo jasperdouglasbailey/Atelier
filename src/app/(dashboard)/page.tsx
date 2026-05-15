@@ -7,6 +7,10 @@ import { getCachedBookingCounts, getCachedReportSummary } from '@/lib/data/dashb
 import { runHealthProbes } from '@/lib/utils/health';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import { findPotentialBriefs } from '@/lib/integrations/gmail';
+import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { listDismissedBriefIds } from '@/lib/data/dismissed-briefs';
+import { createClient } from '@/lib/supabase/server';
 import {
   getMonthShootMarkers,
   getThisWeekRoster,
@@ -74,6 +78,7 @@ export default async function DashboardPage() {
     overdueInvoices, healthProbes,
     appUser, killSwitch,
     monthMarkers, weekBookings, jobsNeedingCrew, pendingApprovals,
+    potentialBriefs,
   ] = await Promise.all([
     getCachedBookingCounts(),
     getUpcomingShoots(),
@@ -87,6 +92,7 @@ export default async function DashboardPage() {
     getBookingsInRange(week.start, week.end),
     getJobsNeedingCrew(),
     listApprovals('pending'),
+    fetchPotentialBriefsForDashboard(),
   ]);
 
   const weekBookingIds = weekBookings.map((b) => b.id);
@@ -272,29 +278,40 @@ export default async function DashboardPage() {
         )}
 
         {/* ── Row 2. CALENDAR (1/3) │ UPCOMING + CREW/JOBS (2/3) ──────── */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <MiniMonthCalendar year={year} month={month} shootMarkers={monthMarkers} today={now} />
+        {/* lg:items-stretch makes both columns share the tallest height so
+            the right-side nested layout can fill it via flex-1. */}
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="lg:col-span-1 flex">
+            <MiniMonthCalendar
+              year={year}
+              month={month}
+              shootMarkers={monthMarkers}
+              today={now}
+              className="h-full w-full"
+            />
           </div>
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 flex flex-col gap-4">
             <UpcomingShootsCard
               upcoming={upcoming}
               upcomingRoster={upcomingRoster}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <CrewOnHoldCard rows={weekRoster.crewOnHold} />
-              <JobsNeedingCrewCard rows={jobsNeedingCrew} />
+            {/* flex-1 → this nested grid eats remaining vertical space so the
+                Crew + Jobs cards stretch to meet Calendar's bottom edge. */}
+            <div className="grid flex-1 gap-4 sm:grid-cols-2">
+              <CrewOnHoldCard rows={weekRoster.crewOnHold} className="h-full" />
+              <JobsNeedingCrewCard rows={jobsNeedingCrew} className="h-full" />
             </div>
           </div>
         </div>
 
         {/* ── Row 3. PIPELINE (1/3) │ INBOX (2/3) ─────────────────────── */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-1">
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="lg:col-span-1 flex">
             <SectionCard
               title="Pipeline"
               meta={`${totalActive} active`}
               action={{ label: 'Bookings', href: '/bookings' }}
+              className="h-full w-full"
             >
               {pipeline.length === 0 ? (
                 <p className="text-[11px]" style={{ color: PALETTE.muted }}>
@@ -325,17 +342,21 @@ export default async function DashboardPage() {
               )}
             </SectionCard>
           </div>
-          <div className="lg:col-span-2">
-            <InboxPreview approvals={pendingApprovals} />
+          <div className="lg:col-span-2 flex">
+            <InboxPreview
+              approvals={pendingApprovals}
+              potentialBriefs={potentialBriefs}
+              className="h-full w-full"
+            />
           </div>
         </div>
 
         {/* ── Row 4. KILL SWITCH (1/3) │ FINANCE (2/3) ────────────────── */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <SettingsSnapshot killSwitch={killSwitch} />
+        <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+          <div className="lg:col-span-1 flex">
+            <SettingsSnapshot killSwitch={killSwitch} className="h-full w-full" />
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex">
             <FinanceSection
               revenueThisWeek={summary.revenueThisWeek}
               revenueThisMonth={summary.revenueThisMonth}
@@ -344,6 +365,7 @@ export default async function DashboardPage() {
               avgBookingValue={summary.avgBookingValue}
               overdueTotal={overdueTotal}
               overdueCount={overdueInvoices.length}
+              className="h-full w-full"
             />
           </div>
         </div>
@@ -443,7 +465,7 @@ function UpcomingShootsCard({
   );
 }
 
-function CrewOnHoldCard({ rows }: { rows: ThisWeekCrew[] }) {
+function CrewOnHoldCard({ rows, className }: { rows: ThisWeekCrew[]; className?: string }) {
   // Dedup by crewId; same person on two shoots only appears once.
   const map = new Map<string, { row: ThisWeekCrew; bookingRefs: string[] }>();
   for (const r of rows) {
@@ -461,6 +483,7 @@ function CrewOnHoldCard({ rows }: { rows: ThisWeekCrew[] }) {
       title="Crew on hold this week"
       meta={`${unique.length}`}
       action={{ label: 'All crew', href: '/crew' }}
+      className={className}
     >
       {unique.length === 0 ? (
         <p className="text-[11px]" style={{ color: PALETTE.muted }}>
@@ -496,12 +519,13 @@ function CrewOnHoldCard({ rows }: { rows: ThisWeekCrew[] }) {
   );
 }
 
-function JobsNeedingCrewCard({ rows }: { rows: JobNeedingCrew[] }) {
+function JobsNeedingCrewCard({ rows, className }: { rows: JobNeedingCrew[]; className?: string }) {
   return (
     <SectionCard
       title="Jobs needing crew"
       meta={`${rows.length}`}
       action={{ label: 'All bookings', href: '/bookings' }}
+      className={className}
     >
       {rows.length === 0 ? (
         <p className="text-[11px]" style={{ color: PALETTE.muted }}>
@@ -537,4 +561,61 @@ function JobsNeedingCrewCard({ rows }: { rows: JobNeedingCrew[] }) {
       )}
     </SectionCard>
   );
+}
+
+/**
+ * Mirror of /inbox's fetchPotentialBriefs — pulls Gmail messages that look
+ * like briefs, filtering out already-dismissed IDs and converted source IDs.
+ * Returns an empty array when Google isn't configured so the dashboard
+ * stays useful for dev environments without OAuth credentials.
+ */
+async function fetchPotentialBriefsForDashboard() {
+  if (!isGoogleConfigured()) return [];
+  const supabase = await createClient();
+
+  const [bookingsResult, convertedResult, clientsResult, talentResult, dismissedIds] = await Promise.all([
+    supabase
+      .from('atelier_bookings')
+      .select('booking_ref')
+      .not('booking_ref', 'is', null)
+      .limit(500),
+    supabase
+      .from('atelier_bookings')
+      .select('source_gmail_message_id')
+      .not('source_gmail_message_id', 'is', null),
+    supabase.from('atelier_clients').select('email').not('email', 'is', null),
+    supabase.from('atelier_talent').select('working_name').eq('is_active', true),
+    listDismissedBriefIds(),
+  ]);
+
+  const refs = ((bookingsResult.data ?? []) as { booking_ref: string | null }[])
+    .map((r) => r.booking_ref)
+    .filter((r): r is string => Boolean(r));
+
+  const convertedSourceIds = new Set(
+    ((convertedResult.data ?? []) as { source_gmail_message_id: string | null }[])
+      .map((r) => r.source_gmail_message_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const clientEmails = ((clientsResult.data ?? []) as { email: string | null }[])
+    .map((r) => r.email)
+    .filter((e): e is string => Boolean(e));
+
+  const talentNames: string[] = [];
+  for (const { working_name } of (talentResult.data ?? []) as { working_name: string }[]) {
+    if (!working_name) continue;
+    talentNames.push(working_name);
+    const firstName = working_name.split(' ')[0];
+    if (firstName && firstName.length >= 4) talentNames.push(firstName);
+  }
+
+  return findPotentialBriefs({
+    existingRefs: refs,
+    clientEmails,
+    talentNames,
+    dismissedIds,
+    convertedSourceIds,
+    limit: 6,
+  });
 }

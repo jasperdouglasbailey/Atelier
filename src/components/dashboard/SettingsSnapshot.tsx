@@ -16,7 +16,7 @@ import SectionCard from '@/components/ui/SectionCard';
  * confirms in the background. The /settings link in the header gives
  * full controls (agency profile, integrations, etc.).
  */
-export default function SettingsSnapshot({ killSwitch }: { killSwitch: KillSwitchState | null }) {
+export default function SettingsSnapshot({ killSwitch, className }: { killSwitch: KillSwitchState | null; className?: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isActive, setOptimisticActive] = useOptimistic(killSwitch?.is_active ?? false);
@@ -45,6 +45,7 @@ export default function SettingsSnapshot({ killSwitch }: { killSwitch: KillSwitc
       title="Kill switch"
       meta={<span style={{ color: levelColor }}>{level}</span>}
       action={{ label: 'Open settings', href: '/settings' }}
+      className={className}
     >
       <p className="text-[11px]" style={{ color: PALETTE.muted }}>{levelDesc}</p>
 
