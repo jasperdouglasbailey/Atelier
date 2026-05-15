@@ -62,7 +62,11 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
   const isOwnerPreview = (user.role === 'owner' || user.role === 'partner') && Boolean(params.previewTalentId);
   const effectiveTalentId = isOwnerPreview ? params.previewTalentId! : user.talent_id;
 
-  if (!effectiveTalentId || (!isOwnerPreview && user.role !== 'talent')) {
+  if (!effectiveTalentId) {
+    if (user.role === 'owner' || user.role === 'partner') redirect('/');
+    redirect('/login?error=not_authorised');
+  }
+  if (!isOwnerPreview && user.role !== 'talent') {
     redirect('/login?error=not_authorised');
   }
 

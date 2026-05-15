@@ -55,7 +55,13 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
   const isOwnerPreview = (user.role === 'owner' || user.role === 'partner') && Boolean(params.previewCrewId);
   const effectiveCrewId = isOwnerPreview ? params.previewCrewId! : user.crew_id;
 
-  if (!effectiveCrewId || (!isOwnerPreview && user.role !== 'crew')) {
+  if (!effectiveCrewId) {
+    // Owner/partner without a previewCrewId param has no portal to view —
+    // send back to the dashboard rather than punching them to login.
+    if (user.role === 'owner' || user.role === 'partner') redirect('/');
+    redirect('/login?error=not_authorised');
+  }
+  if (!isOwnerPreview && user.role !== 'crew') {
     redirect('/login?error=not_authorised');
   }
 

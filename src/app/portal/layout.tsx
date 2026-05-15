@@ -1,8 +1,16 @@
 /**
- * Portal layout — for talent and crew users.
+ * Portal layout — for talent and crew users (and owners/partners in
+ * preview mode).
  *
- * Owner / partner users are redirected to the main dashboard. Talent
- * and crew see a stripped-back layout (no sidebar, no admin features).
+ * Auth gate is minimal at this layer: just "must be signed in." The
+ * role-specific access decisions (crew can only see /portal/crew etc.)
+ * happen at the page layer, which CAN read searchParams and decide
+ * whether an owner/partner is allowed in via the `previewCrewId` /
+ * `previewTalentId` override.
+ *
+ * Earlier this layout aggressively redirected owners/partners to `/`,
+ * which silently broke the owner-preview feature (the layout fires
+ * BEFORE the page, so the page's bypass logic never ran).
  *
  * No RLS yet means we can't rely on the DB to keep them out of admin
  * data; the portal pages MUST scope every query by current_talent_id()
@@ -26,11 +34,16 @@ export default async function PortalLayout({ children }: { children: React.React
     redirect('/login?error=not_authorised');
   }
 
-  if (user.role === 'owner' || user.role === 'partner') {
-    redirect('/');
-  }
-
   const agency = getAgencyConfig();
+  const isOwnerOrPartner = user.role === 'owner' || user.role === 'partner';
+
+  // Header label: in preview mode (owner/partner here) we don't know which
+  // portal yet — the page will surface the amber "Preview mode" banner
+  // identifying the previewed user. For real talent/crew it's their portal
+  // type.
+  const portalLabel = isOwnerOrPartner
+    ? 'Preview'
+    : user.role === 'talent' ? 'Talent portal' : 'Crew portal';
 
   return (
     <div className="min-h-screen" style={{ background: PALETTE.bg, color: PALETTE.text }}>
@@ -39,11 +52,11 @@ export default async function PortalLayout({ children }: { children: React.React
         style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
       >
         <div className="flex items-center gap-3">
-          <Link href="/portal" className="text-sm font-semibold" style={{ color: PALETTE.text }}>
+          <Link href={isOwnerOrPartner ? '/' : '/portal'} className="text-sm font-semibold" style={{ color: PALETTE.text }}>
             {agency.name}
           </Link>
           <span className="text-[10px] uppercase tracking-wider" style={{ color: PALETTE.muted }}>
-            {user.role === 'talent' ? 'Talent portal' : 'Crew portal'}
+            {portalLabel}
           </span>
         </div>
         <form action={signOutAction}>
