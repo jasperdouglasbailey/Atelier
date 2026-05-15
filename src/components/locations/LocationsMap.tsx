@@ -75,13 +75,48 @@ function FitBoundsToMarkers({ points }: { points: Array<{ lat: number; lng: numb
   return null;
 }
 
-type Props = {
-  locations: Location[];
+/**
+ * Tile-style options. Each picks a different background tile provider —
+ * markers + interactions are identical across all of them.
+ *
+ *   voyager — CartoDB Voyager. Light pastel base WITH proper colour (green
+ *             parks, blue water, readable streets). Less muted than Positron.
+ *   osm     — Stock OpenStreetMap. Maximum colour, slightly busier look.
+ *   positron — CartoDB Positron. The previous default — very minimal cream/grey.
+ */
+export type MapTileStyle = 'voyager' | 'osm' | 'positron';
+
+const TILE_CONFIGS: Record<MapTileStyle, { url: string; subdomains: string[]; attribution: string; bg: string }> = {
+  voyager: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>',
+    bg: '#eef3f5',
+  },
+  osm: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    subdomains: ['a', 'b', 'c'],
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    bg: '#dddddd',
+  },
+  positron: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>',
+    bg: '#f6f3ee',
+  },
 };
 
-export default function LocationsMap({ locations }: Props) {
+type Props = {
+  locations: Location[];
+  /** Background tile provider. Default 'voyager' (colourful but tasteful). */
+  tileStyle?: MapTileStyle;
+};
+
+export default function LocationsMap({ locations, tileStyle = 'voyager' }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const tile = TILE_CONFIGS[tileStyle];
 
   const mapped = useMemo(
     () => locations
@@ -177,18 +212,12 @@ export default function LocationsMap({ locations }: Props) {
         zoom={11}
         scrollWheelZoom
         className="atelier-map"
-        style={{ height: '100%', width: '100%', background: '#f6f3ee' }}
+        style={{ height: '100%', width: '100%', background: tile.bg }}
       >
-        {/*
-          CartoDB Positron — clean, minimal "Apple Maps light" aesthetic that
-          sits well with the Atelier sand/cream palette. Free, no API key.
-          Subdomains a-d for parallel tile loading. Retina version (@2x) for
-          sharp tiles on high-DPI displays.
-        */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          subdomains={['a', 'b', 'c', 'd']}
+          attribution={tile.attribution}
+          url={tile.url}
+          subdomains={tile.subdomains}
           maxZoom={19}
         />
         <FitBoundsToMarkers points={mapped} />
