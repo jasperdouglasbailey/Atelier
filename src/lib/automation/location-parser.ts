@@ -20,7 +20,7 @@
  * picking up per-room detail pages on most studio sites.
  */
 
-import { callLLMJson } from '@/lib/integrations/anthropic';
+import { callLLM } from '@/lib/integrations/anthropic';
 import type { StudioType, StudioRoom } from '@/lib/types/database';
 
 const SUB_PAGE_KEYWORDS = [
@@ -72,6 +72,19 @@ export type ParsedLocation = {
 
 /** Stripped-down ParsedLocation used internally before adding sourceUrls. */
 type LlmParsedLocation = Omit<ParsedLocation, 'sourceUrls'>;
+
+/**
+ * Discriminated result so callers can show specific error UX instead of a
+ * generic "could not parse". Maps to user-readable messages in the server
+ * action layer.
+ */
+export type ParseResult =
+  | { ok: true; parsed: ParsedLocation }
+  | { ok: false; reason: 'invalid_url' }
+  | { ok: false; reason: 'fetch_failed'; url: string }
+  | { ok: false; reason: 'llm_unavailable' }
+  | { ok: false; reason: 'llm_blocked' }
+  | { ok: false; reason: 'llm_invalid_response' };
 
 const FACILITY_KEYS = [
   'change_rooms', 'kitchen', 'wifi', 'lighting_rig', 'cyclorama', 'green_room',
@@ -254,18 +267,18 @@ function validateParsed(data: unknown): data is LlmParsedLocation {
 // Public entry point
 // ============================================================
 
-export async function parseLocationFromUrl(rawUrl: string): Promise<ParsedLocation | null> {
+export async function parseLocationFromUrl(rawUrl: string): Promise<ParseResult> {
   let baseUrl: URL;
   try {
     baseUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
   } catch {
-    return null;
+    return { ok: false, reason: 'invalid_url' };
   }
 
   const homepageHtml = await fetchHtml(baseUrl.href);
   if (!homepageHtml) {
     console.error('[location-parser] Failed to fetch', baseUrl.href);
-    return null;
+    return { ok: false, reason: 'fetch_failed', url: baseUrl.href };
   }
 
   // Discover sub-pages worth following
@@ -288,35 +301,51 @@ export async function parseLocationFromUrl(rawUrl: string): Promise<ParsedLocati
     payload += chunk;
   }
 
-  const result = await callLLMJson<LlmParsedLocation>(
-    {
-      systemPrompt: buildSystemPrompt(),
-      messages: [{ role: 'user', content: payload }],
-      model: 'claude-3-5-sonnet-20241022',
-      maxTokens: 4000,
-      purpose: 'location_website_parse',
-    },
-    validateParsed,
-  );
+  // Call LLM directly so we can distinguish failure reasons (no API key vs
+  // kill switch vs invalid JSON vs API error) for clear user-facing errors.
+  const systemPromptForJson = buildSystemPrompt() + '\n\nRespond with valid JSON only. No markdown fences, no explanation. Just the JSON object.';
+  const llmResponse = await callLLM({
+    purpose: 'location_website_parse',
+    systemPrompt: systemPromptForJson,
+    messages: [{ role: 'user', content: payload }],
+    model: 'claude-3-5-sonnet-20241022',
+    maxTokens: 4000,
+  });
 
-  if (!result) return null;
+  if (!llmResponse.ok) {
+    if (llmResponse.reason === 'no_api_key') return { ok: false, reason: 'llm_unavailable' };
+    if (llmResponse.reason === 'kill_switch') return { ok: false, reason: 'llm_blocked' };
+    return { ok: false, reason: 'llm_invalid_response' };
+  }
+
+  let parsed: LlmParsedLocation;
+  try {
+    const cleaned = llmResponse.text.replace(/^```(?:json)?\n?|```$/gm, '').trim();
+    const obj = JSON.parse(cleaned) as unknown;
+    if (!validateParsed(obj)) {
+      console.error('[location-parser] LLM returned invalid JSON shape', obj);
+      return { ok: false, reason: 'llm_invalid_response' };
+    }
+    parsed = obj;
+  } catch (err) {
+    console.error('[location-parser] JSON parse failed', err, llmResponse.text.slice(0, 200));
+    return { ok: false, reason: 'llm_invalid_response' };
+  }
 
   // Clamp studio_type to valid enum + clamp confidence
-  const studioType = result.studio_type && STUDIO_TYPES.includes(result.studio_type)
-    ? result.studio_type
+  const studioType = parsed.studio_type && STUDIO_TYPES.includes(parsed.studio_type)
+    ? parsed.studio_type
     : null;
-  const facilities = result.facilities.filter((f): f is string => typeof f === 'string' && FACILITY_KEYS.includes(f));
-
-  // If the parser returned 'studio_rooms' but only one was found, leave as-is —
-  // it might be a single distinctively-named space worth keeping (e.g. "The Cyc").
-  // If zero rooms came back but the page mentioned a numbered list, the LLM will
-  // have populated them already. We don't try to invent more here.
+  const facilities = parsed.facilities.filter((f): f is string => typeof f === 'string' && FACILITY_KEYS.includes(f));
 
   return {
-    ...result,
-    studio_type: studioType,
-    facilities,
-    confidence: Math.max(0, Math.min(100, Math.round(result.confidence))),
-    sourceUrls,
+    ok: true,
+    parsed: {
+      ...parsed,
+      studio_type: studioType,
+      facilities,
+      confidence: Math.max(0, Math.min(100, Math.round(parsed.confidence))),
+      sourceUrls,
+    },
   };
 }
