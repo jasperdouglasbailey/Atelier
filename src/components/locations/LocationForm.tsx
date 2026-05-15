@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { createLocationAction, updateLocationAction } from '@/app/actions/locations';
 import { PALETTE } from '@/lib/utils/constants';
 import type { Location, StudioType, StudioRoom } from '@/lib/types/database';
+import TagInput from './TagInput';
 
 type Props = {
   location?: Location;
+  /** Tags from across all existing locations — feeds the autocomplete on TagInput. */
+  allTags?: string[];
 };
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
@@ -201,7 +204,7 @@ function RoomEditor({
   );
 }
 
-export default function LocationForm({ location }: Props) {
+export default function LocationForm({ location, allTags = [] }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +212,7 @@ export default function LocationForm({ location }: Props) {
   const [facilities, setFacilities] = useState<Set<string>>(new Set(location?.facilities ?? []));
   const [studioType, setStudioType] = useState<StudioType>(location?.studio_type ?? 'photo_studio');
   const [rooms, setRooms] = useState<StudioRoom[]>(location?.studio_rooms ?? []);
+  const [tags, setTags] = useState<string[]>(location?.tags ?? []);
 
   const isStudio = studioType === 'photo_studio' || studioType === 'film_studio';
 
@@ -233,6 +237,7 @@ export default function LocationForm({ location }: Props) {
     fd.set('studio_type', studioType);
     fd.set('facilities', JSON.stringify([...facilities]));
     fd.set('studio_rooms', JSON.stringify(rooms));
+    fd.set('tags', JSON.stringify(tags));
 
     const result: { ok?: boolean; id?: string; error?: string } = location
       ? await updateLocationAction(location.id, fd)
@@ -443,6 +448,21 @@ export default function LocationForm({ location }: Props) {
             );
           })}
         </div>
+      </section>
+
+      {/* ── Tags ─────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Tags</h2>
+        <p className="text-[11px]" style={{ color: PALETTE.muted, marginBottom: 4 }}>
+          Free-form labels for vibe, character, or use-case (e.g. boutique, industrial, rooftop with views).
+          Tags added here are remembered and suggested across all locations.
+        </p>
+        <TagInput
+          value={tags}
+          onChange={setTags}
+          suggestions={allTags}
+          placeholder="Add a tag (e.g. minimal, natural light, vintage)…"
+        />
       </section>
 
       {/* ── Space ────────────────────────────────────────────── */}

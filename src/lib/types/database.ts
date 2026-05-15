@@ -558,6 +558,8 @@ export interface Location {
   longitude: number | null;
   /** The address string we last geocoded against — used to detect changes. */
   geocoded_address: string | null;
+  /** User-defined free-form tags. Reused via getAllLocationTags() for autocomplete. */
+  tags: string[] | null;
 }
 
 export interface BusinessRenewal {
