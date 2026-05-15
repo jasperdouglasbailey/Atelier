@@ -176,8 +176,10 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
               title={b.title}
               shootDateNotes={b.shootDateNotes}
               dayRate={b.dayRate}
-              onConfirm={() => respondToTalentHoldAction(b.bookingTalentId, 'confirmed')}
-              onDecline={() => respondToTalentHoldAction(b.bookingTalentId, 'declined')}
+              // Server actions passed to client components must be either
+              // direct references or `.bind()`'d — see crew portal comment.
+              onConfirm={respondToTalentHoldAction.bind(null, b.bookingTalentId, 'confirmed')}
+              onDecline={respondToTalentHoldAction.bind(null, b.bookingTalentId, 'declined')}
             />
           ))}
         </section>
