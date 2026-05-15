@@ -19,6 +19,7 @@ type Props = {
   integrations?: IntegrationStatus;
   emailFailures?: EmailFailure[];
   cronHealth?: CronHealthEntry[];
+  cronSecretPresent?: boolean;
 };
 
 function Toggle({ label, description, checked, onChange, color }: {
@@ -48,7 +49,7 @@ function Toggle({ label, description, checked, onChange, color }: {
   );
 }
 
-export default function SettingsPanel({ killSwitch, agency, integrations, emailFailures = [], cronHealth = [] }: Props) {
+export default function SettingsPanel({ killSwitch, agency, integrations, emailFailures = [], cronHealth = [], cronSecretPresent = false }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -252,6 +253,27 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
           <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
             Scheduled Jobs
           </h2>
+          <div
+            className="mb-3 flex items-center justify-between rounded border px-3 py-2"
+            style={{
+              borderColor: cronSecretPresent ? PALETTE.border : PALETTE.danger,
+              background: cronSecretPresent ? 'transparent' : `${PALETTE.danger}10`,
+            }}
+          >
+            <div className="text-[11px]" style={{ color: PALETTE.text }}>
+              <span style={{ color: cronSecretPresent ? PALETTE.success : PALETTE.danger }}>
+                {cronSecretPresent ? '✓' : '✗'}
+              </span>{' '}
+              <span style={{ color: PALETTE.text }}>
+                CRON_SECRET {cronSecretPresent ? 'detected' : 'missing'}
+              </span>
+              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
+                {cronSecretPresent
+                  ? 'Auth header configured. Vercel cron requests will be accepted.'
+                  : 'No CRON_SECRET in this environment — every cron will return 401. See docs/CRON-OPS-RUNBOOK.md.'}
+              </div>
+            </div>
+          </div>
           <div className="space-y-1.5">
             {cronHealth.map(({ name, last_run }) => {
               const label = name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
