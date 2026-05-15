@@ -21,9 +21,13 @@ export type SectionCardProps = {
 };
 
 export default function SectionCard({ title, meta, action, compact = false, className, children }: SectionCardProps) {
+  // When the caller passes h-full (i.e. wants the card to stretch in a grid row),
+  // switch to flex-column so the body fills the remaining height beneath the header.
+  // Otherwise stay with the default block layout that auto-sizes to content.
+  const wantsStretch = (className ?? '').includes('h-full');
   return (
     <section
-      className={`rounded-lg border ${compact ? 'p-3' : 'p-4'} ${className ?? ''}`}
+      className={`rounded-lg border ${compact ? 'p-3' : 'p-4'} ${wantsStretch ? 'flex flex-col' : ''} ${className ?? ''}`}
       style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
     >
       <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -44,7 +48,7 @@ export default function SectionCard({ title, meta, action, compact = false, clas
           </Link>
         )}
       </div>
-      {children}
+      {wantsStretch ? <div className="flex-1 min-h-0">{children}</div> : children}
     </section>
   );
 }
