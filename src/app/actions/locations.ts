@@ -5,8 +5,6 @@ import { createLocation, getLocation, updateLocation } from '@/lib/data/location
 import { createLocationFolder, createLocationFolderWithRooms } from '@/lib/integrations/drive';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { geocodeAddress } from '@/lib/integrations/geocode';
-import { parseLocationFromUrl, type ParsedLocation } from '@/lib/automation/location-parser';
-import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { logAudit } from '@/lib/utils/audit';
 import { getCurrentActor } from '@/lib/utils/actor';
@@ -158,65 +156,6 @@ export async function updateLocationAction(id: string, formData: FormData) {
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);
   return { ok: true };
-}
-
-/**
- * AI-parse a studio's website into structured location fields. Returns the
- * parsed values WITHOUT persisting them — the form layer shows them to the
- * user for review before save (doctrine: never auto-apply LLM output).
- *
- * Kill-switch: blocked at RED (no agent activity at all). AMBER is allowed
- * because parsing is a read-only LLM call — no outbound effects.
- *
- * Audit-logged as `location_website_parse` with the source URLs + confidence.
- */
-export async function parseLocationFromUrlAction(
-  rawUrl: string,
-): Promise<{ ok: true; parsed: ParsedLocation } | { ok: false; error: string }> {
-  const authError = await requireOwnerOrPartner();
-  if (authError) return { ok: false, error: authError.error };
-
-  const ks = await checkKillSwitch();
-  if (!ks.canProceed) {
-    return { ok: false, error: 'Kill switch is RED — agent activity is paused.' };
-  }
-
-  const trimmed = (rawUrl ?? '').trim();
-  if (!trimmed) return { ok: false, error: 'Please provide a website URL.' };
-
-  const result = await parseLocationFromUrl(trimmed);
-  if (!result.ok) {
-    // Surface a specific message per failure reason so the user knows
-    // whether to fix the URL, the API key, or something else.
-    switch (result.reason) {
-      case 'invalid_url':
-        return { ok: false, error: 'That doesn\'t look like a valid URL. Include the protocol (https://) and try again.' };
-      case 'fetch_failed':
-        return { ok: false, error: `Couldn't fetch ${result.url}. The site may have blocked our request, redirected, returned non-HTML, or be temporarily down.` };
-      case 'llm_unavailable':
-        return { ok: false, error: 'The AI parser needs the ANTHROPIC_API_KEY env var to be set on Vercel. Add it under Project Settings → Environment Variables → Production, then redeploy.' };
-      case 'llm_blocked':
-        return { ok: false, error: 'Kill switch is blocking agent activity. Toggle it off in /settings if you want this run to proceed.' };
-      case 'llm_invalid_response':
-        return { ok: false, error: 'The AI returned an invalid response. Try again, or report this URL — server logs will have details.' };
-    }
-  }
-
-  const parsed = result.parsed;
-  await logAudit({
-    userId: await getCurrentActor(),
-    action: 'location_website_parse',
-    tableName: 'atelier_locations',
-    recordId: null,
-    newValue: {
-      url: trimmed,
-      sourceUrls: parsed.sourceUrls,
-      confidence: parsed.confidence,
-      uncertainty: parsed.uncertainty,
-    } as never,
-  });
-
-  return { ok: true, parsed };
 }
 
 /**
