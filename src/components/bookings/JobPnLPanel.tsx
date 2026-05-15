@@ -33,22 +33,24 @@ function computePaidOut(
   lines: FeeLine[],
   bookingTalent: BookingTalent[],
   bookingCrew: BookingCrew[],
-): { artistTotal: number; crewTotal: number; reimbursementTotal: number; total: number } {
+): { artistNet: number; crewTotal: number; reimbursementTotal: number; total: number } {
   const primaryArtist = bookingTalent[0]?.talent;
   const artistGstRegistered = primaryArtist?.gst_registered ?? false;
   const artistSubtotal = lines
     .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
     .reduce((s, l) => s + (l.subtotal ?? 0), 0);
   const artistNet = artistSubtotal > 0
-    ? computeArtistPayment(artistSubtotal, artistGstRegistered).netPayment
+    ? Math.round(computeArtistPayment(artistSubtotal, artistGstRegistered).netPayment * 100) / 100
     : 0;
 
-  // Reimbursements are pass-through: no commission, paid back 1:1 to artist
+  // Reimbursements are pass-through: no commission, paid back 1:1 to artist.
+  // Kept separate from artistNet so the display can show all three components
+  // (artist labour, crew, reimb) and have them sum to the bucket total —
+  // previously artistTotal merged artistNet+reimb and the display still
+  // listed reimb separately, so the sub-line numbers didn't add up.
   const reimbursementTotal = lines
     .filter((l) => l.is_artist_reimbursement)
     .reduce((s, l) => s + (l.subtotal ?? 0), 0);
-
-  const artistOut = Math.round((artistNet + reimbursementTotal) * 100) / 100;
 
   const crewByPersonLabour = new Map<string, number>();
   const crewByPersonExpenses = new Map<string, number>();
@@ -74,8 +76,8 @@ function computePaidOut(
     crewOut += computeCrewPayment(unlinkedCrewLabour, 0, false).netPayment;
   }
 
-  const total = Math.round((artistOut + crewOut) * 100) / 100;
-  return { artistTotal: artistOut, crewTotal: crewOut, reimbursementTotal, total };
+  const total = Math.round((artistNet + reimbursementTotal + crewOut) * 100) / 100;
+  return { artistNet, crewTotal: crewOut, reimbursementTotal, total };
 }
 
 export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [], bookingCrew = [] }: Props) {
@@ -137,9 +139,9 @@ export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [],
             label="Paid out"
             value={paidOut.total}
             sub={[
-              `Artist ${formatCurrency(paidOut.artistTotal)}`,
+              `Artist ${formatCurrency(paidOut.artistNet)}`,
               `crew ${formatCurrency(paidOut.crewTotal)}`,
-              paidOut.reimbursementTotal > 0 && `reimb. ${formatCurrency(paidOut.reimbursementTotal)}`,
+              paidOut.reimbursementTotal > 0 && `reimb ${formatCurrency(paidOut.reimbursementTotal)}`,
             ].filter(Boolean).join(' · ')}
             muted
           />

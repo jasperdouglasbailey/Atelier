@@ -929,29 +929,39 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                 ].filter(Boolean) as { l: string; v: number }[]}
               />
 
-              {/* 2. Owed to ATO (net GST) */}
+              {/* 2. Owed to ATO (net GST). "Collected" was previously a single
+                     row claiming everything came from the client — but only the
+                     line GST is on the client invoice. Commission GST is owed by
+                     the agency on its own commission income (deducted from the
+                     artist's pay). Splitting the rows makes the source honest. */}
               {gst.collectedTotal > 0 && (
                 <BreakdownBucket
                   label="Owed to ATO · net GST"
                   total={gst.netToAto}
                   rows={[
-                    { l: 'Collected from client', v: gst.collectedTotal, sign: '+' as const },
+                    { l: 'GST on client invoice (10% of lines + ASF)', v: gst.collectedOnLines, sign: '+' as const },
+                    gst.collectedOnCommission > 0 && { l: 'GST owed on agency commission income', v: gst.collectedOnCommission, sign: '+' as const },
                     gst.inputCreditsTotal > 0 && { l: 'Input credits (paid to GST-registered talent/crew)', v: gst.inputCreditsTotal, sign: '−' as const },
                   ].filter(Boolean) as { l: string; v: number; sign?: '+' | '−' }[]}
                 />
               )}
 
-              {/* 3. Paid through — subtotal of every line in the table (what flows out
-                     to artist net, crew net, vendor invoices, super to fund). */}
+              {/* 3. Paid through — what actually flows out to artist net, crew net,
+                     vendor invoices, super to fund. Rows are signed so they sum to
+                     the bucket total. Previously the rows didn't reconcile because
+                     commission + commission GST (which stay with the agency / ATO,
+                     not paid through) weren't shown as deductions. */}
               <BreakdownBucket
                 label="Paid through to artist + crew + vendors"
                 total={paidThrough}
                 muted
                 rows={[
-                  { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal },
-                  totals.totalSuperPaid > 0 && { l: 'Super to fund · 12%', v: totals.totalSuperPaid },
-                  { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal },
-                ].filter(Boolean) as { l: string; v: number }[]}
+                  { l: 'Line subtotals (before ASF + GST)', v: totals.subtotal, sign: '+' as const },
+                  margin.commission > 0 && { l: 'Commission kept by agency', v: margin.commission, sign: '−' as const },
+                  totals.totalCommissionGst > 0 && { l: 'Commission GST owed to ATO', v: totals.totalCommissionGst, sign: '−' as const },
+                  totals.totalSuperPaid > 0 && { l: 'Super paid to fund · 12%', v: totals.totalSuperPaid, sign: '+' as const },
+                  gst.inputCreditsTotal > 0 && { l: 'GST passed to GST-registered payees', v: gst.inputCreditsTotal, sign: '+' as const },
+                ].filter(Boolean) as { l: string; v: number; sign: '+' | '−' }[]}
               />
 
               {/* Reconciliation strip — running subtraction verifies math */}
