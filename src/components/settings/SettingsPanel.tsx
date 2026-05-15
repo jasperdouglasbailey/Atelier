@@ -8,6 +8,8 @@ import type { KillSwitchState } from '@/lib/types/database';
 import { toggleKillSwitchAction } from '@/app/actions/kill-switch';
 import { PALETTE, DEFAULT_COMMISSION_RATE, DEFAULT_ASF_RATE, GST_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from '@/lib/utils/constants';
 import type { AgencyConfig } from '@/lib/utils/agency-config';
+import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
+import SectionCard from '@/components/ui/SectionCard';
 
 type GoogleStatus = 'connected' | 'invalid_token' | 'not_configured';
 type IntegrationStatus = { googleStatus: GoogleStatus; googleScopes?: string[]; xeroConnected: boolean; anthropicConnected: boolean };
@@ -30,19 +32,20 @@ function Toggle({ label, description, checked, onChange, color }: {
   color: string;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border px-4 py-3" style={{ borderColor: PALETTE.border }}>
-      <div>
-        <div className="text-sm font-medium" style={{ color: PALETTE.text }}>{label}</div>
-        <div className="text-xs mt-0.5" style={{ color: PALETTE.muted }}>{description}</div>
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-xs font-medium" style={{ color: PALETTE.text }}>{label}</div>
+        <div className="text-[10px] mt-0.5" style={{ color: PALETTE.muted }}>{description}</div>
       </div>
       <button
         onClick={onChange}
-        className="relative h-6 w-11 rounded-full transition-colors"
+        className="relative h-5 w-9 flex-none rounded-full transition-colors"
         style={{ background: checked ? color : PALETTE.border }}
+        aria-pressed={checked}
       >
         <span
-          className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform"
-          style={{ transform: checked ? 'translateX(20px)' : 'translateX(0)' }}
+          className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform"
+          style={{ transform: checked ? 'translateX(16px)' : 'translateX(0)' }}
         />
       </button>
     </div>
@@ -53,14 +56,7 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Optimistic state — the toggle flips IMMEDIATELY on click and auto-syncs
-  // to the server prop after router.refresh() completes. Without useOptimistic,
-  // the toggle visually waits for the full server roundtrip + RSC refresh
-  // (~3-10s) before reflecting the click, which felt broken.
-  //
-  // React 19 useOptimistic: the optimistic value is set inside startTransition,
-  // and React automatically reverts to `killSwitch?.is_active` (the latest
-  // server prop) when the transition completes. No useEffect-sync needed.
+  // Optimistic state — flips immediately, auto-syncs to server prop after refresh.
   const [isActive, setOptimisticActive] = useOptimistic(killSwitch?.is_active ?? false);
   const [isPaused, setOptimisticPaused] = useOptimistic(killSwitch?.pause_outbound ?? false);
 
@@ -74,119 +70,144 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
     });
   }
 
-  // Determine current level
+  // Kill switch level for the KPI tile
   let level = 'Green';
   let levelColor: string = PALETTE.success;
-  let levelDesc = 'All systems operational. Agents can process and send outbound comms.';
+  let levelTone: 'success' | 'warn' | 'danger' = 'success';
   if (isActive) {
     level = 'Red — Full Freeze';
     levelColor = PALETTE.danger;
-    levelDesc = 'All agent activity halted. No processing, no outbound messages. Manual-only mode.';
+    levelTone = 'danger';
   } else if (isPaused) {
-    level = 'Amber — Drafts Only';
+    level = 'Amber — Paused';
     levelColor = PALETTE.warning;
-    levelDesc = 'Agents can process and draft, but nothing goes outbound until you release.';
+    levelTone = 'warn';
   }
 
+  // Cron health summary for the KPI tile — count crons that ran in the last 24h
+  // eslint-disable-next-line react-hooks/purity
+  const _now = Date.now();
+  const cronHealthy = cronHealth.filter((c) => c.last_run && (_now - new Date(c.last_run).getTime()) < 24 * 3600_000).length;
+  const cronTotal = cronHealth.length;
+
   return (
-    <div className="max-w-2xl space-y-6">
-      {/* Quick links */}
-      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-          Admin
-        </h2>
-        <Link
-          href="/settings/partners"
-          className="text-xs underline"
-          style={{ color: PALETTE.accent }}
-        >
-          Partner & user roles →
-        </Link>
-        <p className="text-[10px] mt-1" style={{ color: PALETTE.muted }}>
-          Provision partner (Jemma, Gary), talent and crew accounts.
-        </p>
-      </section>
+    <div className="space-y-4">
 
-      {/* Kill Switch */}
-      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
-          Kill Switch
-        </h2>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="inline-block h-3 w-3 rounded-full" style={{ background: levelColor }} />
-          <span className="text-sm font-semibold" style={{ color: levelColor }}>{level}</span>
-        </div>
-        <p className="text-xs mb-4" style={{ color: PALETTE.muted }}>{levelDesc}</p>
+      {/* KPI strip — at-a-glance system health */}
+      <KpiStrip>
+        <KpiCard
+          label="Kill switch"
+          value={<span style={{ color: levelColor }}>{level}</span>}
+          sub={isActive ? 'agents fully paused' : isPaused ? 'drafts only, no send' : 'all systems operational'}
+          tone={levelTone}
+        />
+        <KpiCard
+          label="Google integration"
+          value={
+            integrations?.googleStatus === 'connected' ? 'Connected'
+            : integrations?.googleStatus === 'invalid_token' ? 'Reconnect'
+            : 'Not configured'
+          }
+          sub={integrations?.googleStatus === 'connected' ? `${integrations.googleScopes?.length ?? 0} scopes granted` : 'Gmail · Drive · Calendar'}
+          tone={integrations?.googleStatus === 'connected' ? 'success' : integrations?.googleStatus === 'invalid_token' ? 'danger' : 'warn'}
+          valueColor={
+            integrations?.googleStatus === 'connected' ? PALETTE.success
+            : integrations?.googleStatus === 'invalid_token' ? PALETTE.danger
+            : PALETTE.warning
+          }
+        />
+        <KpiCard
+          label="Scheduled jobs"
+          value={cronTotal > 0 ? `${cronHealthy}/${cronTotal}` : '—'}
+          sub={cronTotal === 0 ? 'no crons configured' : cronHealthy === cronTotal ? 'all ran in last 24h' : `${cronTotal - cronHealthy} stale`}
+          tone={cronTotal > 0 && cronHealthy === cronTotal ? 'success' : cronTotal > 0 && cronHealthy < cronTotal ? 'warn' : 'default'}
+          valueColor={cronTotal > 0 && cronHealthy === cronTotal ? PALETTE.success : cronTotal > 0 && cronHealthy < cronTotal ? PALETTE.warning : undefined}
+        />
+        <KpiCard
+          label="Email failures"
+          value={emailFailures.length}
+          sub={emailFailures.length === 0 ? 'last 7 days clean' : 'last 7 days · click below'}
+          tone={emailFailures.length > 0 ? 'warn' : 'success'}
+          valueColor={emailFailures.length > 0 ? PALETTE.warning : PALETTE.success}
+        />
+      </KpiStrip>
 
-        <div className="space-y-3">
-          <Toggle
-            label="Full Freeze (Red)"
-            description="Halt all agent processing immediately"
-            checked={isActive}
-            onChange={() => handleToggle('is_active')}
-            color={PALETTE.danger}
-          />
-          <Toggle
-            label="Pause Outbound (Amber)"
-            description="Agents draft but don't send — you review everything first"
-            checked={isPaused}
-            onChange={() => handleToggle('pause_outbound')}
-            color={PALETTE.warning}
-          />
-        </div>
+      {/* Row 1: 3-col — admin + kill switch + push */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SectionCard title="Admin">
+          <Link
+            href="/settings/partners"
+            className="text-xs underline"
+            style={{ color: PALETTE.accent }}
+          >
+            Partner & user roles →
+          </Link>
+          <p className="text-[10px] mt-1" style={{ color: PALETTE.muted }}>
+            Provision partner (Jemma, Gary), talent and crew accounts.
+          </p>
+        </SectionCard>
 
-        {killSwitch?.updated_at && (
-          <LastUpdatedLine
-            updatedAt={killSwitch.updated_at}
-            updatedBy={killSwitch.updated_by ?? null}
-          />
-        )}
-      </section>
+        <SectionCard title="Kill switch">
+          <div className="space-y-2.5">
+            <Toggle
+              label="Full Freeze (Red)"
+              description="Halt all agent processing immediately"
+              checked={isActive}
+              onChange={() => handleToggle('is_active')}
+              color={PALETTE.danger}
+            />
+            <Toggle
+              label="Pause Outbound (Amber)"
+              description="Agents draft but don't send — review first"
+              checked={isPaused}
+              onChange={() => handleToggle('pause_outbound')}
+              color={PALETTE.warning}
+            />
+          </div>
+          {killSwitch?.updated_at && (
+            <LastUpdatedLine
+              updatedAt={killSwitch.updated_at}
+              updatedBy={killSwitch.updated_by ?? null}
+            />
+          )}
+        </SectionCard>
 
-      {/* Agency Profile */}
-      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-          Agency Profile
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <InfoField label="Agency Name" value={agency.name} />
-          <InfoField label="ABN" value={agency.abn ?? '—'} />
-          <InfoField label="Address" value={agency.address ?? '—'} />
-          <InfoField label="Email" value={agency.email ?? '—'} />
-          <InfoField label="Phone" value={agency.phone ?? '—'} />
-          <InfoField label="Quote Validity" value={`${agency.quoteValidityDays} days`} />
-          <InfoField label="Payment Terms" value={`${agency.defaultPaymentTermsDays} days`} />
-        </div>
-        <p className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
-          Set these values in your environment variables (NEXT_PUBLIC_AGENCY_*). They appear on all quote and invoice documents.
-          <br />
-          Keys: AGENCY_NAME · AGENCY_ABN · AGENCY_ADDRESS · AGENCY_EMAIL · AGENCY_PHONE · QUOTE_VALIDITY_DAYS · DEFAULT_PAYMENT_TERMS_DAYS
-        </p>
-      </section>
+        <PushNotificationsSection />
+      </div>
 
-      {/* Fee Engine Defaults (read-only display) */}
-      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-          Fee Engine Defaults
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <InfoField label="Commission" value={`${(DEFAULT_COMMISSION_RATE * 100).toFixed(0)}%`} />
-          <InfoField label="ASF (default)" value={`${(DEFAULT_ASF_RATE * 100).toFixed(0)}%`} />
-          <InfoField label="GST" value={`${(GST_RATE * 100).toFixed(0)}%`} />
-          <InfoField label="Super (charged)" value={`${(SUPER_RATE_CHARGED * 100).toFixed(0)}%`} />
-          <InfoField label="Super (paid)" value={`${(SUPER_RATE_PAID * 100).toFixed(0)}%`} />
-        </div>
-        <p className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
-          These are system-wide defaults. ASF rate is adjustable per fee line. Commission is on artist labour only.
-          Super applies to crew labour only. These constants are defined in code — changes require a deploy.
-        </p>
-      </section>
+      {/* Row 2: 2-col — agency profile + fee defaults */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Agency profile">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <InfoField label="Name"           value={agency.name} />
+            <InfoField label="ABN"            value={agency.abn ?? '—'} />
+            <InfoField label="Address"        value={agency.address ?? '—'} />
+            <InfoField label="Email"          value={agency.email ?? '—'} />
+            <InfoField label="Phone"          value={agency.phone ?? '—'} />
+            <InfoField label="Quote validity" value={`${agency.quoteValidityDays}d`} />
+            <InfoField label="Payment terms"  value={`${agency.defaultPaymentTermsDays}d`} />
+          </div>
+          <p className="mt-2 text-[10px]" style={{ color: PALETTE.muted }}>
+            Set via NEXT_PUBLIC_AGENCY_* env vars. Used on every quote + invoice.
+          </p>
+        </SectionCard>
 
-      {/* Integrations Status */}
-      <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-          Integrations
-        </h2>
+        <SectionCard title="Fee engine defaults">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+            <InfoField label="Commission"      value={`${(DEFAULT_COMMISSION_RATE * 100).toFixed(0)}%`} />
+            <InfoField label="ASF"             value={`${(DEFAULT_ASF_RATE * 100).toFixed(0)}%`} />
+            <InfoField label="GST"             value={`${(GST_RATE * 100).toFixed(0)}%`} />
+            <InfoField label="Super charged"   value={`${(SUPER_RATE_CHARGED * 100).toFixed(0)}%`} />
+            <InfoField label="Super paid"      value={`${(SUPER_RATE_PAID * 100).toFixed(0)}%`} />
+          </div>
+          <p className="mt-2 text-[10px]" style={{ color: PALETTE.muted }}>
+            System-wide defaults. ASF adjustable per fee line. Commission on artist labour only. Super on crew labour only.
+          </p>
+        </SectionCard>
+      </div>
+
+      {/* Integrations — full width */}
+      <SectionCard title="Integrations">
         <div className="space-y-2">
           <IntegrationRow name="Supabase" status="connected" detail="ap-southeast-2 (Sydney)" />
           <IntegrationRow
@@ -198,7 +219,7 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
             }
             detail={
               integrations?.googleStatus === 'connected'
-                ? 'Token valid — see scope breakdown below'
+                ? 'Token valid — scope breakdown below'
               : integrations?.googleStatus === 'invalid_token'
                 ? 'Token expired or revoked — reconnect to restore email drafts and Drive'
               : 'Email relay, file delivery, shoot day events — single OAuth grant'
@@ -206,13 +227,13 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
             action={{ label: integrations?.googleStatus === 'not_configured' ? 'Connect Google' : 'Reconnect Google', href: '/api/auth/start/google' }}
           />
           {integrations?.googleStatus === 'connected' && (
-            <div className="ml-4 grid grid-cols-2 gap-x-4 gap-y-1 rounded border px-3 py-2.5 text-[11px]" style={{ borderColor: PALETTE.border }}>
+            <div className="ml-4 grid grid-cols-2 gap-x-4 gap-y-1 rounded border px-3 py-2 text-[11px] sm:grid-cols-3" style={{ borderColor: PALETTE.border }}>
               {[
                 { label: 'Inbox search (briefs)', scope: 'https://www.googleapis.com/auth/gmail.readonly' },
-                { label: 'Gmail drafts', scope: 'https://www.googleapis.com/auth/gmail.modify' },
-                { label: 'Send email', scope: 'https://www.googleapis.com/auth/gmail.send' },
-                { label: 'Drive folders', scope: 'https://www.googleapis.com/auth/drive.file' },
-                { label: 'Calendar events', scope: 'https://www.googleapis.com/auth/calendar.events' },
+                { label: 'Gmail drafts',         scope: 'https://www.googleapis.com/auth/gmail.modify' },
+                { label: 'Send email',           scope: 'https://www.googleapis.com/auth/gmail.send' },
+                { label: 'Drive folders',        scope: 'https://www.googleapis.com/auth/drive.file' },
+                { label: 'Calendar events',      scope: 'https://www.googleapis.com/auth/calendar.events' },
               ].map(({ label, scope }) => {
                 const granted = integrations.googleScopes?.includes(scope);
                 return (
@@ -261,40 +282,20 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
               : 'Agent processing — set ANTHROPIC_API_KEY in Vercel environment'}
           />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Push notifications */}
-      <PushNotificationsSection />
-
-
-      {/* Cron health */}
+      {/* Scheduled Jobs — full width */}
       {cronHealth.length > 0 && (
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: PALETTE.muted }}>
-            Scheduled Jobs
-          </h2>
-          <div
-            className="mb-3 flex items-center justify-between rounded border px-3 py-2"
-            style={{
-              borderColor: cronSecretPresent ? PALETTE.border : PALETTE.danger,
-              background: cronSecretPresent ? 'transparent' : `${PALETTE.danger}10`,
-            }}
-          >
-            <div className="text-[11px]" style={{ color: PALETTE.text }}>
-              <span style={{ color: cronSecretPresent ? PALETTE.success : PALETTE.danger }}>
-                {cronSecretPresent ? '✓' : '✗'}
-              </span>{' '}
-              <span style={{ color: PALETTE.text }}>
-                CRON_SECRET {cronSecretPresent ? 'detected' : 'missing'}
-              </span>
-              <div className="mt-0.5 text-[10px]" style={{ color: PALETTE.muted }}>
-                {cronSecretPresent
-                  ? 'Auth header configured. Vercel cron requests will be accepted.'
-                  : 'No CRON_SECRET in this environment — every cron will return 401. See docs/CRON-OPS-RUNBOOK.md.'}
-              </div>
+        <SectionCard
+          title="Scheduled jobs"
+          meta={cronSecretPresent ? '✓ CRON_SECRET detected' : '✗ CRON_SECRET missing'}
+        >
+          {!cronSecretPresent && (
+            <div className="mb-3 rounded border px-3 py-2 text-[10px]" style={{ borderColor: PALETTE.danger, background: `${PALETTE.danger}10`, color: PALETTE.muted }}>
+              No CRON_SECRET in this environment — every cron will return 401. See docs/CRON-OPS-RUNBOOK.md.
             </div>
-          </div>
-          <div className="space-y-1.5">
+          )}
+          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
             {cronHealth.map(({ name, last_run }) => {
               const label = name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
               // eslint-disable-next-line react-hooks/purity
@@ -310,53 +311,40 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
                 : ageMs < 48 * 3600_000 ? 'Yesterday'
                 : `${Math.floor(ageMs / 86400_000)}d ago`;
               return (
-                <div key={name} className="flex items-center justify-between rounded border px-3 py-1.5" style={{ borderColor: PALETTE.border }}>
-                  <span className="text-xs" style={{ color: PALETTE.text }}>{label}</span>
-                  <span className="flex items-center gap-1.5 text-[10px]" style={{ color }}>
+                <div key={name} className="flex items-center justify-between rounded border px-2.5 py-1.5" style={{ borderColor: PALETTE.border }}>
+                  <span className="text-[11px] truncate" style={{ color: PALETTE.text }}>{label}</span>
+                  <span className="flex items-center gap-1 text-[10px] flex-none ml-2" style={{ color }}>
                     <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-                    {last_run
-                      ? `${statusLabel} · ${new Date(last_run).toLocaleString('en-AU', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
-                      : statusLabel}
+                    {statusLabel}
                   </span>
                 </div>
               );
             })}
           </div>
-        </section>
+        </SectionCard>
       )}
     </div>
   );
 }
 
 /**
- * Renders the Kill Switch "Last updated …" line.
- *
- * Why a separate component: `toLocaleString('en-AU')` returns different
- * strings on the server (UTC) and client (browser locale + timezone) for
- * the same ISO timestamp. React flagged this as hydration mismatch #418
- * on /settings in AUDIT-2026-05-15. Rendering nothing until mount, then
- * the locale-formatted value, keeps server and first-paint HTML identical
- * and lets the client paint in its own timezone on the next tick.
+ * Renders the Kill Switch "Last updated …" line. setState-in-effect is
+ * intentional — defers locale formatting until after hydration to keep
+ * server + client first-paint HTML identical.
  */
 function LastUpdatedLine({ updatedAt, updatedBy }: { updatedAt: string; updatedBy: string | null }) {
   const [formatted, setFormatted] = useState<string | null>(null);
 
   useEffect(() => {
-    // The whole point of this component is to defer locale-dependent
-    // rendering until after mount so the server-rendered HTML and the
-    // client first-paint HTML match. setState-in-effect IS the pattern
-    // here — every alternative (useSyncExternalStore, suppressHydration-
-    // Warning, etc.) is heavier or worse.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- defer locale-dependent rendering until after mount; avoids SSR/CSR hydration mismatch
     setFormatted(new Date(updatedAt).toLocaleString('en-AU'));
   }, [updatedAt]);
 
   if (!formatted) return null;
 
   return (
-    <div className="mt-3 text-[10px]" style={{ color: PALETTE.muted }}>
-      Last updated: {formatted}
-      {updatedBy && ` by ${updatedBy}`}
+    <div className="mt-2 text-[10px]" style={{ color: PALETTE.muted }}>
+      Updated {formatted}{updatedBy && ` by ${updatedBy}`}
     </div>
   );
 }
@@ -364,12 +352,16 @@ function LastUpdatedLine({ updatedAt, updatedBy }: { updatedAt: string; updatedB
 function PushNotificationsSection() {
   const { state, enable, disable } = usePushNotifications();
 
-  if (state === 'unsupported') return null;
+  if (state === 'unsupported') return (
+    <SectionCard title="Push notifications">
+      <p className="text-[11px]" style={{ color: PALETTE.muted }}>Not supported in this browser.</p>
+    </SectionCard>
+  );
 
   const statusLabel =
     state === 'loading' ? 'Checking…'
     : state === 'granted' ? 'Enabled on this device'
-    : state === 'denied' ? 'Blocked by browser — allow in site settings'
+    : state === 'denied' ? 'Blocked by browser'
     : 'Not enabled';
 
   const statusColor =
@@ -378,41 +370,36 @@ function PushNotificationsSection() {
     : PALETTE.muted;
 
   return (
-    <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-      <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-        Push Notifications
-      </h2>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm" style={{ color: PALETTE.text }}>
-            Receive browser notifications for new inbox items, hold responses, and onboarding completions.
-          </p>
-          <p className="text-[11px] mt-0.5" style={{ color: statusColor }}>{statusLabel}</p>
-        </div>
+    <SectionCard title="Push notifications">
+      <p className="text-xs" style={{ color: PALETTE.text }}>
+        Browser alerts for new inbox items, hold responses, onboarding completions.
+      </p>
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-[11px]" style={{ color: statusColor }}>{statusLabel}</span>
         {state !== 'loading' && state !== 'denied' && (
           <button
             type="button"
             onClick={state === 'granted' ? disable : enable}
-            className="ml-4 rounded px-3 py-1 text-xs font-medium flex-shrink-0"
+            className="rounded px-2.5 py-1 text-[11px] font-medium flex-none"
             style={
               state === 'granted'
                 ? { background: `${PALETTE.danger}18`, color: PALETTE.danger, border: `1px solid ${PALETTE.danger}33` }
                 : { background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33` }
             }
           >
-            {state === 'granted' ? 'Disable' : 'Enable notifications'}
+            {state === 'granted' ? 'Disable' : 'Enable'}
           </button>
         )}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>{label}</div>
-      <div className="text-sm font-medium tabular-nums" style={{ color: PALETTE.text }}>{value}</div>
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>{label}</div>
+      <div className="text-xs font-medium tabular-nums truncate" style={{ color: PALETTE.text }}>{value}</div>
     </div>
   );
 }
@@ -431,7 +418,7 @@ function IntegrationRow({
     error: PALETTE.danger,
   };
   return (
-    <div className="flex items-center justify-between rounded border px-3 py-2.5" style={{ borderColor: PALETTE.border }}>
+    <div className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ background: colors[status] }} />
@@ -442,7 +429,7 @@ function IntegrationRow({
       {action && (
         <a
           href={action.href}
-          className="ml-3 flex-shrink-0 rounded px-3 py-1 text-[11px] font-medium"
+          className="ml-3 flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-medium"
           style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
         >
           {action.label}

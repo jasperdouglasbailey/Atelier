@@ -6,6 +6,8 @@ import { findPotentialBriefs } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { createClient } from '@/lib/supabase/server';
 import { PALETTE } from '@/lib/utils/constants';
+import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
+import SectionCard from '@/components/ui/SectionCard';
 
 type SearchParams = Promise<{ filter?: string }>;
 
@@ -13,51 +15,96 @@ export default async function InboxPage({ searchParams }: { searchParams: Search
   const params = await searchParams;
   const filter = params.filter || 'pending';
 
-  const [approvals, candidates] = await Promise.all([
-    listApprovals(filter === 'all' ? undefined : (filter as 'pending' | 'approved' | 'rejected')),
+  // Fetch all four counts in parallel so the filter chips show numbers.
+  const [pendingList, approvedList, rejectedList, candidates] = await Promise.all([
+    listApprovals('pending'),
+    listApprovals('approved'),
+    listApprovals('rejected'),
     fetchPotentialBriefs(),
   ]);
+
+  const allList = [...pendingList, ...approvedList, ...rejectedList];
+
+  const approvals = filter === 'all' ? allList
+    : filter === 'pending' ? pendingList
+    : filter === 'approved' ? approvedList
+    : rejectedList;
 
   return (
     <>
       <Topbar title="Inbox" />
-      <div className="p-4 sm:p-6 space-y-6">
-        {/* Potential briefs — Gmail messages that look like inbound briefs.
-            Heuristic-based, human-in-the-loop convert to booking. */}
-        {isGoogleConfigured() && (
+      <div className="p-4 sm:p-6 space-y-4">
+
+        <KpiStrip>
+          <KpiCard
+            label="Pending review"
+            value={pendingList.length}
+            sub="awaiting approve / reject"
+            tone={pendingList.length > 0 ? 'warn' : 'success'}
+            valueColor={pendingList.length > 0 ? PALETTE.warning : PALETTE.success}
+          />
+          <KpiCard
+            label="Approved"
+            value={approvedList.length}
+            sub="sent or queued"
+          />
+          <KpiCard
+            label="Rejected"
+            value={rejectedList.length}
+            sub="declined or expired"
+          />
+          <KpiCard
+            label="Potential briefs"
+            value={candidates.length}
+            sub={isGoogleConfigured() ? 'Gmail candidates · last 14d' : 'Connect Google to scan inbox'}
+            tone={candidates.length > 0 ? 'accent' : 'default'}
+          />
+        </KpiStrip>
+
+        {/* Potential briefs from Gmail — heuristic, human-in-the-loop */}
+        {isGoogleConfigured() && candidates.length > 0 && (
           <PotentialBriefs candidates={candidates} />
         )}
 
-        {/* Approval queue — pending automated emails awaiting Jasper's review */}
-        <div>
-          <div className="mb-4 flex gap-1 rounded-lg p-1" style={{ background: PALETTE.surface }}>
-            {(['pending', 'approved', 'rejected', 'all'] as const).map((f) => (
-              <a
-                key={f}
-                href={`/inbox?filter=${f}`}
-                className="rounded-md px-4 py-2 text-xs font-medium capitalize transition-colors"
-                style={{
-                  background: filter === f ? PALETTE.border : 'transparent',
-                  color: filter === f ? PALETTE.text : PALETTE.muted,
-                }}
-              >
-                {f}
-              </a>
-            ))}
-          </div>
-
+        {/* Approval queue */}
+        <SectionCard
+          title="Approval queue"
+          meta={
+            <span className="flex gap-1">
+              {(['pending', 'approved', 'rejected', 'all'] as const).map((f) => {
+                const count = f === 'pending' ? pendingList.length
+                  : f === 'approved' ? approvedList.length
+                  : f === 'rejected' ? rejectedList.length
+                  : allList.length;
+                const active = filter === f;
+                return (
+                  <a
+                    key={f}
+                    href={`/inbox?filter=${f}`}
+                    className="rounded-md px-2.5 py-1 text-[10px] font-medium capitalize transition-colors"
+                    style={{
+                      background: active ? `${PALETTE.accent}22` : 'transparent',
+                      color: active ? PALETTE.accent : PALETTE.muted,
+                      border: `1px solid ${active ? PALETTE.accent : 'transparent'}`,
+                    }}
+                  >
+                    {f} · {count}
+                  </a>
+                );
+              })}
+            </span>
+          }
+        >
           <ApprovalQueue key={filter} approvals={approvals} />
-        </div>
+        </SectionCard>
+
       </div>
     </>
   );
 }
 
 /**
- * Pull context for brief detection: existing booking refs (to exclude
- * already-converted emails), client emails (always surface emails from
- * known clients), and talent names/nicknames (surface emails asking about
- * specific artists by name).
+ * Pull context for brief detection.
  */
 async function fetchPotentialBriefs() {
   if (!isGoogleConfigured()) return [];
@@ -87,10 +134,6 @@ async function fetchPotentialBriefs() {
     .map((r) => r.email)
     .filter((e): e is string => Boolean(e));
 
-  // Include both full working names and first names as separate search tokens.
-  // "Oliver Begg" catches full-name mentions; "Oliver" + "Oly" catches
-  // informal references. Keep first names only when they're specific enough
-  // (≥4 chars) to avoid noisy single-syllable matches.
   const talentNames: string[] = [];
   for (const { working_name } of (talentResult.data ?? []) as { working_name: string }[]) {
     if (!working_name) continue;
@@ -98,7 +141,6 @@ async function fetchPotentialBriefs() {
     const firstName = working_name.split(' ')[0];
     if (firstName && firstName.length >= 4) talentNames.push(firstName);
   }
-  // Add known nicknames — extend this list as needed.
   const NICKNAMES: Record<string, string[]> = {
     'Oliver': ['Oly'],
   };
