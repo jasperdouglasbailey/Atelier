@@ -173,8 +173,13 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
               shootDateNotes={b.shootDateNotes}
               dayRate={b.dayRate}
               roleOnBooking={b.roleOnBooking}
-              onConfirm={() => respondToCrewHoldAction(b.bookingCrewId, 'confirmed')}
-              onDecline={() => respondToCrewHoldAction(b.bookingCrewId, 'declined')}
+              // Server actions passed to client components must be either
+              // direct references or `.bind()`'d — inline arrow closures are
+              // rejected by Next.js 16 / React 19 as "event handlers can't be
+              // passed to Client Component props." `.bind(null, args)` creates
+              // a server-action reference with pre-bound args.
+              onConfirm={respondToCrewHoldAction.bind(null, b.bookingCrewId, 'confirmed')}
+              onDecline={respondToCrewHoldAction.bind(null, b.bookingCrewId, 'declined')}
             />
           ))}
         </section>
