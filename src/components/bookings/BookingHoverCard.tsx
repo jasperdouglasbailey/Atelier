@@ -13,14 +13,20 @@
  *       "Copy crew"    — full call-sheet block per crew member
  *       "Copy all"     — combined call-sheet block, ready to paste
  *
- * Critical behaviour: the popover stays open while the cursor is over
- * EITHER the trigger or the popover, so you can move the mouse from the
- * trigger row into the popover to click a copy button without it closing.
- * Implemented with a shared mouseenter/leave wrapper (the trigger and
- * popover share one onMouseLeave timer).
+ * Positioning: the popover renders into a React portal at document.body
+ * with `position: fixed` so it escapes any overflow:hidden ancestor (e.g.
+ * the calendar grid's clip). After mount we measure the popover and the
+ * viewport, and flip horizontally / vertically if it would overflow.
+ *
+ * Touch devices skip the popover entirely — tap navigates via the inner
+ * Link as expected. matchMedia('(hover: hover)') is the touch check.
+ *
+ * Stay-open logic: any mouseenter on trigger or popover cancels the
+ * pending close. Any mouseleave starts a 120ms close timer.
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { BookingState } from '@/lib/types/database';
 import type { BookingRoster, RosterPerson } from '@/lib/data/booking-roster';
 import { BOOKING_STATE_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
@@ -45,16 +51,35 @@ type Props = {
   wrapperStyle?: React.CSSProperties;
 };
 
+// Width range of the popover — drives the flip-horizontal threshold.
+const POPOVER_MIN_W = 360;
+const POPOVER_MAX_W = 480;
+const VIEWPORT_PADDING = 12;
+const GAP = 8;
+
 export default function BookingHoverCard({
   children, bookingRef, title, state, shootDates, shootLocation,
   clientName, brandName, roster, wrapperStyle,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [supportsHover, setSupportsHover] = useState(true);
+  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
 
-  // Hover-stay logic: any mouseenter on trigger or popover cancels the
-  // pending close. Any mouseleave starts a 120ms close timer — long enough
-  // for the cursor to cross the small gap between trigger and popover.
+  // Touch devices don't fire reliable hover — disable the popover entirely.
+  // Tap on the inner Link navigates to the booking detail page as expected.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot read of platform API; intentional pattern
+    setSupportsHover(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setSupportsHover(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const cancelClose = useCallback(() => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
@@ -67,39 +92,96 @@ export default function BookingHoverCard({
     closeTimerRef.current = setTimeout(() => setOpen(false), 120);
   }, [cancelClose]);
 
-  // Default wrapper style is inline-block (used by table rows in the list view).
-  // Calendar bars override with `wrapperStyle` to take the absolute positioning
-  // so the bar can size against the week row, not against this wrapper.
+  // First positioning pass — runs as soon as the popover opens. Places the
+  // popover below + left-aligned with the trigger. The second pass (below)
+  // measures the rendered popover and flips if it would overflow.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const tr = triggerRef.current.getBoundingClientRect();
+    setPos({
+      top: tr.bottom + GAP,
+      left: tr.left,
+      maxHeight: window.innerHeight - tr.bottom - GAP - VIEWPORT_PADDING,
+    });
+  }, [open]);
+
+  // Second positioning pass — after the popover has rendered, measure it
+  // against the viewport and flip horizontally / vertically if needed.
+  useLayoutEffect(() => {
+    if (!open || !pos || !triggerRef.current || !popoverRef.current) return;
+    const tr = triggerRef.current.getBoundingClientRect();
+    const pop = popoverRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let nextLeft = pos.left;
+    let nextTop = pos.top;
+    let nextMax = pos.maxHeight;
+
+    // Horizontal flip: if popover overflows the right edge, anchor right of trigger.
+    if (pos.left + pop.width > vw - VIEWPORT_PADDING) {
+      nextLeft = Math.max(VIEWPORT_PADDING, tr.right - pop.width);
+    }
+
+    // Vertical flip: if popover overflows the bottom edge, position above.
+    const spaceBelow = vh - tr.bottom - GAP - VIEWPORT_PADDING;
+    const spaceAbove = tr.top - GAP - VIEWPORT_PADDING;
+    if (pop.height > spaceBelow && spaceAbove > spaceBelow) {
+      nextTop = Math.max(VIEWPORT_PADDING, tr.top - GAP - pop.height);
+      nextMax = spaceAbove;
+    }
+
+    if (nextLeft !== pos.left || nextTop !== pos.top || nextMax !== pos.maxHeight) {
+      setPos({ left: nextLeft, top: nextTop, maxHeight: nextMax });
+    }
+    // Intentionally omit pos from deps — we only flip once on initial open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const finalWrapperStyle: React.CSSProperties = wrapperStyle
     ? { position: 'relative', ...wrapperStyle }
     : { position: 'relative', display: 'inline-block' };
 
+  const handleEnter = () => {
+    if (!supportsHover) return;
+    cancelClose();
+    setOpen(true);
+  };
+  const handleLeave = () => {
+    if (!supportsHover) return;
+    scheduleClose();
+  };
+
   return (
     <span
+      ref={triggerRef}
       style={finalWrapperStyle}
-      onMouseEnter={() => { cancelClose(); setOpen(true); }}
-      onMouseLeave={scheduleClose}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       {children}
-      {open && (
-        <span
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popoverRef}
           role="tooltip"
-          // Block clicks on the popover from bubbling to the trigger Link
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          // Block clicks inside the popover from bubbling to anything underneath
           onClick={(e) => e.stopPropagation()}
           style={{
-            position: 'absolute',
-            zIndex: 50,
-            top: '100%',
-            left: 0,
-            marginTop: 6,
-            minWidth: 360,
-            maxWidth: 480,
+            position: 'fixed',
+            zIndex: 1000,
+            top: pos.top,
+            left: pos.left,
+            minWidth: POPOVER_MIN_W,
+            maxWidth: POPOVER_MAX_W,
+            maxHeight: pos.maxHeight,
+            overflowY: 'auto',
             background: PALETTE.surface,
             border: `1px solid ${PALETTE.border}`,
             borderRadius: 8,
             boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
             padding: 14,
-            display: 'block',
             color: PALETTE.text,
           }}
         >
@@ -137,7 +219,7 @@ export default function BookingHoverCard({
                 <RosterSection title="Crew" people={roster.crew} />
               )}
               {/* Copy buttons */}
-              <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', borderTop: `1px solid ${PALETTE.border}`, paddingTop: 10 }}>
+              <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', borderTop: `1px solid ${PALETTE.border}`, paddingTop: 10, position: 'sticky', bottom: 0, background: PALETTE.surface }}>
                 {roster.talent.length > 0 && (
                   <CopyButton
                     label="Copy artists"
@@ -167,7 +249,8 @@ export default function BookingHoverCard({
               No artists or crew attached yet.
             </div>
           )}
-        </span>
+        </div>,
+        document.body,
       )}
     </span>
   );
@@ -238,8 +321,6 @@ function CopyButton({ label, text, primary = false }: { label: string; text: str
           setCopied(true);
           setTimeout(() => setCopied(false), 1400);
         } catch {
-          // Older browsers / non-secure contexts — fall back to a textarea
-          // selection trick.
           const ta = document.createElement('textarea');
           ta.value = text;
           ta.style.position = 'fixed';
