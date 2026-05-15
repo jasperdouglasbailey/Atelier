@@ -6,7 +6,7 @@
  */
 import { notFound } from 'next/navigation';
 import { getBookingByQuoteToken } from '@/lib/data/bookings';
-import { getLatestQuoteVersionPublic, listFeeLinesPublic } from '@/lib/data/quotes';
+import { getActiveQuoteVersionPublic, listFeeLinesPublic } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -49,7 +49,7 @@ export default async function PublicQuotePage({ params }: Props) {
     }
   }
 
-  const qv = await getLatestQuoteVersionPublic(booking.id);
+  const qv = await getActiveQuoteVersionPublic(booking.id);
   const lines = qv ? await listFeeLinesPublic(qv.id) : [];
 
   const agency = getAgencyConfig();

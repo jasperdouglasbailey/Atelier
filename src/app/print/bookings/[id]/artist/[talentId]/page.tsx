@@ -15,7 +15,7 @@
 
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { listFeeLinesForBooking } from '@/lib/data/quotes';
+import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { getTalent } from '@/lib/data/entities';
 import { computeArtistPayment } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
@@ -35,7 +35,7 @@ export default async function ArtistRemittancePage({ params }: Props) {
   const [booking, talent, allFeeLines] = await Promise.all([
     getBooking(id),
     getTalent(talentId),
-    listFeeLinesForBooking(id),
+    listFeeLinesForActiveQuote(id),
   ]);
 
   if (!booking || !talent) notFound();

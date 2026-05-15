@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { getLatestQuoteVersion, listFeeLinesForBooking } from '@/lib/data/quotes';
+import { getActiveQuoteVersion, listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -49,8 +49,8 @@ export default async function QuotePrintPage({ params }: Props) {
 
   const [booking, quoteVersion, feeLines] = await Promise.all([
     getBooking(id),
-    getLatestQuoteVersion(id),
-    listFeeLinesForBooking(id),
+    getActiveQuoteVersion(id),
+    listFeeLinesForActiveQuote(id),
   ]);
 
   if (!booking) notFound();

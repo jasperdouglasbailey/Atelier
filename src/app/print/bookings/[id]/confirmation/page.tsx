@@ -6,7 +6,7 @@
  */
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { getLatestQuoteVersion, listFeeLinesForBooking, listBookingTalent } from '@/lib/data/quotes';
+import { getActiveQuoteVersion, listFeeLinesForActiveQuote, listBookingTalent } from '@/lib/data/quotes';
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
@@ -52,8 +52,8 @@ export default async function BookingConfirmationPage({ params }: Props) {
 
   const [booking, quoteVersion, feeLines, bookingTalent, usageLicences] = await Promise.all([
     getBooking(id),
-    getLatestQuoteVersion(id),
-    listFeeLinesForBooking(id),
+    getActiveQuoteVersion(id),
+    listFeeLinesForActiveQuote(id),
     listBookingTalent(id),
     listUsageLicences(id),
   ]);

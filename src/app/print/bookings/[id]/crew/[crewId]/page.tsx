@@ -14,7 +14,7 @@
 
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { listFeeLinesForBooking } from '@/lib/data/quotes';
+import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { getCrewMember } from '@/lib/data/entities';
 import { computeCrewPayment } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
@@ -34,7 +34,7 @@ export default async function CrewBillPage({ params }: Props) {
   const [booking, crew, allFeeLines] = await Promise.all([
     getBooking(id),
     getCrewMember(crewId),
-    listFeeLinesForBooking(id),
+    listFeeLinesForActiveQuote(id),
   ]);
 
   if (!booking || !crew) notFound();
