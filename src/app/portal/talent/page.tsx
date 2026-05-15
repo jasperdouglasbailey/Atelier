@@ -23,6 +23,7 @@ import PortalDataRights from '@/components/portal/PortalDataRights';
 import TalentUnavailabilityManager from '@/components/portal/TalentUnavailabilityManager';
 import HoldCard from '@/components/portal/HoldCard';
 import CallSheetCard from '@/components/portal/CallSheetCard';
+import GreetingHeader from '@/components/dashboard/GreetingHeader';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -80,7 +81,13 @@ export default async function TalentPortalPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+
+      <GreetingHeader
+        displayName={talent.working_name}
+        email={talent.email}
+        role="talent"
+      />
 
       {/* Profile header */}
       <section className="rounded-lg border p-5" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>

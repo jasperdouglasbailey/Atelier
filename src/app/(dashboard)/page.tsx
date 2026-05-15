@@ -2,12 +2,21 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { getUpcomingShoots, getAttentionItems, getOverdueInvoices } from '@/lib/data/bookings';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
-import { getPendingCount } from '@/lib/data/approvals';
+import { listApprovals } from '@/lib/data/approvals';
 import { listEvents } from '@/lib/utils/events';
 import { describeEvent } from '@/lib/utils/event-descriptions';
 import { getTopTalent } from '@/lib/data/reports';
 import { getCachedBookingCounts, getCachedReportSummary } from '@/lib/data/dashboard-cache';
 import { runHealthProbes } from '@/lib/utils/health';
+import { getCurrentAppUser } from '@/lib/data/app-users';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
+import {
+  getMonthShootMarkers,
+  getThisWeekRoster,
+  getJobsNeedingCrew,
+  getBookingsInRange,
+  thisWeekRange,
+} from '@/lib/data/dashboard';
 import {
   BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS,
   PALETTE, ACTIVE_STATES,
@@ -15,19 +24,24 @@ import {
 import { formatDateTime, formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import BookingHoverCard from '@/components/bookings/BookingHoverCard';
-import KpiCard, { KpiStrip } from '@/components/ui/KpiCard';
+import GreetingHeader from '@/components/dashboard/GreetingHeader';
+import MiniMonthCalendar from '@/components/dashboard/MiniMonthCalendar';
+import ThisWeekStrip from '@/components/dashboard/ThisWeekStrip';
+import FinanceSection from '@/components/dashboard/FinanceSection';
+import InboxPreview from '@/components/dashboard/InboxPreview';
+import SettingsSnapshot from '@/components/dashboard/SettingsSnapshot';
 import SectionCard from '@/components/ui/SectionCard';
 
 // ============================================================================
-// Dashboard — redesigned session 9.
+// Dashboard — redesigned session 14 to be a true overview snapshot:
 //
-// Layout:
-//   1. Health banner (failure only)
-//   2. KPI row — 4 cards: active, this week $, this month $, YTD $
-//   3. Two-column grid on lg screens:
-//      LEFT (2/3): Needs attention now + This week's shoots
-//      RIGHT (1/3): Top artists + Pipeline breakdown
-//   4. Recent activity (collapsed — mostly automation noise)
+//   1. Greeting (role-aware Hello/Welcome back)
+//   2. Health banner (failure only)
+//   3. Mini month calendar + Finance section (side by side)
+//   4. This-week strip (talent / crew on hold / jobs needing crew)
+//   5. Attention queue + Upcoming shoots + Inbox preview + Settings snapshot
+//   6. Top artists + Pipeline breakdown
+//   7. Recent activity (collapsed)
 // ============================================================================
 
 const ATTENTION_CONFIG: Record<string, { action: string; urgency: 'high' | 'medium' | 'low' }> = {
@@ -44,21 +58,41 @@ const urgencyColor: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const [counts, upcoming, pendingApprovals, recentEvents, attentionItems, summary, overdueInvoices, healthProbes, topTalent] = await Promise.all([
+  // Server components are allowed to call Date.now() / new Date() since
+  // they only render once per request — react-hooks/purity scoped to
+  // client components only.
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const week = thisWeekRange(now);
+
+  const [
+    counts, upcoming, recentEvents, attentionItems, summary,
+    overdueInvoices, healthProbes, topTalent,
+    appUser, killSwitch,
+    monthMarkers, weekBookings, jobsNeedingCrew, pendingApprovals,
+  ] = await Promise.all([
     getCachedBookingCounts(),
     getUpcomingShoots(),
-    getPendingCount(),
     listEvents({ limit: 10 }),
     getAttentionItems(),
     getCachedReportSummary(),
     getOverdueInvoices(),
     runHealthProbes(),
     getTopTalent(6),
+    getCurrentAppUser(),
+    getKillSwitchState(),
+    getMonthShootMarkers(year, month),
+    getBookingsInRange(week.start, week.end),
+    getJobsNeedingCrew(),
+    listApprovals('pending'),
   ]);
 
-  const upcomingRoster = upcoming.length > 0
-    ? await getBookingsRoster(upcoming.map((b) => b.id))
-    : new Map();
+  const weekBookingIds = weekBookings.map((b) => b.id);
+  const [weekRoster, upcomingRoster] = await Promise.all([
+    getThisWeekRoster(weekBookingIds),
+    upcoming.length > 0 ? getBookingsRoster(upcoming.map((b) => b.id)) : Promise.resolve(new Map()),
+  ]);
 
   const failedProbes = healthProbes.filter((p) => !p.ok);
   // eslint-disable-next-line react-hooks/purity
@@ -69,10 +103,6 @@ export default async function DashboardPage() {
     .filter((st) => (counts[st] ?? 0) > 0)
     .map((st) => ({ state: st, count: counts[st] ?? 0 }));
 
-  const monthDelta = summary.revenueLastMonth > 0
-    ? ((summary.revenueThisMonth - summary.revenueLastMonth) / summary.revenueLastMonth) * 100
-    : null;
-
   const URGENCY_WEIGHT = { high: 3, medium: 2, low: 1 } as const;
   const sortedAttentionItems = [...attentionItems].sort((a, b) => {
     const aW = URGENCY_WEIGHT[ATTENTION_CONFIG[a.state]?.urgency ?? 'low'];
@@ -81,14 +111,26 @@ export default async function DashboardPage() {
   });
 
   const totalAttentionCount =
-    overdueInvoices.length + attentionItems.length + (pendingApprovals > 0 ? 1 : 0);
+    overdueInvoices.length + attentionItems.length + (pendingApprovals.length > 0 ? 1 : 0);
+
+  // Overdue total
+  const overdueTotal = overdueInvoices.reduce((s, inv) => s + inv.grand_total, 0);
+
+  // Resolve role for greeting — default to owner if no app_user (dev mode)
+  const role = appUser?.role ?? 'owner';
 
   return (
     <>
       <Topbar title="Dashboard" />
       <div className="p-4 sm:p-6 space-y-4">
 
-        {/* ── 1. HEALTH BANNER (failure only) ─────────────────────── */}
+        {/* ── 1. GREETING ─────────────────────────────────────────── */}
+        <GreetingHeader
+          displayName={appUser?.display_name ?? null}
+          role={role}
+        />
+
+        {/* ── 2. HEALTH BANNER (failure only) ─────────────────────── */}
         {failedProbes.length > 0 && (
           <section
             className="rounded-lg border-l-2 px-4 py-3"
@@ -118,45 +160,34 @@ export default async function DashboardPage() {
           </section>
         )}
 
-        {/* ── 2. KPI ROW ──────────────────────────────────────────── */}
-        <KpiStrip>
-          <KpiCard
-            label="Active"
-            value={totalActive}
-            sub="bookings in progress"
-            href="/bookings"
-          />
-          <KpiCard
-            label="This week"
-            value={formatCurrency(summary.revenueThisWeek)}
-            sub="confirmed shoots"
-            href="/bookings?view=calendar"
-          />
-          <KpiCard
-            label="This month"
-            value={formatCurrency(summary.revenueThisMonth)}
-            sub={
-              monthDelta === null ? 'no prior month data' : (
-                <span style={{ color: monthDelta >= 0 ? PALETTE.success : PALETTE.danger }}>
-                  {monthDelta >= 0 ? '↑' : '↓'}{Math.abs(monthDelta).toFixed(0)}% vs last month
-                </span>
-              )
-            }
-            href="/reports"
-            accent
-          />
-          <KpiCard
-            label="Year to date"
-            value={formatCurrency(summary.revenueThisYear)}
-            sub={`avg ${formatCurrency(summary.avgBookingValue)}/booking`}
-            href="/reports"
-          />
-        </KpiStrip>
+        {/* ── 3. MINI CALENDAR + FINANCE ──────────────────────────── */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <MiniMonthCalendar year={year} month={month} shootMarkers={monthMarkers} today={now} />
+          </div>
+          <div className="lg:col-span-2">
+            <FinanceSection
+              revenueThisWeek={summary.revenueThisWeek}
+              revenueThisMonth={summary.revenueThisMonth}
+              revenueLastMonth={summary.revenueLastMonth}
+              revenueThisYear={summary.revenueThisYear}
+              avgBookingValue={summary.avgBookingValue}
+              overdueTotal={overdueTotal}
+              overdueCount={overdueInvoices.length}
+            />
+          </div>
+        </div>
 
-        {/* ── 3. MAIN CONTENT GRID ────────────────────────────────── */}
+        {/* ── 4. THIS WEEK — talent / crew on hold / jobs needing crew ── */}
+        <ThisWeekStrip
+          talent={weekRoster.talent}
+          crewOnHold={weekRoster.crewOnHold}
+          jobsNeedingCrew={jobsNeedingCrew}
+        />
+
+        {/* ── 5. ATTENTION + UPCOMING + INBOX/SETTINGS SIDEBAR ────── */}
         <div className="grid gap-4 lg:grid-cols-3">
 
-          {/* LEFT COLUMN (2/3) — actionable + schedule */}
           <div className="lg:col-span-2 space-y-4">
 
             {/* Needs attention */}
@@ -245,8 +276,9 @@ export default async function DashboardPage() {
                     );
                   })}
 
-                  {/* Pending approvals */}
-                  {pendingApprovals > 0 && (
+                  {/* Pending approvals — link is now redundant with InboxPreview but
+                      kept here for users who scan top-to-bottom. */}
+                  {pendingApprovals.length > 0 && (
                     <Link
                       href="/inbox"
                       className="flex items-center justify-between rounded-md border-l-2 px-4 py-3 transition hover:opacity-80"
@@ -254,7 +286,7 @@ export default async function DashboardPage() {
                     >
                       <div>
                         <div className="text-sm font-medium" style={{ color: PALETTE.text }}>
-                          {pendingApprovals} email{pendingApprovals === 1 ? '' : 's'} awaiting approval
+                          {pendingApprovals.length} email{pendingApprovals.length === 1 ? '' : 's'} awaiting approval
                         </div>
                         <div className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
                           Quote chases, compliance reminders, gallery requests
@@ -271,11 +303,12 @@ export default async function DashboardPage() {
 
             {/* This week's shoots */}
             <SectionCard
-              title="This week"
+              title="Upcoming shoots"
+              meta={`${upcoming.length}`}
               action={{ label: 'Calendar', href: '/bookings?view=calendar' }}
             >
               {upcoming.length === 0 ? (
-                <p className="text-xs" style={{ color: PALETTE.muted }}>No shoots scheduled this week.</p>
+                <p className="text-xs" style={{ color: PALETTE.muted }}>No shoots scheduled.</p>
               ) : (
                 <div className="space-y-2">
                   {upcoming.map((b) => {
@@ -335,101 +368,102 @@ export default async function DashboardPage() {
                 </div>
               )}
             </SectionCard>
+
+            {/* Top artists + Pipeline — side-by-side underneath */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {topTalent.length > 0 && (
+                <SectionCard
+                  title="Top artists"
+                  action={{ label: 'All', href: '/talent' }}
+                >
+                  <ul className="space-y-2">
+                    {topTalent.slice(0, 5).map((t, i) => (
+                      <li key={t.talentId}>
+                        <Link
+                          href={`/talent/${t.talentId}`}
+                          className="flex items-start justify-between gap-2 transition hover:opacity-80"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-mono tabular-nums flex-none" style={{ color: PALETTE.muted, width: 14 }}>
+                                {i + 1}
+                              </span>
+                              <span className="text-xs font-medium truncate" style={{ color: PALETTE.text }}>
+                                {t.name}
+                              </span>
+                            </div>
+                            {t.discipline && (
+                              <div className="ml-5 text-[10px] truncate" style={{ color: PALETTE.accent }}>
+                                {humanise(t.discipline)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-none text-right">
+                            <div className="text-xs font-semibold tabular-nums" style={{ color: PALETTE.text }}>
+                              {formatCurrency(t.totalRevenue)}
+                            </div>
+                            <div className="text-[10px]" style={{ color: PALETTE.muted }}>
+                              {t.bookingCount} booking{t.bookingCount === 1 ? '' : 's'}
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
+              )}
+
+              {pipeline.length > 0 && (
+                <SectionCard
+                  title="Pipeline"
+                  meta={`${totalActive} active`}
+                  action={{ label: 'Bookings', href: '/bookings' }}
+                >
+                  <ul className="space-y-1">
+                    {pipeline.map(({ state, count }) => (
+                      <li key={state}>
+                        <Link
+                          href={`/bookings?state=${state}`}
+                          className="flex items-center justify-between rounded-md px-2 py-1 transition hover:opacity-80"
+                          style={{ background: `${STATE_COLORS[state]}10` }}
+                        >
+                          <span className="text-[11px]" style={{ color: PALETTE.muted }}>
+                            {BOOKING_STATE_LABELS[state]}
+                          </span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums"
+                            style={{ background: `${STATE_COLORS[state]}22`, color: STATE_COLORS[state] }}
+                          >
+                            {count}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
+              )}
+            </div>
           </div>
 
-          {/* RIGHT COLUMN (1/3) — context + rankings */}
+          {/* Right column — Inbox preview + Settings snapshot */}
           <div className="space-y-4">
-
-            {/* Top artists — compact list */}
-            {topTalent.length > 0 && (
-              <SectionCard
-                title="Top artists"
-                action={{ label: 'All', href: '/talent' }}
-              >
-                <ul className="space-y-3">
-                  {topTalent.map((t, i) => (
-                    <li key={t.talentId}>
-                      <Link
-                        href={`/talent/${t.talentId}`}
-                        className="flex items-start justify-between gap-2 transition hover:opacity-80"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="text-[10px] font-mono tabular-nums flex-none"
-                              style={{ color: PALETTE.muted, width: 14 }}
-                            >
-                              {i + 1}
-                            </span>
-                            <span className="text-sm font-medium truncate" style={{ color: PALETTE.text }}>
-                              {t.name}
-                            </span>
-                          </div>
-                          {t.discipline && (
-                            <div className="ml-5 text-[11px] truncate" style={{ color: PALETTE.accent }}>
-                              {humanise(t.discipline)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-none text-right">
-                          <div className="text-xs font-semibold tabular-nums" style={{ color: PALETTE.text }}>
-                            {formatCurrency(t.totalRevenue)}
-                          </div>
-                          <div className="text-[10px]" style={{ color: PALETTE.muted }}>
-                            {t.bookingCount} booking{t.bookingCount === 1 ? '' : 's'}
-                          </div>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </SectionCard>
-            )}
-
-            {/* Pipeline breakdown */}
-            {pipeline.length > 0 && (
-              <SectionCard
-                title="Pipeline"
-                action={{ label: 'All', href: '/bookings' }}
-              >
-                <ul className="space-y-2">
-                  {pipeline.map(({ state, count }) => (
-                    <li key={state}>
-                      <Link
-                        href={`/bookings?state=${state}`}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 transition hover:opacity-80"
-                        style={{ background: `${STATE_COLORS[state]}10` }}
-                      >
-                        <span className="text-xs" style={{ color: PALETTE.muted }}>
-                          {BOOKING_STATE_LABELS[state]}
-                        </span>
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
-                          style={{ background: `${STATE_COLORS[state]}22`, color: STATE_COLORS[state] }}
-                        >
-                          {count}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </SectionCard>
-            )}
+            <InboxPreview approvals={pendingApprovals} />
+            <SettingsSnapshot killSwitch={killSwitch} />
           </div>
         </div>
 
-        {/* ── 4. RECENT ACTIVITY (collapsed) ──────────────────────── */}
+        {/* ── 6. RECENT ACTIVITY (collapsed) ──────────────────────── */}
         <details
           className="rounded-lg border"
           style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
         >
           <summary
-            className="cursor-pointer select-none px-5 py-3 text-xs font-semibold uppercase tracking-wide"
+            className="cursor-pointer select-none px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider"
             style={{ color: PALETTE.muted }}
           >
             Recent activity ({recentEvents.length})
           </summary>
-          <div className="px-5 pb-5">
+          <div className="px-4 pb-4">
             {recentEvents.length === 0 ? (
               <p className="text-xs" style={{ color: PALETTE.muted }}>No activity yet.</p>
             ) : (
