@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createLocationAction, updateLocationAction } from '@/app/actions/locations';
 import { PALETTE } from '@/lib/utils/constants';
 import type { Location, StudioType, StudioRoom } from '@/lib/types/database';
+import type { ParsedLocation } from '@/lib/automation/location-parser';
+import ParseFromUrlPanel from './ParseFromUrlPanel';
 
 type Props = {
   location?: Location;
@@ -201,14 +203,93 @@ function RoomEditor({
   );
 }
 
+/**
+ * Merge an AI-parsed location into a Location-shaped object, preferring the
+ * parsed fields when they're non-null, otherwise falling back to the existing
+ * location's value (or null).
+ */
+function mergeParsedIntoLocation(parsed: ParsedLocation, existing?: Location): Location {
+  const blank = (existing ?? {}) as Partial<Location>;
+  return {
+    id: blank.id ?? 'new',
+    created_at: blank.created_at ?? new Date().toISOString(),
+    updated_at: blank.updated_at ?? new Date().toISOString(),
+
+    name: parsed.name ?? blank.name ?? '',
+    alias: parsed.alias ?? blank.alias ?? null,
+    studio_type: (parsed.studio_type ?? blank.studio_type ?? 'photo_studio') as StudioType,
+
+    address: parsed.address ?? blank.address ?? null,
+    suburb: parsed.suburb ?? blank.suburb ?? null,
+    state: parsed.state ?? blank.state ?? 'NSW',
+    postcode: parsed.postcode ?? blank.postcode ?? null,
+
+    contact_name: parsed.contact_name ?? blank.contact_name ?? null,
+    contact_email: parsed.contact_email ?? blank.contact_email ?? null,
+    contact_phone: parsed.contact_phone ?? blank.contact_phone ?? null,
+    website: parsed.website ?? blank.website ?? null,
+
+    half_day_rate: parsed.half_day_rate ?? blank.half_day_rate ?? null,
+    full_day_rate: parsed.full_day_rate ?? blank.full_day_rate ?? null,
+    weekend_surcharge_pct: parsed.weekend_surcharge_pct ?? blank.weekend_surcharge_pct ?? null,
+    rate_notes: parsed.rate_notes ?? blank.rate_notes ?? null,
+
+    facilities: parsed.facilities.length > 0 ? parsed.facilities : (blank.facilities ?? null),
+    parking_notes: parsed.parking_notes ?? blank.parking_notes ?? null,
+    access_notes: parsed.access_notes ?? blank.access_notes ?? null,
+    square_metres: parsed.square_metres ?? blank.square_metres ?? null,
+    max_capacity: parsed.max_capacity ?? blank.max_capacity ?? null,
+
+    notes: parsed.notes ?? blank.notes ?? null,
+    is_active: blank.is_active ?? true,
+    studio_rooms: parsed.studio_rooms.length > 0
+      ? parsed.studio_rooms.map((r) => ({
+          id: crypto.randomUUID(),
+          name: r.name,
+          half_day_rate: r.half_day_rate,
+          full_day_rate: r.full_day_rate,
+          weekend_surcharge_pct: r.weekend_surcharge_pct,
+          square_metres: r.square_metres,
+          max_capacity: r.max_capacity,
+          features: r.features ?? [],
+          notes: r.notes,
+        }))
+      : (blank.studio_rooms ?? null),
+    drive_folder_id: blank.drive_folder_id ?? null,
+    drive_folder_link: blank.drive_folder_link ?? null,
+    latitude: blank.latitude ?? null,
+    longitude: blank.longitude ?? null,
+    geocoded_address: blank.geocoded_address ?? null,
+  };
+}
+
 export default function LocationForm({ location }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [facilities, setFacilities] = useState<Set<string>>(new Set(location?.facilities ?? []));
-  const [studioType, setStudioType] = useState<StudioType>(location?.studio_type ?? 'photo_studio');
-  const [rooms, setRooms] = useState<StudioRoom[]>(location?.studio_rooms ?? []);
+  // When AI-parse populates the form, we re-mount the form via a key bump so
+  // all `defaultValue` inputs re-initialise with the parsed values. The
+  // parsed payload is merged ON TOP of the existing location (parsed wins
+  // when non-null) so re-parsing doesn't wipe manually-entered fields.
+  const [prefill, setPrefill] = useState<Location | null>(null);
+  const [formKey, setFormKey] = useState(0);
+
+  const effective = prefill ?? location;
+
+  const [facilities, setFacilities] = useState<Set<string>>(new Set(effective?.facilities ?? []));
+  const [studioType, setStudioType] = useState<StudioType>(effective?.studio_type ?? 'photo_studio');
+  const [rooms, setRooms] = useState<StudioRoom[]>(effective?.studio_rooms ?? []);
+
+  function handleApplyParsed(parsed: ParsedLocation) {
+    const merged = mergeParsedIntoLocation(parsed, location);
+    setPrefill(merged);
+    setFacilities(new Set(merged.facilities ?? []));
+    setStudioType(merged.studio_type);
+    setRooms(merged.studio_rooms ?? []);
+    setFormKey((k) => k + 1);
+    setError(null);
+  }
 
   const isStudio = studioType === 'photo_studio' || studioType === 'film_studio';
 
@@ -245,10 +326,17 @@ export default function LocationForm({ location }: Props) {
     router.refresh();
   }
 
-  const v = location;
+  // `v` is the data source for every `defaultValue` in the form — either the
+  // existing location, the AI-parsed prefill, or undefined for a brand-new form.
+  const v = effective;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
+      {/* AI parser sits ABOVE the form so it can drive a form re-mount via
+          formKey without nesting state. */}
+      <ParseFromUrlPanel onApply={handleApplyParsed} />
+
+      <form key={formKey} onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <div className="rounded border px-4 py-3 text-sm" style={{ borderColor: PALETTE.danger, color: PALETTE.danger, background: `${PALETTE.danger}11` }}>
           {error}
@@ -507,6 +595,7 @@ export default function LocationForm({ location }: Props) {
           Cancel
         </button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }
