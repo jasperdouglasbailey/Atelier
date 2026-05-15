@@ -303,6 +303,75 @@ export async function removeFeeLineAction(id: string, bookingId: string): Promis
   return { ok: true };
 }
 
+/**
+ * Recreate a deleted fee line from a client-cached snapshot. Powers the
+ * 8s toast undo in QuoteBuilder after a delete. New ID is fine — fee
+ * lines have no stable external references that depend on it.
+ *
+ * Takes the same input shape as the data-layer `addFeeLine` so the
+ * client can pass back exactly what it had cached before the delete.
+ */
+export async function restoreFeeLineAction(input: {
+  quote_version_id: string;
+  booking_id: string;
+  line_type: FeeLineType;
+  description: string;
+  talent_id?: string | null;
+  crew_id?: string | null;
+  quantity: number;
+  unit_price: number;
+  asf_rate: number;
+  is_gst_exempt: boolean;
+  notes?: string | null;
+  is_artist_reimbursement?: boolean;
+  sort_order?: number;
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
+
+  const defaults = lineTypeDefaults(input.line_type);
+  const subtotal = Math.round(input.quantity * input.unit_price * 100) / 100;
+  const asfAmount = Math.round(subtotal * input.asf_rate * 100) / 100;
+  const isArtistReimbursement = !isCommissionableType(input.line_type)
+    && Boolean(input.is_artist_reimbursement);
+
+  const line = await addFeeLine({
+    quote_version_id: input.quote_version_id,
+    booking_id: input.booking_id,
+    line_type: input.line_type,
+    description: input.description,
+    talent_id: input.talent_id ?? null,
+    crew_id: input.crew_id ?? null,
+    quantity: input.quantity,
+    unit_price: input.unit_price,
+    subtotal,
+    asf_rate: input.asf_rate,
+    asf_amount: asfAmount,
+    is_gst_exempt: input.is_gst_exempt,
+    is_super_bearing: defaults.is_super_bearing,
+    super_rate_charged: defaults.super_rate_charged,
+    super_rate_paid: defaults.super_rate_paid,
+    is_commissionable: defaults.is_commissionable,
+    commission_rate: defaults.commission_rate,
+    notes: input.notes ?? null,
+    is_artist_reimbursement: isArtistReimbursement,
+    sort_order: input.sort_order,
+  });
+
+  if (!line) return { ok: false, error: 'Failed to restore fee line — likely RLS denial or invalid input.' };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'fee_line_restore',
+    tableName: 'atelier_fee_lines',
+    recordId: line.id,
+    newValue: { booking_id: input.booking_id, line_type: input.line_type, restored: true },
+  }).catch(() => {});
+
+  revalidatePath(`/bookings/${input.booking_id}`); revalidateTag('bookings', {});
+  return { ok: true, id: line.id };
+}
+
 /** Load fee lines for any quote version (used by version navigator). */
 export async function getFeeLinesByVersionAction(versionId: string): Promise<FeeLine[]> {
   return listFeeLines(versionId);

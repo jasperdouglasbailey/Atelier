@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
 import { upsertScheduleAction, deleteScheduleAction } from '@/app/actions/booking-schedules';
 import type { BookingSchedule } from '@/lib/types/database';
+import UndoToast from '@/components/ui/UndoToast';
 
 type Props = {
   bookingId: string;
@@ -28,6 +29,10 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
   const [editNotes, setEditNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Last deleted schedule row — feeds the 8s undo toast. Full row cached so
+  // undo can call upsertScheduleAction with identical fields (upsert handles
+  // the create case via (booking_id, schedule_date) conflict).
+  const [deletedSchedule, setDeletedSchedule] = useState<BookingSchedule | null>(null);
 
   function startNew() {
     setEditingId('new');
@@ -83,11 +88,46 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
   }
 
   function handleDelete(s: BookingSchedule) {
-    if (!confirm(`Delete schedule for ${s.schedule_date}?`)) return;
+    // Confirm dialog removed — 8s toast undo replaces it as the safety net.
+    setSchedules((prev) => prev.filter((r) => r.id !== s.id));
     startTransition(async () => {
       const result = await deleteScheduleAction(s.id, bookingId);
+      if (!result.ok) {
+        setError(result.error);
+        setSchedules((prev) => [...prev, s].sort((a, b) => a.schedule_date.localeCompare(b.schedule_date))); // revert
+        return;
+      }
+      setDeletedSchedule(s);
+    });
+  }
+
+  function handleUndoDelete() {
+    if (!deletedSchedule) return;
+    const s = deletedSchedule;
+    setDeletedSchedule(null);
+    startTransition(async () => {
+      const result = await upsertScheduleAction(bookingId, s.schedule_date, {
+        call_time: s.call_time,
+        wrap_time: s.wrap_time,
+        location: s.location,
+        notes: s.notes,
+      });
       if (!result.ok) { setError(result.error); return; }
-      setSchedules((prev) => prev.filter((r) => r.id !== s.id));
+      // Re-insert into local state with a fresh placeholder id (server's real
+      // id will come on next refresh).
+      setSchedules((prev) => {
+        const restored: BookingSchedule = {
+          id: `tmp-restored-${s.schedule_date}`,
+          created_at: new Date().toISOString(),
+          booking_id: bookingId,
+          schedule_date: s.schedule_date,
+          call_time: s.call_time,
+          wrap_time: s.wrap_time,
+          location: s.location,
+          notes: s.notes,
+        };
+        return [...prev, restored].sort((a, b) => a.schedule_date.localeCompare(b.schedule_date));
+      });
     });
   }
 
@@ -101,6 +141,18 @@ export default function SchedulesPanel({ bookingId, initial, shootDays = [] }: P
       <p className="text-[10px]" style={{ color: PALETTE.muted }}>
         Per-day times and location override the booking-level defaults in the call sheet.
       </p>
+
+      {/* Undo toast — 8s window after deleting a schedule row. */}
+      {deletedSchedule && (
+        <UndoToast
+          message={
+            <>Removed schedule for <strong>{deletedSchedule.schedule_date}</strong> — undo within 8s to restore.</>
+          }
+          onUndo={handleUndoDelete}
+          onDismiss={() => setDeletedSchedule(null)}
+        />
+      )}
+
       {schedules.length === 0 && !isEditing && (
         <p className="text-xs" style={{ color: PALETTE.muted }}>
           No day-by-day schedule yet. Add one for each shoot day.
