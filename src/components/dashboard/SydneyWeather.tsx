@@ -130,9 +130,11 @@ function WeatherIcon({ category, size = 14 }: { category: WeatherCategory; size?
 }
 
 function dayLabel(iso: string, idx: number): string {
+  // Today stays as a word — it's the anchor for "where am I". Every
+  // other column is the 3-letter weekday so widths stay equal and the
+  // row reads as a sequence: Today / Sun / Mon / Tue / ...
+  // ("Tomorrow" was 8 chars long and uneven against the others.)
   if (idx === 0) return 'Today';
-  if (idx === 1) return 'Tomorrow';
-  // YYYY-MM-DD → short weekday, e.g. "Sun"
   try {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short' });
   } catch {

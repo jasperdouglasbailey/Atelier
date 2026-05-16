@@ -682,14 +682,23 @@ async function sha256hex(value: string): Promise<string> {
 /**
  * Hard-delete a booking and write one anonymised row to atelier_corpus_bookings.
  *
- * Only valid for bookings in terminal states: paid, released, cancelled.
- * Returns true on success, false on any error.
+ * Only valid for bookings in terminal states: paid, released, cancelled,
+ * written_off. Returns `{ ok: true }` on success, `{ ok: false, error }`
+ * with the actual failure reason on any error path — used to be a bare
+ * boolean which surfaced "Delete returned false — check logs" with no
+ * actionable detail (PR shipping 2026-05-16 fixed that).
  *
- * Cascade behaviour (FK ON DELETE CASCADE) automatically removes:
- *   atelier_booking_talent, atelier_booking_crew, atelier_fee_lines,
- *   atelier_approval_requests, atelier_events (where booking_id is FK'd)
+ * Cascade behaviour on the parent delete:
+ *   - atelier_booking_talent / atelier_booking_crew / atelier_fee_lines /
+ *     atelier_quote_versions / atelier_usage_licences /
+ *     atelier_booking_schedules / atelier_tasks → ON DELETE CASCADE
+ *     (these rows are specific to the booking)
+ *   - atelier_events / atelier_approvals / atelier_idempotency_keys /
+ *     atelier_llm_calls → ON DELETE SET NULL (log/state-machine rows;
+ *     outlive the booking so we don't lose history, but won't block
+ *     the parent delete). Migration 0058 set up SET NULL on these.
  */
-export async function deleteBookingWithCorpus(bookingId: string): Promise<boolean> {
+export async function deleteBookingWithCorpus(bookingId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const serviceClient = createServiceClient();
 
   // 1. Fetch the booking and its first talent assignment.
@@ -704,8 +713,9 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
     .maybeSingle();
 
   if (fetchError || !booking) {
+    const msg = fetchError ? fetchError.message : 'Booking not found';
     reportDataError('[bookings] deleteWithCorpus — fetch failed', fetchError ?? new Error('not found'));
-    return false;
+    return { ok: false, error: msg };
   }
 
   const b = booking as Booking & {
@@ -715,11 +725,12 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
   // Guard: only allow deletion of terminal states
   const TERMINAL: BookingState[] = ['paid', 'released', 'cancelled', 'written_off'];
   if (!TERMINAL.includes(b.state)) {
+    const msg = `Booking is in state '${b.state}'; only terminal bookings (paid / released / cancelled / written_off) can be deleted.`;
     reportDataError(
       '[bookings] deleteWithCorpus — refused',
-      new Error(`Booking ${bookingId} is in state '${b.state}'; only terminal bookings can be deleted`),
+      new Error(`Booking ${bookingId}: ${msg}`),
     );
-    return false;
+    return { ok: false, error: msg };
   }
 
   // 2. Determine whether a quote was ever sent (to pick the right outcome)
@@ -788,7 +799,8 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
     newValue: null,
   });
 
-  // 6. Hard delete — FK cascades handle child rows
+  // 6. Hard delete — FK cascades handle the booking-specific child rows;
+  //    log tables fall back to SET NULL via migration 0058.
   const { error: deleteError } = await serviceClient
     .from(TABLE)
     .delete()
@@ -796,8 +808,13 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<boolea
 
   if (deleteError) {
     reportDataError('[bookings] deleteWithCorpus — delete failed', deleteError);
-    return false;
+    // Surface the full Postgres detail — code, message, details, hint —
+    // so the caller's "what went wrong" UI has something to show.
+    const parts = [deleteError.message, deleteError.details, deleteError.hint]
+      .filter(Boolean)
+      .join(' · ');
+    return { ok: false, error: parts || 'Unknown database error' };
   }
 
-  return true;
+  return { ok: true };
 }

@@ -15,6 +15,7 @@ import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
 import { sendEmail, draftEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { callLLM } from '@/lib/integrations/anthropic';
 import { critiqueDraft, jasperVoicePromptBlock } from '@/lib/automation/agent-primitives';
 import { buildRemittanceEmail } from '@/lib/utils/comms-tone';
@@ -756,7 +757,14 @@ function buildQuoteEmailHtml(opts: {
     );
   }
   lines.push('<p>To confirm, please reply to this email. We\'ll hold the dates and issue paperwork once we hear from you.</p>');
-  lines.push('<p style="margin-top:24px">Jasper Bailey<br>Saunders &amp; Co<br><a href="mailto:info@saundersandco.com.au">info@saundersandco.com.au</a></p>');
+  const agency = getAgencyConfig();
+  const agencyNameSafe = agency.name.replace(/&/g, '&amp;');
+  const signoffParts = [
+    agency.ownerName,
+    agencyNameSafe,
+    agency.email ? `<a href="mailto:${agency.email}">${agency.email}</a>` : null,
+  ].filter(Boolean);
+  lines.push(`<p style="margin-top:24px">${signoffParts.join('<br>')}</p>`);
   if (opts.quoteUrl) {
     lines.push(`<p style="margin-top:16px;font-size:11px;color:#999">Quote link: <a href="${opts.quoteUrl}" style="color:#999">${opts.quoteUrl}</a></p>`);
   }
@@ -790,7 +798,14 @@ function buildConfirmationEmailHtml(opts: {
   }
   lines.push('</table>');
   lines.push('<p>We\'ll send through the production brief and talent hold paperwork in the coming days. Please don\'t hesitate to reach out in the meantime.</p>');
-  lines.push('<p style="margin-top:24px">Jasper Bailey<br>Saunders &amp; Co<br><a href="mailto:info@saundersandco.com.au">info@saundersandco.com.au</a></p>');
+  const agency = getAgencyConfig();
+  const agencyNameSafe = agency.name.replace(/&/g, '&amp;');
+  const signoffParts = [
+    agency.ownerName,
+    agencyNameSafe,
+    agency.email ? `<a href="mailto:${agency.email}">${agency.email}</a>` : null,
+  ].filter(Boolean);
+  lines.push(`<p style="margin-top:24px">${signoffParts.join('<br>')}</p>`);
   return lines.join('\n');
 }
 
@@ -983,7 +998,9 @@ Write only the email body (no subject line). Keep it under 120 words.`;
   } else {
     // Template fallback
     const questionList = questions.map((q, i) => `${i + 1}. Could you please confirm ${q}?`).join('\n');
-    body = `Hi ${clientName},\n\nThank you for the brief on ${booking.title} (${ref}). To get started on your quote, could you please clarify a few points:\n\n${questionList}\n\nOnce we have these details we can get a quote to you quickly.\n\nJasper Bailey\nSaunders & Co\ninfo@saundersandco.com.au`;
+    const agencyCfg = getAgencyConfig();
+    const signoff = [agencyCfg.ownerName, agencyCfg.name, agencyCfg.email].filter(Boolean).join('\n');
+    body = `Hi ${clientName},\n\nThank you for the brief on ${booking.title} (${ref}). To get started on your quote, could you please clarify a few points:\n\n${questionList}\n\nOnce we have these details we can get a quote to you quickly.\n\n${signoff}`;
   }
 
   const subject = `[${ref}] Brief follow-up — ${booking.title}`;
@@ -1361,15 +1378,25 @@ export async function getClientDefaultsAction(clientId: string): Promise<{
  * Permanently delete a booking, archiving an anonymised row to
  * atelier_corpus_bookings before the cascade fires.
  *
- * Only permitted for terminal states: paid, released, cancelled, written_off.
- * There is intentionally no UI button wired to this yet — it is
- * callable from the /audit surface or future admin tooling.
+ * Owner/partner only — this is an irreversible destructive op and the
+ * action runs the underlying delete via the service client (bypasses
+ * RLS). Adding the guard was missed when the function was first wired;
+ * surfaced 2026-05-16 alongside the FK fix.
  *
- * Returns { ok: true } on success, { ok: false, error } on failure.
+ * Only permitted for terminal states: paid, released, cancelled, written_off.
+ *
+ * Returns the full Postgres error on failure so the UI can show
+ * something actionable instead of "Delete returned false".
  */
 export async function deleteBookingAction(
   bookingId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Auth — destructive irreversible op on a service-client write path.
+  const appUser = await getCurrentAppUser();
+  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+    return { ok: false, error: 'Forbidden — owner or partner role required.' };
+  }
+
   try {
     // Pull the calendar_event_id BEFORE deleting so we can also remove
     // the Google Calendar event. Google sends "this event was cancelled"
@@ -1377,10 +1404,8 @@ export async function deleteBookingAction(
     const booking = await getBooking(bookingId);
     const calendarEventId = booking?.calendar_event_id ?? null;
 
-    const ok = await deleteBookingWithCorpus(bookingId);
-    if (!ok) {
-      return { ok: false, error: 'Delete returned false — check logs for details.' };
-    }
+    const result = await deleteBookingWithCorpus(bookingId);
+    if (!result.ok) return result;
 
     if (calendarEventId) {
       deleteCalendarEvent(calendarEventId).catch((err) =>
@@ -1389,7 +1414,6 @@ export async function deleteBookingAction(
     }
 
     revalidatePath('/bookings');
-  revalidateTag('bookings', {});
     revalidatePath('/');
     revalidateTag('bookings', {});
     return { ok: true };
