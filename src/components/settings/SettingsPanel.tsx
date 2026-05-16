@@ -42,6 +42,7 @@ function Toggle({ label, description, checked, onChange, color }: {
         className="relative h-5 w-9 flex-none rounded-full transition-colors"
         style={{ background: checked ? color : PALETTE.border }}
         aria-pressed={checked}
+        aria-label={`${label} — ${checked ? 'on (click to turn off)' : 'off (click to turn on)'}`}
       >
         <span
           className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform"
