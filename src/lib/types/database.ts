@@ -653,7 +653,15 @@ export interface LLMCallRow {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  /** Added migration 0056 — prompt-caching write tokens (1.25× billed). */
+  cache_creation_input_tokens: number;
+  /** Added migration 0056 — prompt-caching read tokens (0.10× billed). */
+  cache_read_input_tokens: number;
   estimated_cost_usd: number;
   booking_id: string | null;
   duration_ms: number | null;
+  /** Added migration 0056 — first 500 chars of LLM reply for audit. */
+  response_preview: string | null;
+  /** Added migration 0056 — false on error paths. */
+  success: boolean;
 }

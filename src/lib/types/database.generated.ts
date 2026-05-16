@@ -1096,6 +1096,8 @@ export type Database = {
         Row: {
           agent_name: string
           booking_id: string | null
+          cache_creation_input_tokens: number
+          cache_read_input_tokens: number
           created_at: string
           duration_ms: number | null
           estimated_cost_usd: number
@@ -1103,10 +1105,14 @@ export type Database = {
           input_tokens: number
           model: string
           output_tokens: number
+          response_preview: string | null
+          success: boolean
         }
         Insert: {
           agent_name: string
           booking_id?: string | null
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
           created_at?: string
           duration_ms?: number | null
           estimated_cost_usd?: number
@@ -1114,10 +1120,14 @@ export type Database = {
           input_tokens?: number
           model: string
           output_tokens?: number
+          response_preview?: string | null
+          success?: boolean
         }
         Update: {
           agent_name?: string
           booking_id?: string | null
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
           created_at?: string
           duration_ms?: number | null
           estimated_cost_usd?: number
@@ -1125,6 +1135,8 @@ export type Database = {
           input_tokens?: number
           model?: string
           output_tokens?: number
+          response_preview?: string | null
+          success?: boolean
         }
         Relationships: [
           {

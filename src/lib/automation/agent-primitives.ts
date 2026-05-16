@@ -16,6 +16,7 @@
  */
 
 import { callLLM } from '@/lib/integrations/anthropic';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
 
 // ============================================================
 // House style — Jasper's voice
@@ -26,21 +27,40 @@ import { callLLM } from '@/lib/integrations/anthropic';
  * is intentionally short — the model holds it better as a list than a
  * paragraph.
  */
-export const JASPER_VOICE_RULES = [
-  'No "I hope this finds you well" — start with the substance.',
-  'No exclamation marks in client emails. Ever.',
-  'Australian English in client copy: "organisation", "colour", "realised".',
-  'First-person plural ("we") for agency actions, first-person singular ("I") for personal sign-off.',
-  'Sign off as: "Jasper Bailey / Saunders & Co / info@saundersandco.com.au"',
-  'Plain text. No emojis. No headings. No bullet lists unless the request needs a checklist.',
-  'Short sentences. Concrete numbers over vague claims.',
-  'Decline if asked to fabricate testimonials, fake a review, or imply a relationship that does not exist.',
-];
+/**
+ * Voice-rule strings. The sign-off line is derived from agency config so
+ * the rules don't have to be re-edited when the agency rebrands or the
+ * owner address changes — same `getAgencyConfig()` pattern used everywhere
+ * else.
+ *
+ * Exposed as a function (not a const) so the rules are evaluated per-call.
+ * The const export name is kept for backwards compat with existing callers
+ * that import `JASPER_VOICE_RULES`.
+ */
+export function getJasperVoiceRules(): string[] {
+  const agency = getAgencyConfig();
+  // The email is nullable on AgencyConfig; the rule reads better if we
+  // describe the slot rather than insert "null".
+  const signOff = `${agency.ownerName} / ${agency.name}${agency.email ? ` / ${agency.email}` : ''}`;
+  return [
+    'No "I hope this finds you well" — start with the substance.',
+    'No exclamation marks in client emails. Ever.',
+    'Australian English in client copy: "organisation", "colour", "realised".',
+    'First-person plural ("we") for agency actions, first-person singular ("I") for personal sign-off.',
+    `Sign off as: "${signOff}"`,
+    'Plain text. No emojis. No headings. No bullet lists unless the request needs a checklist.',
+    'Short sentences. Concrete numbers over vague claims.',
+    'Decline if asked to fabricate testimonials, fake a review, or imply a relationship that does not exist.',
+  ];
+}
+
+/** Backwards-compat alias. Prefer `getJasperVoiceRules()` for new code. */
+export const JASPER_VOICE_RULES = getJasperVoiceRules();
 
 export function jasperVoicePromptBlock(): string {
   return [
     'House style — write as Jasper Bailey would:',
-    ...JASPER_VOICE_RULES.map((r) => `- ${r}`),
+    ...getJasperVoiceRules().map((r) => `- ${r}`),
   ].join('\n');
 }
 
@@ -85,7 +105,9 @@ export async function critiqueDraft(input: {
     bookingId: input.bookingId,
     systemPrompt: CRITIQUE_SYSTEM_PROMPT,
     maxTokens: 200,
-    model: 'claude-3-5-haiku-20241022',
+    // Critique runs on cheapest fast model. Bump to 4.5 generation post
+    // 2026-05 model-version sweep.
+    model: 'claude-haiku-4-5-20251001',
     messages: [
       {
         role: 'user',

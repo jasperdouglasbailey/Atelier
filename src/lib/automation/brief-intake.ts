@@ -137,7 +137,7 @@ async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMB
         },
       ],
       maxTokens: 512,
-      model: 'claude-3-5-haiku-20241022', // Cheapest model for structured extraction
+      model: 'claude-haiku-4-5-20251001', // Cheapest model for structured extraction
       bookingId,
     },
     isLLMBriefOutput,
@@ -178,7 +178,7 @@ async function critiqueBriefExtraction(
       },
     ],
     maxTokens: 256,
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-haiku-4-5-20251001',
     bookingId,
   });
 

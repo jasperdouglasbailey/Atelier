@@ -4,6 +4,7 @@
  * Set these in your .env.local (or Vercel environment settings):
  *
  *   NEXT_PUBLIC_AGENCY_NAME="Saunders & Co"
+ *   NEXT_PUBLIC_AGENCY_OWNER_NAME="Jasper Bailey"
  *   NEXT_PUBLIC_AGENCY_ABN="XX XXX XXX XXX"
  *   NEXT_PUBLIC_AGENCY_ADDRESS="Level X, XX Street, Sydney NSW XXXX"
  *   NEXT_PUBLIC_AGENCY_EMAIL="jasper@saundersandco.com"
@@ -15,6 +16,8 @@
 
 export type AgencyConfig = {
   name: string;
+  /** The human who signs off on outbound — used in LLM voice rules. */
+  ownerName: string;
   abn: string | null;
   address: string | null;
   email: string | null;
@@ -27,6 +30,7 @@ export type AgencyConfig = {
 export function getAgencyConfig(): AgencyConfig {
   return {
     name: process.env.NEXT_PUBLIC_AGENCY_NAME ?? 'Saunders & Co',
+    ownerName: process.env.NEXT_PUBLIC_AGENCY_OWNER_NAME ?? 'Jasper Bailey', // HARDCODED-OK: fallback when env is unset
     abn: process.env.NEXT_PUBLIC_AGENCY_ABN ?? null,
     address: process.env.NEXT_PUBLIC_AGENCY_ADDRESS ?? 'Sydney, NSW',
     email: process.env.NEXT_PUBLIC_AGENCY_EMAIL ?? null,
