@@ -290,6 +290,51 @@ describe('computeCrewPayment', () => {
     // GST should NOT include super in its base
     closeTo(r.gst, 110);                 // 10% of 1100 (labour+expenses), NOT 1100+120
   });
+
+  // ============================================================
+  // Overtime split (2026-05-16 — was a P1 display bug, see audit)
+  // Doctrine: overtime is GST-bearing but NOT super-bearing.
+  // ============================================================
+
+  it('overtime is GST-bearing but NOT super-bearing', () => {
+    const r = computeCrewPayment(1000, 0, true, 200);
+    closeTo(r.labourSubtotal, 1000);
+    closeTo(r.overtimeSubtotal, 200);
+    closeTo(r.superPaid, 120);           // 12% × 1000 only (overtime excluded)
+    closeTo(r.gst, 120);                 // 10% × (1000 + 200) — overtime IS GST-bearing
+    closeTo(r.netPayment, 1440);         // 1000 + 200 + 120 + 120
+  });
+
+  it('overtime-only (no labour): super is zero, GST applies', () => {
+    const r = computeCrewPayment(0, 0, true, 500);
+    closeTo(r.superPaid, 0);
+    closeTo(r.gst, 50);
+    closeTo(r.netPayment, 550);
+  });
+
+  it('overtime + expenses, GST-registered: GST on (labour + overtime + expenses)', () => {
+    const r = computeCrewPayment(800, 150, true, 300);
+    closeTo(r.superPaid, 96);            // 12% × 800
+    closeTo(r.gst, 125);                 // 10% × 1250
+    closeTo(r.netPayment, 1471);         // 800 + 300 + 150 + 96 + 125
+  });
+
+  it('overtime, non-GST crew: no GST, no super on OT', () => {
+    const r = computeCrewPayment(600, 0, false, 100);
+    closeTo(r.superPaid, 72);
+    expect(r.gst).toBe(0);
+    closeTo(r.netPayment, 772);
+  });
+
+  it('omitted overtime param preserves legacy output byte-identical', () => {
+    // AJE eComm canonical safety: existing callers without overtime
+    // must get the same numbers as before the param was added.
+    const r = computeCrewPayment(700, 0, true);
+    expect(r.overtimeSubtotal).toBe(0);
+    closeTo(r.superPaid, 84);
+    closeTo(r.gst, 70);
+    closeTo(r.netPayment, 854);
+  });
 });
 
 describe('computeArtistPayment', () => {

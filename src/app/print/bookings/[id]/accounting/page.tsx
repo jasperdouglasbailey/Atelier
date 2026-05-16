@@ -18,7 +18,12 @@ import PrintActions from '../quote/PrintActions';
 type Props = { params: Promise<{ id: string }> };
 
 const ARTIST_LINE_TYPES = new Set<FeeLineType>(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel']);
+// All crew labour types — used for the GST-passthrough calc (GST IS due on
+// overtime). Per-person crew-payment calls split these further into
+// super-bearing vs non-super-bearing because overtime is NOT super-bearing.
 const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+const CREW_SUPER_BEARING_TYPES = new Set<FeeLineType>(['crew_labour']);
+const CREW_OVERTIME_TYPES = new Set<FeeLineType>(['overtime']);
 
 /**
  * Job accounting statement — a single-job GST reconciliation suitable
@@ -94,26 +99,38 @@ export default async function AccountingPrintPage({ params }: Props) {
     ? computeArtistPayment(artistFeeSubtotal, artistGstRegistered)
     : null;
 
-  // Crew payments — group by crew_id, then unlinked block
+  // Crew payments — group by crew_id, then unlinked block.
+  // Labour and overtime are tracked separately because overtime is NOT
+  // super-bearing — passing them combined as `labourSubtotal` to
+  // computeCrewPayment would overstate super by 12% of every OT line.
   const crewLabourByCrew = new Map<string | null, number>();
+  const crewOvertimeByCrew = new Map<string | null, number>();
   const crewExpensesByCrew = new Map<string | null, number>();
+  const crewIds = new Set<string | null>();
   for (const l of feeLines) {
     const key = l.crew_id ?? null;
-    if (CREW_LABOUR_LINE_TYPES.has(l.line_type)) {
+    if (CREW_SUPER_BEARING_TYPES.has(l.line_type)) {
       crewLabourByCrew.set(key, (crewLabourByCrew.get(key) ?? 0) + effectiveCost(l));
+      crewIds.add(key);
+    } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
+      crewOvertimeByCrew.set(key, (crewOvertimeByCrew.get(key) ?? 0) + effectiveCost(l));
+      crewIds.add(key);
     } else if (l.line_type === 'crew_equipment' && !l.is_artist_reimbursement) {
       crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + effectiveCost(l));
+      crewIds.add(key);
     }
   }
-  type CrewPaymentRow = { name: string; gstReg: boolean; labour: number; expenses: number; superPaid: number; gst: number; net: number };
+  type CrewPaymentRow = { name: string; gstReg: boolean; labour: number; overtime: number; expenses: number; superPaid: number; gst: number; net: number };
   const crewPayments: CrewPaymentRow[] = [];
-  for (const [crewId, labour] of crewLabourByCrew) {
+  for (const crewId of crewIds) {
     const crewRow = crewId ? (crew as Array<{ crew_id: string; crew?: { name?: string; gst_registered?: boolean } }>).find((bc) => bc.crew_id === crewId) : null;
     const name = crewRow?.crew?.name ?? 'Unattached crew';
     const isReg = crewRow?.crew?.gst_registered ?? false;
+    const labour = crewLabourByCrew.get(crewId) ?? 0;
+    const overtime = crewOvertimeByCrew.get(crewId) ?? 0;
     const expenses = crewExpensesByCrew.get(crewId) ?? 0;
-    const cp = computeCrewPayment(labour, expenses, isReg);
-    crewPayments.push({ name, gstReg: isReg, labour, expenses, superPaid: cp.superPaid, gst: cp.gst, net: cp.netPayment });
+    const cp = computeCrewPayment(labour, expenses, isReg, overtime);
+    crewPayments.push({ name, gstReg: isReg, labour, overtime, expenses, superPaid: cp.superPaid, gst: cp.gst, net: cp.netPayment });
   }
 
   // Reimbursement payout figure (incl GST passed through when artist is registered)
@@ -337,13 +354,14 @@ export default async function AccountingPrintPage({ params }: Props) {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ ...thStyle, width: '24%' }}>Recipient</th>
-                    <th style={{ ...thStyle, width: '12%' }}>Status</th>
-                    <th style={{ ...thNum, width: '14%' }}>Labour</th>
-                    <th style={{ ...thNum, width: '14%' }}>Expenses</th>
-                    <th style={{ ...thNum, width: '12%' }}>Super {(SUPER_RATE_PAID * 100).toFixed(0)}%</th>
+                    <th style={{ ...thStyle, width: '22%' }}>Recipient</th>
+                    <th style={{ ...thStyle, width: '10%' }}>Status</th>
+                    <th style={{ ...thNum, width: '12%' }}>Labour</th>
+                    <th style={{ ...thNum, width: '10%' }}>Overtime</th>
+                    <th style={{ ...thNum, width: '12%' }}>Expenses</th>
+                    <th style={{ ...thNum, width: '11%' }}>Super {(SUPER_RATE_PAID * 100).toFixed(0)}%</th>
                     <th style={{ ...thNum, width: '10%' }}>GST</th>
-                    <th style={{ ...thNum, width: '14%' }}>Net Paid</th>
+                    <th style={{ ...thNum, width: '13%' }}>Net Paid</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -352,6 +370,7 @@ export default async function AccountingPrintPage({ params }: Props) {
                       <td style={tdStyle}>{c.name}</td>
                       <td style={{ ...tdStyle, fontSize: 11, color: '#666' }}>{c.gstReg ? 'GST reg.' : 'Not reg.'}</td>
                       <td style={tdNum}>{formatCurrency(c.labour)}</td>
+                      <td style={tdNum}>{c.overtime > 0 ? formatCurrency(c.overtime) : '—'}</td>
                       <td style={tdNum}>{c.expenses > 0 ? formatCurrency(c.expenses) : '—'}</td>
                       <td style={tdNum}>{formatCurrency(c.superPaid)}</td>
                       <td style={tdNum}>{c.gst > 0 ? formatCurrency(c.gst) : '—'}</td>
@@ -361,7 +380,7 @@ export default async function AccountingPrintPage({ params }: Props) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td style={totalRow} colSpan={6}>Total crew payments</td>
+                    <td style={totalRow} colSpan={7}>Total crew payments</td>
                     <td style={totalNum}>{formatCurrency(crewPayments.reduce((s, c) => s + c.net, 0))}</td>
                   </tr>
                 </tfoot>

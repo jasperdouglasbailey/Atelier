@@ -1,11 +1,26 @@
 'use server';
 
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getBookingByQuoteToken, transitionState } from '@/lib/data/bookings';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { sendEmail } from '@/lib/integrations/gmail';
 import { logAudit } from '@/lib/utils/audit';
+
+/**
+ * After a token-driven state transition, invalidate every cache the
+ * owner's UI reads from so the booking detail page reflects the new
+ * state without needing a manual refresh. Doctrine: every booking-state
+ * mutation calls revalidateTag('bookings', {}). The detail-page path
+ * revalidation handles route-level caches not covered by the tag.
+ */
+function revalidateAfterQuoteAction(bookingId: string): void {
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath('/bookings');
+  revalidatePath('/'); // dashboard attention queue
+  revalidateTag('bookings', {});
+}
 
 type QuoteActionResult =
   | { ok: true; state: 'accepted' | 'declined' }
@@ -51,6 +66,7 @@ export async function acceptQuoteByTokenAction(token: string): Promise<QuoteActi
     newValue: { state: 'quote_confirmed', booking_ref: booking.booking_ref } as never,
   }).catch(() => {});
 
+  revalidateAfterQuoteAction(booking.id);
   return { ok: true, state: 'accepted' };
 }
 
@@ -96,6 +112,7 @@ export async function declineQuoteByTokenAction(token: string): Promise<QuoteAct
     newValue: { state: 'released', booking_ref: booking.booking_ref } as never,
   }).catch(() => {});
 
+  revalidateAfterQuoteAction(booking.id);
   return { ok: true, state: 'declined' };
 }
 

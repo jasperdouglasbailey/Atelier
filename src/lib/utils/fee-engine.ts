@@ -311,23 +311,41 @@ export function computeArtistPayment(
 // - No commission on crew (commission is artist-only).
 
 export interface CrewPayment {
-  labourSubtotal: number;    // crew_labour + overtime + travel — the wages
+  labourSubtotal: number;    // crew_labour — super-bearing wages
+  overtimeSubtotal: number;  // crew overtime — GST-bearing but NOT super-bearing (doctrine)
   expensesSubtotal: number;  // crew_equipment / reimbursables they paid for and are billing back
-  superPaid: number;         // 12% of labourSubtotal — goes to fund
-  gst: number;               // 10% on (labourSubtotal + expensesSubtotal) if GST registered
-  netPayment: number;        // labour + expenses + super + GST
+  superPaid: number;         // 12% of labourSubtotal only — overtime is NOT super-bearing
+  gst: number;               // 10% on (labour + overtime + expenses) if GST registered
+  netPayment: number;        // labour + overtime + expenses + super + GST
 }
 
+/**
+ * Compute what the crew member is paid by the agency.
+ *
+ * Doctrine note: overtime is GST-bearing but NOT super-bearing (CLAUDE.md fee
+ * table). Pre-2026-05-16 this function accepted a combined `labourSubtotal`
+ * with crew_labour + overtime merged, which over-paid super by ~12% of any
+ * overtime billed. The `overtimeSubtotal` parameter splits them out — pass
+ * crew_labour as labourSubtotal and overtime as overtimeSubtotal.
+ *
+ * The parameter is optional (defaults to 0) so existing callers that don't
+ * book overtime stay byte-identical. The AJE eComm #3579 canonical test has
+ * no overtime so it passes unchanged.
+ */
 export function computeCrewPayment(
   labourSubtotal: number,
   expensesSubtotal: number,
   isGstRegistered: boolean,
+  overtimeSubtotal: number = 0,
 ): CrewPayment {
+  // Super on labour only — overtime is intentionally excluded per AU doctrine.
   const superPaid = r2(labourSubtotal * SUPER_RATE_PAID);
-  // GST on labour + expenses, NEVER on super (super is GST-free in AU)
-  const gst = isGstRegistered ? r2((labourSubtotal + expensesSubtotal) * GST_RATE) : 0;
-  const netPayment = r2(labourSubtotal + expensesSubtotal + superPaid + gst);
-  return { labourSubtotal, expensesSubtotal, superPaid, gst, netPayment };
+  // GST on labour + overtime + expenses, NEVER on super (super is GST-free in AU)
+  const gst = isGstRegistered
+    ? r2((labourSubtotal + overtimeSubtotal + expensesSubtotal) * GST_RATE)
+    : 0;
+  const netPayment = r2(labourSubtotal + overtimeSubtotal + expensesSubtotal + superPaid + gst);
+  return { labourSubtotal, overtimeSubtotal, expensesSubtotal, superPaid, gst, netPayment };
 }
 
 // ============================================================

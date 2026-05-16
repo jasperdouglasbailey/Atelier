@@ -25,7 +25,11 @@ import PrintActions from '../../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string; crewId: string }> };
 
-const LABOUR_TYPES = new Set(['crew_labour', 'overtime', 'travel']);
+// Labour split: super-bearing (`crew_labour`, `travel`) vs non-super-bearing
+// (`overtime`). Lumping them together previously over-paid super by 12% of
+// every overtime line. The fee engine now expects them separate.
+const LABOUR_TYPES = new Set(['crew_labour', 'travel']);
+const OVERTIME_TYPES = new Set(['overtime']);
 const EXPENSE_TYPES = new Set(['crew_equipment', 'equipment_rental', 'other_expense']);
 
 export default async function CrewBillPage({ params }: Props) {
@@ -42,12 +46,14 @@ export default async function CrewBillPage({ params }: Props) {
   // Lines for this crew on this booking
   const myLines = allFeeLines.filter((l) => l.crew_id === crewId);
   const labourLines = myLines.filter((l) => LABOUR_TYPES.has(l.line_type));
+  const overtimeLines = myLines.filter((l) => OVERTIME_TYPES.has(l.line_type));
   const expenseLines = myLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
 
   // Use COST subtotal — what the crew actually invoiced.
   const labourSubtotal = labourLines.reduce((s, l) => s + effectiveCost(l), 0);
+  const overtimeSubtotal = overtimeLines.reduce((s, l) => s + effectiveCost(l), 0);
   const expensesSubtotal = expenseLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered);
+  const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered, overtimeSubtotal);
 
   const agency = getAgencyConfig();
   const today = new Date();
