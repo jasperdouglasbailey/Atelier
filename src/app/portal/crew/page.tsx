@@ -19,7 +19,7 @@ import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getCrewPortalData, getPortalCallSheets } from '@/lib/data/portal';
 import PortalDataRights from '@/components/portal/PortalDataRights';
 import HoldCard from '@/components/portal/HoldCard';
-import UnavailabilityManager from '@/components/portal/UnavailabilityManager';
+import PortalCalendar from '@/components/portal/PortalCalendar';
 import CallSheetCard from '@/components/portal/CallSheetCard';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
 import SydneyWeather from '@/components/dashboard/SydneyWeather';
@@ -32,7 +32,11 @@ import {
 import { formatCurrency, formatShootDates } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
-import { respondToCrewHoldAction } from '@/app/actions/portal';
+import {
+  respondToCrewHoldAction,
+  addCrewUnavailabilityAction,
+  removeCrewUnavailabilityAction,
+} from '@/app/actions/portal';
 import type { BookingState } from '@/lib/types/database';
 import type { CrewPortalBookingRow } from '@/lib/data/portal';
 
@@ -227,13 +231,26 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
 
       {/* Availability */}
       <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+        <h2 className="section-title mb-3">
           My availability
         </h2>
-        <p className="mb-3 text-[11px]" style={{ color: PALETTE.muted }}>
-          Mark dates you are unavailable so {agency.name} can see conflicts before sending hold requests.
+        <p className="text-xs mb-3" style={{ color: PALETTE.muted }}>
+          Click any date to block it. Your upcoming jobs show as coloured dots — green for confirmed, amber for holds awaiting your response.
         </p>
-        <UnavailabilityManager initial={unavailability} />
+        <PortalCalendar
+          bookings={[...upcoming, ...past].map((b) => ({
+            bookingId: b.bookingId,
+            bookingRef: b.bookingRef,
+            title: b.title,
+            shootDates: b.shootDates,
+            confirmed: b.confirmed,
+            status: b.status,
+          }))}
+          unavailability={unavailability}
+          onAdd={addCrewUnavailabilityAction}
+          onRemove={removeCrewUnavailabilityAction}
+          readOnly={isOwnerPreview}
+        />
       </section>
 
       <PortalDataRights type="crew" id={crew.id} name={crew.name} />

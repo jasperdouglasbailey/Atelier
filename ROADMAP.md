@@ -28,6 +28,8 @@ These are real product capability not yet live, gated on env vars Jasper needs t
 
 9. **Anthropic model-version monitoring.** PR-G safety net (PR#155) logs `[anthropic] model X 404'd` warnings on fallback. Should add a Settings panel showing "Model X has fallen back N times this week" so we see rot before a generation goes fully dark. ~20 min once we have LLM usage data.
 
+10. **Portal calendar drag-to-block range.** PR#161 shipped a single-day-then-range-input pattern. A real drag interaction (click + drag to select multiple cells) is the next refinement — mouse + touch + edge cases.
+
 ## Shipped — captured here so they don't re-appear in planning
 
 - ~~Quote template expansion~~ — stylist + HMU shipped PR#28. Further expansion (manicurist, prop stylist, set design) only if Jasper books those disciplines often enough.
@@ -42,6 +44,10 @@ These are real product capability not yet live, gated on env vars Jasper needs t
 - ~~Brief → Quote → Send single screen~~ — `/inbox/[bookingId]` shipped with 3-step progress strip.
 - ~~Compliance dashboard~~ — `/settings/compliance` shipped PR#27.
 - ~~Prompt caching + model bump + insert fix + voice-rule refactor~~ — shipped PR#153 + PR#155 safety net.
+- ~~CLAUDE.md split + types unification + cron unification + memory consolidation~~ — shipped PR#156–#158 + memory pass on 2026-05-16.
+- ~~Portal real shoot dates~~ — shipped PR#159 (UI gap, not security).
+- ~~Sydney weather strip in greeting~~ — shipped PR#160.
+- ~~Portal interactive calendar with blockouts~~ — shipped PR#161. Click any day to block; existing bookings render as green/amber dots; replaces the old form-based UnavailabilityManager.
 
 ## Explicitly NOT on the roadmap
 
