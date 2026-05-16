@@ -21,6 +21,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isCronAuthorised } from '@/lib/utils/cron-auth';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { createServiceClient } from '@/lib/supabase/service';
 import { logAudit } from '@/lib/utils/audit';
 import { trashDriveFolder } from '@/lib/integrations/drive';
@@ -44,6 +45,14 @@ interface SweepResult {
 export async function GET(req: NextRequest) {
   if (!isCronAuthorised(req, 'AUTO_ANONYMISE')) {
     return new NextResponse('Unauthorised', { status: 401 });
+  }
+
+  // Doctrine: kill switch RED defers automation. Particularly important
+  // for this cron since anonymisation is *irreversible* — once a row is
+  // anonymised, the PII is gone. A frozen platform must not run this.
+  const ks = await getKillSwitchState();
+  if (ks?.is_active) {
+    return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
   await logAudit({ userId: null, action: 'cron_auto_anonymise_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});

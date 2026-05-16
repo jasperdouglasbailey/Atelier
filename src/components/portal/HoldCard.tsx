@@ -13,10 +13,17 @@ type Props = {
   roleOnBooking?: string | null;
   onConfirm: () => Promise<{ ok: true } | { ok: false; error: string }>;
   onDecline: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  /**
+   * In owner-preview mode (?previewTalentId / ?previewCrewId), the
+   * server actions reject with "Not authorised" because the actor's
+   * role isn't talent/crew. Rendering buttons that silently fail is
+   * worse than rendering nothing — disable them and show a hint.
+   */
+  readOnly?: boolean;
 };
 
 export default function HoldCard({
-  bookingRef, title, shootDateNotes, dayRate, roleOnBooking, onConfirm, onDecline,
+  bookingRef, title, shootDateNotes, dayRate, roleOnBooking, onConfirm, onDecline, readOnly = false,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<'confirmed' | 'declined' | null>(null);
@@ -88,12 +95,13 @@ export default function HoldCard({
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-1 items-center">
         <button
           type="button"
           onClick={() => respond('confirmed')}
-          disabled={pending}
-          className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50"
+          disabled={pending || readOnly}
+          title={readOnly ? 'Preview mode — actions disabled' : undefined}
+          className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: PALETTE.success, color: '#fff', border: 'none', cursor: 'pointer' }}
         >
           {pending ? 'Saving…' : 'Accept'}
@@ -101,12 +109,18 @@ export default function HoldCard({
         <button
           type="button"
           onClick={() => respond('declined')}
-          disabled={pending}
-          className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50"
+          disabled={pending || readOnly}
+          title={readOnly ? 'Preview mode — actions disabled' : undefined}
+          className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: 'transparent', color: PALETTE.danger, border: `1px solid ${PALETTE.danger}66`, cursor: 'pointer' }}
         >
           Decline
         </button>
+        {readOnly && (
+          <span className="text-[10px]" style={{ color: PALETTE.muted }}>
+            Preview — read-only
+          </span>
+        )}
       </div>
     </div>
   );

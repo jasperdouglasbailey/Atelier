@@ -180,6 +180,7 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
               // a server-action reference with pre-bound args.
               onConfirm={respondToCrewHoldAction.bind(null, b.bookingCrewId, 'confirmed')}
               onDecline={respondToCrewHoldAction.bind(null, b.bookingCrewId, 'declined')}
+              readOnly={isOwnerPreview}
             />
           ))}
         </section>
