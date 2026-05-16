@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fast guards that run on every `git commit`. Must stay under ~2 seconds —
+# anything slower belongs in pre-push or CI.
+#
+# Currently enforces:
+#   - no hardcoded agency identity (Saunders & Co name, Jasper's email)
+#     should come from getAgencyConfig() / env vars
+#
+# Opt out per-line with a trailing `// HARDCODED-OK: reason` comment.
+# Bypass entirely (rare!) with `git commit --no-verify`.
+
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$ROOT/scripts/guards/no-hardcoded-identity.sh"
