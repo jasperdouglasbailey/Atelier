@@ -1,7 +1,7 @@
 'use client';
 
 import type { FeeLine, QuoteVersion, BookingTalent, BookingCrew } from '@/lib/types/database';
-import { computeQuoteTotals, computeAgencyMargin, computeArtistPayment, computeCrewPayment } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, computeArtistPayment, computeCrewPayment, effectiveCost } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
 import { PALETTE, GST_RATE } from '@/lib/utils/constants';
 
@@ -34,34 +34,37 @@ function computePaidOut(
   bookingTalent: BookingTalent[],
   bookingCrew: BookingCrew[],
 ): { artistNet: number; crewTotal: number; reimbursementTotal: number; total: number } {
+  // Paid-out math uses COST subtotal (effectiveCost = cost_subtotal ?? subtotal).
+  // When no line overrides cost, this collapses to the historical billed-based
+  // behaviour. When cost < billed, paid-out is smaller and the spread shows
+  // up as captured agency margin instead.
   const primaryArtist = bookingTalent[0]?.talent;
   const artistGstRegistered = primaryArtist?.gst_registered ?? false;
-  const artistSubtotal = lines
+  const artistCostSubtotal = lines
     .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
-    .reduce((s, l) => s + (l.subtotal ?? 0), 0);
-  const artistNet = artistSubtotal > 0
-    ? Math.round(computeArtistPayment(artistSubtotal, artistGstRegistered).netPayment * 100) / 100
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  const artistNet = artistCostSubtotal > 0
+    ? Math.round(computeArtistPayment(artistCostSubtotal, artistGstRegistered).netPayment * 100) / 100
     : 0;
 
-  // Reimbursements are pass-through. When the artist is GST-registered they
-  // on-charge the agency at subtotal + 10% GST (confirmed with Jasper
-  // 2026-05-15) and the agency claims the 10% back as an input credit.
-  // The cash paid to the artist therefore includes the GST.
-  const reimbursementSubtotal = lines
+  // Reimbursements are pass-through. The artist on-charges what they actually
+  // paid the supplier — that's the cost subtotal. Use effectiveCost so a
+  // discount on the supplier invoice flows correctly.
+  const reimbursementCostSubtotal = lines
     .filter((l) => l.is_artist_reimbursement)
-    .reduce((s, l) => s + (l.subtotal ?? 0), 0);
-  const reimbursementTotal = reimbursementSubtotal > 0 && artistGstRegistered
-    ? Math.round(reimbursementSubtotal * (1 + GST_RATE) * 100) / 100
-    : reimbursementSubtotal;
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  const reimbursementTotal = reimbursementCostSubtotal > 0 && artistGstRegistered
+    ? Math.round(reimbursementCostSubtotal * (1 + GST_RATE) * 100) / 100
+    : reimbursementCostSubtotal;
 
   const crewByPersonLabour = new Map<string, number>();
   const crewByPersonExpenses = new Map<string, number>();
   for (const l of lines) {
     if (!l.crew_id) continue;
     if (CREW_LABOUR_LINE_TYPES.has(l.line_type)) {
-      crewByPersonLabour.set(l.crew_id, (crewByPersonLabour.get(l.crew_id) ?? 0) + (l.subtotal ?? 0));
+      crewByPersonLabour.set(l.crew_id, (crewByPersonLabour.get(l.crew_id) ?? 0) + effectiveCost(l));
     } else if (l.line_type === 'crew_equipment') {
-      crewByPersonExpenses.set(l.crew_id, (crewByPersonExpenses.get(l.crew_id) ?? 0) + (l.subtotal ?? 0));
+      crewByPersonExpenses.set(l.crew_id, (crewByPersonExpenses.get(l.crew_id) ?? 0) + effectiveCost(l));
     }
   }
   let crewOut = 0;
@@ -73,7 +76,7 @@ function computePaidOut(
   }
   const unlinkedCrewLabour = lines
     .filter((l) => CREW_LABOUR_LINE_TYPES.has(l.line_type) && !l.crew_id)
-    .reduce((s, l) => s + (l.subtotal ?? 0), 0);
+    .reduce((s, l) => s + effectiveCost(l), 0);
   if (unlinkedCrewLabour > 0) {
     crewOut += computeCrewPayment(unlinkedCrewLabour, 0, false).netPayment;
   }
@@ -156,6 +159,17 @@ export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [],
             : 'Before ATO + vendors'}
           okIfPositive
         />
+        {/* True margin: agency's actual gross margin including spread captured
+            when payee invoiced less than billed. Equal to retained minus the
+            net GST owed to ATO. Surfaces what the agency really earned. */}
+        {actualMargin.spreadCaptured > 0 && (
+          <KpiRow
+            label="True margin"
+            value={actualMargin.total}
+            sub={`Commission ${formatCurrency(actualMargin.commission)} · ASF ${formatCurrency(actualMargin.asf)} · super spread ${formatCurrency(actualMargin.superSpread)} · captured ${formatCurrency(actualMargin.spreadCaptured)}`}
+            okIfPositive
+          />
+        )}
       </div>
 
       {hasPostShoot && revenueDrift !== 0 && (
@@ -169,6 +183,23 @@ export default function JobPnLPanel({ feeLines, latestQuote, bookingTalent = [],
             style={{ color: revenueDrift >= 0 ? PALETTE.ok : PALETTE.danger }}
           >
             {revenueDrift >= 0 ? '+' : ''}{formatCurrency(revenueDrift)}
+          </span>
+        </div>
+      )}
+
+      {actualMargin.spreadCaptured > 0 && (
+        <div
+          className="mt-2 flex items-center justify-between rounded-md px-3 py-2 text-[11px]"
+          style={{ background: `${PALETTE.ok}10`, borderLeft: `2px solid ${PALETTE.ok}` }}
+        >
+          <span className="micro-label" style={{ marginBottom: 0, color: PALETTE.ok }}>
+            Spread captured (cost &lt; billed)
+          </span>
+          <span
+            className="text-xs font-semibold tabular-nums"
+            style={{ color: PALETTE.ok }}
+          >
+            +{formatCurrency(actualMargin.spreadCaptured)}
           </span>
         </div>
       )}

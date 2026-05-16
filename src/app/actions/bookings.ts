@@ -1049,11 +1049,13 @@ export async function markTalentPaidAction(
       if (ks.canSendOutbound) {
         const [talentResult, feeLinesResult] = await Promise.all([
           supabase.from('atelier_talent').select('email, working_name').eq('id', bt.talent_id).maybeSingle(),
-          supabase.from('atelier_fee_lines').select('subtotal').eq('booking_id', bookingId).eq('talent_id', bt.talent_id),
+          // Remittance amount uses cost_subtotal (what's actually paid) when set,
+          // otherwise falls back to subtotal (legacy behaviour preserved).
+          supabase.from('atelier_fee_lines').select('subtotal, cost_subtotal').eq('booking_id', bookingId).eq('talent_id', bt.talent_id),
         ]);
         const talent = talentResult.data;
         if (talent?.email && talent?.working_name) {
-          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.subtotal), 0);
+          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.cost_subtotal ?? l.subtotal), 0);
           const email = buildRemittanceEmail(
             { working_name: talent.working_name, email: talent.email },
             { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },
@@ -1115,11 +1117,12 @@ export async function markCrewPaidAction(
       if (ks.canSendOutbound) {
         const [crewResult, feeLinesResult] = await Promise.all([
           supabase.from('atelier_crew').select('email, name').eq('id', bc.crew_id).maybeSingle(),
-          supabase.from('atelier_fee_lines').select('subtotal').eq('booking_id', bookingId).eq('crew_id', bc.crew_id),
+          // Cost-aware: uses cost_subtotal when set, falls back to subtotal.
+          supabase.from('atelier_fee_lines').select('subtotal, cost_subtotal').eq('booking_id', bookingId).eq('crew_id', bc.crew_id),
         ]);
         const crew = crewResult.data;
         if (crew?.email && crew?.name) {
-          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.subtotal), 0);
+          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.cost_subtotal ?? l.subtotal), 0);
           const email = buildRemittanceEmail(
             { working_name: crew.name, email: crew.email },
             { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },

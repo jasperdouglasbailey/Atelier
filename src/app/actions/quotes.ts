@@ -158,6 +158,13 @@ export async function addFeeLineAction(formData: FormData) {
   const subtotal = Math.round(quantity * unitPrice * 100) / 100;
   const asfAmount = Math.round(subtotal * asfRate * 100) / 100;
 
+  // Optional actual-cost override. Stored as cost_subtotal; null means
+  // cost = billed (the historical default).
+  const costSubtotalRaw = formData.get('cost_subtotal');
+  const costSubtotal = costSubtotalRaw != null && costSubtotalRaw !== ''
+    ? Math.round(Number(costSubtotalRaw) * 100) / 100
+    : null;
+
   // Commissionable lines (artist labour) can never be reimbursable — the
   // agency takes commission off them, they're not a pass-through expense.
   const isArtistReimbursement = !isCommissionableType(lineType)
@@ -171,6 +178,7 @@ export async function addFeeLineAction(formData: FormData) {
     quantity,
     unit_price: unitPrice,
     subtotal,
+    cost_subtotal: costSubtotal,
     asf_rate: asfRate,
     asf_amount: asfAmount,
     is_gst_exempt: isGstExempt,
@@ -251,6 +259,19 @@ export async function updateFeeLineAction(id: string, formData: FormData): Promi
     const r = (updates.asf_rate as number) ?? existing?.asf_rate ?? DEFAULT_ASF_RATE;
     updates.subtotal = Math.round(q * p * 100) / 100;
     updates.asf_amount = Math.round((updates.subtotal as number) * r * 100) / 100;
+  }
+
+  // Optional cost_subtotal override. Empty string / missing = clear (null = cost
+  // equals billed). Number = explicit cost amount.
+  const costSubtotalRaw = formData.get('cost_subtotal');
+  if (costSubtotalRaw != null) {
+    if (costSubtotalRaw === '') {
+      updates.cost_subtotal = null;
+    } else {
+      const n = Number(costSubtotalRaw);
+      if (!Number.isFinite(n) || n < 0) return { ok: false, error: `Invalid cost subtotal "${costSubtotalRaw}"` };
+      updates.cost_subtotal = Math.round(n * 100) / 100;
+    }
   }
 
   const notes = formData.get('notes');

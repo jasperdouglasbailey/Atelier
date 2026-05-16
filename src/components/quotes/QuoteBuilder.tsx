@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent, BookingCrew } from '@/lib/types/database';
 import type { RatePrecedent } from '@/lib/data/quotes';
-import { computeQuoteTotals, computeAgencyMargin, computeGstPassthrough, type ComputedFeeLine } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, computeGstPassthrough, effectiveCost, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import UndoToast from '@/components/ui/UndoToast';
@@ -93,6 +93,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     description: string;
     quantity: string;
     unit_price: string;
+    /** Optional actual-cost override. Empty string = same as billed (= subtotal). */
+    cost_subtotal: string;
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
     is_artist_reimbursement: boolean;
   } | null>(null);
@@ -114,7 +116,10 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     const price = parseFloat(editValues.unit_price) || l.unit_price;
     const asfRatePct = parseFloat(editValues.asf_rate);
     const asfRate = Number.isFinite(asfRatePct) ? asfRatePct / 100 : (l.asf_rate ?? DEFAULT_ASF_RATE);
-    return { ...l, quantity: qty, unit_price: price, subtotal: qty * price, asf_rate: asfRate };
+    // Optional cost override — empty input = default to billed (=subtotal).
+    const costTrim = editValues.cost_subtotal.trim();
+    const costSubtotal = costTrim === '' ? null : (Number.isFinite(Number(costTrim)) ? Number(costTrim) : null);
+    return { ...l, quantity: qty, unit_price: price, subtotal: qty * price, cost_subtotal: costSubtotal, asf_rate: asfRate };
   });
   const totals = computeQuoteTotals(previewLines);
 
@@ -129,6 +134,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       description: line.description,
       quantity: String(line.quantity),
       unit_price: String(line.unit_price),
+      cost_subtotal: line.cost_subtotal != null ? String(line.cost_subtotal) : '',
       asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
       is_artist_reimbursement: line.is_artist_reimbursement ?? false,
     });
@@ -155,11 +161,15 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
     }
+    // Optional actual-cost override. Empty input = clear (set to null on server).
+    const costTrim = editValues.cost_subtotal.trim();
+    fd.set('cost_subtotal', costTrim);
     // Optimistic: update local state immediately so the QuoteBuilder snaps
     // without waiting for the round-trip.
     const newQty = parseFloat(editValues.quantity) || line.quantity;
     const newPrice = parseFloat(editValues.unit_price) || line.unit_price;
     const newAsfRate = Number.isFinite(asfPct) ? asfPct / 100 : (line.asf_rate ?? DEFAULT_ASF_RATE);
+    const newCostSubtotal = costTrim === '' ? null : (Number.isFinite(Number(costTrim)) ? Math.round(Number(costTrim) * 100) / 100 : null);
     const optimistic: FeeLine = {
       ...line,
       line_type: editValues.line_type,
@@ -167,6 +177,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       quantity: newQty,
       unit_price: newPrice,
       subtotal: Math.round(newQty * newPrice * 100) / 100,
+      cost_subtotal: newCostSubtotal,
       asf_rate: newAsfRate,
       asf_amount: Math.round(newQty * newPrice * newAsfRate * 100) / 100,
       is_artist_reimbursement: editValues.is_artist_reimbursement,
@@ -673,6 +684,38 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                             </span>
                           </div>
 
+                          {/* Row 2.5 — Optional actual cost when different from billed.
+                              Empty = paid the billed amount. Filled = agency captures
+                              the difference as margin (e.g. quoted $600, invoiced $550 → cost field is $550). */}
+                          <div className="flex items-center gap-3 flex-wrap text-[11px]" style={{ color: PALETTE.muted }}>
+                            <label className="flex items-center gap-1.5" title="Actual amount paid to the payee. Leave blank to default to the billed subtotal. Use when a payee invoices less than what was quoted to the client — agency captures the spread as margin.">
+                              Cost (paid) $
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={editValues.cost_subtotal}
+                                onChange={(e) => setEditValues((v) => v && { ...v, cost_subtotal: e.target.value })}
+                                onKeyDown={onKey}
+                                placeholder={`${(previewSubtotal).toFixed(2)} (default)`}
+                                className="w-28 rounded border px-2 py-1 text-xs text-right tabular-nums"
+                                style={{
+                                  background: PALETTE.bg,
+                                  borderColor: editValues.cost_subtotal.trim() !== '' ? PALETTE.ok + '88' : PALETTE.border,
+                                  color: PALETTE.text,
+                                }}
+                              />
+                            </label>
+                            {editValues.cost_subtotal.trim() !== '' && Number.isFinite(Number(editValues.cost_subtotal)) && (() => {
+                              const cost = Number(editValues.cost_subtotal);
+                              const spread = Math.max(0, previewSubtotal - cost);
+                              if (spread <= 0) return <span style={{ opacity: 0.7 }}>No spread (cost ≥ billed)</span>;
+                              return (
+                                <span style={{ color: PALETTE.ok }}>
+                                  Spread captured: <strong>{formatCurrency(spread)}</strong>
+                                </span>
+                              );
+                            })()}
+                          </div>
+
                           {/* Row 3 — Live computed preview */}
                           <div className="text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
                             ASF <span style={{ color: PALETTE.text }}>{formatCurrency(previewComputed?.asfAmount ?? 0)}</span>
@@ -776,6 +819,15 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                           reimb.
                         </span>
                       )}
+                      {line.cost_subtotal != null && line.cost_subtotal !== line.subtotal && (
+                        <span
+                          className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                          style={{ background: `${PALETTE.ok}18`, color: PALETTE.ok }}
+                          title={`Cost paid: ${formatCurrency(line.cost_subtotal)} — agency captures ${formatCurrency(Math.max(0, line.subtotal - line.cost_subtotal))} spread`}
+                        >
+                          cost ${line.cost_subtotal}
+                        </span>
+                      )}
                       {isLatestVersion && <span className="ml-1.5 opacity-0 group-hover:opacity-100 text-[9px] transition-opacity" style={{ color: PALETTE.muted }}>edit</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums align-top">{line.quantity}</td>
@@ -839,25 +891,27 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         const margin = computeAgencyMargin(totals);
         const primaryArtist = bookingTalent[0]?.talent;
         const artistGstRegistered = primaryArtist?.gst_registered ?? false;
+        // GST input credits scale with what's actually paid out (cost), not
+        // what's billed. When cost_subtotal isn't set on a line, effectiveCost
+        // falls back to (qty × unit_price), giving the historical behaviour.
         const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
-        const crewLabourSubtotalGstRegistered = previewLines
+        const crewLabourCostGstRegistered = previewLines
           .filter((l) => CREW_LABOUR_TYPES.has(l.line_type) && l.crew_id != null)
           .reduce((sum, l) => {
             const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
-            return crewRow?.crew?.gst_registered ? sum + (l.subtotal ?? 0) : sum;
+            return crewRow?.crew?.gst_registered ? sum + effectiveCost(l) : sum;
           }, 0);
-        // Artist reimbursement subtotal — when the artist is GST-registered
-        // they on-charge these at +10% GST, so the agency claims that 10%
-        // back as input credit and passes the cash to the artist.
-        const artistReimbursementSubtotal = previewLines
+        // Artist reimbursement cost — when the artist is GST-registered they
+        // on-charge what they actually paid (cost) + 10% GST.
+        const artistReimbursementCostSubtotal = previewLines
           .filter((l) => l.is_artist_reimbursement)
-          .reduce((sum, l) => sum + (l.subtotal ?? 0), 0);
+          .reduce((sum, l) => sum + effectiveCost(l), 0);
         const gst = computeGstPassthrough({
           totals,
-          artistFeeSubtotal: artistTotals.subtotal,
+          artistFeeSubtotal: artistTotals.costSubtotal,
           artistGstRegistered,
-          crewLabourSubtotalGstRegistered,
-          artistReimbursementSubtotal,
+          crewLabourSubtotalGstRegistered: crewLabourCostGstRegistered,
+          artistReimbursementSubtotal: artistReimbursementCostSubtotal,
         });
         // "Paid through" = grand total minus what agency keeps and ATO net.
         // This is the residual that flows out to artist/crew/vendors.

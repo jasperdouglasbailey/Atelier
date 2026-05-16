@@ -935,6 +935,7 @@ export type Database = {
           asf_rate: number
           booking_id: string
           commission_rate: number | null
+          cost_subtotal: number | null
           created_at: string
           crew_id: string | null
           description: string
@@ -958,6 +959,7 @@ export type Database = {
           asf_rate?: number
           booking_id: string
           commission_rate?: number | null
+          cost_subtotal?: number | null
           created_at?: string
           crew_id?: string | null
           description: string
@@ -981,6 +983,7 @@ export type Database = {
           asf_rate?: number
           booking_id?: string
           commission_rate?: number | null
+          cost_subtotal?: number | null
           created_at?: string
           crew_id?: string | null
           description?: string

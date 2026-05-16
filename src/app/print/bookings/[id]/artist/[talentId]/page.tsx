@@ -17,7 +17,7 @@ import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { getTalent } from '@/lib/data/entities';
-import { computeArtistPayment } from '@/lib/utils/fee-engine';
+import { computeArtistPayment, effectiveCost } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -48,7 +48,9 @@ export default async function ArtistRemittancePage({ params }: Props) {
   const allArtistLines = allFeeLines.filter((l) => ARTIST_LINE_TYPES.has(l.line_type));
   const lines = linkedLines.length > 0 ? linkedLines : allArtistLines;
 
-  const subtotal = lines.reduce((s, l) => s + l.subtotal, 0);
+  // Use COST subtotal — what the artist actually invoiced (falls back to
+  // billed when cost_subtotal isn't set, preserving legacy behaviour).
+  const subtotal = lines.reduce((s, l) => s + effectiveCost(l), 0);
   const payment = computeArtistPayment(subtotal, talent.gst_registered);
 
   const agency = getAgencyConfig();
