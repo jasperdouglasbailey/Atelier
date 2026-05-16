@@ -22,6 +22,7 @@ import HoldCard from '@/components/portal/HoldCard';
 import UnavailabilityManager from '@/components/portal/UnavailabilityManager';
 import CallSheetCard from '@/components/portal/CallSheetCard';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
+import SydneyWeather from '@/components/dashboard/SydneyWeather';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -122,6 +123,7 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
         displayName={crew.name}
         email={crew.email}
         role="crew"
+        rightSlot={<SydneyWeather />}
       />
 
       {/* Profile header */}

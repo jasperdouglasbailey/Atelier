@@ -25,6 +25,7 @@ import {
 import { formatCurrency } from '@/lib/utils/format';
 import BookingHoverCard from '@/components/bookings/BookingHoverCard';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
+import SydneyWeather from '@/components/dashboard/SydneyWeather';
 import MiniMonthCalendar from '@/components/dashboard/MiniMonthCalendar';
 import FinanceSection from '@/components/dashboard/FinanceSection';
 import InboxPreview from '@/components/dashboard/InboxPreview';
@@ -144,6 +145,7 @@ export default async function DashboardPage() {
           <GreetingHeader
             displayName={appUser?.display_name ?? null}
             role={role}
+            rightSlot={<SydneyWeather />}
           />
         </section>
 

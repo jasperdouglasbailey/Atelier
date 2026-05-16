@@ -24,6 +24,7 @@ import TalentUnavailabilityManager from '@/components/portal/TalentUnavailabilit
 import HoldCard from '@/components/portal/HoldCard';
 import CallSheetCard from '@/components/portal/CallSheetCard';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
+import SydneyWeather from '@/components/dashboard/SydneyWeather';
 import {
   PALETTE,
   BOOKING_STATE_LABELS,
@@ -127,6 +128,7 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
         displayName={talent.working_name}
         email={talent.email}
         role="talent"
+        rightSlot={<SydneyWeather />}
       />
 
       {/* Profile header */}
