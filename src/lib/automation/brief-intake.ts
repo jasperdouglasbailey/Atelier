@@ -24,7 +24,29 @@ import { buildConfidenceContract, type ConfidenceContract } from './agent-primit
 // Types
 // ============================================================
 
-export type BriefIntakeResult = ParsedBrief & {
+/**
+ * Structured usage taxonomy — LLM-only fields surfaced on the intake result.
+ * Persisted to atelier_bookings in PR C (a follow-up migration). Until then
+ * these stay on the in-memory result; BriefParser UI can preview them but
+ * `applyBriefSuggestionsAction` does not yet write them.
+ */
+export type StructuredUsage = {
+  usage_market: 'consumer' | 'trade' | 'editorial' | null;
+  usage_realm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial' | null;
+  usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'>;
+  usage_specific_channels: string[];
+  usage_territory_iso: string[];
+};
+
+export const EMPTY_STRUCTURED_USAGE: StructuredUsage = {
+  usage_market: null,
+  usage_realm: null,
+  usage_media_categories: [],
+  usage_specific_channels: [],
+  usage_territory_iso: [],
+};
+
+export type BriefIntakeResult = ParsedBrief & StructuredUsage & {
   source: 'heuristic' | 'llm' | 'merged';
   confidence: number; // 0–100
   llmAvailable: boolean;
@@ -83,6 +105,18 @@ type LLMBriefOutput = Partial<{
   usage_territory_raw: string; // e.g. "Australia"
   usage_media_raw: string;     // e.g. "POS, social media, digital display"
   budget_indication: number;
+  // ─── Structured usage taxonomy (added 2026-05-17, PR #169) ───────
+  // Maps directly to the advertising-media + market-realm doctrine.
+  // Surfaced through BriefIntakeResult; persisted via PR C (not yet).
+  // Heuristic parser does NOT populate these — LLM-only fields.
+  usage_market: 'consumer' | 'trade' | 'editorial';
+  usage_realm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial';
+  /** Top-level media categories. */
+  usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'>;
+  /** Specific channels within the categories, e.g. ["edm", "social_paid", "ooh"]. */
+  usage_specific_channels: string[];
+  /** ISO-3166 alpha-2 country codes — e.g. ["AU", "NZ"] for "Australia and New Zealand". */
+  usage_territory_iso: string[];
 }>;
 
 function isLLMBriefOutput(v: unknown): v is LLMBriefOutput {
@@ -98,14 +132,21 @@ Return a JSON object with these fields (only include fields you can confidently 
   "shoot_date_start": string or null,    // YYYY-MM-DD — the date photography/filming HAPPENS
   "shoot_date_end": string or null,      // YYYY-MM-DD — end of multi-day shoot (same as start for 1 day)
   "shoot_date_notes": string or null,    // free-text if dates unclear (e.g. "TBC", "mid-May")
-  "talent_count": number or null,        // number of models/talent required
+  "talent_count": number or null,        // number of MODELS/ON-CAMERA TALENT, NOT the photographer
   "talent_spec": string or null,         // brief description of talent needed
   "deliverables_type": string or null,   // e.g. "Stills + BTS Video", "eComm stills"
   "deliverables_count": number or null,  // number of final selects/images
   "usage_duration_months": number or null, // usage/licence period in months (convert weeks/years)
   "usage_territory_raw": string or null, // territory as written, e.g. "Australia" or "AU, NZ"
   "usage_media_raw": string or null,     // media as written, e.g. "POS, social, digital display"
-  "budget_indication": number or null    // numeric amount in AUD (strip currency symbols)
+  "budget_indication": number or null,   // numeric amount in AUD (strip currency symbols)
+
+  // STRUCTURED USAGE TAXONOMY — extract IN ADDITION to usage_*_raw above:
+  "usage_market": string or null,        // exactly one of: "consumer", "trade", "editorial"
+  "usage_realm": string or null,         // exactly one of: "advertising", "promotional", "pr", "corporate", "editorial"
+  "usage_media_categories": [string],    // any of: ["online", "broadcast", "print", "outdoor", "ambient"] — array, not single value
+  "usage_specific_channels": [string],   // specific channels, snake_case, e.g. ["social_organic", "social_paid", "edm", "billboard", "pos", "press", "tv", "radio", "hoarding"]
+  "usage_territory_iso": [string]        // ISO 3166-1 alpha-2 codes — e.g. ["AU", "NZ"] for "Australia and New Zealand"
 }
 
 CRITICAL RULES — read carefully:
@@ -114,15 +155,35 @@ CRITICAL RULES — read carefully:
    "In-store from", "Air Date", "Campaign Live" ALL describe when the finished images go public —
    they are NEVER the shoot date. Do not put live dates into shoot_date_start.
 3. The SHOOT DATE is when the actual photography or filming takes place. Look for phrases like
-   "lock in", "confirmed for", "pencilled for", "shoot on", "we're looking at [date] for the shoot",
-   "Shoot Date:", "Date:" (if clearly about the shoot), "schedule", "booked for".
+   "lock in", "confirmed for", "pencilled for", "shoot on", "shoot a [full|half] day on", "Shoot:",
+   "schedule", "booked for".
 4. If you find a date but cannot confidently determine it is the shoot date (vs a live/publish date),
    put it in shoot_date_notes with context, not shoot_date_start.
 5. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
 6. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief where it
    appears after "Territory:" or "Media:" labels.
 7. Only include fields you can extract with confidence. Omit nulls entirely.
-8. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.`;
+8. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.
+
+USAGE TAXONOMY GUIDANCE:
+- "Consumer" = brand selling to public. Most fashion/beauty/retail briefs.
+- "Trade" = B2B (e.g. wholesale catalogues).
+- "Editorial" = magazine/article/textbook (informational, not commercial).
+- "Advertising" = anything that sells (ad, OOH, social campaign).
+- "Promotional" = posters for an event/launch.
+- "PR" = awareness-driven, not directly commercial.
+- "Corporate" = annual reports, internal materials.
+- Map "social and digital" → ["online"] with channels ["social_organic", "social_paid"].
+- Map "eDMs" / "Emails" / "DMs" / "EDMs" → channel "edm".
+- Map "OOH" / "billboards" / "out of home" → channels ["billboard"] (category "outdoor").
+- Map "POS" / "window posters" / "in-store" → channels ["pos"] (category "outdoor" — point-of-sale is treated as outdoor).
+- Map "earned PR" → channel "pr_earned" (category "online" — earned media doesn't fit neatly; default online).
+- Map "Aus" / "Aus." / "Australia" → ["AU"]; "NZ" / "New Zealand" → ["NZ"].
+
+TALENT COUNT vs RECIPIENT:
+- If the brief is from a producer and names a photographer (e.g. "How is Dan Knott for…") and ALSO
+  mentions "6 talent" or "8 models", the photographer is the BOOKING SUBJECT — do not include them
+  in talent_count. talent_count = on-camera talent only.`;
 
 async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMBriefOutput | null> {
   return callLLMJson<LLMBriefOutput>(
@@ -218,15 +279,51 @@ function computeUncertaintySources(merged: ParsedBrief): string[] {
     .map(([, label]) => label);
 }
 
+/**
+ * Pluck the LLM's structured-usage taxonomy fields into the canonical
+ * StructuredUsage shape. Defensive — the LLM may omit any of these.
+ */
+function pluckStructuredUsage(llm: LLMBriefOutput | null): StructuredUsage {
+  if (!llm) return { ...EMPTY_STRUCTURED_USAGE };
+  const MARKETS = ['consumer', 'trade', 'editorial'] as const;
+  const REALMS = ['advertising', 'promotional', 'pr', 'corporate', 'editorial'] as const;
+  const CATEGORIES = ['online', 'broadcast', 'print', 'outdoor', 'ambient'] as const;
+  const market = MARKETS.includes(llm.usage_market as typeof MARKETS[number])
+    ? (llm.usage_market as StructuredUsage['usage_market'])
+    : null;
+  const realm = REALMS.includes(llm.usage_realm as typeof REALMS[number])
+    ? (llm.usage_realm as StructuredUsage['usage_realm'])
+    : null;
+  const categories = Array.isArray(llm.usage_media_categories)
+    ? llm.usage_media_categories.filter((c): c is typeof CATEGORIES[number] => CATEGORIES.includes(c as typeof CATEGORIES[number]))
+    : [];
+  const channels = Array.isArray(llm.usage_specific_channels)
+    ? llm.usage_specific_channels.filter((c): c is string => typeof c === 'string')
+    : [];
+  const iso = Array.isArray(llm.usage_territory_iso)
+    ? llm.usage_territory_iso.filter((c): c is string => typeof c === 'string' && /^[A-Z]{2}$/.test(c))
+    : [];
+  return {
+    usage_market: market,
+    usage_realm: realm,
+    usage_media_categories: categories,
+    usage_specific_channels: channels,
+    usage_territory_iso: iso,
+  };
+}
+
 function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): BriefIntakeResult {
   if (!llm) {
-    // No LLM — use heuristic alone
+    // No LLM — use heuristic alone. Structured usage fields are LLM-only
+    // (the heuristic cannot reliably extract enum-valued taxonomy), so
+    // they come through empty.
     const baseFields = Object.entries(heuristic)
       .filter(([, v]) => v != null);
     const confidence = Math.min(40 + baseFields.length * 7, 72);
     const uncertainties = computeUncertaintySources(heuristic);
     return {
       ...heuristic,
+      ...EMPTY_STRUCTURED_USAGE,
       source: 'heuristic',
       confidence,
       llmAvailable: false,
@@ -257,12 +354,15 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     budget_indication: typeof llm.budget_indication === 'number' ? llm.budget_indication : heuristic.budget_indication,
   };
 
+  const structuredUsage = pluckStructuredUsage(llm);
+
   const fieldsFound = Object.values(merged).filter((v) => v != null).length;
   const uncertainty_sources = computeUncertaintySources(merged);
   const confidence = Math.min(60 + fieldsFound * 5, 95);
 
   return {
     ...merged,
+    ...structuredUsage,
     source: 'merged',
     confidence,
     llmAvailable: true,

@@ -109,6 +109,22 @@ function parseDateFragment(text: string): { start: string | null; end: string | 
     return { start: date, end: date };
   }
 
+  // Pattern: "3rd and 4th of March" / "3rd and 4th March" / "3 and 4 March"
+  // (multi-day shoot expressed with "and" instead of a dash). Year inferred.
+  const andRangeNoYear = new RegExp(
+    `\\b(\\d{1,2})${ORD_SUFFIX}\\s+and\\s+(\\d{1,2})${ORD_SUFFIX}\\s+(?:of\\s+)?(${MONTH_RE})\\b(?!\\s+\\d{4})`,
+    'i',
+  );
+  const mAnd = text.match(andRangeNoYear);
+  if (mAnd) {
+    const [, d1, d2, mon] = mAnd;
+    const monthNum = MONTHS[mon.toLowerCase()] ?? 0;
+    if (monthNum) {
+      const yr = inferYear(monthNum, parseInt(d1, 10));
+      return { start: toISO(d1, monthNum, yr), end: toISO(d2, monthNum, yr) };
+    }
+  }
+
   // Pattern: "15th May" or "15 May" (no year — infer from today)
   const singleNoYear = new RegExp(
     `\\b(\\d{1,2})${ORD_SUFFIX}\\s+(${MONTH_RE})\\b(?!\\s+\\d{4})`,
@@ -157,10 +173,21 @@ const LIVE_DATE_PATTERNS = [
  */
 const SHOOT_DATE_TRIGGERS = [
   /\block(?:ing|ed)?\s+in\b/i,
-  /\bshoot\s+date\b/i,
+  // Tightened from `/\bshoot\s+date\b/i` — the looser form matched the
+  // referring phrase "the shoot date on 27 May" (which is talking ABOUT
+  // a date, not declaring one) and corrupted the extracted value. Require
+  // the date to follow a declarative marker (is | : | will/would be).
+  /\bshoot\s+dates?\s*(?:is|:|will\s+be|would\s+be)\b/i,
   /\bshoot\s+on\b/i,
   /\bshooting\s+on\b/i,
   /\bshoot(?:ing)?\s+is\s+(?:on|the)\b/i,
+  // "shoot a full day on", "shoot a half day on", "shoot a day on" — the
+  // most common natural-language phrasing in our inbox.
+  /\bshoot(?:ing)?\s+(?:a\s+)?(?:full\s+|half\s+)?day\s+on\b/i,
+  // "for a full day ... on 20 May" — common in "is X free for a full
+  // day on 20 May" style enquiries. Greedy `.{0,40}` capped to avoid
+  // matching across paragraphs.
+  /\bfor\s+(?:a\s+)?(?:full\s+|half\s+)?day\b.{0,40}\bon\s+\d/i,
   /\bphotograph(?:y|ed|ing)\s+on\b/i,
   /\bfilm(?:ing)?\s+on\b/i,
   /\bcaptur(?:e|ing)\s+on\b/i,
@@ -195,10 +222,17 @@ function extractShootDates(text: string): {
     }
   }
 
-  // 1. Look for explicit "Shoot Date:" / "Date:" / "Confirmed Date:" labels
+  // 1. Look for explicit "Shoot Date:" / "Date:" / "Confirmed Date:" /
+  //    "Shoot:" labels. Each requires a colon to count as a label — earlier
+  //    versions accepted any whitespace, which incorrectly matched
+  //    "1 x shoot date\n\nBrand  Inaura" (the "Brand Inaura" line was being
+  //    captured as the date value). Anchored to line-start where possible.
   const labelPatterns = [
-    /(?:shoot\s+dates?|confirmed\s+date|proposed\s+date|schedule)[:\s]+([^\n.]+)/i,
+    /(?:^|\n)\s*(?:shoot\s+dates?|confirmed\s+date|proposed\s+date|schedule)\s*:\s*([^\n]+)/i,
     /^date[s]?\s*:\s*([^\n.]+)/im,
+    // "Shoot: 20 May" — common in Post Prod Timeline blocks. Line-anchored
+    // so it doesn't catch "shoot:" mid-sentence.
+    /^shoot\s*:\s*([^\n.]+)/im,
   ];
   for (const pat of labelPatterns) {
     const m = text.match(pat);
@@ -324,7 +358,10 @@ export function parseBrief(text: string): ParsedBrief {
   for (const pat of locationPatterns) {
     const m = text.match(pat);
     if (m) {
-      location = m[1].trim().slice(0, 100);
+      // Strip trailing sentence punctuation that the "(?:studio|warehouse|
+      // rooftop|location|space)[^\n,]*" pattern can swallow — without this
+      // we end up with "Lunar Studios." (trailing period from end-of-sentence).
+      location = m[1].trim().replace(/[.,;:!?]+$/, '').trim().slice(0, 100);
       break;
     }
   }

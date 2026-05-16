@@ -46,6 +46,12 @@ const FIELD_QUESTIONS: Record<keyof BriefIntakeResult & string, string> = {
   // Output / metadata fields — never asked about
   source: '', confidence: '', llmAvailable: '',
   uncertainty_sources: '', critique: '', contract: '',
+  // Structured usage taxonomy (LLM-only) — never asked about because the
+  // raw fields above cover the same ground; if structured fields are
+  // missing it's the LLM not the client.
+  usage_market: '', usage_realm: '',
+  usage_media_categories: '', usage_specific_channels: '',
+  usage_territory_iso: '',
 } as const;
 
 const PRIORITY_FIELDS: Array<keyof BriefIntakeResult> = [
