@@ -61,7 +61,7 @@ export default async function BusinessRenewalsPage() {
         <p className="text-[11px]" style={{ color: PALETTE.muted }}>
           Agency-side renewals — insurance, BAS, ASIC, domain. Pairs with{' '}
           <a href="/settings/compliance" style={{ color: PALETTE.accent }}>compliance</a>{' '}
-          (which tracks talent + crew documents). Cron at <code>/api/cron/compliance-pings</code> sweeps this daily and queues approval-gated reminders.
+          (which tracks talent + crew documents). The unified <code>/api/cron/scheduled-comms</code> route sweeps this daily and queues approval-gated reminders.
         </p>
 
         <BusinessRenewalsClient rows={rows} />

@@ -4,6 +4,12 @@ The PR-by-PR ship log. New entries go at the **top**. Each entry is one line for
 
 ## Recent (2026-05-16)
 
+**Cron unification — 4 reminder routes → 1.** `quote-chase`, `post-shoot-chase`, `talent-gallery-ping`, `compliance-pings` (which also handled business renewals) all had the same auth → kill-switch → log _run → match → insert approval → log _complete shape. Now a single `/api/cron/scheduled-comms` route iterates `REMINDER_RULES` from `src/lib/automation/reminder-rules.ts`. Six rules: quote-chase, post-shoot, talent gallery, crew gallery, talent compliance docs, agency business renewals. Per-rule failure isolation (one bad match doesn't black out the rest). Same idempotency keys → cut-over is no-op for already-queued drafts. Net: -797 LOC across the 4 old routes; 4 cron secrets → 1; 4 schedules → 1. Adding a new reminder is now an array entry in `reminder-rules.ts`, not a new route.
+
+**PR#157 — Regenerate generated types + bidirectional exhaustiveness check.** Regenerated `database.generated.ts` from prod schema (was 19+ migrations stale). Upgraded `database.compat.test.ts` to use `Exclude<keyof TGenerated, keyof THand>` — every column in the generated row must exist on the hand type or tsc fails with `{ missing_in_hand: "column_name" }`. 23 tables checked, 3 real drifts found and fixed (Booking missing `is_archived`/`archived_at`, Talent missing `onboarding_token_expires_at`, BookingTalent missing `created_at`).
+
+**PR#156 — Split CLAUDE.md into doctrine + CHANGELOG + ROADMAP.** CLAUDE.md was 386 lines covering doctrine + build status + phase order + forward roadmap + standing checks. ~70% was changelog material masquerading as doctrine. Split: CLAUDE.md is now 204 lines (doctrine only, readable in 5 min); CHANGELOG.md holds the PR-by-PR ship log; ROADMAP.md holds forward planning. Memory-sync doctrine updated to point at the three files.
+
 **PR#155 — Model 404 fallback safety net.** Single-hop fallback chain: on a 404 from a current-gen model ID, retry once with the prior-generation counterpart from the `AnthropicModel` type union. `console.warn` on every fallback so model rot surfaces in logs. Direct response to the PR-E risk: I bumped IDs without live API verification.
 
 **PR#154 — Data-driven talent nicknames.** Migration 0057 adds `nicknames text[]` to `atelier_talent`, seeded with `Oly → Oliver Begg`. TalentEditForm exposes comma-separated input. `/inbox` brief-detection query selects `nicknames` alongside `working_name` — heuristics scale with the roster, no more code edits.

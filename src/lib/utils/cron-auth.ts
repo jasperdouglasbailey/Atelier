@@ -22,10 +22,13 @@ import type { NextRequest } from 'next/server';
 
 export type CronName =
   | 'LOCK_OT_WINDOWS'
-  | 'POST_SHOOT_CHASE'
-  | 'QUOTE_CHASE'
-  | 'TALENT_GALLERY_PING'
-  | 'COMPLIANCE_PINGS'
+  /**
+   * Unified reminder cron — covers quote-chase, post-shoot-chase, talent
+   * + crew gallery ping, talent compliance pings, and business renewals.
+   * Replaced the four pre-2026-05 reminder routes. See
+   * src/lib/automation/reminder-rules.ts.
+   */
+  | 'SCHEDULED_COMMS'
   | 'DATA_RETENTION'
   | 'AUTO_ANONYMISE'
   | 'TOMORROW_DIGEST';
