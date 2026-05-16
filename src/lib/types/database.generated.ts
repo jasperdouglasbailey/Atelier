@@ -176,6 +176,13 @@ export type Database = {
             referencedRelation: "atelier_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atelier_approvals_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
         ]
       }
       atelier_audit_log: {
@@ -218,11 +225,13 @@ export type Database = {
         Row: {
           artist_paid_at: string | null
           assigned_dates: string[] | null
+          assigned_dates_rate_overrides: Json
           booking_id: string
           confirmed_at: string | null
           created_at: string
           crew_id: string
           day_rate: number | null
+          hold_expires_at: string | null
           id: string
           notes: string | null
           role_on_booking: string | null
@@ -232,11 +241,13 @@ export type Database = {
         Insert: {
           artist_paid_at?: string | null
           assigned_dates?: string[] | null
+          assigned_dates_rate_overrides?: Json
           booking_id: string
           confirmed_at?: string | null
           created_at?: string
           crew_id: string
           day_rate?: number | null
+          hold_expires_at?: string | null
           id?: string
           notes?: string | null
           role_on_booking?: string | null
@@ -246,11 +257,13 @@ export type Database = {
         Update: {
           artist_paid_at?: string | null
           assigned_dates?: string[] | null
+          assigned_dates_rate_overrides?: Json
           booking_id?: string
           confirmed_at?: string | null
           created_at?: string
           crew_id?: string
           day_rate?: number | null
+          hold_expires_at?: string | null
           id?: string
           notes?: string | null
           role_on_booking?: string | null
@@ -263,6 +276,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_booking_crew_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
             referencedColumns: ["id"]
           },
           {
@@ -281,43 +301,109 @@ export type Database = {
           },
         ]
       }
+      atelier_booking_schedules: {
+        Row: {
+          booking_id: string
+          call_time: string | null
+          created_at: string
+          id: string
+          location: string | null
+          notes: string | null
+          schedule_date: string
+          wrap_time: string | null
+        }
+        Insert: {
+          booking_id: string
+          call_time?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          schedule_date: string
+          wrap_time?: string | null
+        }
+        Update: {
+          booking_id?: string
+          call_time?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          schedule_date?: string
+          wrap_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_booking_schedules_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_booking_schedules_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atelier_booking_talent: {
         Row: {
           artist_paid_at: string | null
           booking_id: string
+          brief_acknowledged_at: string | null
           confirmed: boolean | null
+          confirmed_at: string | null
           created_at: string
           day_rate: number | null
           half_day_rate: number | null
+          hold_expires_at: string | null
           id: string
           notes: string | null
+          rate_accepted: boolean
+          rate_accepted_at: string | null
           role_on_booking: string | null
+          status: string
           talent_id: string
           usage_fee: number | null
         }
         Insert: {
           artist_paid_at?: string | null
           booking_id: string
+          brief_acknowledged_at?: string | null
           confirmed?: boolean | null
+          confirmed_at?: string | null
           created_at?: string
           day_rate?: number | null
           half_day_rate?: number | null
+          hold_expires_at?: string | null
           id?: string
           notes?: string | null
+          rate_accepted?: boolean
+          rate_accepted_at?: string | null
           role_on_booking?: string | null
+          status?: string
           talent_id: string
           usage_fee?: number | null
         }
         Update: {
           artist_paid_at?: string | null
           booking_id?: string
+          brief_acknowledged_at?: string | null
           confirmed?: boolean | null
+          confirmed_at?: string | null
           created_at?: string
           day_rate?: number | null
           half_day_rate?: number | null
+          hold_expires_at?: string | null
           id?: string
           notes?: string | null
+          rate_accepted?: boolean
+          rate_accepted_at?: string | null
           role_on_booking?: string | null
+          status?: string
           talent_id?: string
           usage_fee?: number | null
         }
@@ -327,6 +413,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_booking_talent_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
             referencedColumns: ["id"]
           },
           {
@@ -341,17 +434,20 @@ export type Database = {
       atelier_bookings: {
         Row: {
           agency_notes: string | null
+          archived_at: string | null
           booking_ref: string | null
           brand_id: string | null
           brief_raw_text: string | null
           budget_currency: string | null
           budget_indication: number | null
           calendar_event_id: string | null
+          call_time: string | null
           campaign_id: string | null
           cancellation_fee: number | null
           cancellation_reason: string | null
           client_delivery_date: string | null
           client_id: string | null
+          confirmation_deadline: string | null
           contacts: Json | null
           created_at: string
           created_by: string | null
@@ -362,18 +458,27 @@ export type Database = {
           drive_root_id: string | null
           drive_root_link: string | null
           final_delivery_at: string | null
+          grade_retouch_scope: string | null
           grand_total: number | null
           id: string
           invoice_issued_at: string | null
+          is_archived: boolean
+          job_number: string | null
           looks_per_talent: number | null
           ot_expenses_locked: boolean | null
           ot_expenses_window_end: string | null
           paid_at: string | null
+          po_number: string | null
           post_production_ownership:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email: string | null
+          producer_name: string | null
+          producer_phone: string | null
+          quote_sent_at: string | null
           quote_token: string
           quote_token_expires_at: string | null
+          quote_validity_days: number | null
           release_reason: string | null
           released_to: string | null
           retouch_note_format: string | null
@@ -381,6 +486,7 @@ export type Database = {
           shoot_date_notes: string | null
           shoot_dates: unknown
           shoot_location: string | null
+          source_gmail_message_id: string | null
           split_invoicing: Json | null
           state: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal: number | null
@@ -401,22 +507,24 @@ export type Database = {
             | null
           video_references: string | null
           wardrobe_responsibility: string | null
-          po_number: string | null
-          job_number: string | null
+          wrap_time: string | null
         }
         Insert: {
           agency_notes?: string | null
+          archived_at?: string | null
           booking_ref?: string | null
           brand_id?: string | null
           brief_raw_text?: string | null
           budget_currency?: string | null
           budget_indication?: number | null
           calendar_event_id?: string | null
+          call_time?: string | null
           campaign_id?: string | null
           cancellation_fee?: number | null
           cancellation_reason?: string | null
           client_delivery_date?: string | null
           client_id?: string | null
+          confirmation_deadline?: string | null
           contacts?: Json | null
           created_at?: string
           created_by?: string | null
@@ -427,18 +535,27 @@ export type Database = {
           drive_root_id?: string | null
           drive_root_link?: string | null
           final_delivery_at?: string | null
+          grade_retouch_scope?: string | null
           grand_total?: number | null
           id?: string
           invoice_issued_at?: string | null
+          is_archived?: boolean
+          job_number?: string | null
           looks_per_talent?: number | null
           ot_expenses_locked?: boolean | null
           ot_expenses_window_end?: string | null
           paid_at?: string | null
+          po_number?: string | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email?: string | null
+          producer_name?: string | null
+          producer_phone?: string | null
+          quote_sent_at?: string | null
           quote_token?: string
           quote_token_expires_at?: string | null
+          quote_validity_days?: number | null
           release_reason?: string | null
           released_to?: string | null
           retouch_note_format?: string | null
@@ -446,6 +563,7 @@ export type Database = {
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
+          source_gmail_message_id?: string | null
           split_invoicing?: Json | null
           state?: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal?: number | null
@@ -466,22 +584,24 @@ export type Database = {
             | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
-          po_number?: string | null
-          job_number?: string | null
+          wrap_time?: string | null
         }
         Update: {
           agency_notes?: string | null
+          archived_at?: string | null
           booking_ref?: string | null
           brand_id?: string | null
           brief_raw_text?: string | null
           budget_currency?: string | null
           budget_indication?: number | null
           calendar_event_id?: string | null
+          call_time?: string | null
           campaign_id?: string | null
           cancellation_fee?: number | null
           cancellation_reason?: string | null
           client_delivery_date?: string | null
           client_id?: string | null
+          confirmation_deadline?: string | null
           contacts?: Json | null
           created_at?: string
           created_by?: string | null
@@ -492,18 +612,27 @@ export type Database = {
           drive_root_id?: string | null
           drive_root_link?: string | null
           final_delivery_at?: string | null
+          grade_retouch_scope?: string | null
           grand_total?: number | null
           id?: string
           invoice_issued_at?: string | null
+          is_archived?: boolean
+          job_number?: string | null
           looks_per_talent?: number | null
           ot_expenses_locked?: boolean | null
           ot_expenses_window_end?: string | null
           paid_at?: string | null
+          po_number?: string | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email?: string | null
+          producer_name?: string | null
+          producer_phone?: string | null
+          quote_sent_at?: string | null
           quote_token?: string
           quote_token_expires_at?: string | null
+          quote_validity_days?: number | null
           release_reason?: string | null
           released_to?: string | null
           retouch_note_format?: string | null
@@ -511,6 +640,7 @@ export type Database = {
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
+          source_gmail_message_id?: string | null
           split_invoicing?: Json | null
           state?: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal?: number | null
@@ -531,8 +661,7 @@ export type Database = {
             | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
-          po_number?: string | null
-          job_number?: string | null
+          wrap_time?: string | null
         }
         Relationships: [
           {
@@ -586,6 +715,42 @@ export type Database = {
           industry?: string | null
           name?: string
           notes?: string | null
+        }
+        Relationships: []
+      }
+      atelier_business_renewals: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_archived: boolean
+          label: string
+          notes: string | null
+          reminder_queued_at: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          is_archived?: boolean
+          label: string
+          notes?: string | null
+          reminder_queued_at?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_archived?: boolean
+          label?: string
+          notes?: string | null
+          reminder_queued_at?: string | null
+          type?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -798,11 +963,17 @@ export type Database = {
       atelier_crew: {
         Row: {
           abn: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_bsb: string | null
           bank_setup_in_xero: boolean | null
           certifications: string[] | null
+          city: string | null
           created_at: string
           default_day_rate: number | null
+          dietary: string | null
           dob: string | null
+          drink_order: string | null
           drive_folder_id: string | null
           drive_folder_link: string | null
           email: string | null
@@ -811,6 +982,8 @@ export type Database = {
           id: string
           is_active: boolean
           kit_list: string | null
+          max_day_rate: number | null
+          min_day_rate: number | null
           mobile: string | null
           name: string
           notes: string | null
@@ -829,11 +1002,17 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_bsb?: string | null
           bank_setup_in_xero?: boolean | null
           certifications?: string[] | null
+          city?: string | null
           created_at?: string
           default_day_rate?: number | null
+          dietary?: string | null
           dob?: string | null
+          drink_order?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           email?: string | null
@@ -842,6 +1021,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           kit_list?: string | null
+          max_day_rate?: number | null
+          min_day_rate?: number | null
           mobile?: string | null
           name: string
           notes?: string | null
@@ -860,11 +1041,17 @@ export type Database = {
         }
         Update: {
           abn?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_bsb?: string | null
           bank_setup_in_xero?: boolean | null
           certifications?: string[] | null
+          city?: string | null
           created_at?: string
           default_day_rate?: number | null
+          dietary?: string | null
           dob?: string | null
+          drink_order?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           email?: string | null
@@ -873,6 +1060,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           kit_list?: string | null
+          max_day_rate?: number | null
+          min_day_rate?: number | null
           mobile?: string | null
           name?: string
           notes?: string | null
@@ -888,6 +1077,68 @@ export type Database = {
           tier?: Database["public"]["Enums"]["atelier_crew_tier"]
           updated_at?: string
           xero_contact_id?: string | null
+        }
+        Relationships: []
+      }
+      atelier_crew_unavailability: {
+        Row: {
+          created_at: string
+          crew_id: string
+          date_from: string
+          date_to: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          crew_id: string
+          date_from: string
+          date_to: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          crew_id?: string
+          date_from?: string
+          date_to?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_crew_unavailability_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_crew"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atelier_dismissed_brief_candidates: {
+        Row: {
+          dismissed_at: string
+          dismissed_by: string | null
+          from_header: string | null
+          gmail_message_id: string
+          received_at: string | null
+          subject: string | null
+        }
+        Insert: {
+          dismissed_at?: string
+          dismissed_by?: string | null
+          from_header?: string | null
+          gmail_message_id: string
+          received_at?: string | null
+          subject?: string | null
+        }
+        Update: {
+          dismissed_at?: string
+          dismissed_by?: string | null
+          from_header?: string | null
+          gmail_message_id?: string
+          received_at?: string | null
+          subject?: string | null
         }
         Relationships: []
       }
@@ -927,6 +1178,13 @@ export type Database = {
             referencedRelation: "atelier_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atelier_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
         ]
       }
       atelier_fee_lines: {
@@ -940,6 +1198,7 @@ export type Database = {
           crew_id: string | null
           description: string
           id: string
+          is_artist_reimbursement: boolean
           is_commissionable: boolean
           is_gst_exempt: boolean
           is_super_bearing: boolean
@@ -964,6 +1223,7 @@ export type Database = {
           crew_id?: string | null
           description: string
           id?: string
+          is_artist_reimbursement?: boolean
           is_commissionable?: boolean
           is_gst_exempt?: boolean
           is_super_bearing?: boolean
@@ -988,6 +1248,7 @@ export type Database = {
           crew_id?: string | null
           description?: string
           id?: string
+          is_artist_reimbursement?: boolean
           is_commissionable?: boolean
           is_gst_exempt?: boolean
           is_super_bearing?: boolean
@@ -1008,6 +1269,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_fee_lines_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
             referencedColumns: ["id"]
           },
           {
@@ -1064,6 +1332,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_idempotency_keys_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
             referencedColumns: ["id"]
           },
         ]
@@ -1146,6 +1421,13 @@ export type Database = {
             referencedRelation: "atelier_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atelier_llm_calls_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
         ]
       }
       atelier_locations: {
@@ -1161,9 +1443,12 @@ export type Database = {
           drive_folder_link: string | null
           facilities: string[] | null
           full_day_rate: number | null
+          geocoded_address: string | null
           half_day_rate: number | null
           id: string
           is_active: boolean
+          latitude: number | null
+          longitude: number | null
           max_capacity: number | null
           name: string
           notes: string | null
@@ -1175,6 +1460,7 @@ export type Database = {
           studio_rooms: Json | null
           studio_type: string
           suburb: string | null
+          tags: string[] | null
           updated_at: string
           website: string | null
           weekend_surcharge_pct: number | null
@@ -1191,9 +1477,12 @@ export type Database = {
           drive_folder_link?: string | null
           facilities?: string[] | null
           full_day_rate?: number | null
+          geocoded_address?: string | null
           half_day_rate?: number | null
           id?: string
           is_active?: boolean
+          latitude?: number | null
+          longitude?: number | null
           max_capacity?: number | null
           name: string
           notes?: string | null
@@ -1205,6 +1494,7 @@ export type Database = {
           studio_rooms?: Json | null
           studio_type?: string
           suburb?: string | null
+          tags?: string[] | null
           updated_at?: string
           website?: string | null
           weekend_surcharge_pct?: number | null
@@ -1221,9 +1511,12 @@ export type Database = {
           drive_folder_link?: string | null
           facilities?: string[] | null
           full_day_rate?: number | null
+          geocoded_address?: string | null
           half_day_rate?: number | null
           id?: string
           is_active?: boolean
+          latitude?: number | null
+          longitude?: number | null
           max_capacity?: number | null
           name?: string
           notes?: string | null
@@ -1235,9 +1528,37 @@ export type Database = {
           studio_rooms?: Json | null
           studio_type?: string
           suburb?: string | null
+          tags?: string[] | null
           updated_at?: string
           website?: string | null
           weekend_surcharge_pct?: number | null
+        }
+        Relationships: []
+      }
+      atelier_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1301,16 +1622,29 @@ export type Database = {
             referencedRelation: "atelier_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atelier_quote_versions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
         ]
       }
       atelier_talent: {
         Row: {
           abn: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_bsb: string | null
           bank_setup_in_xero: boolean | null
+          city: string | null
           created_at: string
           default_day_rate: number | null
+          dietary: string | null
           discipline: Database["public"]["Enums"]["atelier_artist_discipline"]
           dob: string | null
+          drink_order: string | null
           drive_folder_id: string | null
           drive_folder_link: string | null
           drivers_licence_expiry: string | null
@@ -1326,6 +1660,8 @@ export type Database = {
           instagram: string | null
           is_active: boolean
           legal_name: string
+          max_day_rate: number | null
+          min_day_rate: number | null
           mobile: string | null
           nicknames: string[]
           notes: string | null
@@ -1351,11 +1687,17 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_bsb?: string | null
           bank_setup_in_xero?: boolean | null
+          city?: string | null
           created_at?: string
           default_day_rate?: number | null
+          dietary?: string | null
           discipline: Database["public"]["Enums"]["atelier_artist_discipline"]
           dob?: string | null
+          drink_order?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           drivers_licence_expiry?: string | null
@@ -1371,6 +1713,8 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean
           legal_name: string
+          max_day_rate?: number | null
+          min_day_rate?: number | null
           mobile?: string | null
           nicknames?: string[]
           notes?: string | null
@@ -1396,11 +1740,17 @@ export type Database = {
         }
         Update: {
           abn?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_bsb?: string | null
           bank_setup_in_xero?: boolean | null
+          city?: string | null
           created_at?: string
           default_day_rate?: number | null
+          dietary?: string | null
           discipline?: Database["public"]["Enums"]["atelier_artist_discipline"]
           dob?: string | null
+          drink_order?: string | null
           drive_folder_id?: string | null
           drive_folder_link?: string | null
           drivers_licence_expiry?: string | null
@@ -1416,6 +1766,8 @@ export type Database = {
           instagram?: string | null
           is_active?: boolean
           legal_name?: string
+          max_day_rate?: number | null
+          min_day_rate?: number | null
           mobile?: string | null
           nicknames?: string[]
           notes?: string | null
@@ -1440,6 +1792,177 @@ export type Database = {
           xero_contact_id?: string | null
         }
         Relationships: []
+      }
+      atelier_talent_preferred_crew: {
+        Row: {
+          created_at: string
+          crew_id: string
+          id: string
+          notes: string | null
+          role_hint: string | null
+          sort_order: number
+          talent_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crew_id: string
+          id?: string
+          notes?: string | null
+          role_hint?: string | null
+          sort_order?: number
+          talent_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crew_id?: string
+          id?: string
+          notes?: string | null
+          role_hint?: string | null
+          sort_order?: number
+          talent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_talent_preferred_crew_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_crew"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_talent_preferred_crew_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_talent"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atelier_talent_unavailability: {
+        Row: {
+          created_at: string
+          date_from: string
+          date_to: string
+          id: string
+          reason: string | null
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_from: string
+          date_to: string
+          id?: string
+          reason?: string | null
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          date_from?: string
+          date_to?: string
+          id?: string
+          reason?: string | null
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_talent_unavailability_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_talent"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atelier_tasks: {
+        Row: {
+          assigned_to: string | null
+          booking_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          crew_id: string | null
+          description: string | null
+          due_at: string | null
+          id: string
+          talent_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          booking_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          talent_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          booking_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          talent_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atelier_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "atelier_app_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "atelier_tasks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_tasks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "atelier_app_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "atelier_tasks_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_crew"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_tasks_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_talent"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       atelier_usage_licences: {
         Row: {
@@ -1490,6 +2013,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "atelier_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atelier_usage_licences_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_bookings_portal"
             referencedColumns: ["id"]
           },
           {
@@ -2226,7 +2756,66 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      atelier_bookings_portal: {
+        Row: {
+          booking_ref: string | null
+          deliverables_count: number | null
+          deliverables_type: string | null
+          id: string | null
+          looks_per_talent: number | null
+          post_production_ownership:
+            | Database["public"]["Enums"]["atelier_post_production_ownership"]
+            | null
+          retouch_note_format: string | null
+          shoot_date_notes: string | null
+          shoot_dates: unknown
+          shoot_location: string | null
+          state: Database["public"]["Enums"]["atelier_booking_state"] | null
+          tier: Database["public"]["Enums"]["atelier_shoot_tier"] | null
+          title: string | null
+          video_references: string | null
+          wardrobe_responsibility: string | null
+        }
+        Insert: {
+          booking_ref?: string | null
+          deliverables_count?: number | null
+          deliverables_type?: string | null
+          id?: string | null
+          looks_per_talent?: number | null
+          post_production_ownership?:
+            | Database["public"]["Enums"]["atelier_post_production_ownership"]
+            | null
+          retouch_note_format?: string | null
+          shoot_date_notes?: string | null
+          shoot_dates?: unknown
+          shoot_location?: string | null
+          state?: Database["public"]["Enums"]["atelier_booking_state"] | null
+          tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
+          title?: string | null
+          video_references?: string | null
+          wardrobe_responsibility?: string | null
+        }
+        Update: {
+          booking_ref?: string | null
+          deliverables_count?: number | null
+          deliverables_type?: string | null
+          id?: string | null
+          looks_per_talent?: number | null
+          post_production_ownership?:
+            | Database["public"]["Enums"]["atelier_post_production_ownership"]
+            | null
+          retouch_note_format?: string | null
+          shoot_date_notes?: string | null
+          shoot_dates?: unknown
+          shoot_location?: string | null
+          state?: Database["public"]["Enums"]["atelier_booking_state"] | null
+          tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
+          title?: string | null
+          video_references?: string | null
+          wardrobe_responsibility?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       current_app_role: { Args: never; Returns: string }
@@ -2234,6 +2823,24 @@ export type Database = {
       current_talent_id: { Args: never; Returns: string }
       current_user_id: { Args: never; Returns: string }
       current_user_role: { Args: never; Returns: string }
+      get_booking_state_counts: {
+        Args: never
+        Returns: {
+          count: number
+          state: string
+        }[]
+      }
+      get_report_summary_agg: {
+        Args: never
+        Returns: {
+          avg_booking_value: number
+          revenue_all_time: number
+          revenue_last_month: number
+          revenue_this_month: number
+          revenue_this_year: number
+          total_active: number
+        }[]
+      }
       is_owner_or_partner: { Args: never; Returns: boolean }
     }
     Enums: {
@@ -2246,7 +2853,7 @@ export type Database = {
         | "client"
         | "marketing"
         | "security_audit"
-      atelier_approval_status: "pending" | "approved" | "rejected"
+      atelier_approval_status: "pending" | "approved" | "rejected" | "expired"
       atelier_artist_discipline:
         | "photographer"
         | "videographer"
@@ -2283,7 +2890,6 @@ export type Database = {
         | "equipment_rental"
         | "studio_hire"
         | "travel"
-        | "artist_travel"
         | "catering"
         | "wardrobe"
         | "props"
@@ -2293,8 +2899,9 @@ export type Database = {
         | "insurance"
         | "post_production"
         | "overtime"
-        | "artist_overtime"
         | "other_expense"
+        | "artist_overtime"
+        | "artist_travel"
       atelier_post_production_ownership:
         | "us_via_artist"
         | "us_via_post_team"
@@ -2499,7 +3106,7 @@ export const Constants = {
         "marketing",
         "security_audit",
       ],
-      atelier_approval_status: ["pending", "approved", "rejected"],
+      atelier_approval_status: ["pending", "approved", "rejected", "expired"],
       atelier_artist_discipline: [
         "photographer",
         "videographer",
@@ -2538,7 +3145,6 @@ export const Constants = {
         "equipment_rental",
         "studio_hire",
         "travel",
-        "artist_travel",
         "catering",
         "wardrobe",
         "props",
@@ -2548,8 +3154,9 @@ export const Constants = {
         "insurance",
         "post_production",
         "overtime",
-        "artist_overtime",
         "other_expense",
+        "artist_overtime",
+        "artist_travel",
       ],
       atelier_post_production_ownership: [
         "us_via_artist",
