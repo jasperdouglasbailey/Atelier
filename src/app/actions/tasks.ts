@@ -3,6 +3,8 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getCurrentAppUser } from '@/lib/data/app-users';
+import { logAudit } from '@/lib/utils/audit';
+import { getCurrentActor } from '@/lib/utils/actor';
 
 type TaskInput = {
   title: string;
@@ -48,6 +50,14 @@ export async function createTaskAction(
 
   if (error) return err(error.message);
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'create_task',
+    tableName: 'atelier_tasks',
+    recordId: data.id as string,
+    newValue: { title: input.title, booking_id: input.booking_id, talent_id: input.talent_id, crew_id: input.crew_id } as never,
+  }).catch(() => { /* non-fatal */ });
+
   if (input.booking_id) {
     revalidatePath(`/bookings/${input.booking_id}`);
     revalidateTag('bookings', {});
@@ -77,6 +87,13 @@ export async function completeTaskAction(
 
   if (error) return err(error.message);
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'complete_task',
+    tableName: 'atelier_tasks',
+    recordId: taskId,
+  }).catch(() => { /* non-fatal */ });
+
   if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);
   if (task?.crew_id) revalidatePath(`/crew/${task.crew_id}`);
@@ -103,6 +120,13 @@ export async function reopenTaskAction(
 
   if (error) return err(error.message);
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'reopen_task',
+    tableName: 'atelier_tasks',
+    recordId: taskId,
+  }).catch(() => { /* non-fatal */ });
+
   if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);
   if (task?.crew_id) revalidatePath(`/crew/${task.crew_id}`);
@@ -128,6 +152,14 @@ export async function deleteTaskAction(
     .eq('id', taskId);
 
   if (error) return err(error.message);
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'delete_task',
+    tableName: 'atelier_tasks',
+    recordId: taskId,
+    oldValue: task as never,
+  }).catch(() => { /* non-fatal */ });
 
   if (task?.booking_id) { revalidatePath(`/bookings/${task.booking_id}`); revalidateTag('bookings', {}); }
   if (task?.talent_id) revalidatePath(`/talent/${task.talent_id}`);

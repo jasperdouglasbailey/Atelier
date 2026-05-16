@@ -122,6 +122,7 @@ export async function GET(req: NextRequest) {
       recordId: null,
       newValue: { tomorrow, scanned: all.length },
     }).catch(() => {});
+    await logAudit({ userId: null, action: 'cron_tomorrow_digest_complete', tableName: 'atelier_audit_log', newValue: { sent: 0, reason: 'empty' } }).catch(() => {});
     return NextResponse.json({ ok: true, sent: 0, scanned: all.length });
   }
 
@@ -156,6 +157,7 @@ export async function GET(req: NextRequest) {
       recordId: null,
       newValue: { tomorrow, count: matching.length },
     }).catch(() => {});
+    await logAudit({ userId: null, action: 'cron_tomorrow_digest_complete', tableName: 'atelier_audit_log', newValue: { sent: 0, reason: 'no_google' } }).catch(() => {});
     return NextResponse.json({ ok: true, sent: 0, count: matching.length, mode: 'no_google' });
   }
 
@@ -168,6 +170,7 @@ export async function GET(req: NextRequest) {
       recordId: null,
       newValue: { tomorrow, count: matching.length, recipient },
     }).catch(() => {});
+    await logAudit({ userId: null, action: 'cron_tomorrow_digest_complete', tableName: 'atelier_audit_log', newValue: { sent: 1, count: matching.length } }).catch(() => {});
     return NextResponse.json({ ok: true, sent: 1, count: matching.length });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

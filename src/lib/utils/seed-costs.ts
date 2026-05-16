@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { AGENTS } from '@/lib/utils/constants';
 
+// Dated model IDs — undated aliases (e.g. "claude-sonnet-4-5") silently 404
+// once Anthropic deprecates them. Dated form matches anthropic.ts:48.
 const MODELS = [
-  { name: 'claude-sonnet-4-5', inPer1k: 0.003, outPer1k: 0.015 },
-  { name: 'claude-haiku-4-5', inPer1k: 0.0008, outPer1k: 0.004 },
+  { name: 'claude-3-5-sonnet-20241022', inPer1k: 0.003, outPer1k: 0.015 },
+  { name: 'claude-3-5-haiku-20241022', inPer1k: 0.0008, outPer1k: 0.004 },
   { name: 'gpt-4o-mini', inPer1k: 0.00015, outPer1k: 0.0006 },
 ];
 

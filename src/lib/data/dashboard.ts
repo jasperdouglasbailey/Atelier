@@ -36,14 +36,25 @@ export async function getMonthShootMarkers(year: number, month: number): Promise
   const endISO = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
   const supabase = await createClient();
+  // No date-range filter at the DB layer — PostgREST doesn't expose the
+  // daterange `&&` operator over the public API, and the column has no
+  // denormalised start_date. We filter by SHOOT_STATES + non-null shoot_dates
+  // and slice in JS. PostgREST defaults to a 1000-row ceiling per request,
+  // which is plenty for current volume; if we ever approach it, the warning
+  // below surfaces it before correctness breaks silently.
+  const MAX_ROWS = 1000;
   const { data, error } = await supabase
     .from('atelier_bookings')
     .select('id, shoot_dates, state')
     .in('state', SHOOT_STATES)
     .not('shoot_dates', 'is', null)
-    .limit(200);
+    .range(0, MAX_ROWS - 1);
 
   if (error || !data) return new Map();
+
+  if (data.length >= MAX_ROWS) {
+    console.warn(`[dashboard.getMonthShootMarkers] hit ${MAX_ROWS}-row ceiling — paginate before this becomes wrong silently`);
+  }
 
   const result = new Map<string, string[]>();
   for (const row of data as Array<{ id: string; shoot_dates: string | null; state: BookingState }>) {

@@ -48,7 +48,11 @@ export async function respondToCrewHoldAction(
   }
 
   const newStatus = response === 'confirmed' ? 'confirmed' : 'declined';
-  const { error } = await supabase
+  // TOCTOU guard: the row's status was last read above. If something else
+  // (a second tab, another approver, an automation) flipped it between
+  // SELECT and UPDATE, the eq('status', row.status) filter will match zero
+  // rows and we surface a friendlier error than overwriting silently.
+  const { data: updated, error } = await supabase
     .from('atelier_booking_crew')
     .update({
       status: newStatus,
@@ -58,9 +62,13 @@ export async function respondToCrewHoldAction(
       // also clears expiry since the hold is no longer active.
       hold_expires_at: null,
     })
-    .eq('id', bookingCrewId);
+    .eq('id', bookingCrewId)
+    .eq('status', row.status)
+    .select('id')
+    .maybeSingle();
 
   if (error) return err(error.message);
+  if (!updated) return err('This hold was already actioned. Refresh to see the current state.');
 
   await logAudit({
     userId: user.user_id,
@@ -120,7 +128,9 @@ export async function respondToTalentHoldAction(
   }
 
   const newStatus = response === 'confirmed' ? 'confirmed' : 'declined';
-  const { error } = await supabase
+  // TOCTOU guard: same pattern as the crew variant — if the row's status
+  // changed between read and write, we no-op rather than clobber.
+  const { data: updated, error } = await supabase
     .from('atelier_booking_talent')
     .update({
       status: newStatus,
@@ -128,9 +138,13 @@ export async function respondToTalentHoldAction(
       confirmed_at: response === 'confirmed' ? new Date().toISOString() : null,
       hold_expires_at: null,
     })
-    .eq('id', bookingTalentId);
+    .eq('id', bookingTalentId)
+    .eq('status', row.status as string)
+    .select('id')
+    .maybeSingle();
 
   if (error) return err(error.message);
+  if (!updated) return err('This hold was already actioned. Refresh to see the current state.');
 
   await logAudit({
     userId: user.user_id,

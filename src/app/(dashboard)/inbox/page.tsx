@@ -116,11 +116,15 @@ async function fetchPotentialBriefs() {
   const supabase = await createClient();
 
   const [bookingsResult, convertedResult, clientsResult, talentResult, dismissedIds] = await Promise.all([
+    // Pull booking refs for dedup'ing brief-detection heuristics. Past
+    // 1000 bookings, older refs won't be excluded from "this looks like
+    // a new brief" matching — the warning in scanForPotentialBriefs is
+    // emitted at run time when we hit the ceiling.
     supabase
       .from('atelier_bookings')
       .select('booking_ref')
       .not('booking_ref', 'is', null)
-      .limit(500),
+      .range(0, 999),
     // Bookings already auto-created from Gmail — filter these IDs out
     // server-side so converted emails never reappear in Potential Briefs.
     supabase
@@ -138,7 +142,11 @@ async function fetchPotentialBriefs() {
     listDismissedBriefIds(),
   ]);
 
-  const refs = ((bookingsResult.data ?? []) as { booking_ref: string | null }[])
+  const bookingRefRows = (bookingsResult.data ?? []) as { booking_ref: string | null }[];
+  if (bookingRefRows.length >= 1000) {
+    console.warn('[inbox.fetchPotentialBriefs] hit 1000-row ceiling on booking_ref dedup — paginate before this becomes wrong silently');
+  }
+  const refs = bookingRefRows
     .map((r) => r.booking_ref)
     .filter((r): r is string => Boolean(r));
 
