@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
 
 const PULL_THRESHOLD = 72; // px to trigger refresh
-const AUTO_REFRESH_MS = 5 * 60 * 1000; // refresh data every 5 minutes while app is open
 
 type Indicator = { distance: number; refreshing: boolean };
 
@@ -25,11 +24,12 @@ export default function PullToRefresh() {
     setTimeout(() => setIndicator({ distance: 0, refreshing: false }), 1200);
   }, [router]);
 
-  // Auto-refresh every 5 minutes in the background.
-  useEffect(() => {
-    const id = setInterval(doRefresh, AUTO_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [doRefresh]);
+  // Auto-refresh removed 2026-05-17. The 5-minute setInterval(router.refresh)
+  // was interrupting mid-form work — Jasper would be typing, the timer would
+  // fire, and the page would re-render losing focus / scroll position. Real
+  // workflow signal beats stale-data freshness; we still have explicit
+  // refresh triggers on every mutation, and the pull-to-refresh gesture
+  // below for manual user-initiated refresh.
 
   // Pull-to-refresh gesture on the scrollable main element.
   useEffect(() => {
