@@ -5,6 +5,7 @@ import {
   createAppUser,
   setAppUserActive,
   deleteAppUser,
+  getCurrentAppUser,
   type AppRole,
 } from '@/lib/data/app-users';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
@@ -22,6 +23,21 @@ import { createServiceClient } from '@/lib/supabase/service';
 // edge case, just wants to fail loud on obvious typos.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * SECURITY — every action in this file MUST gate on this. Using the
+ * service client (which bypasses RLS) without an explicit role check
+ * means any authenticated talent / crew portal user could otherwise
+ * elevate themselves to owner. This was a P0 finding in the
+ * 2026-05-16 audit.
+ */
+async function requireOwnerOrPartner(): Promise<{ error: string } | null> {
+  const user = await getCurrentAppUser();
+  if (!user || (user.role !== 'owner' && user.role !== 'partner')) {
+    return { error: 'Forbidden — owner or partner role required.' };
+  }
+  return null;
+}
+
 export async function provisionAppUserAction(input: {
   email: string;
   role: AppRole;
@@ -29,6 +45,9 @@ export async function provisionAppUserAction(input: {
   talent_id?: string;
   crew_id?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
+
   if (!input.email) return { ok: false, error: 'Email is required.' };
   if (!EMAIL_RE.test(input.email)) {
     return { ok: false, error: 'That email address looks invalid.' };
@@ -102,6 +121,9 @@ export async function toggleAppUserActiveAction(
   userId: string,
   isActive: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
+
   const ok = await setAppUserActive(userId, isActive);
   if (!ok) return { ok: false, error: 'Could not update.' };
 
@@ -118,6 +140,9 @@ export async function toggleAppUserActiveAction(
 }
 
 export async function deleteAppUserAction(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return { ok: false, error: authError.error };
+
   const ok = await deleteAppUser(userId);
   if (!ok) return { ok: false, error: 'Could not delete.' };
 
