@@ -1,35 +1,40 @@
 /**
  * GET /api/instagram/profile
  *
- * Fetches real-time follower / following / post counts for the
- * @saundersandcoagency Instagram account by scraping the public
- * profile page og:description meta tag.
+ * Fetches real-time stats + display name + profile picture for the
+ * @saundersandcoagency Instagram account by reading the public OG tags.
  *
- * Instagram embeds stats in the og:description in the format:
- *   "12.4K Followers, 318 Following, 84 Posts — See Instagram photos…"
+ * Instagram now gates the OG meta tags behind the `facebookexternalhit/1.1`
+ * User-Agent. Regular browser UAs get the JS-rendered shell with no
+ * server-side meta tags — the previous Chrome UA stopped working when
+ * Instagram migrated to client-side rendering. The Facebook crawler UA is
+ * the canonical way to fetch IG OG previews.
  *
- * Cached for 30 minutes (revalidate: 1800) so we don't hammer IG on
- * every page load.
+ * Cached for 5 minutes — fresh enough that the grid planner shows
+ * accurate-as-of-this-session numbers, polite enough that IG doesn't
+ * rate-limit us. Force-refresh available via `?refresh=1`.
  */
 
-// Cache the Instagram fetch for 30 minutes — Instagram rate-limits aggressively
-// and the stats don't change minute-to-minute. revalidate alone (without
-// force-dynamic) gives us ISR-style caching at the route level.
-export const revalidate = 1800;
+export const dynamic = 'force-dynamic';
 
 const IG_HANDLE = 'saundersandcoagency';
 const IG_URL = `https://www.instagram.com/${IG_HANDLE}/`;
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 
 type ProfileStats = {
   posts: string;
   followers: string;
   following: string;
   handle: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  fetchedAt: string;
 };
 
-function parseOgDescription(desc: string): Omit<ProfileStats, 'handle'> | null {
-  // "12.4K Followers, 318 Following, 84 Posts - See Instagram photos..."
-  // Also seen: "84 Posts, 12.4K Followers, 318 Following"
+function parseOgDescription(desc: string): Omit<ProfileStats, 'handle' | 'displayName' | 'avatarUrl' | 'fetchedAt'> | null {
+  // Examples seen in the wild:
+  //   "6,327 Followers, 5,217 Following, 668 Posts - See Instagram photos..."
+  //   "12.4K Followers, 318 Following, 84 Posts — See Instagram photos..."
   const followerMatch = desc.match(/([\d.,KMkm]+)\s*[Ff]ollowers?/);
   const followingMatch = desc.match(/([\d.,KMkm]+)\s*[Ff]ollowing/);
   const postsMatch    = desc.match(/([\d.,KMkm]+)\s*[Pp]osts?/);
@@ -41,18 +46,50 @@ function parseOgDescription(desc: string): Omit<ProfileStats, 'handle'> | null {
   };
 }
 
-export async function GET() {
+/** Parse the og:title to extract the display name. IG format:
+ *  "Saunders & Co (@saundersandcoagency) • Instagram photos and videos" */
+function parseDisplayName(ogTitle: string): string | null {
+  const m = ogTitle.match(/^(.+?)\s*\(@/);
+  return m?.[1]?.replace(/&amp;/g, '&').trim() ?? null;
+}
+
+function extractOgContent(html: string, property: string): string | null {
+  // Match either property-then-content or content-then-property attribute order.
+  const re1 = new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`, 'i');
+  const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`, 'i');
+  return html.match(re1)?.[1] ?? html.match(re2)?.[1] ?? null;
+}
+
+/** HTML-decode the common entities IG returns in its meta tags. */
+function htmlDecode(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const forceRefresh = url.searchParams.has('refresh');
+
   try {
     const res = await fetch(IG_URL, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-          '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        // The Facebook crawler UA is the only way to get OG meta tags
+        // from Instagram since their late-2024 client-rendering migration.
+        // Regular browser UAs get the JS shell with empty server-rendered head.
+        'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-AU,en;q=0.9',
       },
-      // 8-second timeout
+      // 8-second timeout — IG is usually <1s with the FB UA
       signal: AbortSignal.timeout(8000),
+      // Bypass Next.js's fetch cache when the client passed ?refresh=1
+      cache: forceRefresh ? 'no-store' : 'default',
+      next: { revalidate: forceRefresh ? 0 : CACHE_TTL_SECONDS },
     });
 
     if (!res.ok) {
@@ -64,22 +101,37 @@ export async function GET() {
 
     const html = await res.text();
 
-    // Extract og:description
-    const ogMatch = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
+    const ogDescription = extractOgContent(html, 'og:description');
+    const ogTitle = extractOgContent(html, 'og:title');
+    const ogImage = extractOgContent(html, 'og:image');
 
-    if (!ogMatch) {
+    if (!ogDescription) {
       return Response.json({ error: 'og:description not found', fallback: true }, { status: 200 });
     }
 
-    const stats = parseOgDescription(ogMatch[1]);
+    const stats = parseOgDescription(ogDescription);
     if (!stats) {
-      return Response.json({ error: 'Could not parse stats', raw: ogMatch[1], fallback: true }, { status: 200 });
+      return Response.json({ error: 'Could not parse stats', raw: ogDescription, fallback: true }, { status: 200 });
     }
 
-    const body: ProfileStats = { handle: IG_HANDLE, ...stats };
+    const body: ProfileStats = {
+      handle: IG_HANDLE,
+      displayName: ogTitle ? parseDisplayName(htmlDecode(ogTitle)) : null,
+      avatarUrl: ogImage ? htmlDecode(ogImage) : null,
+      ...stats,
+      fetchedAt: new Date().toISOString(),
+    };
+
     return Response.json(body, {
-      headers: { 'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600' },
+      headers: {
+        // Edge / CDN cache: 5 min fresh, 1 hour stale-while-revalidate.
+        // Force-refresh requests bypass this via cache: 'no-store' above
+        // AND the dynamic export, so the client always gets live data
+        // when it explicitly asks.
+        'Cache-Control': forceRefresh
+          ? 'no-store'
+          : `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=3600`,
+      },
     });
   } catch (err) {
     return Response.json(
