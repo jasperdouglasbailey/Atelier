@@ -54,25 +54,39 @@ export default function GreetingHeader({
   role,
   /** Override the current time — useful for tests. */
   now,
+  /**
+   * Optional right-aligned slot. Used today for the Sydney 7-day weather
+   * strip, but kept generic so other dashboard widgets (e.g. an OT-window
+   * countdown) could share the spot.
+   */
+  rightSlot,
 }: {
   displayName: string | null | undefined;
   email?: string | null;
   role: Role;
   now?: Date;
+  rightSlot?: React.ReactNode;
 }) {
   const name = firstName(displayName, email);
   const tod = timeGreeting(now);
   return (
-    <header className="space-y-0.5">
-      <h1
-        className="text-2xl font-semibold tracking-tight sm:text-3xl"
-        style={{ color: PALETTE.text }}
-      >
-        {tod}, {name}
-      </h1>
-      <p className="text-sm" style={{ color: PALETTE.muted }}>
-        {ROLE_TAGLINE[role]}
-      </p>
+    <header className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="space-y-0.5">
+        <h1
+          className="text-2xl font-semibold tracking-tight sm:text-3xl"
+          style={{ color: PALETTE.text }}
+        >
+          {tod}, {name}
+        </h1>
+        <p className="text-sm" style={{ color: PALETTE.muted }}>
+          {ROLE_TAGLINE[role]}
+        </p>
+      </div>
+      {rightSlot && (
+        <div className="flex-none">
+          {rightSlot}
+        </div>
+      )}
     </header>
   );
 }
