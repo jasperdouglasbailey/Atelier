@@ -28,7 +28,7 @@ import {
   STATE_COLORS,
   CREW_TIER_LABELS,
 } from '@/lib/utils/constants';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatShootDates } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { respondToCrewHoldAction } from '@/app/actions/portal';
@@ -170,6 +170,7 @@ export default async function CrewPortalPage({ searchParams }: PageProps) {
               key={b.bookingCrewId}
               bookingRef={b.bookingRef}
               title={b.title}
+              shootDates={b.shootDates}
               shootDateNotes={b.shootDateNotes}
               dayRate={b.dayRate}
               roleOnBooking={b.roleOnBooking}
@@ -271,7 +272,7 @@ function CrewBookingTable({ rows }: { rows: CrewPortalBookingRow[] }) {
               <div style={{ color: PALETTE.text }}>{r.title}</div>
               <div className="font-mono text-[10px]" style={{ color: PALETTE.muted }}>{r.bookingRef ?? '—'}</div>
             </td>
-            <td className="py-2" style={{ color: PALETTE.muted }}>{r.shootDateNotes ?? '—'}</td>
+            <td className="py-2" style={{ color: PALETTE.muted }}>{formatShootDates(r.shootDates) ?? r.shootDateNotes ?? '—'}</td>
             <td className="py-2" style={{ color: PALETTE.muted }}>{r.roleOnBooking ? humanise(r.roleOnBooking) : '—'}</td>
             <td className="py-2">{r.dayRate ? formatCurrency(r.dayRate) : '—'}</td>
             <td className="py-2">

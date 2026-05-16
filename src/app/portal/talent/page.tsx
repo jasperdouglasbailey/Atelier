@@ -31,7 +31,7 @@ import {
   ARTIST_DISCIPLINE_LABELS,
   FEE_LINE_TYPE_LABELS,
 } from '@/lib/utils/constants';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatShootDates } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import {
   respondToTalentHoldAction,
@@ -174,6 +174,7 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
               key={b.bookingTalentId}
               bookingRef={b.bookingRef}
               title={b.title}
+              shootDates={b.shootDates}
               shootDateNotes={b.shootDateNotes}
               dayRate={b.dayRate}
               // Server actions passed to client components must be either
@@ -285,7 +286,19 @@ function TalentBookingRow({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-        {row.shootDateNotes && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Date</span><div style={{ color: PALETTE.text }}>{row.shootDateNotes}</div></div>}
+        {(() => {
+          const formatted = formatShootDates(row.shootDates);
+          if (!formatted && !row.shootDateNotes) return null;
+          return (
+            <div>
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Date</span>
+              <div style={{ color: PALETTE.text }}>{formatted ?? row.shootDateNotes}</div>
+              {formatted && row.shootDateNotes && (
+                <div className="text-[10px]" style={{ color: PALETTE.muted }}>{row.shootDateNotes}</div>
+              )}
+            </div>
+          );
+        })()}
         {row.dayRate && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Day rate</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.dayRate)}</div></div>}
         {row.usageFee && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage fee</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.usageFee)}</div></div>}
       </div>
@@ -387,7 +400,7 @@ function TalentBookingTable({ rows }: { rows: TalentPortalBookingRow[] }) {
               <div style={{ color: PALETTE.text }}>{r.title}</div>
               <div className="font-mono text-[10px]" style={{ color: PALETTE.muted }}>{r.bookingRef ?? '—'}</div>
             </td>
-            <td className="py-2" style={{ color: PALETTE.muted }}>{r.shootDateNotes ?? '—'}</td>
+            <td className="py-2" style={{ color: PALETTE.muted }}>{formatShootDates(r.shootDates) ?? r.shootDateNotes ?? '—'}</td>
             <td className="py-2">{r.dayRate ? formatCurrency(r.dayRate) : '—'}</td>
             <td className="py-2">{r.usageFee ? formatCurrency(r.usageFee) : '—'}</td>
             <td className="py-2">

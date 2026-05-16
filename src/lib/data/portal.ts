@@ -27,6 +27,14 @@ export type PortalBookingRow = {
   bookingRef: string | null;
   title: string;
   state: BookingState;
+  /**
+   * Postgres daterange literal — e.g. `[2026-05-16,2026-05-18)`.
+   * The portal view exposes this (migration 0021); we just hadn't been
+   * surfacing it. Use `formatShootDates()` from `lib/utils/format.ts` to
+   * render — it handles the exclusive end-bound correctly.
+   */
+  shootDates: string | null;
+  /** Free-text supplement to shootDates (e.g. "Mon only", "TBC pending location"). */
   shootDateNotes: string | null;
   shootLocation: string | null;
   tier: string;
@@ -116,12 +124,12 @@ export async function getTalentPortalData(talentId: string): Promise<{
     ? { data: [], error: null as null | { message: string } }
     : await supabase
         .from('atelier_bookings_portal')
-        .select('id, booking_ref, title, tier, state, shoot_date_notes, shoot_location')
+        .select('id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location')
         .in('id', bookingIds);
 
   if (bookingsResp.error) { reportDataError('[portal] talent bookings', bookingsResp.error); return null; }
 
-  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_date_notes: string | null; shoot_location: string | null };
+  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
   // Fetch fee lines the artist is entitled to see:
@@ -153,6 +161,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
         bookingRef: b.booking_ref,
         title: b.title,
         state: b.state,
+        shootDates: b.shoot_dates,
         shootDateNotes: b.shoot_date_notes,
         shootLocation: b.shoot_location,
         tier: b.tier,
@@ -208,12 +217,12 @@ export async function getCrewPortalData(crewId: string): Promise<{
     ? { data: [], error: null as null | { message: string } }
     : await supabase
         .from('atelier_bookings_portal')
-        .select('id, booking_ref, title, tier, state, shoot_date_notes, shoot_location')
+        .select('id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location')
         .in('id', bookingIds);
 
   if (bookingsResp.error) { reportDataError('[portal] crew bookings', bookingsResp.error); return null; }
 
-  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_date_notes: string | null; shoot_location: string | null };
+  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
   const bookings: CrewPortalBookingRow[] = assignments
@@ -226,6 +235,7 @@ export async function getCrewPortalData(crewId: string): Promise<{
         bookingRef: b.booking_ref,
         title: b.title,
         state: b.state,
+        shootDates: b.shoot_dates,
         shootDateNotes: b.shoot_date_notes,
         shootLocation: b.shoot_location,
         tier: b.tier,

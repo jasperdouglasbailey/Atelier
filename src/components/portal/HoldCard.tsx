@@ -3,11 +3,13 @@
 import { useState, useTransition } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatShootDates } from '@/lib/utils/format';
 
 type Props = {
   bookingRef: string | null;
   title: string;
+  /** Postgres daterange — preferred over `shootDateNotes` when present. */
+  shootDates?: string | null;
   shootDateNotes: string | null;
   dayRate: number | null;
   roleOnBooking?: string | null;
@@ -23,8 +25,10 @@ type Props = {
 };
 
 export default function HoldCard({
-  bookingRef, title, shootDateNotes, dayRate, roleOnBooking, onConfirm, onDecline, readOnly = false,
+  bookingRef, title, shootDates, shootDateNotes, dayRate, roleOnBooking, onConfirm, onDecline, readOnly = false,
 }: Props) {
+  const formattedDates = formatShootDates(shootDates ?? null);
+  const dateDisplay = formattedDates ?? shootDateNotes;
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<'confirmed' | 'declined' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +80,15 @@ export default function HoldCard({
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-xs" style={{ color: PALETTE.muted }}>
-        {shootDateNotes && <div><span className="uppercase tracking-wide text-[10px]">Date</span><div className="mt-0.5" style={{ color: PALETTE.text }}>{shootDateNotes}</div></div>}
+        {dateDisplay && (
+          <div>
+            <span className="uppercase tracking-wide text-[10px]">Date</span>
+            <div className="mt-0.5" style={{ color: PALETTE.text }}>{dateDisplay}</div>
+            {formattedDates && shootDateNotes && (
+              <div className="text-[10px]" style={{ color: PALETTE.muted }}>{shootDateNotes}</div>
+            )}
+          </div>
+        )}
         {dayRate && <div><span className="uppercase tracking-wide text-[10px]">Day rate</span><div className="mt-0.5" style={{ color: PALETTE.text }}>{formatCurrency(dayRate)}</div></div>}
         {roleOnBooking && <div><span className="uppercase tracking-wide text-[10px]">Role</span><div className="mt-0.5" style={{ color: PALETTE.text }}>{roleOnBooking}</div></div>}
       </div>
