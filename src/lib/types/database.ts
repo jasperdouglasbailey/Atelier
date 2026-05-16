@@ -161,6 +161,12 @@ export interface Talent {
   wwcc_expiry: string | null;
   instagram: string | null;
   website: string | null;
+  /**
+   * Informal names this artist is referred to as in emails — used by the
+   * inbox brief-detection heuristic to surface Gmail messages that mention
+   * the artist by nickname. Added migration 0057.
+   */
+  nicknames: string[];
   /** Suggested day rate — pre-fills the booking-team add form. */
   default_day_rate: number | null;
   /** Lower end of typical day rate range — for quoting context. */

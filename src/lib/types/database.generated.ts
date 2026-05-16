@@ -1327,6 +1327,7 @@ export type Database = {
           is_active: boolean
           legal_name: string
           mobile: string | null
+          nicknames: string[]
           notes: string | null
           onboarding_completed: boolean | null
           onboarding_token: string | null
@@ -1371,6 +1372,7 @@ export type Database = {
           is_active?: boolean
           legal_name: string
           mobile?: string | null
+          nicknames?: string[]
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null
@@ -1415,6 +1417,7 @@ export type Database = {
           is_active?: boolean
           legal_name?: string
           mobile?: string | null
+          nicknames?: string[]
           notes?: string | null
           onboarding_completed?: boolean | null
           onboarding_token?: string | null

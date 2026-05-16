@@ -578,6 +578,16 @@ export async function updateTalentAction(id: string, formData: FormData) {
   if (formData.get('bank_setup_in_xero') !== null) {
     updates.bank_setup_in_xero = formData.get('bank_setup_in_xero') === 'true';
   }
+  // Nicknames: comma-separated text → text[]. Trim each, drop empties +
+  // duplicates so an empty input or "  ,  ," doesn't write junk.
+  if (formData.get('nicknames') !== null) {
+    const raw = (formData.get('nicknames') as string) || '';
+    const parsed = raw
+      .split(',')
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    updates.nicknames = Array.from(new Set(parsed));
+  }
   const result = await updateTalent(id, updates);
   if (!result) return { error: 'Failed to update talent' };
   await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: 'update', payload: updates });

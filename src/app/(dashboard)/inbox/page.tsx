@@ -137,7 +137,7 @@ async function fetchPotentialBriefs() {
       .not('email', 'is', null),
     supabase
       .from('atelier_talent')
-      .select('working_name')
+      .select('working_name, nicknames')
       .eq('is_active', true),
     listDismissedBriefIds(),
   ]);
@@ -160,18 +160,21 @@ async function fetchPotentialBriefs() {
     .map((r) => r.email)
     .filter((e): e is string => Boolean(e));
 
+  // Build the talent-name search corpus: working name + first name (if
+  // long enough to disambiguate) + every per-talent nickname. Migration
+  // 0057 moved nicknames from a hardcoded map to atelier_talent.nicknames
+  // so owners can curate matches without code changes.
   const talentNames: string[] = [];
-  for (const { working_name } of (talentResult.data ?? []) as { working_name: string }[]) {
+  for (const { working_name, nicknames } of (talentResult.data ?? []) as { working_name: string; nicknames: string[] | null }[]) {
     if (!working_name) continue;
     talentNames.push(working_name);
     const firstName = working_name.split(' ')[0];
     if (firstName && firstName.length >= 4) talentNames.push(firstName);
-  }
-  const NICKNAMES: Record<string, string[]> = {
-    'Oliver': ['Oly'],
-  };
-  for (const names of Object.values(NICKNAMES)) {
-    talentNames.push(...names);
+    if (Array.isArray(nicknames)) {
+      for (const n of nicknames) {
+        if (n && n.length >= 2) talentNames.push(n);
+      }
+    }
   }
 
   return findPotentialBriefs({
