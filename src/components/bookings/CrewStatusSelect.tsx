@@ -47,8 +47,14 @@ export default function CrewStatusSelect({ bookingCrewId, bookingId, status }: P
 
   const colour = STATUS_COLORS[current] ?? PALETTE.muted;
 
+  // Stable per-row id so the browser can associate state correctly with
+  // the right select on a page that may render the same component many
+  // times (e.g. the booking team panel with N crew rows).
+  const selectId = `crew-status-${bookingCrewId}`;
   return (
     <select
+      id={selectId}
+      name={selectId}
       value={current}
       onChange={onChange}
       disabled={isPending}

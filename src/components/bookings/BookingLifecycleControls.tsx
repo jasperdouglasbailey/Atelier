@@ -120,9 +120,11 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
             In all other states the button is hidden entirely so the action bar stays uncluttered. */}
         {!isTerminal ? null : confirmingDelete ? (
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
+            <label htmlFor="booking-delete-confirm" className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
               <span>Permanent delete. Type DELETE to confirm.</span>
               <input
+                id="booking-delete-confirm"
+                name="delete_confirmation"
                 type="text"
                 value={deleteTyped}
                 onChange={(e) => setDeleteTyped(e.target.value)}
@@ -135,6 +137,7 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
                   fontFamily: 'ui-monospace, monospace',
                   letterSpacing: '0.1em',
                 }}
+                autoComplete="off"
                 autoFocus
               />
             </label>

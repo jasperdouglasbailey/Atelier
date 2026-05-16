@@ -38,5 +38,14 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5"
-  }
+  },
+  "//browserslist": "Target modern evergreen browsers only. Drops ~14 KiB of polyfills for ES2020+ features (Array.prototype.at/flat/flatMap, Object.fromEntries, Object.hasOwn, String.prototype.trim{Start,End}) that have been natively available in every shipped browser for 4+ years. Atelier is an internal agency tool used by Saunders staff + their talent/crew on current devices — there's no IE 11 / iOS <14 / Android Chrome <90 user to support. Lighthouse flagged the wasted bytes; this is the fix.",
+  "browserslist": [
+    "Chrome >= 91",
+    "Firefox >= 90",
+    "Safari >= 15",
+    "Edge >= 91",
+    "iOS >= 15",
+    "not dead"
+  ]
 }
