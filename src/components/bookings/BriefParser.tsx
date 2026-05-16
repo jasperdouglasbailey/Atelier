@@ -24,6 +24,32 @@ const FIELD_LABELS = {
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
+/**
+ * Render a suggestion value as a short human string. Anchored to the
+ * allowlist above — if the field shape changes (e.g. a date becomes
+ * an ISO timestamp), update this formatter rather than letting the
+ * raw value leak into the UI.
+ */
+function formatSuggestionValue(key: FieldKey, value: unknown): string {
+  if (value == null) return '';
+  if ((key === 'shoot_date_start' || key === 'shoot_date_end') && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    try {
+      return new Date(`${value}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return value;
+    }
+  }
+  if (key === 'deliverables_count' && typeof value === 'number') {
+    return `${value} ${value === 1 ? 'deliverable' : 'deliverables'}`;
+  }
+  if (typeof value === 'object') {
+    // Defensive: should never happen given the allowlist, but if it does
+    // we want a readable surface — not "[object Object]".
+    try { return JSON.stringify(value); } catch { return '—'; }
+  }
+  return String(value);
+}
+
 // Key fields that warrant clarification if missing
 const KEY_FIELDS: Record<string, string> = {
   shoot_location: 'shoot_location',
@@ -59,9 +85,13 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     const s = (result as { ok: true; suggestions: BriefIntakeResult }).suggestions;
     setSuggestions(s);
 
-    // Auto-select all non-null data fields (excluding meta fields)
-    const META = new Set(['source', 'confidence', 'llmAvailable', 'uncertainty_sources', 'critique']);
-    const nonNull = (Object.keys(s) as FieldKey[]).filter((k) => !META.has(k) && (s as Record<string, unknown>)[k] != null);
+    // Auto-select non-null fields from the displayed allowlist only.
+    // Denylist filtering bit us before: new BriefIntakeResult fields (e.g.
+    // `contract`) leaked through and rendered as "[object Object]". Anchor
+    // to FIELD_LABELS instead so the UI only ever shows what we explicitly
+    // surface.
+    const nonNull = (Object.keys(FIELD_LABELS) as FieldKey[])
+      .filter((k) => (s as Record<string, unknown>)[k] != null);
     setSelected(new Set(nonNull));
   }
 
@@ -103,11 +133,11 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
 
   if (!hasBriefText) return null;
 
-  const META_KEYS = new Set(['source', 'confidence', 'llmAvailable', 'uncertainty_sources', 'critique']);
-  const dataKeys = suggestions
-    ? (Object.keys(suggestions) as FieldKey[]).filter((k) => !META_KEYS.has(k))
-    : [];
-  const hasSuggestions = suggestions && dataKeys.some((k) => (suggestions as Record<string, unknown>)[k] != null);
+  // Allowlist-driven: only iterate the fields we explicitly surface.
+  // Keeps us safe from BriefIntakeResult growing new shapes (e.g. the
+  // `contract` object that previously rendered as "[object Object]").
+  const dataKeys = (Object.keys(FIELD_LABELS) as FieldKey[]);
+  const hasSuggestions = !!suggestions && dataKeys.some((k) => (suggestions as Record<string, unknown>)[k] != null);
 
   // Detect which key fields the parser could NOT extract — these are candidates for a clarifying email
   const missingKeyFields = suggestions
@@ -132,25 +162,46 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
           <h3 className="section-title">Brief Auto-Parser</h3>
           <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
             Extract structured fields from the raw brief text.
-            {suggestions?.llmAvailable === false && (
-              <span style={{ color: PALETTE.warning }}> · Heuristic only (set ANTHROPIC_API_KEY for AI extraction)</span>
-            )}
             {suggestions?.llmAvailable && (
               <span style={{ color: PALETTE.success }}> · AI-enhanced ({suggestions.confidence}% confidence)</span>
             )}
           </p>
         </div>
-        {!suggestions && !success && (
+        {!parsing && (
           <button
             onClick={handleParse}
             disabled={parsing}
             className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: 'pointer' }}
           >
-            {parsing ? 'Parsing…' : '⚡ Parse Brief'}
+            {suggestions || success ? '↻ Re-parse' : '⚡ Parse Brief'}
+          </button>
+        )}
+        {parsing && (
+          <button
+            disabled
+            className="rounded px-3 py-1.5 text-xs font-medium opacity-50"
+            style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none' }}
+          >
+            Parsing…
           </button>
         )}
       </div>
+
+      {/* Mode banner — promoted from a small grey footer line. Heuristic-only
+          mode misses anything that needs reasoning (e.g. "22 May" → date),
+          so we surface it prominently with the fix. */}
+      {suggestions?.llmAvailable === false && (
+        <div
+          className="rounded px-3 py-2 text-xs"
+          style={{ background: `${PALETTE.warning}15`, borderLeft: `3px solid ${PALETTE.warning}`, color: PALETTE.text }}
+        >
+          <span style={{ fontWeight: 600, color: PALETTE.warning }}>Heuristic mode</span>
+          <span style={{ color: PALETTE.muted }}>
+            {' '}— AI extraction is off. The regex parser misses dates without a year, structured deliverables, and natural-language usage terms. Set <code style={{ fontFamily: 'monospace' }}>ANTHROPIC_API_KEY</code> in the deployment environment to enable AI extraction.
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="rounded px-3 py-2 text-xs" style={{ color: PALETTE.danger, background: `${PALETTE.danger}11` }}>
@@ -230,7 +281,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                         {FIELD_LABELS[key]}
                       </span>
                       <span style={{ color: PALETTE.text, fontSize: 13, fontWeight: 500 }}>
-                        {String((suggestions as Record<string, unknown>)[key])}
+                        {formatSuggestionValue(key, (suggestions as Record<string, unknown>)[key])}
                       </span>
                     </label>
                   ))}
