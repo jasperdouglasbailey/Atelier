@@ -301,6 +301,16 @@ export interface Booking {
   usage_duration_months: number | null;
   /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
   usage_notes: string | null;
+  // ─── Structured usage taxonomy (migration 0059 / PR C) ────────────
+  // Populated by the brief-intake LLM. Heuristic doesn't write these.
+  // Displayed in the booking detail's Usage panel; persisted so future
+  // BUR-replacement logic can reason over them deterministically.
+  usage_market: 'consumer' | 'trade' | 'editorial' | null;
+  usage_realm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial' | null;
+  usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
+  usage_specific_channels: string[] | null;
+  /** ISO 3166-1 alpha-2 (e.g. ["AU", "NZ"]) plus a handful of region aggregates. */
+  usage_territory_iso: string[] | null;
   tier: ShootTier;
   post_production_ownership: PostProductionOwnership | null;
   grade_retouch_scope: 'grade_and_retouch' | 'grade_only' | null;

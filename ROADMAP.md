@@ -22,13 +22,17 @@ These are real product capability not yet live, gated on env vars Jasper needs t
 
 ## Active build candidates
 
-7. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build). Only matters when integrating with corporate clients on Outlook calendars. Low urgency.
+7. **Brief intake — next-tier extension fields.** PR#169 fixed the heuristic dates + added structured usage taxonomy. The next field gaps (documented per fixture in `expected.ts`, not yet built): `brand` vs `agency` distinction (Brooke's Inaura/Smile split); `project_name` (Caleb's Archer Residences vs Coronation client); `candidate_dates[]` + `requested_shoot_count` (Brooke's "8th, 11th, 12th May — 1 x shoot date" multi-candidate pattern); `proposed_day_rate` + `proposed_post_rate` (when clients propose rates); `is_buyout` flag + negative-spec carve-outs ("No sound capture", "No VO"); `on_camera_count` (talent count distinct from photographer); `dates_confirmed: false` flag for soft dates; `deliverables_count_min/max` for ranges; `referrer`; `budget_explicit: true` for hard ceilings. All LLM-extractable; schema additions are cheap. Worth bundling 4-5 into one PR once we've seen another 10 real briefs to validate the shape.
 
-8. **Pay-on-paid trigger** — handler exists; needs Xero (item 1).
+8. **BUR replacement — structured usage → suggested fee.** PR#168 removed the fake BUR calculator. PR#170 added the structured taxonomy. The follow-up is a deterministic valuation: each (category × territory_pop × duration_months) combo has a base rate; sum across categories; apply consumer/trade/editorial multiplier; return suggested fee. Implementation is straight maths; the hard part is the rate table — needs Jasper's pricing data per category. Probably ~1h of his time + ~2h to wire.
 
-9. **Anthropic model-version monitoring.** PR-G safety net (PR#155) logs `[anthropic] model X 404'd` warnings on fallback. Should add a Settings panel showing "Model X has fallen back N times this week" so we see rot before a generation goes fully dark. ~20 min once we have LLM usage data.
+9. **Microsoft Graph webhooks** (replace polling — currently no MS Graph code in the build). Only matters when integrating with corporate clients on Outlook calendars. Low urgency.
 
-10. **Portal calendar drag-to-block range.** PR#161 shipped a single-day-then-range-input pattern. A real drag interaction (click + drag to select multiple cells) is the next refinement — mouse + touch + edge cases.
+10. **Pay-on-paid trigger** — handler exists; needs Xero (item 1).
+
+11. **Anthropic model-version monitoring.** PR-G safety net (PR#155) logs `[anthropic] model X 404'd` warnings on fallback. Should add a Settings panel showing "Model X has fallen back N times this week" so we see rot before a generation goes fully dark. ~20 min once we have LLM usage data.
+
+12. **Portal calendar drag-to-block range.** PR#161 shipped a single-day-then-range-input pattern. A real drag interaction (click + drag to select multiple cells) is the next refinement — mouse + touch + edge cases.
 
 ## Shipped — captured here so they don't re-appear in planning
 

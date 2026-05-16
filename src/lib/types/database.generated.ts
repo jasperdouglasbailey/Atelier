@@ -498,13 +498,18 @@ export type Database = {
           total_gst: number | null
           updated_at: string
           usage_duration_months: number | null
+          usage_market: string | null
           usage_media:
             | Database["public"]["Enums"]["atelier_usage_media"][]
             | null
+          usage_media_categories: string[] | null
           usage_notes: string | null
+          usage_realm: string | null
+          usage_specific_channels: string[] | null
           usage_territory:
             | Database["public"]["Enums"]["atelier_usage_territory"][]
             | null
+          usage_territory_iso: string[] | null
           video_references: string | null
           wardrobe_responsibility: string | null
           wrap_time: string | null
@@ -575,13 +580,18 @@ export type Database = {
           total_gst?: number | null
           updated_at?: string
           usage_duration_months?: number | null
+          usage_market?: string | null
           usage_media?:
             | Database["public"]["Enums"]["atelier_usage_media"][]
             | null
+          usage_media_categories?: string[] | null
           usage_notes?: string | null
+          usage_realm?: string | null
+          usage_specific_channels?: string[] | null
           usage_territory?:
             | Database["public"]["Enums"]["atelier_usage_territory"][]
             | null
+          usage_territory_iso?: string[] | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
           wrap_time?: string | null
@@ -652,13 +662,18 @@ export type Database = {
           total_gst?: number | null
           updated_at?: string
           usage_duration_months?: number | null
+          usage_market?: string | null
           usage_media?:
             | Database["public"]["Enums"]["atelier_usage_media"][]
             | null
+          usage_media_categories?: string[] | null
           usage_notes?: string | null
+          usage_realm?: string | null
+          usage_specific_channels?: string[] | null
           usage_territory?:
             | Database["public"]["Enums"]["atelier_usage_territory"][]
             | null
+          usage_territory_iso?: string[] | null
           video_references?: string | null
           wardrobe_responsibility?: string | null
           wrap_time?: string | null
