@@ -1,27 +1,43 @@
 import Link from 'next/link';
 import { PALETTE } from '@/lib/utils/constants';
+import type { MonthShootMarker } from '@/lib/data/dashboard';
 
 /**
  * Compact month grid for the dashboard. 7 columns (Mon..Sun), 5-6 rows.
- * Each cell shows the day number; cells with shoots get a sand-coloured
- * dot. The whole panel links through to /bookings?view=calendar.
+ * Each cell shows the day number; days with shoots get:
+ *   - 1 shoot:  short booking ref (last numeric chunk) below the day
+ *   - 2+ shoots: small "×N" count badge instead
+ * Colour: green for confirmed (locked-in) days, amber if any booking is
+ * still pre-confirmed.
  *
- * Design choice: dots only, no per-shoot text. The user asked for a
- * "quick glance" — full bookings list is one click away.
+ * The whole panel links through to /bookings?view=calendar for full
+ * detail — the calendar is a glance, not a deep read.
  */
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+/**
+ * Extract the most-identifiable suffix from a booking ref.
+ * "BOOK-0042" → "0042"
+ * "AJE-OB-7"  → "7"
+ * Falls back to the whole string if no recognisable suffix.
+ */
+function shortRef(ref: string | null): string {
+  if (!ref) return '·';
+  const m = ref.match(/[A-Z0-9]+$/);
+  return m ? m[0] : ref;
+}
+
 export default function MiniMonthCalendar({
   year,
   month,             // 0-indexed
-  shootMarkers,      // Map<'YYYY-MM-DD', bookingIds[]>
+  shootMarkers,
   today = new Date(),
   className,
 }: {
   year: number;
   month: number;
-  shootMarkers: Map<string, string[]>;
+  shootMarkers: Map<string, MonthShootMarker[]>;
   today?: Date;
   className?: string;
 }) {
@@ -56,55 +72,76 @@ export default function MiniMonthCalendar({
         <span className="text-[10px]" style={{ color: PALETTE.accent }}>Open calendar →</span>
       </div>
 
-      <div className="grid grid-cols-7 gap-y-1.5 text-center">
+      <div className="grid grid-cols-7 gap-y-1 text-center">
         {DAY_LABELS.map((d) => (
-          <div key={d} className="text-[9px] font-medium" style={{ color: PALETTE.muted }}>{d}</div>
+          <div key={d} className="text-[9px] font-medium pb-0.5" style={{ color: PALETTE.muted }}>{d}</div>
         ))}
         {cells.map((c, i) => {
           if (c.day === null) {
-            return <div key={`b-${i}`} />;
+            return <div key={`b-${i}`} className="h-10" />;
           }
-          const markers = c.iso ? shootMarkers.get(c.iso) : null;
-          const hasShoot = (markers?.length ?? 0) > 0;
+          const markers = c.iso ? shootMarkers.get(c.iso) ?? [] : [];
+          const hasShoot = markers.length > 0;
+          const allConfirmed = hasShoot && markers.every((m) => m.isConfirmed);
           const isToday = c.iso === todayISO;
+          const indicatorColor = !hasShoot ? null
+            : allConfirmed ? PALETTE.success
+            : PALETTE.warning;
+
           return (
             <div
               key={c.iso}
-              className="relative flex h-7 flex-col items-center justify-center rounded text-[11px]"
+              className="relative flex h-10 flex-col items-center justify-start rounded text-[11px] px-0.5 pt-0.5"
               style={{
                 color: isToday ? PALETTE.bg : PALETTE.text,
                 background: isToday ? PALETTE.accent : 'transparent',
                 fontWeight: isToday ? 600 : 400,
               }}
-              title={hasShoot ? `${markers!.length} shoot${markers!.length === 1 ? '' : 's'}` : undefined}
+              title={hasShoot
+                ? markers.map((m) => `${m.bookingRef ?? m.title}${m.isConfirmed ? '' : ' (held)'}`).join('\n')
+                : undefined}
             >
-              <span className="tabular-nums">{c.day}</span>
-              {hasShoot && !isToday && (
+              <span className="tabular-nums leading-none">{c.day}</span>
+              {hasShoot && markers.length === 1 && indicatorColor && (
                 <span
-                  aria-hidden
-                  className="absolute bottom-0.5 h-1 w-1 rounded-full"
-                  style={{ background: PALETTE.accent }}
-                />
+                  className="mt-1 inline-block rounded px-1 text-[8px] font-semibold tabular-nums leading-tight"
+                  style={{
+                    color: isToday ? PALETTE.bg : indicatorColor,
+                    background: isToday ? 'rgba(255,255,255,0.18)' : `${indicatorColor}22`,
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {shortRef(markers[0].bookingRef)}
+                </span>
               )}
-              {hasShoot && isToday && (
+              {hasShoot && markers.length > 1 && indicatorColor && (
                 <span
-                  aria-hidden
-                  className="absolute bottom-0.5 h-1 w-1 rounded-full"
-                  style={{ background: PALETTE.bg, opacity: 0.85 }}
-                />
+                  className="mt-1 inline-block rounded px-1 text-[8px] font-semibold tabular-nums leading-tight"
+                  style={{
+                    color: isToday ? PALETTE.bg : indicatorColor,
+                    background: isToday ? 'rgba(255,255,255,0.18)' : `${indicatorColor}22`,
+                  }}
+                >
+                  ×{markers.length}
+                </span>
               )}
             </div>
           );
         })}
       </div>
 
-      <div className="mt-3 flex items-center gap-3 text-[10px]" style={{ color: PALETTE.muted }}>
+      <div className="mt-3 flex items-center gap-3 text-[10px] flex-wrap" style={{ color: PALETTE.muted }}>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: PALETTE.accent }} />
-          shoot day
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: PALETTE.success }} /> Confirmed
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: PALETTE.warning }} /> Held
         </span>
         <span>·</span>
-        <span>{shootMarkers.size} day{shootMarkers.size === 1 ? '' : 's'} this month</span>
+        <span>{shootMarkers.size} shoot day{shootMarkers.size === 1 ? '' : 's'} this month</span>
       </div>
     </Link>
   );

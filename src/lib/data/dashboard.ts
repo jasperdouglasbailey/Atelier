@@ -22,13 +22,24 @@ const SHOOT_STATES: BookingState[] = [
 // Mini calendar — shoot markers for a given month
 // ============================================================
 
+/**
+ * Per-day marker for the dashboard mini-calendar. Richer than the old
+ * bookingIds-only shape — lets the calendar render a short identifier
+ * (booking ref, primary artist initials) without the calendar needing
+ * its own fetch.
+ */
 export type MonthShootMarker = {
-  date: string;           // YYYY-MM-DD
-  bookingIds: string[];   // all bookings shooting on this date
+  bookingId: string;
+  bookingRef: string | null;
+  title: string;
+  /** True when the booking is past quote_confirmed (i.e. locked in). */
+  isConfirmed: boolean;
 };
 
-/** Return one entry per shoot date in the month with the list of bookings on it. */
-export async function getMonthShootMarkers(year: number, month: number): Promise<Map<string, string[]>> {
+/** Return per-day markers for shoots in the month — richer than the
+ *  old Map<string, string[]> shape. Calendar cells can render a short
+ *  ref + status without re-fetching. */
+export async function getMonthShootMarkers(year: number, month: number): Promise<Map<string, MonthShootMarker[]>> {
   // month is 0-indexed (0=January). Build inclusive start/end as YYYY-MM-DD strings
   // so we can string-compare without timezone surprises.
   const startISO = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -45,7 +56,7 @@ export async function getMonthShootMarkers(year: number, month: number): Promise
   const MAX_ROWS = 1000;
   const { data, error } = await supabase
     .from('atelier_bookings')
-    .select('id, shoot_dates, state')
+    .select('id, booking_ref, title, shoot_dates, state')
     .in('state', SHOOT_STATES)
     .not('shoot_dates', 'is', null)
     .range(0, MAX_ROWS - 1);
@@ -56,10 +67,25 @@ export async function getMonthShootMarkers(year: number, month: number): Promise
     console.warn(`[dashboard.getMonthShootMarkers] hit ${MAX_ROWS}-row ceiling — paginate before this becomes wrong silently`);
   }
 
-  const result = new Map<string, string[]>();
-  for (const row of data as Array<{ id: string; shoot_dates: string | null; state: BookingState }>) {
+  // `quote_confirmed` is the first state where the client has locked the
+  // booking in. Earlier states (brief / quoting) shouldn't be in this
+  // result by virtue of the SHOOT_STATES filter, but the boolean is here
+  // so the calendar can colour-code confirmed vs. anything earlier.
+  const CONFIRMED_STATES: BookingState[] = [
+    'quote_confirmed', 'pre_production', 'shoot_live', 'morning_after_check',
+    'post_production', 'final_delivery', 'invoice_issued', 'paid',
+  ];
+
+  const result = new Map<string, MonthShootMarker[]>();
+  for (const row of data as Array<{ id: string; booking_ref: string | null; title: string; shoot_dates: string | null; state: BookingState }>) {
     const range = parseDateRangeRaw(row.shoot_dates);
     if (!range.start || !range.end) continue;
+    const marker: MonthShootMarker = {
+      bookingId: row.id,
+      bookingRef: row.booking_ref,
+      title: row.title,
+      isConfirmed: CONFIRMED_STATES.includes(row.state),
+    };
     // Postgres daterange end is exclusive: '[2026-05-15,2026-05-17)' covers
     // 15 + 16, NOT 17. Walk from start (inclusive) up to but not including end.
     const startDate = new Date(`${range.start}T00:00:00`);
@@ -72,7 +98,7 @@ export async function getMonthShootMarkers(year: number, month: number): Promise
       const key = `${y}-${m}-${d}`;
       if (key >= startISO && key <= endISO) {
         const existing = result.get(key) ?? [];
-        if (!existing.includes(row.id)) existing.push(row.id);
+        if (!existing.some((m) => m.bookingId === row.id)) existing.push(marker);
         result.set(key, existing);
       }
       iter.setDate(iter.getDate() + 1);

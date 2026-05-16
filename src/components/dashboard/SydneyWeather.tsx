@@ -146,7 +146,14 @@ export default async function SydneyWeather() {
 
   return (
     <div
-      className="flex items-stretch gap-1.5 overflow-x-auto"
+      // grid-cols-7 forces every day to occupy the same column width.
+      // No per-cell border — Jasper's feedback was that the box outlines
+      // felt heavy. Cells now read as columns; if visual separation ever
+      // becomes a problem we can add a subtle vertical divider.
+      // minWidth keeps the strip from collapsing when wrapped on narrow
+      // viewports — ~38px per column × 7 + gaps ≈ 280px.
+      className="grid grid-cols-7 gap-x-1"
+      style={{ minWidth: 280 }}
       role="region"
       aria-label="Sydney 7-day weather forecast"
     >
@@ -155,24 +162,19 @@ export default async function SydneyWeather() {
         return (
           <div
             key={day.date}
-            className="flex flex-col items-center justify-between rounded border px-2 py-1.5 flex-shrink-0"
-            style={{
-              borderColor: PALETTE.border,
-              background: PALETTE.surface,
-              minWidth: 52,
-            }}
+            className="flex flex-col items-center justify-start py-0.5"
             title={`${CATEGORY_LABEL[cat]} · ${day.tempMin}°–${day.tempMax}° · ${day.precipProbMax}% precip`}
           >
             <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>
               {dayLabel(day.date, idx)}
             </span>
-            <span className="my-0.5" style={{ color: PALETTE.text }} aria-hidden="true">
-              <WeatherIcon category={cat} size={16} />
+            <span className="my-1" style={{ color: PALETTE.text }} aria-hidden="true">
+              <WeatherIcon category={cat} size={18} />
             </span>
-            <span className="text-[11px] tabular-nums" style={{ color: PALETTE.text }}>
+            <span className="text-[12px] font-medium tabular-nums leading-tight" style={{ color: PALETTE.text }}>
               {day.tempMax}°
             </span>
-            <span className="text-[9px] tabular-nums" style={{ color: PALETTE.muted }}>
+            <span className="text-[10px] tabular-nums leading-tight" style={{ color: PALETTE.muted }}>
               {day.tempMin}°
             </span>
           </div>
