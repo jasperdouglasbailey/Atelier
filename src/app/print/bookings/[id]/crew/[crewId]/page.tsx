@@ -14,46 +14,52 @@
 
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
+import { listFeeLinesForActiveQuote, listBookingCrew } from '@/lib/data/quotes';
 import { getCrewMember } from '@/lib/data/entities';
 import { computeCrewPayment, effectiveCost } from '@/lib/utils/fee-engine';
+import { buildCrewBillBreakdown } from '@/lib/utils/person-billing';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
+import type { BookingCrew } from '@/lib/types/database';
 import PrintActions from '../../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string; crewId: string }> };
 
-// Labour split: super-bearing (`crew_labour`, `travel`) vs non-super-bearing
-// (`overtime`). Lumping them together previously over-paid super by 12% of
-// every overtime line. The fee engine now expects them separate.
-const LABOUR_TYPES = new Set(['crew_labour', 'travel']);
-const OVERTIME_TYPES = new Set(['overtime']);
-const EXPENSE_TYPES = new Set(['crew_equipment', 'equipment_rental', 'other_expense']);
-
 export default async function CrewBillPage({ params }: Props) {
   const { id, crewId } = await params;
 
-  const [booking, crew, allFeeLines] = await Promise.all([
+  const [booking, crew, allFeeLines, bookingCrewList] = await Promise.all([
     getBooking(id),
     getCrewMember(crewId),
     listFeeLinesForActiveQuote(id),
+    listBookingCrew(id),
   ]);
 
   if (!booking || !crew) notFound();
 
-  // Lines for this crew on this booking
-  const myLines = allFeeLines.filter((l) => l.crew_id === crewId);
-  const labourLines = myLines.filter((l) => LABOUR_TYPES.has(l.line_type));
-  const overtimeLines = myLines.filter((l) => OVERTIME_TYPES.has(l.line_type));
-  const expenseLines = myLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
+  // Roster row — the day_rate + assigned_dates source. Null if the crew
+  // member isn't actually attached to this booking (the bill still
+  // renders, but with no synthesised labour rows).
+  const bookingCrew = (bookingCrewList as Array<BookingCrew & { crew?: unknown }>)
+    .find((bc) => bc.crew_id === crewId) ?? null;
 
-  // Use COST subtotal — what the crew actually invoiced.
-  const labourSubtotal = labourLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const overtimeSubtotal = overtimeLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const expensesSubtotal = expenseLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered, overtimeSubtotal);
+  // Unified breakdown: synthesised day-rate rows from the roster + any
+  // fee_lines tagged with this crew_id (OT, equipment, custom expenses).
+  // See src/lib/utils/person-billing.ts for the why.
+  const breakdown = buildCrewBillBreakdown({
+    bookingCrew,
+    shootDates: booking.shoot_dates,
+    feeLines: allFeeLines,
+  });
+
+  const payment = computeCrewPayment(
+    breakdown.labourSubtotal,
+    breakdown.expensesSubtotal,
+    crew.gst_registered,
+    breakdown.overtimeSubtotal,
+  );
 
   const agency = getAgencyConfig();
   const today = new Date();
@@ -139,26 +145,43 @@ export default async function CrewBillPage({ params }: Props) {
           </tr>
         </thead>
         <tbody>
-          {myLines.length === 0 ? (
+          {breakdown.totalRowCount === 0 ? (
             <tr>
               <td colSpan={4} style={{ ...tdStyle, color: '#999', textAlign: 'center', fontStyle: 'italic' }}>
-                No fee lines linked to this crew member yet for this booking.
+                No labour, overtime, or expenses recorded for this crew member yet.
               </td>
             </tr>
           ) : (
-            myLines.map((line) => (
-              <tr key={line.id}>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 500 }}>{line.description}</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                    {FEE_LINE_TYPE_LABELS[line.line_type]}
-                  </div>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
-              </tr>
-            ))
+            <>
+              {/* Synthesised day-rate rows from the booking_crew roster.
+                  These are virtual — not persisted as fee_lines. */}
+              {breakdown.labourRows.map((row) => (
+                <tr key={row.key}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 500 }}>{row.description}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.category}</div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{row.quantity}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(row.unitPrice)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(row.subtotal)}</td>
+                </tr>
+              ))}
+              {/* Persisted fee_lines tagged with this crew_id — custom
+                  labour, overtime, expenses. */}
+              {[...breakdown.customLabourLines, ...breakdown.overtimeLines, ...breakdown.expensesLines].map((line) => (
+                <tr key={line.id}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 500 }}>{line.description}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                      {FEE_LINE_TYPE_LABELS[line.line_type]}
+                    </div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(effectiveCost(line))}</td>
+                </tr>
+              ))}
+            </>
           )}
         </tbody>
       </table>

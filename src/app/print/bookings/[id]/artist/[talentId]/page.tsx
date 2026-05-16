@@ -15,43 +15,46 @@
 
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
-import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
+import { listFeeLinesForActiveQuote, listBookingTalent } from '@/lib/data/quotes';
 import { getTalent } from '@/lib/data/entities';
 import { computeArtistPayment, effectiveCost } from '@/lib/utils/fee-engine';
+import { buildArtistBillBreakdown } from '@/lib/utils/person-billing';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
+import type { BookingTalent } from '@/lib/types/database';
 import PrintActions from '../../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string; talentId: string }> };
 
-const ARTIST_LINE_TYPES = new Set([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
-]);
-
 export default async function ArtistRemittancePage({ params }: Props) {
   const { id, talentId } = await params;
 
-  const [booking, talent, allFeeLines] = await Promise.all([
+  const [booking, talent, allFeeLines, bookingTalentList] = await Promise.all([
     getBooking(id),
     getTalent(talentId),
     listFeeLinesForActiveQuote(id),
+    listBookingTalent(id),
   ]);
 
   if (!booking || !talent) notFound();
 
-  // Lines for this artist on this booking. Falls back to ALL artist-type
-  // lines if none have talent_id set (some quotes pre-date per-line linking).
-  const linkedLines = allFeeLines.filter(
-    (l) => l.talent_id === talentId && ARTIST_LINE_TYPES.has(l.line_type),
-  );
-  const allArtistLines = allFeeLines.filter((l) => ARTIST_LINE_TYPES.has(l.line_type));
-  const lines = linkedLines.length > 0 ? linkedLines : allArtistLines;
+  // Roster row — source for day_rate + usage_fee. Null if the talent
+  // isn't actually on this booking (the bill still renders, but with no
+  // synthesised labour rows — only any persisted fee_lines).
+  const bookingTalent = (bookingTalentList as Array<BookingTalent & { talent?: unknown }>)
+    .find((bt) => bt.talent_id === talentId) ?? null;
 
-  // Use COST subtotal — what the artist actually invoiced (falls back to
-  // billed when cost_subtotal isn't set, preserving legacy behaviour).
-  const subtotal = lines.reduce((s, l) => s + effectiveCost(l), 0);
-  const payment = computeArtistPayment(subtotal, talent.gst_registered);
+  // Unified breakdown: synthesised day-rate + usage_fee rows from the
+  // roster + any artist fee_lines tagged with this talent_id (excluding
+  // reimbursements — those pass through at cost separately).
+  const breakdown = buildArtistBillBreakdown({
+    bookingTalent,
+    shootDates: booking.shoot_dates,
+    feeLines: allFeeLines,
+  });
+
+  const payment = computeArtistPayment(breakdown.feeSubtotal, talent.gst_registered);
 
   const agency = getAgencyConfig();
   const today = new Date();
@@ -136,26 +139,41 @@ export default async function ArtistRemittancePage({ params }: Props) {
           </tr>
         </thead>
         <tbody>
-          {lines.length === 0 ? (
+          {breakdown.labourRows.length === 0 && breakdown.feeLines.length === 0 ? (
             <tr>
               <td colSpan={4} style={{ ...tdStyle, color: '#999', textAlign: 'center', fontStyle: 'italic' }}>
-                No artist fee lines recorded for this booking yet.
+                No day rate, usage fee, or artist fee lines recorded for this booking yet.
               </td>
             </tr>
           ) : (
-            lines.map((line) => (
-              <tr key={line.id}>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 500 }}>{line.description}</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                    {FEE_LINE_TYPE_LABELS[line.line_type]}
-                  </div>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
-              </tr>
-            ))
+            <>
+              {/* Virtual labour rows from the booking_talent roster — day rate + usage_fee. */}
+              {breakdown.labourRows.map((row) => (
+                <tr key={row.key}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 500 }}>{row.description}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.category}</div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{row.quantity}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(row.unitPrice)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(row.subtotal)}</td>
+                </tr>
+              ))}
+              {/* Persisted artist fee_lines tagged with this talent_id. */}
+              {breakdown.feeLines.map((line) => (
+                <tr key={line.id}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 500 }}>{line.description}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                      {FEE_LINE_TYPE_LABELS[line.line_type]}
+                    </div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(effectiveCost(line))}</td>
+                </tr>
+              ))}
+            </>
           )}
         </tbody>
       </table>

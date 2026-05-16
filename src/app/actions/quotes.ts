@@ -277,6 +277,14 @@ export async function updateFeeLineAction(id: string, formData: FormData): Promi
   const notes = formData.get('notes');
   if (notes != null) updates.notes = notes || null;
 
+  // Crew + talent attribution. Empty string clears the attribution
+  // (column is nullable). Only update when the form explicitly sends
+  // the key — undefined means "don't touch", per UI doctrine.
+  const crewIdRaw = formData.get('crew_id');
+  if (crewIdRaw != null) updates.crew_id = (crewIdRaw as string) || null;
+  const talentIdRaw = formData.get('talent_id');
+  if (talentIdRaw != null) updates.talent_id = (talentIdRaw as string) || null;
+
   const reimbursementRaw = formData.get('is_artist_reimbursement');
   if (reimbursementRaw != null && reimbursementRaw !== '') {
     // Commissionable lines can never be reimbursable. If the line is being
@@ -769,6 +777,9 @@ export async function addExpenseLineAction(formData: FormData) {
     super_rate_paid: 0,
     is_commissionable: false,
     commission_rate: 0,
+    // Optional crew attribution — when set, the expense flows into that
+    // crew member's bill / P&L row. Same pattern as addOTLineAction.
+    crew_id: (formData.get('crew_id') as string) || null,
     notes: (formData.get('notes') as string) || null,
   };
 

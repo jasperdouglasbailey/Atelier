@@ -1045,10 +1045,11 @@ export async function markTalentPaidAction(
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
-  // Fetch the booking_talent row to get talent_id
+  // Fetch the full booking_talent row — we need day_rate + usage_fee for
+  // the union'd remittance total, not just talent_id.
   const { data: bt } = await supabase
     .from('atelier_booking_talent')
-    .select('talent_id')
+    .select('*')
     .eq('id', bookingTalentId)
     .single();
 
@@ -1065,14 +1066,28 @@ export async function markTalentPaidAction(
       const ks = await checkKillSwitch();
       if (ks.canSendOutbound) {
         const [talentResult, feeLinesResult] = await Promise.all([
-          supabase.from('atelier_talent').select('email, working_name').eq('id', bt.talent_id).maybeSingle(),
-          // Remittance amount uses cost_subtotal (what's actually paid) when set,
-          // otherwise falls back to subtotal (legacy behaviour preserved).
-          supabase.from('atelier_fee_lines').select('subtotal, cost_subtotal').eq('booking_id', bookingId).eq('talent_id', bt.talent_id),
+          supabase.from('atelier_talent').select('email, working_name, gst_registered').eq('id', bt.talent_id).maybeSingle(),
+          // Need full fee_line shape for the breakdown helper — includes
+          // talent_id, line_type, is_artist_reimbursement, cost_subtotal,
+          // subtotal. Strictly we only need the fields the helper reads,
+          // but `*` is safer against future helper changes.
+          supabase.from('atelier_fee_lines').select('*').eq('booking_id', bookingId),
         ]);
         const talent = talentResult.data;
         if (talent?.email && talent?.working_name) {
-          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.cost_subtotal ?? l.subtotal), 0);
+          // Union the roster (day_rate × shoot_dates + usage_fee) with
+          // talent_id-tagged fee_lines. Then feed the gross through
+          // computeArtistPayment to get the net the artist actually
+          // receives — same number the artist remittance PDF shows.
+          const { buildArtistBillBreakdown } = await import('@/lib/utils/person-billing');
+          const { computeArtistPayment } = await import('@/lib/utils/fee-engine');
+          const breakdown = buildArtistBillBreakdown({
+            bookingTalent: bt as import('@/lib/types/database').BookingTalent,
+            shootDates: booking.shoot_dates,
+            feeLines: (feeLinesResult.data ?? []) as import('@/lib/types/database').FeeLine[],
+          });
+          const payment = computeArtistPayment(breakdown.feeSubtotal, talent.gst_registered ?? false);
+          const total = payment.netPayment;
           const email = buildRemittanceEmail(
             { working_name: talent.working_name, email: talent.email },
             { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },
@@ -1113,10 +1128,11 @@ export async function markCrewPaidAction(
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
-  // Fetch the booking_crew row to get crew_id
+  // Fetch the full booking_crew row — need day_rate + assigned_dates +
+  // rate overrides for the union'd remittance total.
   const { data: bc } = await supabase
     .from('atelier_booking_crew')
-    .select('crew_id')
+    .select('*')
     .eq('id', bookingCrewId)
     .single();
 
@@ -1133,13 +1149,30 @@ export async function markCrewPaidAction(
       const ks = await checkKillSwitch();
       if (ks.canSendOutbound) {
         const [crewResult, feeLinesResult] = await Promise.all([
-          supabase.from('atelier_crew').select('email, name').eq('id', bc.crew_id).maybeSingle(),
-          // Cost-aware: uses cost_subtotal when set, falls back to subtotal.
-          supabase.from('atelier_fee_lines').select('subtotal, cost_subtotal').eq('booking_id', bookingId).eq('crew_id', bc.crew_id),
+          supabase.from('atelier_crew').select('email, name, gst_registered').eq('id', bc.crew_id).maybeSingle(),
+          // Full fee_line shape for the breakdown helper.
+          supabase.from('atelier_fee_lines').select('*').eq('booking_id', bookingId),
         ]);
         const crew = crewResult.data;
         if (crew?.email && crew?.name) {
-          const total = (feeLinesResult.data ?? []).reduce((sum, l) => sum + Number(l.cost_subtotal ?? l.subtotal), 0);
+          // Union the roster (day_rate × assigned_dates) with crew_id-
+          // tagged fee_lines (OT, equipment, expenses). Feed through
+          // computeCrewPayment to get the net the crew actually receives
+          // — same number the crew bill PDF shows.
+          const { buildCrewBillBreakdown } = await import('@/lib/utils/person-billing');
+          const { computeCrewPayment } = await import('@/lib/utils/fee-engine');
+          const breakdown = buildCrewBillBreakdown({
+            bookingCrew: bc as import('@/lib/types/database').BookingCrew,
+            shootDates: booking.shoot_dates,
+            feeLines: (feeLinesResult.data ?? []) as import('@/lib/types/database').FeeLine[],
+          });
+          const payment = computeCrewPayment(
+            breakdown.labourSubtotal,
+            breakdown.expensesSubtotal,
+            crew.gst_registered ?? false,
+            breakdown.overtimeSubtotal,
+          );
+          const total = payment.netPayment;
           const email = buildRemittanceEmail(
             { working_name: crew.name, email: crew.email },
             { booking_ref: booking.booking_ref ?? bookingId, title: booking.title },

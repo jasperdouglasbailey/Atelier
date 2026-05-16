@@ -222,7 +222,7 @@ export default async function BookingDetailPage({ params }: Props) {
                   />
                 </div>
 
-                <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} bookingTalent={bookingTalent} bookingCrew={bookingCrew} />
+                <JobPnLPanel feeLines={feeLines} latestQuote={latestQuote} bookingTalent={bookingTalent} bookingCrew={bookingCrew} shootDates={booking.shoot_dates} />
               </div>
 
               <details className="rounded-lg border" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
