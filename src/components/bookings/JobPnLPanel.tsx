@@ -16,7 +16,14 @@ const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['overtime', 'artist_over
 const ARTIST_LINE_TYPES = new Set<FeeLine['line_type']>([
   'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
-const CREW_LABOUR_LINE_TYPES = new Set<FeeLine['line_type']>(['crew_labour', 'overtime']);
+// Crew labour split into super-bearing (crew_labour) and non-super-bearing
+// (overtime) buckets — doctrine says overtime is GST-bearing but not
+// super-bearing. Previously these were lumped together and 12% super was
+// applied to the combined total, overstating Paid-Out by 12% of every OT
+// line. Quote totals were unaffected (line-level is_super_bearing was
+// always correct) — this was a display bug on the P&L panel only.
+const CREW_SUPER_BEARING_TYPES = new Set<FeeLine['line_type']>(['crew_labour']);
+const CREW_OVERTIME_TYPES = new Set<FeeLine['line_type']>(['overtime']);
 
 /**
  * Compute total paid out to artists + crew for this booking.
@@ -58,27 +65,43 @@ function computePaidOut(
     : reimbursementCostSubtotal;
 
   const crewByPersonLabour = new Map<string, number>();
+  const crewByPersonOvertime = new Map<string, number>();
   const crewByPersonExpenses = new Map<string, number>();
+  // Track which crew IDs have any contribution so we don't miss someone
+  // whose only fee line is overtime (eg post-shoot OT entry).
+  const crewIds = new Set<string>();
   for (const l of lines) {
     if (!l.crew_id) continue;
-    if (CREW_LABOUR_LINE_TYPES.has(l.line_type)) {
+    if (CREW_SUPER_BEARING_TYPES.has(l.line_type)) {
       crewByPersonLabour.set(l.crew_id, (crewByPersonLabour.get(l.crew_id) ?? 0) + effectiveCost(l));
+      crewIds.add(l.crew_id);
+    } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
+      crewByPersonOvertime.set(l.crew_id, (crewByPersonOvertime.get(l.crew_id) ?? 0) + effectiveCost(l));
+      crewIds.add(l.crew_id);
     } else if (l.line_type === 'crew_equipment') {
       crewByPersonExpenses.set(l.crew_id, (crewByPersonExpenses.get(l.crew_id) ?? 0) + effectiveCost(l));
+      crewIds.add(l.crew_id);
     }
   }
   let crewOut = 0;
-  for (const [crewId, labour] of crewByPersonLabour) {
+  for (const crewId of crewIds) {
     const crewRow = bookingCrew.find((bc) => bc.crew_id === crewId);
     const isRegistered = crewRow?.crew?.gst_registered ?? false;
+    const labour = crewByPersonLabour.get(crewId) ?? 0;
+    const overtime = crewByPersonOvertime.get(crewId) ?? 0;
     const expenses = crewByPersonExpenses.get(crewId) ?? 0;
-    crewOut += computeCrewPayment(labour, expenses, isRegistered).netPayment;
+    crewOut += computeCrewPayment(labour, expenses, isRegistered, overtime).netPayment;
   }
-  const unlinkedCrewLabour = lines
-    .filter((l) => CREW_LABOUR_LINE_TYPES.has(l.line_type) && !l.crew_id)
+  // Unlinked labour / overtime — crew not yet assigned to a booking_crew
+  // row. Treated as non-GST (the safer assumption when payee unknown).
+  const unlinkedLabour = lines
+    .filter((l) => CREW_SUPER_BEARING_TYPES.has(l.line_type) && !l.crew_id)
     .reduce((s, l) => s + effectiveCost(l), 0);
-  if (unlinkedCrewLabour > 0) {
-    crewOut += computeCrewPayment(unlinkedCrewLabour, 0, false).netPayment;
+  const unlinkedOvertime = lines
+    .filter((l) => CREW_OVERTIME_TYPES.has(l.line_type) && !l.crew_id)
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  if (unlinkedLabour > 0 || unlinkedOvertime > 0) {
+    crewOut += computeCrewPayment(unlinkedLabour, 0, false, unlinkedOvertime).netPayment;
   }
 
   const total = Math.round((artistNet + reimbursementTotal + crewOut) * 100) / 100;

@@ -50,8 +50,16 @@ export async function applyApprovalDecisionEffects(approval: Approval, decision:
     case 'crew_gallery_share_request':
       await applyCrewGalleryShareRequestEffect(approval, decision);
       return;
+    case 'hold_response_notify':
+    case 'onboarding_review':
+      // Notify-only approvals. The user-visible event was the inbox card
+      // appearing — there's nothing to send and no state to change on
+      // approve/reject. The explicit case prevents the `default` branch
+      // from logging spurious "no handler" warnings on every decision.
+      // (Per doctrine at the top of this file: prefer explicit no-ops.)
+      return;
     default:
-      // Unknown action_type — no side effects yet. Logged for visibility.
+      // Genuinely unhandled — log loudly so we notice during dev.
       console.warn('[approval-effects] no handler for', approval.action_type);
       return;
   }
