@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Slower guards that run on every `git push`. Catches the "I think I'm done
+# but tsc disagrees" class of failure before CI does.
+#
+# Skips on protected branches that are usually pushed from CI / web UI:
+#   - main, master
+# (push to feature branch fails fast and locally; merging to main happens via PR)
+#
+# Bypass entirely (rare!) with `git push --no-verify`.
+
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  # Direct pushes to main are unusual in Atelier (all changes go via PR).
+  # Skip the slow guards — CI is the source of truth on main.
+  exit 0
+fi
+
+echo "[pre-push] tsc --noEmit (~30s — bypass with --no-verify if urgent)"
+( cd "$ROOT" && npx tsc --noEmit )
+
+echo "[pre-push] tests"
+( cd "$ROOT" && npm test --silent )
+
+echo "[pre-push] ok"

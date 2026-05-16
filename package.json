@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "preflight": "tsc --noEmit && vitest run",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "db:types": "supabase gen types typescript --project-id diaxxsxytqpzrbtgyqho > src/lib/types/database.generated.ts"
   },
   "dependencies": {

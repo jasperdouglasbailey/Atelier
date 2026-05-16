@@ -89,10 +89,30 @@ All migrations use `ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `CR
 **`revalidateTag` completeness.**
 Every server action that mutates booking data must call `revalidateTag('bookings')`. Check this whenever adding a new mutation path.
 
+## Git hooks (active since PR#148)
+
+Hooks live in `.githooks/` and are wired via `git config core.hooksPath .githooks`
+which `npm install` sets automatically through the `prepare` script.
+
+- **pre-commit** — runs `scripts/guards/no-hardcoded-identity.sh`. Blocks
+  commits that hardcode `"Saunders & Co"`, `"Jasper Bailey"`, or
+  `jasperdouglasbailey@gmail.com` in `.ts/.tsx/.js/.jsx`. Allowlist: the
+  file `agency-config.ts`, `*.test.*`, JSDoc / comment lines, env-var
+  fallback lines (`process.env.X ?? "..."`), and lines tagged
+  `// HARDCODED-OK: reason`.
+- **pre-push** — runs `tsc --noEmit` then `vitest run`. Catches the "I
+  think I'm done but CI disagrees" loop locally. Skipped on direct pushes
+  to `main` / `master` (those go through PRs and CI).
+
+`npm run preflight` runs the pre-push checks on demand.
+
+Bypass with `--no-verify` only when urgently shipping a fix and the failure
+is unrelated to your change.
+
 ## Standing checks before declaring "done"
 
-1. `rm -rf .next && npx tsc --noEmit` (clean, zero errors)
-2. `npm test` (79+ tests must stay green; add tests when changing pure functions)
+1. `rm -rf .next && npx tsc --noEmit` (clean, zero errors — also enforced by pre-push hook)
+2. `npm test` (173+ tests must stay green; add tests when changing pure functions — also enforced by pre-push hook)
 3. `grep -rn "TODO\|FIXME\|XXX" src/` for anything new I left behind
 4. Search for hardcoded user names / fake data — should be `getCurrentActor()` or env
 5. If touching the fee engine, the AJE eComm #3579 canonical example must still pass
