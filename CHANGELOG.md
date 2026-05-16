@@ -2,6 +2,10 @@
 
 The PR-by-PR ship log. New entries go at the **top**. Each entry is one line for index value + a short paragraph for context. Doctrine and forward planning live in `CLAUDE.md` and `ROADMAP.md` respectively.
 
+## Recent (2026-05-17)
+
+**PR#166 — BriefParser render bugs + heuristic-mode banner.** Brief auto-parser on BOOK-0008 was showing a checkbox with `[object Object]` and another with a bare "3". Root cause: `META_KEYS` was a denylist (`source, confidence, llmAvailable, uncertainty_sources, critique`) and the `contract` field added in PR#32 (ConfidenceContract doctrine) leaked through; `talent_count` did too despite the file's own comment saying it was intentionally excluded. Fix: switched `dataKeys` from `Object.keys(suggestions).filter(!META)` (denylist) to `Object.keys(FIELD_LABELS)` (allowlist) — any future field added to `BriefIntakeResult` is now invisible by default. New `formatSuggestionValue(key, value)` chokepoint formats dates as "Thu 22 May 2026" and counts as "10 deliverables"; falls back to JSON for any object so we never leak `[object Object]` again. Plus: heuristic-mode notice promoted from grey footer span to warning-tinted banner with the `ANTHROPIC_API_KEY` instruction inline; Re-parse button stays available after success.
+
 ## Recent (2026-05-16)
 
 **Cron unification — 4 reminder routes → 1.** `quote-chase`, `post-shoot-chase`, `talent-gallery-ping`, `compliance-pings` (which also handled business renewals) all had the same auth → kill-switch → log _run → match → insert approval → log _complete shape. Now a single `/api/cron/scheduled-comms` route iterates `REMINDER_RULES` from `src/lib/automation/reminder-rules.ts`. Six rules: quote-chase, post-shoot, talent gallery, crew gallery, talent compliance docs, agency business renewals. Per-rule failure isolation (one bad match doesn't black out the rest). Same idempotency keys → cut-over is no-op for already-queued drafts. Net: -797 LOC across the 4 old routes; 4 cron secrets → 1; 4 schedules → 1. Adding a new reminder is now an array entry in `reminder-rules.ts`, not a new route.
