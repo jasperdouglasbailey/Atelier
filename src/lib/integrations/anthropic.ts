@@ -28,6 +28,32 @@ export type LLMMessage = {
   content: string;
 };
 
+/**
+ * Allowed model IDs. Anthropic's convention is `claude-{name}-{version}-{date?}`.
+ * Undated aliases silently 404 once deprecated (per PR#30 incident), so the
+ * dated form is preferred — but Anthropic sometimes ships generations without
+ * a dated SKU (Sonnet 4.6 currently ships only as `claude-sonnet-4-6`).
+ *
+ * Three current-generation IDs are the defaults. The three prior-generation
+ * IDs stay in the union as explicit fallbacks: if Anthropic deprecates a
+ * current ID we can flip a call site back without code-modifying the union.
+ * When upgrading: https://docs.anthropic.com/en/docs/about-claude/models
+ */
+export type AnthropicModel =
+  // Current generation (selected 2026-05-16; deploy with health-check signal —
+  // a 404 from the live API on any of these should produce an audit event).
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-sonnet-4-6'
+  | 'claude-opus-4-7'
+  // Prior generation — kept as fallbacks. Safe to remove once we have
+  // confidence the current-generation IDs are stable and indexed by support.
+  | 'claude-3-5-haiku-20241022'
+  | 'claude-3-5-sonnet-20241022'
+  | 'claude-opus-4-1-20250805';
+
+/** Default cheap/fast model. Used when a caller doesn't specify. */
+export const DEFAULT_MODEL: AnthropicModel = 'claude-haiku-4-5-20251001';
+
 export type LLMRequest = {
   /** Identifier for this call type — used in cost tracking and idempotency. */
   purpose: string;
@@ -37,15 +63,7 @@ export type LLMRequest = {
   systemPrompt?: string;
   /** Max tokens to generate. Default 1024. Hard cap: 4096. */
   maxTokens?: number;
-  /**
-   * Model to use. Default: claude-3-5-haiku-20241022 (cheapest, fastest).
-   *
-   * Anthropic's convention is `claude-{version}-{name}-{date}`. Undated
-   * aliases like "claude-haiku-3-5" silently 404 once deprecated, so we
-   * pin a dated version on every call. When upgrading, check
-   * https://docs.anthropic.com/en/docs/about-claude/models for current IDs.
-   */
-  model?: 'claude-3-5-haiku-20241022' | 'claude-3-5-sonnet-20241022' | 'claude-opus-4-1-20250805';
+  model?: AnthropicModel;
   /** Booking ID for event/audit logging. */
   bookingId?: string;
 };
@@ -53,7 +71,12 @@ export type LLMRequest = {
 export type LLMResponse = {
   ok: true;
   text: string;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  };
   cached: boolean;
 } | {
   ok: false;
@@ -61,14 +84,56 @@ export type LLMResponse = {
   reason: 'kill_switch' | 'no_api_key' | 'api_error' | 'already_exists';
 };
 
-// Cost per 1M tokens in USD (Haiku 3.5: input $0.80, output $4.00).
-// Update these when Anthropic re-prices. We track in USD, compare to
-// MONTHLY_COST_CAP_USD from constants.
-const TOKEN_COSTS_USD: Record<string, { input: number; output: number }> = {
-  'claude-3-5-haiku-20241022': { input: 0.80 / 1_000_000, output: 4.00 / 1_000_000 },
-  'claude-3-5-sonnet-20241022': { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-  'claude-opus-4-1-20250805': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
+// Per-million-token USD prices (Anthropic's standard unit). Cache writes
+// are billed at 1.25× base input; cache reads at 0.10×. Those multipliers
+// are computed at call time so the table stays simple.
+//
+// Prices verified 2026-05 against Anthropic's pricing page. If they shift,
+// update both the rate AND the comment date. The MONTHLY_COST_CAP_USD in
+// constants.ts is the safety net if any of these are off.
+const TOKEN_COSTS_USD: Record<AnthropicModel, { input: number; output: number }> = {
+  // Current generation
+  'claude-haiku-4-5-20251001':   { input: 1.00 / 1_000_000, output: 5.00 / 1_000_000 },
+  'claude-sonnet-4-6':           { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
+  'claude-opus-4-7':             { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
+  // Prior generation — fallback prices kept aligned to their public rates
+  'claude-3-5-haiku-20241022':   { input: 0.80 / 1_000_000, output: 4.00 / 1_000_000 },
+  'claude-3-5-sonnet-20241022':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
+  'claude-opus-4-1-20250805':    { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
 };
+
+const CACHE_WRITE_MULTIPLIER = 1.25;  // Anthropic-published rate (ephemeral)
+const CACHE_READ_MULTIPLIER  = 0.10;  // Anthropic-published rate (ephemeral)
+
+/**
+ * Compute total cost including prompt-caching multipliers.
+ *
+ * Anthropic returns three input-token counts:
+ *   - input_tokens                  → base rate
+ *   - cache_creation_input_tokens   → 1.25× base rate (one-time write)
+ *   - cache_read_input_tokens       → 0.10× base rate (subsequent reads)
+ *
+ * Output tokens are billed at output rate regardless of cache state.
+ *
+ * Exported for testability — the cost-tracking math should be unit-testable
+ * without spinning up a Supabase client.
+ */
+export function computeLlmCallCost(
+  model: AnthropicModel,
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  },
+): number {
+  const rates = TOKEN_COSTS_USD[model] ?? { input: 0, output: 0 };
+  const baseInput   = usage.input_tokens               * rates.input;
+  const cacheWrite  = usage.cache_creation_input_tokens * rates.input * CACHE_WRITE_MULTIPLIER;
+  const cacheRead   = usage.cache_read_input_tokens    * rates.input * CACHE_READ_MULTIPLIER;
+  const output      = usage.output_tokens              * rates.output;
+  return baseInput + cacheWrite + cacheRead + output;
+}
 
 // ============================================================
 // Core call function
@@ -118,22 +183,50 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     }
   }
 
-  const model = request.model ?? 'claude-3-5-haiku-20241022';
+  const model = request.model ?? DEFAULT_MODEL;
   const maxTokens = Math.min(request.maxTokens ?? 1024, 4096);
 
-  // Build the request body
+  // Build the request body. The system field is an *array of text blocks*
+  // rather than a string so we can attach `cache_control: { type: 'ephemeral' }`
+  // to each block — Anthropic's prompt-caching API keys off block boundaries.
+  //
+  // Two cache breakpoints:
+  //   1. Lethal-trifecta clause — constant across EVERY call in the whole
+  //      platform. Max reuse, max cache benefit.
+  //   2. Per-purpose system prompt — constant across repeated calls of
+  //      the same purpose (every critique, every brief-intake, etc.).
+  //
+  // Caveat per docs/PROMPT-CACHING-PLAN.md:
+  //   - Haiku requires the cached block to be ≥2048 tokens before it
+  //     actually caches. Sonnet/Opus require ≥1024.
+  //   - Below the threshold the cache_control hint is silently ignored
+  //     (NOT an error) — the call still works, it just bills full input
+  //     rate. Re-evaluate breakpoint placement if a long-tail prompt
+  //     drops below threshold.
+  //
+  // The doctrine on the trifecta clause is unchanged: it MUST be the
+  // first system block. See src/lib/utils/lethal-trifecta.ts.
+  const systemBlocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
+    {
+      type: 'text',
+      text: LETHAL_TRIFECTA_REFUSAL_CLAUSE,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+  if (request.systemPrompt) {
+    systemBlocks.push({
+      type: 'text',
+      text: request.systemPrompt,
+      cache_control: { type: 'ephemeral' },
+    });
+  }
+
   const body: Record<string, unknown> = {
     model,
     max_tokens: maxTokens,
     messages: request.messages,
+    system: systemBlocks,
   };
-  // Every system prompt is prepended with the lethal-trifecta refusal clause
-  // — NON-NEGOTIABLE doctrine. See src/lib/utils/lethal-trifecta.ts.
-  // Agents must refuse (not hedge) any request crossing all three of
-  // sensitive data + untrusted input + external comms.
-  body.system = request.systemPrompt
-    ? `${LETHAL_TRIFECTA_REFUSAL_CLAUSE}\n\n---\n\n${request.systemPrompt}`
-    : LETHAL_TRIFECTA_REFUSAL_CLAUSE;
 
   // Make the API call
   let response: Response;
@@ -160,24 +253,41 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
 
   const data = await response.json() as {
     content: { type: string; text: string }[];
-    usage: { input_tokens: number; output_tokens: number };
+    usage: {
+      input_tokens: number;
+      output_tokens: number;
+      // These two fields only appear when prompt caching kicks in. Missing
+      // when the cached block is below the minimum-token threshold, or
+      // when this is the first call within the 5-min ephemeral TTL.
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
   };
 
   const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
-  const usage = data.usage ?? { input_tokens: 0, output_tokens: 0 };
+  const rawUsage = data.usage ?? { input_tokens: 0, output_tokens: 0 };
+  const usage = {
+    input_tokens: rawUsage.input_tokens ?? 0,
+    output_tokens: rawUsage.output_tokens ?? 0,
+    cache_creation_input_tokens: rawUsage.cache_creation_input_tokens ?? 0,
+    cache_read_input_tokens: rawUsage.cache_read_input_tokens ?? 0,
+  };
 
-  // Calculate cost
-  const costs = TOKEN_COSTS_USD[model] ?? { input: 0, output: 0 };
-  const costUsd = usage.input_tokens * costs.input + usage.output_tokens * costs.output;
+  const costUsd = computeLlmCallCost(model, usage);
 
-  // Log to atelier_llm_calls
+  // Log to atelier_llm_calls. Column names match the actual schema as of
+  // migration 0056 — pre-2026-05-16 this insert referenced `purpose`,
+  // `cost_usd`, and `response_preview` which didn't exist (latent bug
+  // surfaced by the AUDIT-2026-05-16 review while wiring caching).
   try {
     await supabase.from('atelier_llm_calls').insert({
       model,
-      purpose: request.purpose,
+      agent_name: request.purpose,
       input_tokens: usage.input_tokens,
       output_tokens: usage.output_tokens,
-      cost_usd: costUsd,
+      cache_creation_input_tokens: usage.cache_creation_input_tokens,
+      cache_read_input_tokens: usage.cache_read_input_tokens,
+      estimated_cost_usd: costUsd,
       booking_id: request.bookingId ?? null,
       success: true,
       response_preview: text.slice(0, 500),
@@ -202,7 +312,10 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     ok: true,
     text,
     usage,
-    cached: false,
+    // `cached` reflects prompt-cache hit (a cached system block was reused).
+    // Distinct from the legacy idempotency-key cache. Useful for surfacing
+    // cache-hit rate on a cost dashboard once one exists.
+    cached: usage.cache_read_input_tokens > 0,
   };
 }
 
