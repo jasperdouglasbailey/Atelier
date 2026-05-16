@@ -54,6 +54,24 @@ export type AnthropicModel =
 /** Default cheap/fast model. Used when a caller doesn't specify. */
 export const DEFAULT_MODEL: AnthropicModel = 'claude-haiku-4-5-20251001';
 
+/**
+ * Per-model fallback chain — if the requested model 404s (Anthropic
+ * deprecated the dated ID), we retry once with the corresponding
+ * prior-generation ID. Critical because the current-gen IDs were
+ * bumped in PR-E without live API verification — if any of them are
+ * stale, this gives the platform a soft landing instead of every
+ * agent call failing in prod.
+ *
+ * The chain is single-hop: try the new model, fall back to one prior.
+ * If even the prior model 404s we give up and let the caller see the
+ * error. Loops are explicitly avoided.
+ */
+const MODEL_FALLBACK: Partial<Record<AnthropicModel, AnthropicModel>> = {
+  'claude-haiku-4-5-20251001':  'claude-3-5-haiku-20241022',
+  'claude-sonnet-4-6':          'claude-3-5-sonnet-20241022',
+  'claude-opus-4-7':            'claude-opus-4-1-20250805',
+};
+
 export type LLMRequest = {
   /** Identifier for this call type — used in cost tracking and idempotency. */
   purpose: string;
@@ -183,7 +201,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     }
   }
 
-  const model = request.model ?? DEFAULT_MODEL;
+  const requestedModel = request.model ?? DEFAULT_MODEL;
   const maxTokens = Math.min(request.maxTokens ?? 1024, 4096);
 
   // Build the request body. The system field is an *array of text blocks*
@@ -221,33 +239,61 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     });
   }
 
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: maxTokens,
-    messages: request.messages,
-    system: systemBlocks,
-  };
-
-  // Make the API call
-  let response: Response;
-  try {
-    response = await fetch('https://api.anthropic.com/v1/messages', {
+  /**
+   * Send the request body to Anthropic. Returns the raw Response. Pulled
+   * out so we can retry with a fallback model on 404 (deprecated dated ID)
+   * without duplicating header/body construction.
+   *
+   * `key` is passed explicitly because TS doesn't narrow `apiKey` from
+   * the early-return guard above into a closure.
+   */
+  async function callOnce(modelId: AnthropicModel, key: string): Promise<Response> {
+    const body: Record<string, unknown> = {
+      model: modelId,
+      max_tokens: maxTokens,
+      messages: request.messages,
+      system: systemBlocks,
+    };
+    return fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key': apiKey,
+        'x-api-key': key,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
       body: JSON.stringify(body),
     });
+  }
+
+  let model: AnthropicModel = requestedModel;
+  let response: Response;
+  try {
+    response = await callOnce(model, apiKey);
   } catch (err) {
     console.error('[anthropic] fetch failed', err);
     return { ok: false, error: 'Network error calling Anthropic API', reason: 'api_error' };
   }
 
+  // If the model 404s (Anthropic deprecated the dated ID), retry once
+  // with the prior-generation counterpart. Single hop only — if that also
+  // fails, we surface the error to the caller. This protects against a
+  // bad model-bump (PR-E shipped current-gen IDs without live API
+  // verification, per the audit risk callout).
+  if (response.status === 404 && MODEL_FALLBACK[requestedModel]) {
+    const fallbackModel = MODEL_FALLBACK[requestedModel]!;
+    console.warn(`[anthropic] model ${requestedModel} 404'd — falling back to ${fallbackModel}`);
+    try {
+      response = await callOnce(fallbackModel, apiKey);
+      model = fallbackModel;
+    } catch (err) {
+      console.error('[anthropic] fallback fetch failed', err);
+      return { ok: false, error: 'Network error on fallback model', reason: 'api_error' };
+    }
+  }
+
   if (!response.ok) {
     const errText = await response.text().catch(() => 'unknown');
-    console.error('[anthropic] API error', response.status, errText);
+    console.error('[anthropic] API error', response.status, errText, 'model:', model);
     return { ok: false, error: `Anthropic API error ${response.status}`, reason: 'api_error' };
   }
 
