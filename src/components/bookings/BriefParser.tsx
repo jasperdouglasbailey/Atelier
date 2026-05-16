@@ -106,6 +106,22 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
       if (val != null) fd.set(key, String(val));
     }
 
+    // Structured usage taxonomy (LLM-only fields). Sent automatically
+    // when present — they don't appear as user-selectable checkboxes
+    // because they're an indivisible block ("you can't take the market
+    // without the realm" doesn't make sense). All-or-nothing apply.
+    if (suggestions.usage_market) fd.set('usage_market', suggestions.usage_market);
+    if (suggestions.usage_realm) fd.set('usage_realm', suggestions.usage_realm);
+    if (suggestions.usage_media_categories?.length) {
+      fd.set('usage_media_categories', suggestions.usage_media_categories.join(','));
+    }
+    if (suggestions.usage_specific_channels?.length) {
+      fd.set('usage_specific_channels', suggestions.usage_specific_channels.join(','));
+    }
+    if (suggestions.usage_territory_iso?.length) {
+      fd.set('usage_territory_iso', suggestions.usage_territory_iso.join(','));
+    }
+
     const result = await applyBriefSuggestionsAction(bookingId, fd);
     setApplying(false);
 
@@ -286,6 +302,51 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                     </label>
                   ))}
               </div>
+
+              {/* Structured usage taxonomy preview — LLM-only fields. Shown
+                  as read-only chips. Applied automatically with the rest. */}
+              {(suggestions.usage_market || suggestions.usage_realm ||
+                suggestions.usage_media_categories?.length ||
+                suggestions.usage_specific_channels?.length ||
+                suggestions.usage_territory_iso?.length) && (
+                <div className="rounded border px-3 py-2 space-y-1.5" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
+                    Detected usage taxonomy
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {suggestions.usage_market && (
+                      <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
+                        {suggestions.usage_market}
+                      </span>
+                    )}
+                    {suggestions.usage_realm && (
+                      <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
+                        {suggestions.usage_realm}
+                      </span>
+                    )}
+                    {suggestions.usage_media_categories?.map((c) => (
+                      <span key={c} className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}>
+                        {c}
+                      </span>
+                    ))}
+                    {suggestions.usage_territory_iso?.map((t) => (
+                      <span key={t} className="rounded px-2 py-0.5 text-[11px] font-mono" style={{ background: `${PALETTE.success}22`, color: PALETTE.success }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  {suggestions.usage_specific_channels && suggestions.usage_specific_channels.length > 0 && (
+                    <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                      <span className="text-[10px]" style={{ color: PALETTE.muted }}>Channels:</span>
+                      {suggestions.usage_specific_channels.map((c) => (
+                        <span key={c} className="text-[10px] font-mono" style={{ color: PALETTE.muted }}>
+                          {c}
+                        </span>
+                      )).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} style={{ color: PALETTE.muted }}>·</span>, el], [])}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2 pt-1">
                 <button

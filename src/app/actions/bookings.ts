@@ -704,6 +704,41 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     }
   }
 
+  // ─── Structured usage taxonomy (migration 0059) ───────────────────
+  // Persist the LLM-extracted enum + array fields directly. Validated
+  // server-side against the same allowlists baked into the DB CHECK
+  // constraints — silent skip on unknown values keeps the action lenient
+  // (the LLM occasionally hallucinates a synonym; we'd rather drop it
+  // than throw the whole apply).
+  const MARKET_VALUES = new Set(['consumer', 'trade', 'editorial']);
+  const REALM_VALUES = new Set(['advertising', 'promotional', 'pr', 'corporate', 'editorial']);
+  const CATEGORY_VALUES = new Set(['online', 'broadcast', 'print', 'outdoor', 'ambient']);
+
+  const market = formData.get('usage_market') as string | null;
+  if (market && MARKET_VALUES.has(market)) updates.usage_market = market;
+
+  const realm = formData.get('usage_realm') as string | null;
+  if (realm && REALM_VALUES.has(realm)) updates.usage_realm = realm;
+
+  // Arrays come in as comma-separated strings (FormData has no list shape).
+  const categoriesRaw = formData.get('usage_media_categories') as string | null;
+  if (categoriesRaw) {
+    const cleaned = categoriesRaw.split(',').map((s) => s.trim()).filter((s) => CATEGORY_VALUES.has(s));
+    if (cleaned.length > 0) updates.usage_media_categories = cleaned;
+  }
+
+  const channelsRaw = formData.get('usage_specific_channels') as string | null;
+  if (channelsRaw) {
+    const cleaned = channelsRaw.split(',').map((s) => s.trim()).filter((s) => /^[a-z][a-z0-9_]*$/.test(s));
+    if (cleaned.length > 0) updates.usage_specific_channels = cleaned;
+  }
+
+  const territoryIsoRaw = formData.get('usage_territory_iso') as string | null;
+  if (territoryIsoRaw) {
+    const cleaned = territoryIsoRaw.split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2,8}$/.test(s));
+    if (cleaned.length > 0) updates.usage_territory_iso = cleaned;
+  }
+
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to apply suggestions' };
 
