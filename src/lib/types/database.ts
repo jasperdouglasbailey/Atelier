@@ -437,7 +437,15 @@ export interface FeeLine {
   crew_id: string | null;
   quantity: number;
   unit_price: number;
+  /** What the client is billed for this line. Drives line_total / ASF / GST / super charged. */
   subtotal: number;
+  /**
+   * Optional: actual amount paid to the payee, when different from billed `subtotal`.
+   * NULL = same as subtotal (paid = billed). When set, drives the paid-out side of
+   * the engine (commission, super to fund, input credits) while `subtotal` continues
+   * to drive the client-invoice side. Captured spread flows into agency margin.
+   */
+  cost_subtotal: number | null;
   asf_rate: number;
   asf_amount: number;
   is_gst_exempt: boolean;

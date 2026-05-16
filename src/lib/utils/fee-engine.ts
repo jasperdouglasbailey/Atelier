@@ -34,22 +34,44 @@ function r2(n: number): number {
 // ============================================================
 
 export interface ComputedFeeLine {
+  /** Billed to client. Drives client-invoice math (ASF, GST, super charged, line total). */
   subtotal: number;
+  /**
+   * Actually paid to the payee. Same as subtotal unless `cost_subtotal` was set
+   * on the line (the "I quoted X but they invoiced Y" case). Drives the
+   * paid-out side of the engine: commission, super to fund, input credits.
+   */
+  costSubtotal: number;
+  /** subtotal − costSubtotal. Captured agency windfall (≥ 0). */
+  spreadCaptured: number;
   asfAmount: number;
   gstAmount: number;
-  superChargedAmount: number; // what client pays (15%)
-  superPaidAmount: number;   // what goes to fund (12%)
-  commissionAmount: number;  // agency keeps from artist
+  superChargedAmount: number; // what client pays (15% of billed)
+  superPaidAmount: number;   // what goes to fund (12% of COST)
+  commissionAmount: number;  // agency keeps from artist (20% of COST when commissionable)
   commissionGst: number;     // GST on commission
   lineTotal: number;         // subtotal + ASF + GST (super added separately)
+}
+
+/** What's actually paid out for this line — `cost_subtotal` when set, else `subtotal`. */
+export function effectiveCost(line: Partial<FeeLine>): number {
+  if (line.cost_subtotal != null) return r2(line.cost_subtotal);
+  const qty = line.quantity ?? 1;
+  const price = line.unit_price ?? 0;
+  return r2(qty * price);
 }
 
 export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
   const qty = line.quantity ?? 1;
   const price = line.unit_price ?? 0;
   const subtotal = r2(qty * price);
+  // Cost subtotal: actual amount paid to payee. Defaults to `subtotal` so
+  // legacy callers without cost_subtotal set behave identically to before.
+  const costSubtotal = line.cost_subtotal != null ? r2(line.cost_subtotal) : subtotal;
+  const spreadCaptured = r2(Math.max(0, subtotal - costSubtotal));
 
-  // ASF: applied to the subtotal. Rate is per-line adjustable.
+  // ── CLIENT-INVOICE SIDE: uses billed `subtotal` ──────────────────────────
+  // ASF: applied to the billed subtotal. Rate is per-line adjustable.
   const asfRate = line.asf_rate ?? DEFAULT_ASF_RATE;
   const asfAmount = r2(subtotal * asfRate);
 
@@ -57,22 +79,29 @@ export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
   const gstBase = subtotal + asfAmount;
   const gstAmount = line.is_gst_exempt ? 0 : r2(gstBase * GST_RATE);
 
-  // Super (crew labour only): charged at 15% of crew labour subtotal. No GST, no ASF on super.
+  // Super CHARGED to client (15% of billed labour). No GST, no ASF on super.
   const superChargedRate = line.super_rate_charged ?? SUPER_RATE_CHARGED;
-  const superPaidRate = line.super_rate_paid ?? SUPER_RATE_PAID;
   const superChargedAmount = line.is_super_bearing ? r2(subtotal * superChargedRate) : 0;
-  const superPaidAmount = line.is_super_bearing ? r2(subtotal * superPaidRate) : 0;
-
-  // Commission: 20% on artist labour subtotal (agency retains at payment time)
-  const commRate = line.commission_rate ?? DEFAULT_COMMISSION_RATE;
-  const commissionAmount = line.is_commissionable ? r2(subtotal * commRate) : 0;
-  const commissionGst = line.is_commissionable ? r2(commissionAmount * GST_RATE) : 0;
 
   // Line total for client invoice: subtotal + ASF + GST (super added separately on the invoice)
   const lineTotal = r2(subtotal + asfAmount + gstAmount);
 
+  // ── PAID-OUT SIDE: uses `costSubtotal` ───────────────────────────────────
+  // Super PAID to fund (12% of actual labour cost). Legally, SG is on
+  // ordinary time earnings actually paid — not on the quoted amount.
+  const superPaidRate = line.super_rate_paid ?? SUPER_RATE_PAID;
+  const superPaidAmount = line.is_super_bearing ? r2(costSubtotal * superPaidRate) : 0;
+
+  // Commission: 20% on what the artist actually invoices (cost). When the
+  // artist underbills relative to quote, agency captures the spread instead
+  // of charging commission on the unbilled portion.
+  const commRate = line.commission_rate ?? DEFAULT_COMMISSION_RATE;
+  const commissionAmount = line.is_commissionable ? r2(costSubtotal * commRate) : 0;
+  const commissionGst = line.is_commissionable ? r2(commissionAmount * GST_RATE) : 0;
+
   return {
-    subtotal, asfAmount, gstAmount,
+    subtotal, costSubtotal, spreadCaptured,
+    asfAmount, gstAmount,
     superChargedAmount, superPaidAmount,
     commissionAmount, commissionGst,
     lineTotal,
@@ -84,13 +113,18 @@ export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
 // ============================================================
 
 export interface QuoteTotals {
+  /** Sum of `subtotal` (billed to client). */
   subtotal: number;
+  /** Sum of `costSubtotal` (actually paid to payees). Equals subtotal when no line has cost_subtotal set. */
+  costSubtotal: number;
+  /** Sum of spread captured across all lines (subtotal − costSubtotal). 0 when no cost overrides exist. */
+  totalSpreadCaptured: number;
   totalAsf: number;
   totalGst: number;
-  totalSuper: number;       // charged to client (15%)
-  totalSuperPaid: number;   // paid to fund (12%)
+  totalSuper: number;       // charged to client (15% × billed)
+  totalSuperPaid: number;   // paid to fund (12% × cost)
   grandTotal: number;       // subtotal + ASF + GST + super (client pays this)
-  totalCommission: number;  // agency retains from artist payments
+  totalCommission: number;  // agency retains from artist payments (20% × cost)
   totalCommissionGst: number;
   lines: ComputedFeeLine[];
 }
@@ -99,6 +133,8 @@ export function computeQuoteTotals(lines: Partial<FeeLine>[]): QuoteTotals {
   const computed = lines.map(computeFeeLine);
 
   const subtotal = r2(computed.reduce((s, l) => s + l.subtotal, 0));
+  const costSubtotal = r2(computed.reduce((s, l) => s + l.costSubtotal, 0));
+  const totalSpreadCaptured = r2(computed.reduce((s, l) => s + l.spreadCaptured, 0));
   const totalAsf = r2(computed.reduce((s, l) => s + l.asfAmount, 0));
   const totalGst = r2(computed.reduce((s, l) => s + l.gstAmount, 0));
   const totalSuper = r2(computed.reduce((s, l) => s + l.superChargedAmount, 0));
@@ -108,7 +144,8 @@ export function computeQuoteTotals(lines: Partial<FeeLine>[]): QuoteTotals {
   const totalCommissionGst = r2(computed.reduce((s, l) => s + l.commissionGst, 0));
 
   return {
-    subtotal, totalAsf, totalGst, totalSuper, totalSuperPaid,
+    subtotal, costSubtotal, totalSpreadCaptured,
+    totalAsf, totalGst, totalSuper, totalSuperPaid,
     grandTotal, totalCommission, totalCommissionGst, lines: computed,
   };
 }
@@ -118,10 +155,15 @@ export function computeQuoteTotals(lines: Partial<FeeLine>[]): QuoteTotals {
 // ============================================================
 
 export interface AgencyMargin {
-  commission: number;       // 20% commission on artist labour
-  asf: number;              // ASF charged to client (default 15%)
-  superSpread: number;      // 3% retained on crew super (charged 15%, paid 12%)
-  total: number;            // commission + asf + superSpread
+  commission: number;       // 20% commission on artist labour (× cost)
+  asf: number;              // ASF charged to client (default 15% × billed)
+  superSpread: number;      // billed × 15% − cost × 12% on crew super
+  /**
+   * Spread captured when actual cost < billed (e.g. crew underbilled relative
+   * to quote). Always ≥ 0 — when cost ≥ billed (the normal case), this is 0.
+   */
+  spreadCaptured: number;
+  total: number;            // commission + asf + superSpread + spreadCaptured
 }
 
 /**
@@ -129,9 +171,11 @@ export interface AgencyMargin {
  * This is what Saunders & Co retains, before operating costs and tax.
  *
  * Components:
- *   - 20% commission on artist labour (paid out of the artist's gross)
- *   - ASF (default 15%) charged to the client on top of line subtotals
- *   - 3% spread on crew super (15% charged − 12% paid to fund)
+ *   - 20% commission on artist labour COST (paid out of artist's actual invoice)
+ *   - ASF (default 15%) charged to the client on top of billed subtotals
+ *   - Super spread on crew labour: billed × 15% − cost × 12%
+ *   - Spread captured: sum of (billed − cost) across all lines where cost was
+ *     explicitly recorded below billed (e.g. quoted $600, invoiced $550 → $50)
  *
  * GST flows through — not part of margin.
  */
@@ -139,8 +183,9 @@ export function computeAgencyMargin(totals: QuoteTotals): AgencyMargin {
   const commission = totals.totalCommission;
   const asf = totals.totalAsf;
   const superSpread = r2(totals.totalSuper - totals.totalSuperPaid);
-  const total = r2(commission + asf + superSpread);
-  return { commission, asf, superSpread, total };
+  const spreadCaptured = totals.totalSpreadCaptured;
+  const total = r2(commission + asf + superSpread + spreadCaptured);
+  return { commission, asf, superSpread, spreadCaptured, total };
 }
 
 // ============================================================
@@ -176,16 +221,16 @@ export interface GstPassthrough {
 /**
  * Compute the GST passthrough picture for a booking.
  *
- * `artistFeeSubtotal` and `crewLabourSubtotal` are the gross labour
- * subtotals. `artistsGstRegistered` and `crewGstRegisteredCount` /
- * `crewGstRegisteredSubtotal` describe what fraction of those payouts
- * actually generates input credits.
+ * Inputs should be COST-side subtotals (what's actually paid to payees), not
+ * billed subtotals. When `cost_subtotal` is not set on any line, cost = billed
+ * and behaviour is unchanged from before. When cost < billed, input credits
+ * are smaller (10% of cost, not 10% of billed) — agency owes ATO more, which
+ * lines up with the extra revenue captured in spreadCaptured.
  *
- * For simplicity we treat GST-registered talent/crew as receiving GST on
- * their full labour subtotal — the same way the artist payment / crew RCTI
- * helpers above do. Outgoings (equipment, studio etc.) almost always come
- * with GST too, but those are billed straight to the agency by external
- * vendors, not through this fee-line table — they're not modelled here.
+ * `artistFeeSubtotal` and `crewLabourSubtotalGstRegistered` are GROSS labour
+ * COST subtotals. `artistGstRegistered` controls whether artist's input credit
+ * applies (artists are typically GST-registered). For crew, only the cost
+ * portion that came from GST-registered crew members generates credits.
  */
 export function computeGstPassthrough(args: {
   totals: QuoteTotals;
@@ -234,6 +279,16 @@ export interface ArtistPayment {
   netPayment: number;      // grossFees - commission - commissionGst + artistGst
 }
 
+/**
+ * Compute the artist's net cheque from the agency.
+ *
+ * `artistFeeSubtotal` should be the artist's COST subtotal — what the artist
+ * actually invoices the agency for. When cost_subtotal isn't set on the lines
+ * (cost = billed), behaviour is unchanged from before. When the artist
+ * underbills relative to quote, commission scales with the smaller cost
+ * amount, not the larger billed amount — agency captures the difference as
+ * spreadCaptured in AgencyMargin instead.
+ */
 export function computeArtistPayment(
   artistFeeSubtotal: number,
   isGstRegistered: boolean,

@@ -3,7 +3,7 @@ import { getBooking } from '@/lib/data/bookings';
 import { listFeeLinesForActiveQuote, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
 import {
   computeQuoteTotals, computeAgencyMargin, computeGstPassthrough,
-  computeArtistPayment, computeCrewPayment,
+  computeArtistPayment, computeCrewPayment, effectiveCost,
 } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -64,18 +64,21 @@ export default async function AccountingPrintPage({ params }: Props) {
   const primaryArtist = (talent[0] as { talent?: { gst_registered?: boolean; working_name?: string } } | undefined)?.talent;
   const artistGstRegistered = primaryArtist?.gst_registered ?? false;
 
+  // All paid-out math uses COST subtotals (effectiveCost = cost_subtotal ?? subtotal).
+  // When cost_subtotal isn't set on any line, cost = billed and the accounting
+  // statement is unchanged from the pre-cost-split era.
   const artistFeeSubtotal = feeLines
     .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
-    .reduce((s, l) => s + l.subtotal, 0);
+    .reduce((s, l) => s + effectiveCost(l), 0);
   const artistReimbursementSubtotal = feeLines
     .filter((l) => l.is_artist_reimbursement)
-    .reduce((s, l) => s + l.subtotal, 0);
+    .reduce((s, l) => s + effectiveCost(l), 0);
 
   const crewLabourSubtotalGstRegistered = feeLines
     .filter((l) => CREW_LABOUR_LINE_TYPES.has(l.line_type) && l.crew_id != null)
     .reduce((sum, l) => {
       const crewRow = (crew as Array<{ crew_id: string; crew?: { gst_registered?: boolean } }>).find((bc) => bc.crew_id === l.crew_id);
-      return crewRow?.crew?.gst_registered ? sum + l.subtotal : sum;
+      return crewRow?.crew?.gst_registered ? sum + effectiveCost(l) : sum;
     }, 0);
 
   const gst = computeGstPassthrough({
@@ -97,9 +100,9 @@ export default async function AccountingPrintPage({ params }: Props) {
   for (const l of feeLines) {
     const key = l.crew_id ?? null;
     if (CREW_LABOUR_LINE_TYPES.has(l.line_type)) {
-      crewLabourByCrew.set(key, (crewLabourByCrew.get(key) ?? 0) + l.subtotal);
+      crewLabourByCrew.set(key, (crewLabourByCrew.get(key) ?? 0) + effectiveCost(l));
     } else if (l.line_type === 'crew_equipment' && !l.is_artist_reimbursement) {
-      crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + l.subtotal);
+      crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + effectiveCost(l));
     }
   }
   type CrewPaymentRow = { name: string; gstReg: boolean; labour: number; expenses: number; superPaid: number; gst: number; net: number };

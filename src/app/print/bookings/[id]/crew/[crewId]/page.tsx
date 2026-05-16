@@ -16,7 +16,7 @@ import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { getCrewMember } from '@/lib/data/entities';
-import { computeCrewPayment } from '@/lib/utils/fee-engine';
+import { computeCrewPayment, effectiveCost } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
@@ -44,8 +44,9 @@ export default async function CrewBillPage({ params }: Props) {
   const labourLines = myLines.filter((l) => LABOUR_TYPES.has(l.line_type));
   const expenseLines = myLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
 
-  const labourSubtotal = labourLines.reduce((s, l) => s + l.subtotal, 0);
-  const expensesSubtotal = expenseLines.reduce((s, l) => s + l.subtotal, 0);
+  // Use COST subtotal — what the crew actually invoiced.
+  const labourSubtotal = labourLines.reduce((s, l) => s + effectiveCost(l), 0);
+  const expensesSubtotal = expenseLines.reduce((s, l) => s + effectiveCost(l), 0);
   const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered);
 
   const agency = getAgencyConfig();

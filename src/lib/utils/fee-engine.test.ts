@@ -16,6 +16,7 @@ import {
   computeArtistPayment,
   computeCrewPayment,
   computeOT,
+  effectiveCost,
   createArtistFeeLine,
   createCrewLabourLine,
   createExpenseLine,
@@ -365,5 +366,167 @@ describe('grand-total invariants', () => {
     const t = computeQuoteTotals(lines);
     const preTaxSubtotal = t.subtotal + t.totalAsf;
     closeTo(preTaxSubtotal + t.totalGst + t.totalSuper, t.grandTotal);
+  });
+});
+
+// ============================================================
+// Cost-vs-billed split (cost_subtotal feature)
+// ============================================================
+// When the payee invoices less than what was quoted to the client, the
+// difference is captured agency margin. These tests verify:
+//   - When cost_subtotal is unset (null), behaviour is identical to before
+//   - When cost_subtotal < subtotal, paid-out math uses cost; client invoice
+//     math stays on billed; spread shows up in agency margin
+//   - The AJE eComm #3579 canonical example with cost_subtotal=null is byte-
+//     identical to the pre-feature totals (regression guard)
+
+describe('cost_subtotal split: legacy behaviour preserved', () => {
+  it('effectiveCost falls back to qty × unit_price when cost_subtotal is null', () => {
+    const line: Partial<FeeLine> = { quantity: 2, unit_price: 300 };
+    expect(effectiveCost(line)).toBe(600);
+  });
+
+  it('effectiveCost returns cost_subtotal when set', () => {
+    const line: Partial<FeeLine> = { quantity: 2, unit_price: 300, cost_subtotal: 500 };
+    expect(effectiveCost(line)).toBe(500);
+  });
+
+  it('computeFeeLine with cost_subtotal=null produces same numbers as before', () => {
+    // Re-run a canonical artist line: $3500, ASF 15%, GST 10%, commissionable
+    const r = computeFeeLine(createArtistFeeLine('Photography', 3500, 1));
+    closeTo(r.subtotal, 3500);
+    closeTo(r.costSubtotal, 3500);          // defaults to billed
+    closeTo(r.spreadCaptured, 0);            // no spread
+    closeTo(r.asfAmount, 525);               // 15% of 3500
+    closeTo(r.commissionAmount, 700);        // 20% of 3500
+    closeTo(r.commissionGst, 70);
+  });
+
+  it('Oliver AJE #3579 canonical: totals unchanged when no cost overrides', () => {
+    const lines: Partial<FeeLine>[] = [
+      createArtistFeeLine('Photography', 3500, 1),
+      createArtistFeeLine('Post-production', 500, 1),
+      createArtistFeeLine('Retouching', 250, 1),
+      createCrewLabourLine('Digital Operator', 700, 1),
+      createCrewLabourLine('Photo Assistant', 500, 1),
+      createExpenseLine('catering', 'Catering', 180, 1),
+    ];
+    const t = computeQuoteTotals(lines);
+    // Spread captured must be 0 — no cost_subtotal set on any line
+    closeTo(t.totalSpreadCaptured, 0);
+    // Cost subtotal equals billed subtotal (the legacy invariant)
+    closeTo(t.costSubtotal, t.subtotal);
+    // Grand total identical to legacy expectation: 7272.25
+    closeTo(t.grandTotal, 7272.25);
+    // Margin = commission + ASF + super spread, NO spreadCaptured
+    const m = computeAgencyMargin(t);
+    closeTo(m.spreadCaptured, 0);
+    closeTo(m.commission, 850);
+    closeTo(m.asf, 817.5);
+    closeTo(m.superSpread, 36);             // 180 - 144
+    closeTo(m.total, 1703.5);               // 850 + 817.5 + 36
+  });
+});
+
+describe('cost_subtotal split: cost < billed (the windfall case)', () => {
+  // Scenario from the Jasper 2026-05-15 discussion:
+  // Client quoted digital operator at $600/day. Operator actually invoices $550.
+  // Client invoice stays at $600. Cost paid stays at $550. Agency captures $50.
+
+  it('crew labour with cost_subtotal < subtotal: super paid uses cost, super charged uses billed', () => {
+    const line: Partial<FeeLine> = {
+      ...createCrewLabourLine('Digital Operator', 600, 1),
+      cost_subtotal: 550,
+    };
+    const r = computeFeeLine(line);
+    closeTo(r.subtotal, 600);
+    closeTo(r.costSubtotal, 550);
+    closeTo(r.spreadCaptured, 50);
+    // Super CHARGED to client: 15% × 600 = 90 (on billed)
+    closeTo(r.superChargedAmount, 90);
+    // Super PAID to fund: 12% × 550 = 66 (on cost)
+    closeTo(r.superPaidAmount, 66);
+    // ASF: 15% × 600 = 90 (on billed)
+    closeTo(r.asfAmount, 90);
+    // GST: 10% × (600 + 90) = 69 (on billed)
+    closeTo(r.gstAmount, 69);
+    // Line total to client (super added separately):
+    closeTo(r.lineTotal, 759);
+  });
+
+  it('artist line with cost_subtotal < subtotal: commission scales with cost', () => {
+    // Quoted artist fee $4250, but artist invoices $4000 (caught a discount somewhere)
+    const line: Partial<FeeLine> = {
+      ...createArtistFeeLine('Photography', 4250, 1),
+      cost_subtotal: 4000,
+    };
+    const r = computeFeeLine(line);
+    closeTo(r.subtotal, 4250);
+    closeTo(r.costSubtotal, 4000);
+    closeTo(r.spreadCaptured, 250);
+    // Commission: 20% × 4000 = 800 (on COST, not 850 on billed)
+    closeTo(r.commissionAmount, 800);
+    closeTo(r.commissionGst, 80);
+    // ASF: 15% × 4250 = 637.50 (on BILLED — what client sees)
+    closeTo(r.asfAmount, 637.5);
+    // GST: 10% × (4250 + 637.50) = 488.75 (on BILLED)
+    closeTo(r.gstAmount, 488.75);
+  });
+
+  it('agency margin includes spread captured when cost < billed', () => {
+    // Same scenario: 1 line with $50 spread
+    const lines: Partial<FeeLine>[] = [
+      {
+        ...createCrewLabourLine('Digital Operator', 600, 1),
+        cost_subtotal: 550,
+      },
+    ];
+    const t = computeQuoteTotals(lines);
+    closeTo(t.totalSpreadCaptured, 50);
+    closeTo(t.costSubtotal, 550);
+    closeTo(t.subtotal, 600);
+
+    const m = computeAgencyMargin(t);
+    // No commission (crew labour not commissionable). ASF = 90. Super spread = 90 - 66 = 24.
+    // Spread captured = 50. Total = 90 + 24 + 50 = 164.
+    closeTo(m.commission, 0);
+    closeTo(m.asf, 90);
+    closeTo(m.superSpread, 24);            // billed × 15% − cost × 12%
+    closeTo(m.spreadCaptured, 50);
+    closeTo(m.total, 164);
+  });
+
+  it('crew payment uses cost subtotal: invoiced amount, not quoted', () => {
+    // Crew member invoices $550 (the cost), GST registered.
+    // Super paid = 12% × 550 = 66. GST = 10% × 550 = 55. Net = 550 + 66 + 55 = 671.
+    const r = computeCrewPayment(550, 0, true);
+    closeTo(r.labourSubtotal, 550);
+    closeTo(r.superPaid, 66);
+    closeTo(r.gst, 55);
+    closeTo(r.netPayment, 671);
+  });
+
+  it('GST passthrough: input credits scale with cost when artist underbills', () => {
+    // Artist labour: billed $4250 (client invoice GST = 10% × (4250 + 637.50) = 488.75)
+    // Artist invoices $4000 (cost). Artist GST on their invoice = 10% × 4000 = 400.
+    // Agency net GST owed = 488.75 + commission GST − 400 (input credit)
+    const t = computeQuoteTotals([
+      { ...createArtistFeeLine('Photography', 4250, 1), cost_subtotal: 4000 },
+    ]);
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 4000,        // COST, not 4250 billed
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 0,
+    });
+    // collectedOnLines = totalGst from client invoice = 488.75
+    closeTo(gst.collectedOnLines, 488.75);
+    // commission GST = 80 (20% × 4000 = 800; ×10% = 80)
+    closeTo(gst.collectedOnCommission, 80);
+    closeTo(gst.collectedTotal, 568.75);
+    // Input credit: 10% of artist's $4000 invoice = 400
+    closeTo(gst.artistInputCredits, 400);
+    // Net to ATO: 568.75 - 400 = 168.75
+    closeTo(gst.netToAto, 168.75);
   });
 });

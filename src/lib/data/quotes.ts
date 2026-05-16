@@ -223,6 +223,8 @@ export type CreateFeeLineInput = {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  /** Optional: actual cost when different from billed `subtotal`. */
+  cost_subtotal?: number | null;
   asf_rate: number;
   asf_amount: number;
   is_gst_exempt: boolean;
@@ -310,6 +312,7 @@ export async function addFeeLine(input: CreateFeeLineInput): Promise<FeeLine | n
  */
 const FEE_LINE_UPDATABLE_COLUMNS = [
   'line_type', 'description', 'quantity', 'unit_price', 'subtotal',
+  'cost_subtotal',
   'asf_rate', 'asf_amount', 'is_gst_exempt', 'is_super_bearing',
   'super_rate_charged', 'super_rate_paid', 'is_commissionable',
   'commission_rate', 'talent_id', 'crew_id', 'notes',
