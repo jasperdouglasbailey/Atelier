@@ -20,7 +20,7 @@ import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getTalentPortalData, getPortalCallSheets } from '@/lib/data/portal';
 import PortalDataRights from '@/components/portal/PortalDataRights';
-import TalentUnavailabilityManager from '@/components/portal/TalentUnavailabilityManager';
+import PortalCalendar from '@/components/portal/PortalCalendar';
 import HoldCard from '@/components/portal/HoldCard';
 import CallSheetCard from '@/components/portal/CallSheetCard';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
@@ -38,6 +38,8 @@ import {
   respondToTalentHoldAction,
   acceptTalentRateAction,
   acknowledgeBriefAction,
+  addTalentUnavailabilityAction,
+  removeTalentUnavailabilityAction,
 } from '@/app/actions/portal';
 import type { ArtistDiscipline, BookingState } from '@/lib/types/database';
 import type { TalentPortalBookingRow } from '@/lib/data/portal';
@@ -241,9 +243,22 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
           My availability
         </h2>
         <p className="text-xs mb-3" style={{ color: PALETTE.muted }}>
-          Add any dates you are unavailable so the team knows before sending hold requests.
+          Click any date to block it. Your upcoming shoots show as coloured dots — green for confirmed, amber for holds awaiting your response.
         </p>
-        <TalentUnavailabilityManager initial={unavailability} />
+        <PortalCalendar
+          bookings={[...upcoming, ...past].map((b) => ({
+            bookingId: b.bookingId,
+            bookingRef: b.bookingRef,
+            title: b.title,
+            shootDates: b.shootDates,
+            confirmed: b.confirmed,
+            status: b.status,
+          }))}
+          unavailability={unavailability}
+          onAdd={addTalentUnavailabilityAction}
+          onRemove={removeTalentUnavailabilityAction}
+          readOnly={isOwnerPreview}
+        />
       </section>
 
       <PortalDataRights type="talent" id={talent.id} name={talent.working_name} />
