@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { UsageLicence, UsageMedia, UsageTerritory } from '@/lib/types/database';
 import { PALETTE } from '@/lib/utils/constants';
@@ -71,22 +71,6 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
   const [busy, setBusy] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<UsageMedia[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<UsageTerritory[]>([]);
-  // BUR auto-calculation
-  const [burMultiplier, setBurMultiplier] = useState('');
-  const [baseRate, setBaseRate] = useState('');
-  const [autoFee, setAutoFee] = useState('');
-
-  useEffect(() => {
-    const bur = parseFloat(burMultiplier);
-    const base = parseFloat(baseRate);
-    if (!isNaN(bur) && !isNaN(base) && bur > 0 && base > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAutoFee(String(Math.round(bur * base)));
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAutoFee('');
-    }
-  }, [burMultiplier, baseRate]);
 
   function toggleMedia(m: UsageMedia) {
     setSelectedMedia(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -103,9 +87,6 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
     setShowAdd(false);
     setSelectedMedia([]);
     setSelectedTerritory([]);
-    setBurMultiplier('');
-    setBaseRate('');
-    setAutoFee('');
     router.refresh();
     setBusy(false);
   }
@@ -114,9 +95,6 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
     setShowAdd(false);
     setSelectedMedia([]);
     setSelectedTerritory([]);
-    setBurMultiplier('');
-    setBaseRate('');
-    setAutoFee('');
   }
 
   async function handleRemove(id: string) {
@@ -163,7 +141,6 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
               </div>
               <div className="text-[10px] flex gap-3" style={{ color: PALETTE.muted }}>
                 <span>{lic.duration_months >= 999 ? 'In perpetuity' : `${lic.duration_months} months`}</span>
-                {lic.bur_multiplier && <span>BUR: {lic.bur_multiplier}×</span>}
                 <span className="font-medium" style={{ color: PALETTE.text }}>{formatCurrency(lic.fee)}</span>
               </div>
               {lic.notes && <div className="text-[10px] mt-1" style={{ color: PALETTE.muted }}>{lic.notes}</div>}
@@ -243,55 +220,16 @@ export default function UsageLicenceBuilder({ bookingId, licences }: Props) {
                 step="0.01"
                 min="0"
                 required
-                value={autoFee}
-                onChange={(e) => setAutoFee(e.target.value)}
+                placeholder="e.g. 2400"
                 className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
-                style={{ background: PALETTE.bg, borderColor: autoFee ? `${PALETTE.accent}66` : PALETTE.border, color: PALETTE.text }}
+                style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
               />
             </div>
           </div>
-          {/* BUR auto-calculator — optional helper */}
-          <details className="rounded border px-3 py-2" style={{ borderColor: PALETTE.border }}>
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
-              BUR Calculator (optional)
-            </summary>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              <div>
-                <label className="block text-[10px] uppercase" style={{ color: PALETTE.muted }}>BUR Multiplier</label>
-                <input
-                  name="bur_multiplier"
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  placeholder="e.g. 0.3"
-                  value={burMultiplier}
-                  onChange={(e) => setBurMultiplier(e.target.value)}
-                  className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
-                  style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] uppercase" style={{ color: PALETTE.muted }}>Base Rate ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g. 3500 (day rate)"
-                  value={baseRate}
-                  onChange={(e) => setBaseRate(e.target.value)}
-                  className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
-                  style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
-                />
-              </div>
-              <div className="flex items-end pb-1.5">
-                {autoFee && (
-                  <span className="text-xs font-medium" style={{ color: PALETTE.accent }}>
-                    = ${Number(autoFee).toLocaleString()} ↑ auto-filled above
-                  </span>
-                )}
-              </div>
-            </div>
-          </details>
+          {/* BUR calculator removed — it was a glorified two-number multiplier,
+              not a real calculator. Fee is now a direct input. Structured usage
+              valuation (media × territory × duration → fee) is a separate piece
+              of work, not a UI affordance dressed up as one. */}
 
           <div>
             <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Notes</label>

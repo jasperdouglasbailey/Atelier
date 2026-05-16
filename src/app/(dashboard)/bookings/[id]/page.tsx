@@ -33,6 +33,7 @@ import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 import BookingPageHeader from '@/components/bookings/BookingPageHeader';
 import BookingJobFacts from '@/components/bookings/BookingJobFacts';
 import StageChecklist from '@/components/bookings/StageChecklist';
+import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
 import BookingMiniCalendar from '@/components/bookings/BookingMiniCalendar';
 import ActivityFeed from '@/components/bookings/ActivityFeed';
@@ -177,6 +178,17 @@ export default async function BookingDetailPage({ params }: Props) {
                   />
 
                   <BookingJobFacts booking={booking} schedules={schedules} />
+
+                  {/* Usage Licences — surface its own section here. Previously
+                      this was nested inside BookingDetail's Brief panel which
+                      is hidden when suppressHeader is set (always, on this
+                      page), so the usage panel was effectively orphaned. */}
+                  <section
+                    className="rounded-lg border p-4"
+                    style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
+                  >
+                    <UsageLicenceBuilder bookingId={booking.id} licences={usageLicences} />
+                  </section>
 
                   {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
                     <BriefParser
