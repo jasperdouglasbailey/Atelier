@@ -33,7 +33,11 @@ export async function addUsageLicenceAction(formData: FormData) {
     duration_months: Number(formData.get('duration_months') || 12),
     start_date: (formData.get('start_date') as string) || null,
     end_date: (formData.get('end_date') as string) || null,
-    bur_multiplier: formData.get('bur_multiplier') ? Number(formData.get('bur_multiplier')) : null,
+    // bur_multiplier removed from add form — was a glorified multiplier
+    // helper, not a real calculator. Existing rows keep their value;
+    // new rows leave it null. The DB column is retained for now to avoid
+    // dropping historical data; can be removed in a follow-up migration.
+    bur_multiplier: null,
     fee: Number(formData.get('fee') || 0),
     notes: (formData.get('notes') as string) || null,
   };
