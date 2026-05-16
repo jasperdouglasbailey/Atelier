@@ -201,6 +201,19 @@ export default function TalentEditForm({ talent }: Props) {
         </div>
 
         <div>
+          <label style={labelStyle}>
+            Nicknames
+            <span className="ml-2 font-normal opacity-60">comma-separated; used by inbox brief-detection</span>
+          </label>
+          <input
+            name="nicknames"
+            defaultValue={(talent.nicknames ?? []).join(', ')}
+            style={inputStyle}
+            placeholder="e.g. Oly, Ollie"
+          />
+        </div>
+
+        <div>
           <label style={labelStyle}>Preferred Comms</label>
           <select name="preferred_comms" defaultValue={talent.preferred_comms ?? ''} style={{ ...inputStyle, maxWidth: 240 }}>
             <option value="">— Not set —</option>
