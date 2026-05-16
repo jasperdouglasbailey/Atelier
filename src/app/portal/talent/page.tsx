@@ -180,6 +180,7 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
               // direct references or `.bind()`'d — see crew portal comment.
               onConfirm={respondToTalentHoldAction.bind(null, b.bookingTalentId, 'confirmed')}
               onDecline={respondToTalentHoldAction.bind(null, b.bookingTalentId, 'declined')}
+              readOnly={isOwnerPreview}
             />
           ))}
         </section>
@@ -212,6 +213,7 @@ export default async function TalentPortalPage({ searchParams }: PageProps) {
                 row={b}
                 showRateAccept={RATE_ACCEPT_STATES.includes(b.state as BookingState) && !b.rateAccepted && !!b.dayRate}
                 showBriefAck={BRIEF_ACK_STATES.includes(b.state as BookingState) && !b.briefAcknowledgedAt}
+                readOnly={isOwnerPreview}
               />
             ))}
           </div>
@@ -260,11 +262,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function TalentBookingRow({
-  row, showRateAccept, showBriefAck,
+  row, showRateAccept, showBriefAck, readOnly = false,
 }: {
   row: TalentPortalBookingRow;
   showRateAccept: boolean;
   showBriefAck: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <div className="rounded border p-3 space-y-2" style={{ borderColor: PALETTE.border }}>
@@ -325,7 +328,13 @@ function TalentBookingRow({
             <span className="text-xs" style={{ color: PALETTE.text }}>
               Confirm your day rate of <strong>{formatCurrency(row.dayRate!)}</strong>
             </span>
-            <button type="submit" className="rounded px-3 py-1 text-xs font-medium ml-3" style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button
+              type="submit"
+              disabled={readOnly}
+              title={readOnly ? 'Preview mode — actions disabled' : undefined}
+              className="rounded px-3 py-1 text-xs font-medium ml-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
               Accept rate
             </button>
           </div>
@@ -339,7 +348,13 @@ function TalentBookingRow({
         <form action={acknowledgeBriefAction.bind(null, row.bookingTalentId)}>
           <div className="flex items-center justify-between rounded border px-3 py-2" style={{ borderColor: PALETTE.warning, background: `${PALETTE.warning}0d` }}>
             <span className="text-xs" style={{ color: PALETTE.text }}>Confirm you have read the artist brief</span>
-            <button type="submit" className="rounded px-3 py-1 text-xs font-medium ml-3" style={{ background: PALETTE.warning, color: '#1a1a1a', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button
+              type="submit"
+              disabled={readOnly}
+              title={readOnly ? 'Preview mode — actions disabled' : undefined}
+              className="rounded px-3 py-1 text-xs font-medium ml-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: PALETTE.warning, color: '#1a1a1a', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
               Brief read
             </button>
           </div>

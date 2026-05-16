@@ -23,6 +23,7 @@ import { getBookingsRoster } from '@/lib/data/booking-roster';
 import { sendEmail } from '@/lib/integrations/gmail';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
 import { isCronAuthorised } from '@/lib/utils/cron-auth';
+import { getKillSwitchState } from '@/lib/utils/kill-switch';
 import { logAudit, logAuditFailure } from '@/lib/utils/audit';
 import { humanise } from '@/lib/utils/humanise';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -48,6 +49,14 @@ function escapeHtml(s: string): string {
 export async function GET(req: NextRequest) {
   if (!isCronAuthorised(req, 'TOMORROW_DIGEST')) {
     return new NextResponse('Unauthorised', { status: 401 });
+  }
+
+  // Doctrine: every outbound-bearing cron defers when kill switch is RED.
+  // This digest emails Jasper, which is "internal" outbound — but the
+  // rule is uniform across crons so we don't have a class of bypass.
+  const ks = await getKillSwitchState();
+  if (ks?.is_active) {
+    return NextResponse.json({ skipped: 'kill_switch_active' });
   }
 
   await logAudit({ userId: null, action: 'cron_tomorrow_digest_run', tableName: 'atelier_audit_log', newValue: { startedAt: new Date().toISOString() } }).catch(() => {});

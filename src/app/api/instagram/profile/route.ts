@@ -15,6 +15,8 @@
  * rate-limit us. Force-refresh available via `?refresh=1`.
  */
 
+import { getCurrentAppUser } from '@/lib/data/app-users';
+
 export const dynamic = 'force-dynamic';
 
 const IG_HANDLE = 'saundersandcoagency';
@@ -72,6 +74,16 @@ function htmlDecode(s: string): string {
 }
 
 export async function GET(request: Request) {
+  // Owner/partner only. The endpoint issues an outbound fetch to
+  // instagram.com on every call — unauthenticated, it's a trivial
+  // resource-exhaustion vector against this server and a way to get the
+  // agency IP rate-limited by IG. The only legitimate caller is the
+  // Grid Planner admin UI.
+  const appUser = await getCurrentAppUser();
+  if (!appUser || (appUser.role !== 'owner' && appUser.role !== 'partner')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.has('refresh');
 
