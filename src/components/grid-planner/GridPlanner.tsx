@@ -4,8 +4,10 @@
  * Instagram Grid Planner
  *
  * Phone mockup of @saundersandcoagency's Instagram grid.
- * 3 columns × N rows at 9:16 portrait — matching current IG portrait grid.
- * Stats fetched live from /api/instagram/profile on mount.
+ * 3 columns × N rows at 4:5 portrait — IG's standard feed-post aspect.
+ * (Reels are 9:16 but only render as 4:5 thumbnails inside the grid.)
+ * Stats + handle + display name + avatar fetched live from
+ * /api/instagram/profile on mount, with a manual refresh button.
  *
  * What's persisted (survives page refresh):
  *   - Image blobs in IndexedDB (under each slot's stable key)
@@ -24,9 +26,8 @@
  * The right-side editor uses PALETTE.* as expected.
  */
 
-import { useRef, useState, useEffect, DragEvent, ChangeEvent } from 'react';
+import { useRef, useState, useEffect, useCallback, DragEvent, ChangeEvent } from 'react';
 import { PALETTE } from '@/lib/utils/constants';
-import { getAgencyConfig } from '@/lib/utils/agency-config';
 import { putImage, deleteImage, clearAllImages, getImageUrl } from './idb-storage';
 
 const GRID_COLS = 3;
@@ -53,9 +54,13 @@ type GridSlot = {
 };
 
 type IGStats = {
+  handle: string;
+  displayName: string | null;
+  avatarUrl: string | null;
   posts: string;
   followers: string;
   following: string;
+  fetchedAt: string;
 };
 
 function makeSlot(index: number): GridSlot {
@@ -162,14 +167,28 @@ function PhoneMockup({
         {/* Name row */}
         <div className="flex items-center gap-3 px-3 py-2 border-b" style={{ borderColor: '#dbdbdb' }}>
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border-2"
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 border-2 overflow-hidden"
             style={{ borderColor: '#e1306c', background: '#f0f0f0' }}
           >
-            <span className="text-[8px] font-bold" style={{ color: '#444' }}>S&amp;Co</span>
+            {stats?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={stats.avatarUrl}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="text-[8px] font-bold" style={{ color: '#444' }}>S&amp;Co</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold" style={{ color: '#262626' }}>{getAgencyConfig().website?.replace(/^https?:\/\//, '').replace(/\/$/, '') ?? 'saundersandco'}</div>
-            <div className="text-[9px]" style={{ color: '#8e8e8e' }}>{getAgencyConfig().name} Agency</div>
+            <div className="text-[11px] font-semibold truncate" style={{ color: '#262626' }}>
+              {stats?.handle ?? 'saundersandcoagency'}
+            </div>
+            <div className="text-[9px] truncate" style={{ color: '#8e8e8e' }}>
+              {stats?.displayName ?? 'Saunders & Co'}
+            </div>
           </div>
           <div
             className="text-[10px] font-semibold px-2 py-0.5 rounded border"
@@ -271,8 +290,8 @@ function SlotCell({
 
   return (
     <div
-      /* 9:16 portrait aspect ratio — matches current IG grid */
-      style={{ position: 'relative', aspectRatio: '9/16' }}
+      /* 4:5 portrait — IG's standard feed-post grid aspect */
+      style={{ position: 'relative', aspectRatio: '4/5' }}
       draggable={!isEmpty}
       onDragStart={(e) => { e.dataTransfer.setData('slot-index', String(index)); onDragStart(); }}
       onDragOver={(e) => { e.preventDefault(); onDragOver(e); }}
@@ -373,6 +392,18 @@ function SlotCell({
   );
 }
 
+/** "Stats as of …" header — local HH:MM, or em-dash when unfetched. */
+function formatFetchedAt(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '—';
+  }
+}
+
 /** Format an ISO date as a short "Mon 16" pill label. */
 function formatPillDate(iso: string): string {
   try {
@@ -395,6 +426,20 @@ export default function GridPlanner() {
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [igStats, setIgStats] = useState<IGStats | null>(null);
+  const [igRefreshing, setIgRefreshing] = useState(false);
+
+  const loadIgStats = useCallback(async (force = false) => {
+    setIgRefreshing(true);
+    try {
+      const res = await fetch(force ? '/api/instagram/profile?refresh=1' : '/api/instagram/profile');
+      const data = await res.json();
+      if (!data?.fallback && data?.followers) setIgStats(data as IGStats);
+    } catch {
+      /* silently fall back to placeholders */
+    } finally {
+      setIgRefreshing(false);
+    }
+  }, []);
 
   // Persist non-blob fields on every slot change
   useEffect(() => {
@@ -436,16 +481,24 @@ export default function GridPlanner() {
     };
   }, []);
 
-  // Fetch live Instagram stats on mount
+  // Fetch live Instagram stats on mount. Inline (not via loadIgStats) so we
+  // don't call setState synchronously inside the effect body — react-hooks
+  // lint rule forbids that. The manual Refresh button path still uses
+  // loadIgStats with the in-flight indicator.
   useEffect(() => {
-    fetch('/api/instagram/profile')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.fallback) {
-          setIgStats({ posts: data.posts, followers: data.followers, following: data.following });
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/instagram/profile');
+        const data = await res.json();
+        if (!cancelled && !data?.fallback && data?.followers) {
+          setIgStats(data as IGStats);
         }
-      })
-      .catch(() => {/* silently fall back to — placeholders */});
+      } catch {
+        /* silently fall back to placeholders */
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const selectedSlot = selectedIndex !== null ? slots[selectedIndex] : null;
@@ -550,13 +603,26 @@ export default function GridPlanner() {
               Click a slot to upload or edit · drag to rearrange · drop multiple files to bulk-fill
             </p>
           </div>
-          <div className="flex items-center gap-3 text-[11px]" style={{ color: PALETTE.muted }}>
+          <div className="flex items-center gap-3 text-[11px] flex-wrap" style={{ color: PALETTE.muted }}>
             <span>{filledCount} image{filledCount !== 1 ? 's' : ''}</span>
             <span>·</span>
             <span style={{ color: PALETTE.accent }}>{plannedCount} planned</span>
             <span>·</span>
             <span style={{ color: PALETTE.success }}>{liveCount} live</span>
             {scheduledCount > 0 && <><span>·</span><span>{scheduledCount} scheduled</span></>}
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span title={igStats?.fetchedAt ?? ''}>
+              Stats as of {formatFetchedAt(igStats?.fetchedAt)}
+            </span>
+            <button
+              type="button"
+              onClick={() => loadIgStats(true)}
+              disabled={igRefreshing}
+              className="underline disabled:opacity-50"
+              style={{ color: PALETTE.accent, background: 'none', border: 'none', cursor: igRefreshing ? 'wait' : 'pointer', fontSize: 'inherit', padding: 0 }}
+            >
+              {igRefreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
         </header>
 
@@ -614,7 +680,7 @@ export default function GridPlanner() {
                   {/* Image preview (left) */}
                   <div>
                     {selectedSlot.imageUrl ? (
-                      <div className="relative rounded overflow-hidden" style={{ aspectRatio: '9/16', background: '#111' }}>
+                      <div className="relative rounded overflow-hidden" style={{ aspectRatio: '4/5', background: '#111' }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={selectedSlot.imageUrl}
@@ -634,7 +700,7 @@ export default function GridPlanner() {
                         </label>
                       </div>
                     ) : (
-                      <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed cursor-pointer py-8" style={{ borderColor: PALETTE.accent + '44', background: `${PALETTE.accent}08`, aspectRatio: '9/16' }}>
+                      <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed cursor-pointer py-8" style={{ borderColor: PALETTE.accent + '44', background: `${PALETTE.accent}08`, aspectRatio: '4/5' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={PALETTE.accent} strokeWidth="2" className="mb-2">
                           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
                           <polyline points="21 15 16 10 5 21"/>
@@ -769,7 +835,7 @@ export default function GridPlanner() {
                       <img
                         src={slot.imageUrl}
                         alt=""
-                        style={{ width: 24, height: 43, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                        style={{ width: 24, height: 30, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-xs truncate" style={{ color: PALETTE.text }}>{slot.label || `Slot ${i + 1}`}</div>
