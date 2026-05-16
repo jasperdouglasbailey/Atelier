@@ -5,6 +5,8 @@ import {
   computeQuoteTotals, computeAgencyMargin, computeGstPassthrough,
   computeArtistPayment, computeCrewPayment, effectiveCost,
 } from '@/lib/utils/fee-engine';
+import { buildCrewBillBreakdown, buildArtistBillBreakdown } from '@/lib/utils/person-billing';
+import type { BookingCrew, BookingTalent } from '@/lib/types/database';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import {
@@ -94,43 +96,116 @@ export default async function AccountingPrintPage({ params }: Props) {
     artistReimbursementSubtotal,
   });
 
-  // Artist payment derivation (for the cost-of-sales narrative)
-  const artistPayment = artistFeeSubtotal > 0
-    ? computeArtistPayment(artistFeeSubtotal, artistGstRegistered)
+  // Artist payments — iterate the roster, source day_rate + usage_fee
+  // from booking_talent AND artist fee_lines tagged with talent_id.
+  // See src/lib/utils/person-billing.ts for the union doctrine.
+  type ArtistPaymentRow = { name: string; gstReg: boolean; gross: number; net: number };
+  const artistPayments: ArtistPaymentRow[] = [];
+  for (const bt of (talent as Array<BookingTalent & { talent?: { working_name?: string; gst_registered?: boolean } }>)) {
+    const breakdown = buildArtistBillBreakdown({
+      bookingTalent: bt as BookingTalent,
+      shootDates: booking.shoot_dates,
+      feeLines,
+    });
+    if (breakdown.feeSubtotal <= 0) continue;
+    const gstReg = bt.talent?.gst_registered ?? false;
+    const cp = computeArtistPayment(breakdown.feeSubtotal, gstReg);
+    artistPayments.push({
+      name: bt.talent?.working_name ?? 'Unattached artist',
+      gstReg,
+      gross: breakdown.feeSubtotal,
+      net: cp.netPayment,
+    });
+  }
+  // Unlinked artist fee_lines fallback — same shape as JobPnLPanel.
+  const linkedTalentIds = new Set((talent as Array<{ talent_id: string }>).map((bt) => bt.talent_id));
+  const unlinkedArtistSubtotal = feeLines
+    .filter((l) =>
+      ARTIST_LINE_TYPES.has(l.line_type) &&
+      !l.is_artist_reimbursement &&
+      (!l.talent_id || !linkedTalentIds.has(l.talent_id)),
+    )
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  if (unlinkedArtistSubtotal > 0) {
+    const cp = computeArtistPayment(unlinkedArtistSubtotal, artistGstRegistered);
+    artistPayments.push({
+      name: 'Unattached artist',
+      gstReg: artistGstRegistered,
+      gross: unlinkedArtistSubtotal,
+      net: cp.netPayment,
+    });
+  }
+  // Narrative breakdown for the primary artist — shows gross, commission,
+  // GST etc. (the original accounting narrative). Built from the primary
+  // talent's UNION'd subtotal so it includes day_rate + usage_fee that
+  // historically lived only on the roster row.
+  const primaryBookingTalent = (talent as Array<BookingTalent & { talent?: unknown }>)[0] ?? null;
+  const primaryArtistBreakdown = primaryBookingTalent
+    ? buildArtistBillBreakdown({
+        bookingTalent: primaryBookingTalent as BookingTalent,
+        shootDates: booking.shoot_dates,
+        feeLines,
+      })
+    : null;
+  const artistPayment = primaryArtistBreakdown && primaryArtistBreakdown.feeSubtotal > 0
+    ? computeArtistPayment(primaryArtistBreakdown.feeSubtotal, artistGstRegistered)
     : null;
 
-  // Crew payments — group by crew_id, then unlinked block.
-  // Labour and overtime are tracked separately because overtime is NOT
-  // super-bearing — passing them combined as `labourSubtotal` to
-  // computeCrewPayment would overstate super by 12% of every OT line.
-  const crewLabourByCrew = new Map<string | null, number>();
-  const crewOvertimeByCrew = new Map<string | null, number>();
-  const crewExpensesByCrew = new Map<string | null, number>();
-  const crewIds = new Set<string | null>();
-  for (const l of feeLines) {
-    const key = l.crew_id ?? null;
-    if (CREW_SUPER_BEARING_TYPES.has(l.line_type)) {
-      crewLabourByCrew.set(key, (crewLabourByCrew.get(key) ?? 0) + effectiveCost(l));
-      crewIds.add(key);
-    } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
-      crewOvertimeByCrew.set(key, (crewOvertimeByCrew.get(key) ?? 0) + effectiveCost(l));
-      crewIds.add(key);
-    } else if (l.line_type === 'crew_equipment' && !l.is_artist_reimbursement) {
-      crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + effectiveCost(l));
-      crewIds.add(key);
-    }
-  }
+  // Crew payments — iterate the roster, union with crew_id-tagged fee_lines.
+  // Labour from booking_crew.day_rate × assigned_dates (or shoot_dates
+  // fallback), overtime + expenses + custom labour from fee_lines.
   type CrewPaymentRow = { name: string; gstReg: boolean; labour: number; overtime: number; expenses: number; superPaid: number; gst: number; net: number };
   const crewPayments: CrewPaymentRow[] = [];
-  for (const crewId of crewIds) {
-    const crewRow = crewId ? (crew as Array<{ crew_id: string; crew?: { name?: string; gst_registered?: boolean } }>).find((bc) => bc.crew_id === crewId) : null;
-    const name = crewRow?.crew?.name ?? 'Unattached crew';
-    const isReg = crewRow?.crew?.gst_registered ?? false;
-    const labour = crewLabourByCrew.get(crewId) ?? 0;
-    const overtime = crewOvertimeByCrew.get(crewId) ?? 0;
-    const expenses = crewExpensesByCrew.get(crewId) ?? 0;
-    const cp = computeCrewPayment(labour, expenses, isReg, overtime);
-    crewPayments.push({ name, gstReg: isReg, labour, overtime, expenses, superPaid: cp.superPaid, gst: cp.gst, net: cp.netPayment });
+  for (const bc of (crew as Array<BookingCrew & { crew?: { name?: string; gst_registered?: boolean } }>)) {
+    const breakdown = buildCrewBillBreakdown({
+      bookingCrew: bc as BookingCrew,
+      shootDates: booking.shoot_dates,
+      feeLines,
+    });
+    if (breakdown.totalRowCount === 0) continue;
+    const gstReg = bc.crew?.gst_registered ?? false;
+    const cp = computeCrewPayment(
+      breakdown.labourSubtotal,
+      breakdown.expensesSubtotal,
+      gstReg,
+      breakdown.overtimeSubtotal,
+    );
+    crewPayments.push({
+      name: bc.crew?.name ?? 'Unattached crew',
+      gstReg,
+      labour: breakdown.labourSubtotal,
+      overtime: breakdown.overtimeSubtotal,
+      expenses: breakdown.expensesSubtotal,
+      superPaid: cp.superPaid,
+      gst: cp.gst,
+      net: cp.netPayment,
+    });
+  }
+  // Unlinked fee_lines fallback — labour / overtime / crew_equipment with
+  // no crew_id (or a crew_id that's not on the roster). Same handling as
+  // JobPnLPanel for consistency.
+  const linkedCrewIds = new Set((crew as Array<{ crew_id: string }>).map((bc) => bc.crew_id));
+  const unlinkedLabour = feeLines
+    .filter((l) => CREW_SUPER_BEARING_TYPES.has(l.line_type) && (!l.crew_id || !linkedCrewIds.has(l.crew_id)))
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  const unlinkedOvertime = feeLines
+    .filter((l) => CREW_OVERTIME_TYPES.has(l.line_type) && (!l.crew_id || !linkedCrewIds.has(l.crew_id)))
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  const unlinkedExpenses = feeLines
+    .filter((l) => l.line_type === 'crew_equipment' && !l.is_artist_reimbursement && (!l.crew_id || !linkedCrewIds.has(l.crew_id)))
+    .reduce((s, l) => s + effectiveCost(l), 0);
+  if (unlinkedLabour > 0 || unlinkedOvertime > 0 || unlinkedExpenses > 0) {
+    const cp = computeCrewPayment(unlinkedLabour, unlinkedExpenses, false, unlinkedOvertime);
+    crewPayments.push({
+      name: 'Unattached crew',
+      gstReg: false,
+      labour: unlinkedLabour,
+      overtime: unlinkedOvertime,
+      expenses: unlinkedExpenses,
+      superPaid: cp.superPaid,
+      gst: cp.gst,
+      net: cp.netPayment,
+    });
   }
 
   // Reimbursement payout figure (incl GST passed through when artist is registered)
@@ -138,7 +213,11 @@ export default async function AccountingPrintPage({ params }: Props) {
     ? Math.round(artistReimbursementSubtotal * (1 + GST_RATE) * 100) / 100
     : artistReimbursementSubtotal;
 
-  const totalPaidOut = (artistPayment?.netPayment ?? 0)
+  // Sum across ALL artist payments (the primary-narrative `artistPayment`
+  // alone would under-count when a booking has multiple artists). The
+  // crew side is already iterated per-row in crewPayments above.
+  const totalArtistsNet = artistPayments.reduce((s, r) => s + r.net, 0);
+  const totalPaidOut = totalArtistsNet
     + reimbursementPayout
     + crewPayments.reduce((s, c) => s + c.net, 0);
 

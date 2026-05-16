@@ -97,6 +97,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     cost_subtotal: string;
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
     is_artist_reimbursement: boolean;
+    /** Optional crew attribution — empty string = not linked to any crew member. */
+    crew_id: string;
   } | null>(null);
 
   // Totals breakdown — collapsed by default so the quote totals panel reads
@@ -137,6 +139,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       cost_subtotal: line.cost_subtotal != null ? String(line.cost_subtotal) : '',
       asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
       is_artist_reimbursement: line.is_artist_reimbursement ?? false,
+      crew_id: line.crew_id ?? '',
     });
     setShowAddLine(false);
   }
@@ -157,6 +160,13 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     fd.set('unit_price', editValues.unit_price);
     fd.set('booking_id', bookingId);
     fd.set('is_artist_reimbursement', String(editValues.is_artist_reimbursement));
+    // Crew attribution only persists for crew-relevant line types (see
+    // CREW_LINE_TYPES_SET). For artist / other-line edits we leave the
+    // form key absent so updateFeeLineAction doesn't clobber any pre-
+    // existing value with empty.
+    if (CREW_LINE_TYPES_SET.has(editValues.line_type)) {
+      fd.set('crew_id', editValues.crew_id);
+    }
     const asfPct = parseFloat(editValues.asf_rate);
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
@@ -181,6 +191,9 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       asf_rate: newAsfRate,
       asf_amount: Math.round(newQty * newPrice * newAsfRate * 100) / 100,
       is_artist_reimbursement: editValues.is_artist_reimbursement,
+      crew_id: CREW_LINE_TYPES_SET.has(editValues.line_type)
+        ? (editValues.crew_id || null)
+        : line.crew_id,
     };
     setFeeLines((prev) => prev.map((l) => l.id === line.id ? optimistic : l));
     cancelEdit();
@@ -641,6 +654,31 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                               style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 240 }}
                             />
                           </div>
+
+                          {/* Row 1.5 — Crew attribution (only for crew-relevant line types).
+                              Tagging the line with a crew_id makes the cost flow into
+                              that person's bill / P&L paid-out / accounting row.
+                              Optional — empty = no specific crew member. */}
+                          {CREW_LINE_TYPES_SET.has(editValues.line_type) && bookingCrew.length > 0 && (
+                            <div className="flex items-center gap-1.5 text-[11px]" style={{ color: PALETTE.muted }}>
+                              <span>Crew</span>
+                              <select
+                                value={editValues.crew_id}
+                                onChange={(e) => setEditValues((v) => v && { ...v, crew_id: e.target.value })}
+                                onKeyDown={onKey}
+                                className="rounded border px-2 py-1 text-xs"
+                                style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 180 }}
+                                title="Optionally attribute this line to a specific crew member — flows into their bill + P&L"
+                              >
+                                <option value="">— not linked —</option>
+                                {bookingCrew.map((bc) => (
+                                  <option key={bc.crew_id} value={bc.crew_id}>
+                                    {bc.crew?.name ?? 'Unknown'}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
 
                           {/* Row 2 — Numeric fields aligned left, subtotal on the right */}
                           <div className="flex items-center gap-4 flex-wrap">
@@ -1182,8 +1220,31 @@ const ARTIST_LINE_TYPES = new Set<FeeLineType>([
   'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
 
-// Crew labour line types — GST exempt when the crew member is not GST-registered.
-const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'overtime']);
+// Crew-relevant line types — any of these can optionally be attributed to
+// a specific crew member. Artist-specific types (artist_fee, usage_licence,
+// etc.) are intentionally excluded; they auto-link to primary talent.
+// Kept in sync with `CREW_RELEVANT_LINE_TYPES` in src/lib/utils/person-billing.ts.
+const CREW_LINE_TYPES_SET = new Set<FeeLineType>([
+  'crew_labour',
+  'overtime',
+  'travel',
+  'catering',
+  'wardrobe',
+  'props',
+  'casting',
+  'location_fee',
+  'permits',
+  'insurance',
+  'other_expense',
+  'crew_equipment',
+  'studio_hire',
+  'equipment_rental',
+]);
+// The subset that drives GST-status defaults — payee is a specific crew
+// member, so the picked crew's gst_registered flag controls the toggle.
+// Other expense types (catering, props, etc.) keep ALWAYS_GST_LINE_TYPES /
+// supplier-default behaviour even when crew is attributed.
+const CREW_GST_DRIVING_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
 
 /** Commissionable lines can never be reimbursable. */
 function isCommissionable(t: FeeLineType): boolean {
@@ -1217,7 +1278,10 @@ function AddLineForm({
   function defaultChargeGst(t: FeeLineType, crewId?: string): boolean {
     if (ALWAYS_GST_LINE_TYPES.has(t)) return true;
     if (ARTIST_LINE_TYPES.has(t)) return primaryTalentGstRegistered;
-    if (CREW_LINE_TYPES_SET.has(t) && crewId) {
+    // Crew labour / overtime: GST follows the picked crew member's status.
+    // Other crew-relevant expense lines (catering, props, etc.) default ON
+    // regardless of crew attribution — the supplier invoice has GST.
+    if (CREW_GST_DRIVING_TYPES.has(t) && crewId) {
       const crew = attachedCrew.find((c) => c.crew_id === crewId);
       return crew ? crew.gst_registered : true;
     }
@@ -1280,17 +1344,22 @@ function AddLineForm({
         </div>
       </div>
 
-      {/* Crew picker — shown for crew_labour / overtime so we can link the line and derive GST status */}
+      {/* Crew picker — optional attribution on crew-relevant line types
+          (labour, overtime, expenses, travel, etc.). Tagging the line
+          with a crew_id makes the cost flow into that person's bill /
+          P&L paid-out / accounting row. */}
       {isCrewLine && attachedCrew.length > 0 && (
         <div>
-          <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Crew Member</label>
+          <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
+            Crew member <span style={{ color: PALETTE.muted, fontWeight: 400 }}>(optional)</span>
+          </label>
           <select
             value={selectedCrewId}
             onChange={(e) => handleCrewChange(e.target.value)}
             className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
             style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
           >
-            <option value="">— not linked to specific crew —</option>
+            <option value="">— not linked to a specific crew member —</option>
             {attachedCrew.map((c) => (
               <option key={c.crew_id} value={c.crew_id}>{c.name}</option>
             ))}
