@@ -5,20 +5,12 @@
       "schedule": "0 16 * * *"
     },
     {
-      "path": "/api/cron/post-shoot-chase",
-      "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/cron/quote-chase",
+      "path": "/api/cron/scheduled-comms",
       "schedule": "30 21 * * *"
     },
     {
-      "path": "/api/cron/talent-gallery-ping",
-      "schedule": "45 21 * * *"
-    },
-    {
-      "path": "/api/cron/compliance-pings",
-      "schedule": "0 22 * * *"
+      "path": "/api/cron/tomorrow-digest",
+      "schedule": "0 20 * * *"
     },
     {
       "path": "/api/cron/data-retention",
@@ -27,10 +19,6 @@
     {
       "path": "/api/cron/auto-anonymise",
       "schedule": "15 4 * * *"
-    },
-    {
-      "path": "/api/cron/tomorrow-digest",
-      "schedule": "0 20 * * *"
     }
   ]
 }

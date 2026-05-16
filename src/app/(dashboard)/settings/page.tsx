@@ -13,14 +13,14 @@ const EMAIL_FAILED_ACTIONS = [
   'client_brief_clarify_email_send_failed',
 ];
 
+// Audit-row action names for `_run` events, one per Vercel cron schedule.
+// Mapped 1:1 to entries in vercel.json. Adding a new cron route? Add the
+// underscored name here AND make sure the route emits cron_<name>_run.
 const CRON_NAMES = [
-  'quote_chase',
-  'compliance_pings',
-  'data_retention',
   'lock_ot_windows',
-  'post_shoot_chase',
-  'talent_gallery_ping',
+  'scheduled_comms',     // unified reminder cron — see reminder-rules.ts
   'tomorrow_digest',
+  'data_retention',
   'auto_anonymise',
 ] as const;
 
