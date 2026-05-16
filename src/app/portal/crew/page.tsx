@@ -13,6 +13,7 @@
  * Does NOT show: client identities, agency commission, other crew rates.
  */
 
+import { Fragment } from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
@@ -28,6 +29,7 @@ import {
   BOOKING_STATE_LABELS,
   STATE_COLORS,
   CREW_TIER_LABELS,
+  FEE_LINE_TYPE_LABELS,
 } from '@/lib/utils/constants';
 import { formatCurrency, formatShootDates } from '@/lib/utils/format';
 import { humanise } from '@/lib/utils/humanise';
@@ -281,29 +283,76 @@ function CrewBookingTable({ rows }: { rows: CrewPortalBookingRow[] }) {
           <th className="py-2 text-left">Date</th>
           <th className="py-2 text-left">Role</th>
           <th className="py-2 text-left">Day rate</th>
+          <th className="py-2 text-left">Fees</th>
           <th className="py-2 text-left">Status</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.bookingCrewId} style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
-            <td className="py-2">
-              <div style={{ color: PALETTE.text }}>{r.title}</div>
-              <div className="font-mono text-[10px]" style={{ color: PALETTE.muted }}>{r.bookingRef ?? '—'}</div>
-            </td>
-            <td className="py-2" style={{ color: PALETTE.muted }}>{formatShootDates(r.shootDates) ?? r.shootDateNotes ?? '—'}</td>
-            <td className="py-2" style={{ color: PALETTE.muted }}>{r.roleOnBooking ? humanise(r.roleOnBooking) : '—'}</td>
-            <td className="py-2">{r.dayRate ? formatCurrency(r.dayRate) : '—'}</td>
-            <td className="py-2">
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                style={{ background: `${STATE_COLORS[r.state as BookingState]}22`, color: STATE_COLORS[r.state as BookingState] }}
-              >
-                {BOOKING_STATE_LABELS[r.state as BookingState]}
-              </span>
-            </td>
-          </tr>
-        ))}
+        {rows.map((r) => {
+          const feeTotal = r.feeLines.reduce((s, fl) => s + fl.subtotal, 0);
+          return (
+          <Fragment key={r.bookingCrewId}>
+            <tr style={{ borderBottom: r.feeLines.length === 0 ? `1px solid ${PALETTE.border}` : 'none' }}>
+              <td className="py-2">
+                <div style={{ color: PALETTE.text }}>{r.title}</div>
+                <div className="font-mono text-[10px]" style={{ color: PALETTE.muted }}>{r.bookingRef ?? '—'}</div>
+              </td>
+              <td className="py-2" style={{ color: PALETTE.muted }}>{formatShootDates(r.shootDates) ?? r.shootDateNotes ?? '—'}</td>
+              <td className="py-2" style={{ color: PALETTE.muted }}>{r.roleOnBooking ? humanise(r.roleOnBooking) : '—'}</td>
+              <td className="py-2">{r.dayRate ? formatCurrency(r.dayRate) : '—'}</td>
+              <td className="py-2" style={{ color: r.feeLines.length > 0 ? PALETTE.text : PALETTE.muted }}>
+                {r.feeLines.length === 0 ? '—' : formatCurrency(feeTotal)}
+              </td>
+              <td className="py-2">
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{ background: `${STATE_COLORS[r.state as BookingState]}22`, color: STATE_COLORS[r.state as BookingState] }}
+                >
+                  {BOOKING_STATE_LABELS[r.state as BookingState]}
+                </span>
+              </td>
+            </tr>
+            {/* Fee detail row — collapsible so the table stays compact by default.
+                Native <details>; no client JS needed. Mirrors the talent portal
+                pattern so crew can see OT, expenses, and on-charged equipment
+                that previously only existed on the agency-side bill. */}
+            {r.feeLines.length > 0 && (
+              <tr style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+                <td colSpan={6} className="pb-2 pl-2">
+                  <details>
+                    <summary className="cursor-pointer text-[10px] uppercase tracking-wide select-none inline-block" style={{ color: PALETTE.muted }}>
+                      Fee details ({r.feeLines.length} line{r.feeLines.length > 1 ? 's' : ''}) ▸
+                    </summary>
+                    <div className="mt-2 rounded border overflow-hidden" style={{ borderColor: PALETTE.border }}>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr style={{ background: PALETTE.bg }}>
+                            <th className="py-1.5 px-2 text-left font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Description</th>
+                            <th className="py-1.5 px-2 text-right font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Qty</th>
+                            <th className="py-1.5 px-2 text-right font-medium" style={{ color: PALETTE.muted, fontSize: 10 }}>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {r.feeLines.map((fl) => (
+                            <tr key={fl.id} style={{ borderTop: `1px solid ${PALETTE.border}` }}>
+                              <td className="py-1.5 px-2" style={{ color: PALETTE.text }}>
+                                <div>{fl.description}</div>
+                                <div style={{ color: PALETTE.muted, fontSize: 10 }}>{FEE_LINE_TYPE_LABELS[fl.lineType as keyof typeof FEE_LINE_TYPE_LABELS] ?? fl.lineType}</div>
+                              </td>
+                              <td className="py-1.5 px-2 text-right tabular-nums" style={{ color: PALETTE.muted }}>{fl.quantity}</td>
+                              <td className="py-1.5 px-2 text-right tabular-nums font-medium" style={{ color: PALETTE.text }}>{formatCurrency(fl.subtotal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            )}
+          </Fragment>
+          );
+        })}
       </tbody>
     </table>
     </div>

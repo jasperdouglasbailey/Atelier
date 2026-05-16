@@ -66,6 +66,17 @@ export type CrewPortalBookingRow = PortalBookingRow & {
   bookingCrewId: string;
   roleOnBooking: string | null;
   status: string;
+  /**
+   * Crew member's own fee lines for the booking — overtime, expenses,
+   * equipment they're on-charging, etc. Mirrors the talent-portal pattern
+   * so the crew member can see everything they're being paid for on top
+   * of their day rate (which is the `dayRate` field above).
+   *
+   * Without this, a crew member who clocks OT post-shoot sees only their
+   * roster day rate in the portal — the OT line is invisible to them
+   * even though it's on the bill the agency is paying.
+   */
+  feeLines: PortalFeeLine[];
 };
 
 /** Shared team member visible on a portal call sheet — names + roles only, no rates. */
@@ -225,6 +236,28 @@ export async function getCrewPortalData(crewId: string): Promise<{
   type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
+  // Fetch fee lines tagged with this crew_id. Parity with the talent
+  // portal: crew can see their OT, expenses, equipment they're on-charging,
+  // and any custom labour lines — not just the roster day rate. Without
+  // this fix a crew member who clocks OT after a shoot sees only their
+  // day rate in the portal; the OT line is invisible to them even though
+  // it's on the bill the agency is paying.
+  const feeLinesResp = bookingIds.length === 0
+    ? { data: [], error: null as null | { message: string } }
+    : await supabase
+        .from('atelier_fee_lines')
+        .select('id, booking_id, line_type, description, quantity, unit_price, subtotal, crew_id')
+        .in('booking_id', bookingIds)
+        .eq('crew_id', crewId);
+
+  type FeeRow = { id: string; booking_id: string; line_type: string; description: string; quantity: number; unit_price: number; subtotal: number; crew_id: string | null };
+  const feeLinesByBooking = new Map<string, PortalFeeLine[]>();
+  for (const fl of (feeLinesResp.data ?? []) as FeeRow[]) {
+    const list = feeLinesByBooking.get(fl.booking_id) ?? [];
+    list.push({ id: fl.id, lineType: fl.line_type, description: fl.description, quantity: fl.quantity, unitPrice: fl.unit_price, subtotal: fl.subtotal });
+    feeLinesByBooking.set(fl.booking_id, list);
+  }
+
   const bookings: CrewPortalBookingRow[] = assignments
     .map((a) => {
       const b = bookingMap.get(a.booking_id as string);
@@ -244,6 +277,7 @@ export async function getCrewPortalData(crewId: string): Promise<{
         confirmed: Boolean(a.confirmed_at),
         roleOnBooking: a.role_on_booking as string | null,
         status: (a.status as string) ?? 'hold_requested',
+        feeLines: feeLinesByBooking.get(b.id) ?? [],
       };
     })
     .filter((r): r is CrewPortalBookingRow => r !== null);
