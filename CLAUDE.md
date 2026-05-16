@@ -73,7 +73,7 @@ These are not aspirational. They are required. Every one has caused a real bug o
 Whenever you add a field to a Supabase `.select()` string, update the corresponding TypeScript return type in the same commit. The two must change together. The `BookingDetailRow.client` type and `getBooking()` select string diverging broke CI in PR #67.
 
 **Schema change ripple — all four layers, always.**
-Every DB schema change must propagate through all of: migration SQL → `database.generated.ts` → `database.ts` (hand types) → any `.select()` return types that name specific columns. Missing any layer causes silent runtime errors or type failures that CI will catch.
+Every DB schema change must propagate through all of: migration SQL → `database.generated.ts` → `database.ts` (hand types) → any `.select()` return types that name specific columns. After applying a migration, run `npm run db:types` to refresh `database.generated.ts`, then update `database.ts` to add the new column. The `database.compat.test.ts` file does an exhaustiveness check at tsc time — if a generated row has a column the hand type doesn't, tsc fails with `{ missing_in_hand: "column_name" }`. The error message names the missing column so the fix is mechanical.
 
 **Agency config — never hardcode.**
 Agency name, email, ABN, address, owner name always come from `getAgencyConfig()`. Never write "Saunders & Co" or any email address directly in JSX, copy, or emails. The pre-commit hook (PR#148) enforces this.

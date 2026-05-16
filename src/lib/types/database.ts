@@ -183,6 +183,8 @@ export interface Talent {
   notes: string | null;
   onboarding_completed: boolean;
   onboarding_token: string | null;
+  /** Magic-link onboarding token expiry — 14d default. NULL once consumed. */
+  onboarding_token_expires_at: string | null;
   /** Auto-created Drive folder for portfolio + non-PII material. */
   drive_folder_id: string | null;
   drive_folder_link: string | null;
@@ -364,10 +366,17 @@ export interface Booking {
    *  NULL for manually-created bookings. Drives the "Undo conversion"
    *  affordance on the booking detail page within 24h of creation. */
   source_gmail_message_id: string | null;
+  /** Soft-archive flag — listBookings filters archived rows by default.
+   *  Set via archiveBookingAction. Migration 0027. */
+  is_archived: boolean;
+  /** Set when archiveBookingAction lands. Null = never archived. */
+  archived_at: string | null;
 }
 
 export interface BookingTalent {
   id: string;
+  /** When the talent was added to the booking. */
+  created_at: string;
   booking_id: string;
   talent_id: string;
   role_on_booking: string;
