@@ -66,7 +66,7 @@ describe('computeFeeLine', () => {
 
   it('GST-exempt line skips GST entirely', () => {
     const line: Partial<FeeLine> = {
-      line_type: 'travel',
+      line_type: 'crew_travel',
       quantity: 1,
       unit_price: 200,
       asf_rate: 0,
@@ -176,7 +176,7 @@ describe('computeQuoteTotals edge cases', () => {
 
   it('all-fringe quote has no commission, no super', () => {
     const t = computeQuoteTotals([
-      createExpenseLine('travel', 'Flights', 800, 1),
+      createExpenseLine('crew_travel', 'Flights', 800, 1),
       createExpenseLine('catering', 'Lunch', 180, 1),
     ]);
     expect(t.totalCommission).toBe(0);

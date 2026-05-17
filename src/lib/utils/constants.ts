@@ -158,7 +158,7 @@ export const FEE_LINE_TYPE_LABELS: Record<FeeLineType, string> = {
   crew_equipment: 'Crew Equipment',
   equipment_rental: 'Equipment Rental',
   studio_hire: 'Studio Hire',
-  travel: 'Crew / Production Travel',
+  crew_travel: 'Crew / Production Travel',
   artist_travel: 'Artist Travel',
   catering: 'Catering',
   wardrobe: 'Wardrobe',
@@ -168,7 +168,7 @@ export const FEE_LINE_TYPE_LABELS: Record<FeeLineType, string> = {
   permits: 'Permits',
   insurance: 'Insurance',
   post_production: 'Post-Production',
-  overtime: 'Crew Overtime',
+  crew_overtime: 'Crew Overtime',
   artist_overtime: 'Artist Overtime',
   other_expense: 'Other Expense',
 };
