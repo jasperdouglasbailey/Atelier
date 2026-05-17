@@ -25,11 +25,11 @@ import PrintActions from '../../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string; crewId: string }> };
 
-// Labour split: super-bearing (`crew_labour`, `travel`) vs non-super-bearing
-// (`overtime`). Lumping them together previously over-paid super by 12% of
+// Labour split: super-bearing (`crew_labour`, `crew_travel`) vs non-super-bearing
+// (`crew_overtime`). Lumping them together previously over-paid super by 12% of
 // every overtime line. The fee engine now expects them separate.
-const LABOUR_TYPES = new Set(['crew_labour', 'travel']);
-const OVERTIME_TYPES = new Set(['overtime']);
+const LABOUR_TYPES = new Set(['crew_labour', 'crew_travel']);
+const OVERTIME_TYPES = new Set(['crew_overtime']);
 const EXPENSE_TYPES = new Set(['crew_equipment', 'equipment_rental', 'other_expense']);
 
 export default async function CrewBillPage({ params }: Props) {

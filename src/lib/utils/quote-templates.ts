@@ -188,7 +188,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'travel',
+      line_type: 'crew_travel',
       description: 'Travel / couriers — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -222,7 +222,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'travel',
+      line_type: 'crew_travel',
       description: 'Travel — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,

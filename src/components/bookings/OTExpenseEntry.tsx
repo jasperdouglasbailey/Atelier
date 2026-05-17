@@ -16,7 +16,7 @@ type Props = {
 
 const EXPENSE_TYPES = [
   { value: 'catering', label: 'Catering' },
-  { value: 'travel', label: 'Travel / Transport' },
+  { value: 'crew_travel', label: 'Travel / Transport' },
   { value: 'studio_hire', label: 'Studio Hire' },
   { value: 'equipment_rental', label: 'Equipment Rental' },
   { value: 'props', label: 'Props' },

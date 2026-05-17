@@ -69,12 +69,24 @@ export type UsageTerritory =
   | 'south_america' | 'central_america' | 'caribbean' | 'nordics' | 'latin_america'
   | 'cee' | 'mea' | 'emea' | 'uae' | 'gcc' | 'amet';
 
+/**
+ * Fee line types. Migration 0060/0061 added `crew_overtime` and
+ * `crew_travel` as the prefix-matched names for the previously-bare
+ * `overtime` and `travel` types (which sit alongside `artist_overtime`
+ * and `artist_travel`, so the bare variants were confusingly asymmetric).
+ *
+ * The old `overtime` and `travel` enum values are RETAINED in the
+ * postgres type definition but the app no longer writes them — any
+ * existing rows were migrated in 0061. Keeping the old values in the
+ * union here would make the linter happy on legacy reads but is
+ * deliberately omitted so that new code can't accidentally use them.
+ */
 export type FeeLineType =
   | 'artist_fee' | 'usage_licence' | 'file_management' | 'retouching'
   | 'crew_labour' | 'crew_equipment' | 'equipment_rental'
-  | 'studio_hire' | 'travel' | 'artist_travel' | 'catering' | 'wardrobe' | 'props'
+  | 'studio_hire' | 'crew_travel' | 'artist_travel' | 'catering' | 'wardrobe' | 'props'
   | 'casting' | 'location_fee' | 'permits' | 'insurance'
-  | 'post_production' | 'overtime' | 'artist_overtime' | 'other_expense';
+  | 'post_production' | 'crew_overtime' | 'artist_overtime' | 'other_expense';
 
 export type PostProductionOwnership = 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced';
 

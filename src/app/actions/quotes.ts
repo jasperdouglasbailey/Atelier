@@ -707,14 +707,14 @@ export async function addOTLineAction(formData: FormData) {
   const unitPrice = Number(formData.get('unit_price') || 0); // OT rate per hour
   const crewId = (formData.get('crew_id') as string) || null;
 
-  const defaults = lineTypeDefaults('overtime');
+  const defaults = lineTypeDefaults('crew_overtime');
   const subtotal = Math.round(quantity * unitPrice * 100) / 100;
   const asfAmount = Math.round(subtotal * defaults.asf_rate * 100) / 100;
 
   const input: CreateFeeLineInput = {
     quote_version_id: quoteVersionId,
     booking_id: bookingId,
-    line_type: 'overtime',
+    line_type: 'crew_overtime',
     description,
     quantity,
     unit_price: unitPrice,

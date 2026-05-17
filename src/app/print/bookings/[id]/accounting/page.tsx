@@ -21,9 +21,9 @@ const ARTIST_LINE_TYPES = new Set<FeeLineType>(['artist_fee', 'usage_licence', '
 // All crew labour types — used for the GST-passthrough calc (GST IS due on
 // overtime). Per-person crew-payment calls split these further into
 // super-bearing vs non-super-bearing because overtime is NOT super-bearing.
-const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'crew_overtime']);
 const CREW_SUPER_BEARING_TYPES = new Set<FeeLineType>(['crew_labour']);
-const CREW_OVERTIME_TYPES = new Set<FeeLineType>(['overtime']);
+const CREW_OVERTIME_TYPES = new Set<FeeLineType>(['crew_overtime']);
 
 /**
  * Job accounting statement — a single-job GST reconciliation suitable

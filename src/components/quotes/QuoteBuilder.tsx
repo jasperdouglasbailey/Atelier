@@ -28,15 +28,15 @@ type Props = {
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
   'artist_fee', 'usage_licence', 'file_management', 'retouching',
   'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'travel', 'artist_travel', 'catering', 'wardrobe', 'props',
+  'studio_hire', 'crew_travel', 'artist_travel', 'catering', 'wardrobe', 'props',
   'casting', 'location_fee', 'permits', 'insurance',
-  'post_production', 'artist_overtime', 'overtime', 'other_expense',
+  'post_production', 'artist_overtime', 'crew_overtime', 'other_expense',
 ];
 
 // Artist / billable vs outgoing (crew + production costs)
 const OUTGOING_TYPES = new Set<FeeLineType>([
   'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'travel', 'catering', 'wardrobe', 'props',
+  'studio_hire', 'crew_travel', 'catering', 'wardrobe', 'props',
   'casting', 'location_fee', 'permits', 'insurance',
 ]);
 
@@ -894,7 +894,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         // GST input credits scale with what's actually paid out (cost), not
         // what's billed. When cost_subtotal isn't set on a line, effectiveCost
         // falls back to (qty × unit_price), giving the historical behaviour.
-        const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'overtime']);
+        const CREW_LABOUR_TYPES = new Set<FeeLineType>(['crew_labour', 'crew_overtime']);
         const crewLabourCostGstRegistered = previewLines
           .filter((l) => CREW_LABOUR_TYPES.has(l.line_type) && l.crew_id != null)
           .reduce((sum, l) => {
@@ -1183,7 +1183,7 @@ const ARTIST_LINE_TYPES = new Set<FeeLineType>([
 ]);
 
 // Crew labour line types — GST exempt when the crew member is not GST-registered.
-const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'overtime']);
+const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'crew_overtime']);
 
 /** Commissionable lines can never be reimbursable. */
 function isCommissionable(t: FeeLineType): boolean {
