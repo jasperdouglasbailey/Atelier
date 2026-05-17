@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { parseBriefAction, applyBriefSuggestionsAction, draftClarifyingEmailAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
 import type { BriefIntakeResult } from '@/lib/automation/brief-intake';
@@ -214,7 +215,10 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
         >
           <span style={{ fontWeight: 600, color: PALETTE.warning }}>Heuristic mode</span>
           <span style={{ color: PALETTE.muted }}>
-            {' '}— AI extraction is off. The regex parser misses dates without a year, structured deliverables, and natural-language usage terms. Set <code style={{ fontFamily: 'monospace' }}>ANTHROPIC_API_KEY</code> in the deployment environment to enable AI extraction.
+            {' '}— AI extraction is off. The regex parser misses dates without a year, structured deliverables, and natural-language usage terms. Set <code style={{ fontFamily: 'monospace' }}>ANTHROPIC_API_KEY</code> in the deployment environment to enable AI extraction.{' '}
+            <Link href="/settings#integrations" style={{ color: PALETTE.warning, textDecoration: 'underline' }}>
+              Check status →
+            </Link>
           </span>
         </div>
       )}
@@ -355,7 +359,18 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
                   className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-40"
                   style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: 'pointer' }}
                 >
-                  {applying ? 'Applying…' : `Apply ${selected.size} field${selected.size !== 1 ? 's' : ''}`}
+                  {applying ? 'Applying…' : (() => {
+                    // Count the structured-usage taxonomy as one indivisible
+                    // "block" because it applies as a unit (you can't take
+                    // market without realm). Surfaces "Apply 5 fields + usage"
+                    // when both apply, so the button label matches reality.
+                    const hasStructuredUsage = !!(suggestions.usage_market || suggestions.usage_realm ||
+                      suggestions.usage_media_categories?.length ||
+                      suggestions.usage_specific_channels?.length ||
+                      suggestions.usage_territory_iso?.length);
+                    const fieldsLabel = `Apply ${selected.size} field${selected.size !== 1 ? 's' : ''}`;
+                    return hasStructuredUsage ? `${fieldsLabel} + usage` : fieldsLabel;
+                  })()}
                 </button>
                 {missingKeyFields.length > 0 && !clarifyResult && (
                   <button

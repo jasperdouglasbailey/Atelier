@@ -207,7 +207,9 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
         </SectionCard>
       </div>
 
-      {/* Integrations — full width */}
+      {/* Integrations — full width. Anchor target for deep-links (e.g. the
+          BriefParser amber banner's "Check status →" link). */}
+      <div id="integrations" style={{ scrollMarginTop: 80 }}>
       <SectionCard title="Integrations">
         <div className="space-y-2">
           <IntegrationRow name="Supabase" status="connected" detail="ap-southeast-2 (Sydney)" />
@@ -277,13 +279,31 @@ export default function SettingsPanel({ killSwitch, agency, integrations, emailF
           />
           <IntegrationRow
             name="Anthropic API"
-            status={integrations?.anthropicConnected ? 'connected' : 'pending'}
-            detail={integrations?.anthropicConnected
-              ? 'Connected — brief parsing, quote drafting active'
-              : 'Agent processing — set ANTHROPIC_API_KEY in Vercel environment'}
+            status={(() => {
+              // Connected requires BOTH the env var AND kill switch != RED.
+              // Per kill-switch.ts: only RED (is_active=true) blocks LLM calls
+              // via canProceed; AMBER (pause_outbound=true) lets LLM run.
+              // Without this nuance the row says "Connected" while every LLM
+              // call silently returns reason=kill_switch — most confusing
+              // shape possible.
+              if (!integrations?.anthropicConnected) return 'pending';
+              const isRed = killSwitch?.is_active === true;
+              return isRed ? 'pending' : 'connected';
+            })()}
+            detail={(() => {
+              if (!integrations?.anthropicConnected) {
+                return 'Agent processing — set ANTHROPIC_API_KEY in Vercel environment';
+              }
+              const isRed = killSwitch?.is_active === true;
+              if (isRed) {
+                return 'API key detected — but LLM calls blocked by RED kill switch (toggle above to re-enable)';
+              }
+              return 'Connected — brief parsing, quote drafting active';
+            })()}
           />
         </div>
       </SectionCard>
+      </div>
 
       {/* Scheduled Jobs — full width */}
       {cronHealth.length > 0 && (
