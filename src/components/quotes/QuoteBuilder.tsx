@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import RegenerateQuoteV1Button from './RegenerateQuoteV1Button';
 import type { QuoteVersion, FeeLine, FeeLineType, BookingTalent, BookingCrew } from '@/lib/types/database';
 import type { RatePrecedent } from '@/lib/data/quotes';
-import { computeQuoteTotals, computeAgencyMargin, computeGstPassthrough, effectiveCost, type ComputedFeeLine } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, computeGstPassthrough, effectiveCost, isReimbursement, type ComputedFeeLine } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import UndoToast from '@/components/ui/UndoToast';
@@ -96,7 +96,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     /** Optional actual-cost override. Empty string = same as billed (= subtotal). */
     cost_subtotal: string;
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
-    is_artist_reimbursement: boolean;
   } | null>(null);
 
   // Totals breakdown — collapsed by default so the quote totals panel reads
@@ -136,7 +135,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       unit_price: String(line.unit_price),
       cost_subtotal: line.cost_subtotal != null ? String(line.cost_subtotal) : '',
       asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
-      is_artist_reimbursement: line.is_artist_reimbursement ?? false,
     });
     setShowAddLine(false);
   }
@@ -156,7 +154,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     fd.set('quantity', editValues.quantity);
     fd.set('unit_price', editValues.unit_price);
     fd.set('booking_id', bookingId);
-    fd.set('is_artist_reimbursement', String(editValues.is_artist_reimbursement));
+    // Reimbursement no longer needs to be sent — it's derived server-side
+    // from `talent_id != null && !is_commissionable` on every read.
     const asfPct = parseFloat(editValues.asf_rate);
     if (Number.isFinite(asfPct)) {
       fd.set('asf_rate', String(asfPct / 100));
@@ -180,7 +179,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       cost_subtotal: newCostSubtotal,
       asf_rate: newAsfRate,
       asf_amount: Math.round(newQty * newPrice * newAsfRate * 100) / 100,
-      is_artist_reimbursement: editValues.is_artist_reimbursement,
     };
     setFeeLines((prev) => prev.map((l) => l.id === line.id ? optimistic : l));
     cancelEdit();
@@ -287,7 +285,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       asf_rate: line.asf_rate,
       is_gst_exempt: line.is_gst_exempt,
       notes: line.notes,
-      is_artist_reimbursement: line.is_artist_reimbursement,
       sort_order: line.sort_order,
     });
 
@@ -619,9 +616,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                                 setEditValues((v) => v && {
                                   ...v,
                                   line_type: next,
-                                  // Switching to a commissionable type auto-clears reimbursement —
-                                  // they're mutually exclusive in the fee model.
-                                  is_artist_reimbursement: isCommissionable(next) ? false : v.is_artist_reimbursement,
+                                  // Reimbursement is now derived from talent_id + commissionable,
+                                  // so no longer needs explicit clearing on type change.
                                 });
                               }}
                               className="rounded border px-2 py-1.5 text-xs"
@@ -727,30 +723,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
                           {/* Row 4 — Reimburse toggle (left) + actions (right) */}
                           <div className="flex items-center justify-between gap-3 pt-2 border-t flex-wrap" style={{ borderColor: PALETTE.border }}>
-                            {isCommissionable(editValues.line_type) ? (
-                              <span
-                                className="text-[10px]"
-                                style={{ color: PALETTE.muted, opacity: 0.7 }}
-                                title="Commissionable line types cannot be reimbursements"
-                              >
-                                Reimbursement not available on commissionable lines
-                              </span>
-                            ) : (
-                              <label
-                                className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none"
-                                style={{ color: editValues.is_artist_reimbursement ? PALETTE.ok : PALETTE.muted }}
-                                title="Mark as artist reimbursement — amount is added to artist payout in P&L"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={editValues.is_artist_reimbursement}
-                                  onChange={(e) => setEditValues((v) => v && { ...v, is_artist_reimbursement: e.target.checked })}
-                                  className="w-3.5 h-3.5"
-                                  style={{ accentColor: PALETTE.ok }}
-                                />
-                                Mark as artist reimbursement
-                              </label>
-                            )}
+                            {/* Reimbursement is now derived: any non-commissionable line
+                                with a talent_id linked is treated as a reimbursement.
+                                The standalone "Mark as artist reimbursement" tickbox was
+                                removed — pick a talent in the person picker above to
+                                make this line a reimbursement to them. */}
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
@@ -810,11 +787,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                     </td>
                     <td className="px-3 py-2">
                       <span>{line.description}</span>
-                      {line.is_artist_reimbursement && (
+                      {isReimbursement(line) && (
                         <span
                           className="ml-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
                           style={{ background: `${PALETTE.ok}18`, color: PALETTE.ok }}
-                          title="Artist reimbursement — added to artist payout in P&L"
+                          title="Reimbursement (derived from talent link) — added to artist payout in P&L"
                         >
                           reimb.
                         </span>
@@ -904,7 +881,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         // Artist reimbursement cost — when the artist is GST-registered they
         // on-charge what they actually paid (cost) + 10% GST.
         const artistReimbursementCostSubtotal = previewLines
-          .filter((l) => l.is_artist_reimbursement)
+          .filter((l) => isReimbursement(l))
           .reduce((sum, l) => sum + effectiveCost(l), 0);
         const gst = computeGstPassthrough({
           totals,
@@ -1205,7 +1182,9 @@ function AddLineForm({
   const [lineType, setLineType] = useState<FeeLineType>('artist_fee');
   const [chargeAsf, setChargeAsf] = useState<boolean>(!ASF_OFF_BY_DEFAULT.has('artist_fee'));
   const [selectedCrewId, setSelectedCrewId] = useState<string>('');
-  const [isArtistReimbursement, setIsArtistReimbursement] = useState<boolean>(false);
+  // Reimbursement-flag state removed — derived server-side from
+  // talent_id + commissionable. UI selecting a talent on a non-
+  // commissionable line IS the reimbursement signal.
 
   // GST: default on. Only flips off when the payee is a known non-GST-
   // registered person (artist line + non-registered talent, or crew line
@@ -1230,8 +1209,6 @@ function AddLineForm({
     setLineType(t);
     setChargeAsf(!ASF_OFF_BY_DEFAULT.has(t));
     setChargeGst(defaultChargeGst(t, selectedCrewId));
-    // Reimbursement is mutually exclusive with commissionable lines.
-    if (isCommissionable(t)) setIsArtistReimbursement(false);
   }
 
   function handleCrewChange(crewId: string) {
@@ -1382,31 +1359,10 @@ function AddLineForm({
         />
       </div>
 
-      {/* Reimbursement — hidden on commissionable line types (artist labour). */}
-      {!isCommissionable(lineType) && (
-        <label
-          className="flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs cursor-pointer select-none w-fit"
-          style={{
-            background: isArtistReimbursement ? `${PALETTE.ok}10` : PALETTE.bg,
-            borderColor: isArtistReimbursement ? `${PALETTE.ok}55` : PALETTE.border,
-            color: isArtistReimbursement ? PALETTE.ok : PALETTE.muted,
-          }}
-          title="Mark this line as an expense the artist paid upfront — it will be reimbursed from booking proceeds and tracked separately in P&L"
-        >
-          <input
-            type="checkbox"
-            checked={isArtistReimbursement}
-            onChange={(e) => setIsArtistReimbursement(e.target.checked)}
-            style={{ accentColor: PALETTE.ok }}
-          />
-          <span>Artist reimbursement (pass-through expense)</span>
-        </label>
-      )}
-      <input
-        type="hidden"
-        name="is_artist_reimbursement"
-        value={String(!isCommissionable(lineType) && isArtistReimbursement)}
-      />
+      {/* Reimbursement tickbox removed. Reimbursement is now derived
+          server-side from `talent_id != null && !is_commissionable`. To
+          mark a non-commissionable line as a reimbursement, pick the
+          artist in the talent picker above — the link IS the signal. */}
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={busy} className="rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ background: PALETTE.accent, color: PALETTE.bg }}>

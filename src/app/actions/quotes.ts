@@ -165,10 +165,11 @@ export async function addFeeLineAction(formData: FormData) {
     ? Math.round(Number(costSubtotalRaw) * 100) / 100
     : null;
 
-  // Commissionable lines (artist labour) can never be reimbursable — the
-  // agency takes commission off them, they're not a pass-through expense.
-  const isArtistReimbursement = !isCommissionableType(lineType)
-    && formData.get('is_artist_reimbursement') === 'true';
+  // is_artist_reimbursement column is no longer authoritative — every
+  // read of "is this line a reimbursement?" now derives from `talent_id
+  // != null && !is_commissionable` via the isReimbursement() helper in
+  // fee-engine.ts. The column is left at its default (false) on insert
+  // and stays in the DB schema for backward compat with old rows.
 
   const input: CreateFeeLineInput = {
     quote_version_id: quoteVersionId,
@@ -190,7 +191,6 @@ export async function addFeeLineAction(formData: FormData) {
     talent_id: (formData.get('talent_id') as string) || null,
     crew_id: (formData.get('crew_id') as string) || null,
     notes: (formData.get('notes') as string) || null,
-    is_artist_reimbursement: isArtistReimbursement,
   };
 
   const line = await addFeeLine(input);
@@ -277,20 +277,10 @@ export async function updateFeeLineAction(id: string, formData: FormData): Promi
   const notes = formData.get('notes');
   if (notes != null) updates.notes = notes || null;
 
-  const reimbursementRaw = formData.get('is_artist_reimbursement');
-  if (reimbursementRaw != null && reimbursementRaw !== '') {
-    // Commissionable lines can never be reimbursable. If the line is being
-    // changed to a commissionable type in this update (or it already is),
-    // force the flag off — even if the client submitted it as true.
-    const effectiveType = (lineType ?? (await getFeeLine(id))?.line_type) as FeeLineType | undefined;
-    const commissionable = effectiveType ? isCommissionableType(effectiveType) : false;
-    updates.is_artist_reimbursement = !commissionable && reimbursementRaw === 'true';
-  } else if (lineType && isCommissionableType(lineType)) {
-    // Type changed to a commissionable type and no explicit reimbursement
-    // flag in the payload — still clear the existing flag so a previously
-    // reimbursable non-artist line doesn't carry the flag into an artist type.
-    updates.is_artist_reimbursement = false;
-  }
+  // is_artist_reimbursement is no longer touched on update — it's derived
+  // server-side from talent_id + commissionable via isReimbursement() in
+  // fee-engine.ts. Legacy column remains in the row for backward compat
+  // but is never written to from this action.
 
   const result = await updateFeeLine(id, updates);
   if (!result.ok) return { ok: false, error: result.error };
@@ -345,6 +335,9 @@ export async function restoreFeeLineAction(input: {
   asf_rate: number;
   is_gst_exempt: boolean;
   notes?: string | null;
+  /** @deprecated derived from talent_id + commissionable. Accepted for caller
+   * compatibility (the QuoteBuilder restore-action call still passes it
+   * from old line snapshots) but no longer used. */
   is_artist_reimbursement?: boolean;
   sort_order?: number;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
@@ -354,8 +347,7 @@ export async function restoreFeeLineAction(input: {
   const defaults = lineTypeDefaults(input.line_type);
   const subtotal = Math.round(input.quantity * input.unit_price * 100) / 100;
   const asfAmount = Math.round(subtotal * input.asf_rate * 100) / 100;
-  const isArtistReimbursement = !isCommissionableType(input.line_type)
-    && Boolean(input.is_artist_reimbursement);
+  // is_artist_reimbursement is no longer authoritative — derived elsewhere.
 
   const line = await addFeeLine({
     quote_version_id: input.quote_version_id,
@@ -376,7 +368,6 @@ export async function restoreFeeLineAction(input: {
     is_commissionable: defaults.is_commissionable,
     commission_rate: defaults.commission_rate,
     notes: input.notes ?? null,
-    is_artist_reimbursement: isArtistReimbursement,
     sort_order: input.sort_order,
   });
 

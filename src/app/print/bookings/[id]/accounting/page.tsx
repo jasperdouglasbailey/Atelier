@@ -3,7 +3,7 @@ import { getBooking } from '@/lib/data/bookings';
 import { listFeeLinesForActiveQuote, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
 import {
   computeQuoteTotals, computeAgencyMargin, computeGstPassthrough,
-  computeArtistPayment, computeCrewPayment, effectiveCost,
+  computeArtistPayment, computeCrewPayment, effectiveCost, isReimbursement,
 } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -73,10 +73,10 @@ export default async function AccountingPrintPage({ params }: Props) {
   // When cost_subtotal isn't set on any line, cost = billed and the accounting
   // statement is unchanged from the pre-cost-split era.
   const artistFeeSubtotal = feeLines
-    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
+    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !isReimbursement(l))
     .reduce((s, l) => s + effectiveCost(l), 0);
   const artistReimbursementSubtotal = feeLines
-    .filter((l) => l.is_artist_reimbursement)
+    .filter((l) => isReimbursement(l))
     .reduce((s, l) => s + effectiveCost(l), 0);
 
   const crewLabourSubtotalGstRegistered = feeLines
@@ -115,7 +115,7 @@ export default async function AccountingPrintPage({ params }: Props) {
     } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
       crewOvertimeByCrew.set(key, (crewOvertimeByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
-    } else if (l.line_type === 'crew_equipment' && !l.is_artist_reimbursement) {
+    } else if (l.line_type === 'crew_equipment' && !isReimbursement(l)) {
       crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
     }
@@ -245,7 +245,7 @@ export default async function AccountingPrintPage({ params }: Props) {
                   <tr key={l.id}>
                     <td style={tdStyle}>
                       {l.description}
-                      {l.is_artist_reimbursement && (
+                      {isReimbursement(l) && (
                         <span style={{ marginLeft: 6, padding: '1px 5px', fontSize: 9, fontWeight: 600, background: '#f3eee5', color: '#8a6d3b', borderRadius: 3 }}>REIMB</span>
                       )}
                     </td>
