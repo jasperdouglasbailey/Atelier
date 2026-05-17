@@ -61,6 +61,28 @@ export function effectiveCost(line: Partial<FeeLine>): number {
   return r2(qty * price);
 }
 
+/**
+ * Is this line a reimbursement to the linked talent?
+ *
+ * Doctrine (Jasper-approved 2026-05-17): a fee line is a reimbursement
+ * IFF it has a `talent_id` linked AND it isn't commissionable. The
+ * standalone `is_artist_reimbursement` boolean column is retained for
+ * backward compatibility but no longer used as a source of truth — the
+ * link itself IS the reimbursement signal.
+ *
+ * Replaces the previous half-state where you could set the flag without
+ * linking a person, or link a person without flagging — both of which
+ * caused real data-integrity bugs (the 2 orphan reimbursements stripped
+ * in migration 0060 were exactly this class).
+ *
+ * Pre-flight verification 2026-05-17: zero rows in prod would change
+ * meaning under this derivation vs the legacy column.
+ */
+export function isReimbursement(line: Partial<FeeLine>): boolean {
+  if (line.is_commissionable) return false;
+  return line.talent_id != null;
+}
+
 export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
   const qty = line.quantity ?? 1;
   const price = line.unit_price ?? 0;

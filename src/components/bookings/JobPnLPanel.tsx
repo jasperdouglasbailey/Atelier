@@ -1,7 +1,7 @@
 'use client';
 
 import type { FeeLine, QuoteVersion, BookingTalent, BookingCrew } from '@/lib/types/database';
-import { computeQuoteTotals, computeAgencyMargin, computeArtistPayment, computeCrewPayment, effectiveCost } from '@/lib/utils/fee-engine';
+import { computeQuoteTotals, computeAgencyMargin, computeArtistPayment, computeCrewPayment, effectiveCost, isReimbursement } from '@/lib/utils/fee-engine';
 import { formatCurrency } from '@/lib/utils/format';
 import { PALETTE, GST_RATE } from '@/lib/utils/constants';
 
@@ -48,7 +48,7 @@ function computePaidOut(
   const primaryArtist = bookingTalent[0]?.talent;
   const artistGstRegistered = primaryArtist?.gst_registered ?? false;
   const artistCostSubtotal = lines
-    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !l.is_artist_reimbursement)
+    .filter((l) => ARTIST_LINE_TYPES.has(l.line_type) && !isReimbursement(l))
     .reduce((s, l) => s + effectiveCost(l), 0);
   const artistNet = artistCostSubtotal > 0
     ? Math.round(computeArtistPayment(artistCostSubtotal, artistGstRegistered).netPayment * 100) / 100
@@ -58,7 +58,7 @@ function computePaidOut(
   // paid the supplier — that's the cost subtotal. Use effectiveCost so a
   // discount on the supplier invoice flows correctly.
   const reimbursementCostSubtotal = lines
-    .filter((l) => l.is_artist_reimbursement)
+    .filter((l) => isReimbursement(l))
     .reduce((s, l) => s + effectiveCost(l), 0);
   const reimbursementTotal = reimbursementCostSubtotal > 0 && artistGstRegistered
     ? Math.round(reimbursementCostSubtotal * (1 + GST_RATE) * 100) / 100
