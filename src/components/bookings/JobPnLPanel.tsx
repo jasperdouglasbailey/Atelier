@@ -12,9 +12,9 @@ type Props = {
   bookingCrew?: BookingCrew[];
 };
 
-const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['crew_overtime', 'artist_overtime', 'other_expense']);
+const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['crew_overtime', 'artist_overtime', 'expense']);
 const ARTIST_LINE_TYPES = new Set<FeeLine['line_type']>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
+  'artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
 // Crew labour split into super-bearing (crew_labour) and non-super-bearing
 // (overtime) buckets — doctrine says overtime is GST-bearing but not
@@ -78,7 +78,9 @@ function computePaidOut(
     } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
       crewByPersonOvertime.set(l.crew_id, (crewByPersonOvertime.get(l.crew_id) ?? 0) + effectiveCost(l));
       crewIds.add(l.crew_id);
-    } else if (l.line_type === 'crew_equipment') {
+    } else if (l.line_type === 'expense') {
+      // Crew-linked expense (was previously crew_equipment/equipment_rental/etc.
+      // before PR3 consolidated them into one `expense` type).
       crewByPersonExpenses.set(l.crew_id, (crewByPersonExpenses.get(l.crew_id) ?? 0) + effectiveCost(l));
       crewIds.add(l.crew_id);
     }

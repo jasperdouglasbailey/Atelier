@@ -55,7 +55,7 @@ describe('computeFeeLine', () => {
   });
 
   it('expense line: 0% ASF default, no commission, no super', () => {
-    const r = computeFeeLine(createExpenseLine('catering', 'Lunch x12', 180, 1));
+    const r = computeFeeLine(createExpenseLine('expense', 'Lunch x12', 180, 1));
     closeTo(r.subtotal, 180);
     expect(r.asfAmount).toBe(0);
     closeTo(r.gstAmount, 18);               // 180 * 0.10
@@ -137,7 +137,7 @@ describe('Oliver AJE eComm #3579 worked example', () => {
       createCrewLabourLine('Digital Operator', 700, 1),
       createCrewLabourLine('Photo Assistant', 500, 1),
       // Fringes/expenses (no ASF, no super, no commission)
-      createExpenseLine('catering', 'Catering', 180, 1),
+      createExpenseLine('expense', 'Catering', 180, 1),
     ];
     const t = computeQuoteTotals(lines);
 
@@ -177,7 +177,7 @@ describe('computeQuoteTotals edge cases', () => {
   it('all-fringe quote has no commission, no super', () => {
     const t = computeQuoteTotals([
       createExpenseLine('crew_travel', 'Flights', 800, 1),
-      createExpenseLine('catering', 'Lunch', 180, 1),
+      createExpenseLine('expense', 'Lunch', 180, 1),
     ]);
     expect(t.totalCommission).toBe(0);
     expect(t.totalSuper).toBe(0);
@@ -372,7 +372,7 @@ describe('grand-total invariants', () => {
     const lines = [
       createArtistFeeLine('Photography', 3500, 1),
       createCrewLabourLine('Digital Op', 700, 1),
-      createExpenseLine('catering', 'Catering', 180, 1),
+      createExpenseLine('expense', 'Catering', 180, 1),
     ];
     const t = computeQuoteTotals(lines);
     closeTo(t.grandTotal, t.subtotal + t.totalAsf + t.totalGst + t.totalSuper);
@@ -387,7 +387,7 @@ describe('grand-total invariants', () => {
       createArtistFeeLine('Photography', 3500, 1),
       createArtistFeeLine('Post-production', 500, 1),
       createCrewLabourLine('Digital Operator', 700, 1),
-      createExpenseLine('catering', 'Catering', 180, 1),
+      createExpenseLine('expense', 'Catering', 180, 1),
     ];
     const t = computeQuoteTotals(lines);
     const margin = computeAgencyMargin(t);
@@ -454,7 +454,7 @@ describe('cost_subtotal split: legacy behaviour preserved', () => {
       createArtistFeeLine('Retouching', 250, 1),
       createCrewLabourLine('Digital Operator', 700, 1),
       createCrewLabourLine('Photo Assistant', 500, 1),
-      createExpenseLine('catering', 'Catering', 180, 1),
+      createExpenseLine('expense', 'Catering', 180, 1),
     ];
     const t = computeQuoteTotals(lines);
     // Spread captured must be 0 — no cost_subtotal set on any line

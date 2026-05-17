@@ -17,7 +17,7 @@ import PrintActions from '../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string }> };
 
-const ARTIST_LINE_TYPES = new Set<FeeLineType>(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel']);
+const ARTIST_LINE_TYPES = new Set<FeeLineType>(['artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel']);
 // All crew labour types — used for the GST-passthrough calc (GST IS due on
 // overtime). Per-person crew-payment calls split these further into
 // super-bearing vs non-super-bearing because overtime is NOT super-bearing.
@@ -115,7 +115,10 @@ export default async function AccountingPrintPage({ params }: Props) {
     } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
       crewOvertimeByCrew.set(key, (crewOvertimeByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
-    } else if (l.line_type === 'crew_equipment' && !isReimbursement(l)) {
+    } else if (l.line_type === 'expense' && !isReimbursement(l) && l.crew_id != null) {
+      // Crew-attributed expense paid by agency (e.g. crew rented kit on
+      // the agency card). Reimbursements are excluded — those don't pass
+      // through the crew payment math.
       crewExpensesByCrew.set(key, (crewExpensesByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
     }

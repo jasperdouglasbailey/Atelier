@@ -30,7 +30,7 @@ type Props = { params: Promise<{ id: string; crewId: string }> };
 // every overtime line. The fee engine now expects them separate.
 const LABOUR_TYPES = new Set(['crew_labour', 'crew_travel']);
 const OVERTIME_TYPES = new Set(['crew_overtime']);
-const EXPENSE_TYPES = new Set(['crew_equipment', 'equipment_rental', 'other_expense']);
+const EXPENSE_TYPES = new Set(['expense']);
 
 export default async function CrewBillPage({ params }: Props) {
   const { id, crewId } = await params;

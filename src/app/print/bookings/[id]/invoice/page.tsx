@@ -13,9 +13,9 @@ type Props = { params: Promise<{ id: string }> };
 type InvoiceGroup = { label: string; subtotal: number; lines: FeeLine[] };
 
 function groupFeeLines(feeLines: FeeLine[]): InvoiceGroup[] {
-  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel']);
-  const CREW_TYPES = new Set(['crew_labour', 'crew_equipment', 'crew_overtime']);
-  const EXPENSE_TYPES = new Set(['equipment_rental', 'studio_hire', 'crew_travel', 'catering', 'wardrobe', 'props', 'casting', 'location_fee', 'permits', 'insurance', 'other_expense']);
+  const ARTIST_TYPES = new Set(['artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel']);
+  const CREW_TYPES = new Set(['crew_labour', 'crew_overtime']);
+  const EXPENSE_TYPES = new Set(['expense', 'crew_travel']);
 
   const artists = feeLines.filter((l) => ARTIST_TYPES.has(l.line_type));
   const crew = feeLines.filter((l) => CREW_TYPES.has(l.line_type));

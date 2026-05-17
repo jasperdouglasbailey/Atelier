@@ -56,7 +56,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'crew_equipment',
+      line_type: 'expense',
       description: 'Camera, digital and lighting equipment allowance — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -90,7 +90,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'retouching',
+      line_type: 'post_production',
       description: 'Grading — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
@@ -106,7 +106,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'crew_equipment',
+      line_type: 'expense',
       description: 'Camera equipment — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -114,7 +114,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'crew_equipment',
+      line_type: 'expense',
       description: 'Digital equipment — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -122,7 +122,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'equipment_rental',
+      line_type: 'expense',
       description: 'Lighting equipment — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -138,7 +138,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'crew_equipment',
+      line_type: 'expense',
       description: '1AC kit — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
@@ -180,7 +180,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
       asf_rate: DEFAULT_ASF_RATE,
     },
     {
-      line_type: 'wardrobe',
+      line_type: 'expense',
       description: 'Wardrobe pull / return / steaming — TBD',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
