@@ -145,7 +145,12 @@ export async function getTalentPortalData(talentId: string): Promise<{
 
   // Fetch fee lines the artist is entitled to see:
   // (a) lines tagged to this talent, and (b) equipment/production lines for the shoot
-  const EQUIPMENT_LINE_TYPES = ['equipment_rental', 'studio_hire', 'wardrobe', 'props', 'crew_equipment'];
+  // PR3 consolidated equipment_rental + studio_hire + crew_equipment +
+  // wardrobe + props (and 6 other expense subtypes) into one `expense`
+  // line type. The talent portal shows expense lines tagged with the
+  // viewing artist's talent_id (their reimbursements) plus production
+  // expense lines for shoot-budget visibility.
+  const EQUIPMENT_LINE_TYPES = ['expense'];
   const feeLinesResp = bookingIds.length === 0
     ? { data: [], error: null as null | { message: string } }
     : await supabase

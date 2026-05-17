@@ -14,18 +14,10 @@ type Props = {
   bookingCrew: (BookingCrew & { crew?: { name: string } | null })[];
 };
 
-const EXPENSE_TYPES = [
-  { value: 'catering', label: 'Catering' },
-  { value: 'crew_travel', label: 'Travel / Transport' },
-  { value: 'studio_hire', label: 'Studio Hire' },
-  { value: 'equipment_rental', label: 'Equipment Rental' },
-  { value: 'props', label: 'Props' },
-  { value: 'wardrobe', label: 'Wardrobe' },
-  { value: 'location_fee', label: 'Location Fee' },
-  { value: 'permits', label: 'Permits' },
-  { value: 'insurance', label: 'Insurance' },
-  { value: 'other_expense', label: 'Other Expense' },
-] as const;
+// EXPENSE_TYPES dropdown removed in PR3 — the dropdown's 10 subtype
+// labels (Catering / Studio Hire / Props / etc.) collapsed into a single
+// `expense` line type. The description field carries the specific kind
+// of expense; no enum dropdown needed.
 
 const inputClass = 'w-full rounded border bg-transparent px-2.5 py-1.5 text-sm';
 const inputStyle = { borderColor: PALETTE.border, color: PALETTE.text, background: PALETTE.bg };
@@ -44,8 +36,9 @@ export default function OTExpenseEntry({ bookingId, quoteVersionId, windowEnd, i
   const [dayRate, setDayRate] = useState('');
   const [isHalfDay, setIsHalfDay] = useState(false);
 
-  // Expense form state
-  const [expenseType, setExpenseType] = useState('catering');
+  // Expense form state. `line_type` is always 'expense' after PR3 — the
+  // user picks an expense kind via free-text description rather than an
+  // enum dropdown.
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseNotes, setExpenseNotes] = useState('');
@@ -96,7 +89,7 @@ export default function OTExpenseEntry({ bookingId, quoteVersionId, windowEnd, i
     const fd = new FormData();
     fd.set('booking_id', bookingId);
     fd.set('quote_version_id', quoteVersionId);
-    fd.set('line_type', expenseType);
+    fd.set('line_type', 'expense');
     fd.set('description', expenseDesc);
     fd.set('amount', expenseAmount);
     if (expenseNotes) fd.set('notes', expenseNotes);
@@ -225,15 +218,7 @@ export default function OTExpenseEntry({ bookingId, quoteVersionId, windowEnd, i
 
       {!windowExpired && mode === 'expense' && (
         <form onSubmit={handleExpenseSubmit} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelClass} style={labelStyle}>Expense Type</label>
-              <select value={expenseType} onChange={(e) => setExpenseType(e.target.value)} className={inputClass} style={inputStyle}>
-                {EXPENSE_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-1">
             <div>
               <label className={labelClass} style={labelStyle}>Amount ($)</label>
               <input

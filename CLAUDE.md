@@ -42,28 +42,34 @@ src/
 - Australian spelling in user-facing copy ("organisation", "colour"). US in
   code identifiers ("organization") because that's npm convention.
 
-## Fee model rules (canonical, locked in 2026-05-14)
+## Fee model rules (canonical, locked 2026-05-14; consolidated 2026-05-18 — PRs #173/#174/#175)
 
 Per Jasper's spec — applies to defaults in `lineTypeDefaults()` in `src/app/actions/quotes.ts` and `defaultChargeGst()` / `ASF_OFF_BY_DEFAULT` / `ALWAYS_GST_LINE_TYPES` in `src/components/quotes/QuoteBuilder.tsx`.
 
 | Line type | Commission 20% | ASF 15% default | GST default | Super (15% charged / 12% paid) |
 |---|---|---|---|---|
-| `artist_fee`, `usage_licence`, `file_management`, `retouching`, `post_production`, `artist_overtime`, **`artist_travel`** | ✅ Yes | ✅ On | Follows artist's `gst_registered` | ❌ No |
+| `artist_fee`, `usage_licence`, `file_management`, `post_production`, `artist_overtime`, **`artist_travel`** | ✅ Yes | ✅ On | Follows artist's `gst_registered` | ❌ No |
 | `crew_labour` (day rate) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ✅ **Yes — only on day rate** |
-| `overtime` (crew overtime) | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ❌ **No — overtime is NOT super-bearing** |
-| `equipment_rental`, `crew_equipment`, `studio_hire` | ❌ No | ✅ On | ✅ **Always ON regardless of payee** — supplier invoice has GST | ❌ No |
-| `travel` (crew/production travel), `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense` | ❌ No | ✅ On | Follows crew GST status if crew_id linked; ON by default | ❌ No |
+| `crew_overtime` | ❌ No | ✅ On | Follows crew's `gst_registered`, ON if no crew picked | ❌ **No — overtime is NOT super-bearing** |
+| `crew_travel`, `expense` | ❌ No | ✅ On | Follows linked person's GST; ON by default | ❌ No |
 
-**Travel split:** `artist_travel` (commissionable, artist's paid travel time) is distinct from `travel` (crew + production travel, not commissionable). Same pattern as `artist_overtime` vs `overtime`.
+**Travel split:** `artist_travel` (commissionable, artist's paid travel time) is distinct from `crew_travel` (crew/production travel, not commissionable). Same pattern as `artist_overtime` vs `crew_overtime`.
+
+**Reimbursement semantic (PR#174):** A non-commissionable line with `talent_id` linked IS a reimbursement to that artist. There is no separate `is_artist_reimbursement` boolean — derived from `talent_id != null && !is_commissionable` via the `isReimbursement(line)` helper in `fee-engine.ts`.
+
+**Post-production merge (PR#175):** `retouching` (stills) merged into `post_production` (video) — identical fee treatment; the line's description carries the specific kind. `file_management` stays separate (different conversation with clients).
+
+**Expense consolidation (PR#175):** `equipment_rental`, `crew_equipment`, `studio_hire`, `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense` all collapsed into one `expense` type. All had identical fee treatment; description carries the kind. The previous "always GST on" doctrine for rentals was retired — cost-vs-billed split (PR#145) already handles input-credit GST correctly per payee, no special rule needed.
 
 **Cost vs billed split (PR #145):** Fee lines distinguish `subtotal` (billed) from `effectiveCost(line) = cost_subtotal ?? subtotal` (paid out). ASF + GST + super-charged compute on billed; commission + super-paid compute on cost. The spread is captured agency margin. Respect this whenever changing the engine.
 
 **Other invariants:**
 - ASF is toggleable per line — user can flip it off for genuine pass-through cost
 - GST toggle is "Charge GST" (positive sense). Checked = applied
-- Commissionable lines can NEVER be reimbursements (enforced server-side in `addFeeLineAction`/`updateFeeLineAction`)
+- Commissionable lines can NEVER be reimbursements (enforced by `isReimbursement()` returning false on commissionable lines)
 - Super spread (15% − 12% = 3%) is agency margin, computed in `computeAgencyMargin`
 - Net GST to ATO = collected from client − input credits paid to GST-registered talent/crew
+- Dropped enum values (`retouching`, `equipment_rental`, `crew_equipment`, `studio_hire`, `catering`, `wardrobe`, `props`, `casting`, `location_fee`, `permits`, `insurance`, `other_expense`, `overtime`, `travel`) remain in the Postgres `atelier_fee_line_type` enum for backward compat. App code uses only the 10 types in the table above.
 
 ## Development discipline rules
 

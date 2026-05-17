@@ -2919,6 +2919,7 @@ export type Database = {
         | "artist_travel"
         | "crew_overtime"
         | "crew_travel"
+        | "expense"
       atelier_post_production_ownership:
         | "us_via_artist"
         | "us_via_post_team"
@@ -3176,6 +3177,7 @@ export const Constants = {
         "artist_travel",
         "crew_overtime",
         "crew_travel",
+        "expense",
       ],
       atelier_post_production_ownership: [
         "us_via_artist",

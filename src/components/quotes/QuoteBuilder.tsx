@@ -25,19 +25,18 @@ type Props = {
   ratePrecedents?: RatePrecedent[];
 };
 
+// Consolidated set (PR3, 2026-05-18). retouching merged into
+// post_production; rentals + 8 expense subtypes folded into `expense`.
 const LINE_TYPE_OPTIONS: FeeLineType[] = [
-  'artist_fee', 'usage_licence', 'file_management', 'retouching',
-  'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'crew_travel', 'artist_travel', 'catering', 'wardrobe', 'props',
-  'casting', 'location_fee', 'permits', 'insurance',
-  'post_production', 'artist_overtime', 'crew_overtime', 'other_expense',
+  'artist_fee', 'usage_licence', 'file_management', 'post_production',
+  'artist_overtime', 'artist_travel',
+  'crew_labour', 'crew_overtime', 'crew_travel',
+  'expense',
 ];
 
 // Artist / billable vs outgoing (crew + production costs)
 const OUTGOING_TYPES = new Set<FeeLineType>([
-  'crew_labour', 'crew_equipment', 'equipment_rental',
-  'studio_hire', 'crew_travel', 'catering', 'wardrobe', 'props',
-  'casting', 'location_fee', 'permits', 'insurance',
+  'crew_labour', 'crew_overtime', 'crew_travel', 'expense',
 ]);
 
 export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initialFeeLines, bookingTalent = [], bookingCrew = [], ratePrecedents = [] }: Props) {
@@ -1142,25 +1141,26 @@ function RunningDeductions({
 // the user wants to pass a line through at cost.
 const ASF_OFF_BY_DEFAULT = new Set<FeeLineType>();
 
-// Equipment-class lines ALWAYS apply GST regardless of the linked
-// payee's GST registration. Rationale: the supplier invoice has GST on
-// it; the agency passes that through to the client even when the artist
-// is reimbursed for kit they hired (because the artist paid GST to the
-// supplier on the way in).
-const ALWAYS_GST_LINE_TYPES = new Set<FeeLineType>([
-  'equipment_rental', 'crew_equipment', 'studio_hire',
-]);
+// Post-consolidation (PR3, 2026-05-18): the previous "rentals always GST"
+// doctrine was retired. With cost-vs-billed split (PR#145) already
+// handling input-credit GST correctly per payee, all expense lines
+// (including former rentals) just default to charge-GST-on and follow
+// the linked-person rule for input credits. Empty set retained for now
+// in case a future line type needs the always-on override.
+const ALWAYS_GST_LINE_TYPES = new Set<FeeLineType>();
 
-// Artist-side line types — GST exempt when the payee is not GST-registered.
-// Also the set that's commissionable, so reimbursement is disallowed.
-// `artist_travel` is here (commissionable, follows artist GST status);
-// plain `travel` is NOT here (crew/production travel, not commissionable).
+// Artist-side commissionable line types. retouching merged into
+// post_production in PR3.
 const ARTIST_LINE_TYPES = new Set<FeeLineType>([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production', 'artist_overtime', 'artist_travel',
+  'artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
 
-// Crew labour line types — GST exempt when the crew member is not GST-registered.
-const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'crew_overtime']);
+// Crew-relevant line types — picker for who to link/reimburse appears
+// on these; GST default follows linked crew member's registration.
+// Includes `expense` because any expense can be reimbursed to a crew
+// member (or talent). Excludes all artist-side types (handled by the
+// primary-talent auto-link).
+const CREW_LINE_TYPES_SET = new Set<FeeLineType>(['crew_labour', 'crew_overtime', 'crew_travel', 'expense']);
 
 /** Commissionable lines can never be reimbursable. */
 function isCommissionable(t: FeeLineType): boolean {

@@ -26,7 +26,7 @@ import PrintActions from '../../quote/PrintActions';
 type Props = { params: Promise<{ id: string; talentId: string }> };
 
 const ARTIST_LINE_TYPES = new Set([
-  'artist_fee', 'usage_licence', 'file_management', 'retouching', 'post_production',
+  'artist_fee', 'usage_licence', 'file_management', 'post_production',
 ]);
 
 export default async function ArtistRemittancePage({ params }: Props) {

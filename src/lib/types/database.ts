@@ -70,23 +70,40 @@ export type UsageTerritory =
   | 'cee' | 'mea' | 'emea' | 'uae' | 'gcc' | 'amet';
 
 /**
- * Fee line types. Migration 0060/0061 added `crew_overtime` and
- * `crew_travel` as the prefix-matched names for the previously-bare
- * `overtime` and `travel` types (which sit alongside `artist_overtime`
- * and `artist_travel`, so the bare variants were confusingly asymmetric).
+ * Fee line types — Jasper-approved consolidated set (2026-05-18).
  *
- * The old `overtime` and `travel` enum values are RETAINED in the
- * postgres type definition but the app no longer writes them — any
- * existing rows were migrated in 0061. Keeping the old values in the
- * union here would make the linter happy on legacy reads but is
- * deliberately omitted so that new code can't accidentally use them.
+ * Postgres enum still contains the legacy values (retouching,
+ * equipment_rental, crew_equipment, studio_hire, catering, wardrobe,
+ * props, casting, location_fee, permits, insurance, other_expense,
+ * overtime, travel) but the app no longer writes them. Migration
+ * 0062 remapped all existing rows to the new set.
+ *
+ * The 10 types below represent 5 distinct fee-engine treatments
+ * (commission/ASF/GST/super). The collapse was driven by the
+ * realisation that ~12 types had identical fee-engine treatment
+ * and only differed by descriptive label — labels are better
+ * carried in the `description` field.
+ *
+ * - Commissionable artist labour (6): artist_fee, usage_licence,
+ *   file_management, post_production (absorbs retouching),
+ *   artist_overtime, artist_travel
+ * - Crew labour (super-bearing): crew_labour
+ * - Crew non-labour: crew_overtime, crew_travel
+ * - Catch-all production expense (absorbs rentals + studio +
+ *   catering + wardrobe + props + casting + location + permits +
+ *   insurance + other_expense): expense
  */
 export type FeeLineType =
-  | 'artist_fee' | 'usage_licence' | 'file_management' | 'retouching'
-  | 'crew_labour' | 'crew_equipment' | 'equipment_rental'
-  | 'studio_hire' | 'crew_travel' | 'artist_travel' | 'catering' | 'wardrobe' | 'props'
-  | 'casting' | 'location_fee' | 'permits' | 'insurance'
-  | 'post_production' | 'crew_overtime' | 'artist_overtime' | 'other_expense';
+  | 'artist_fee'
+  | 'usage_licence'
+  | 'file_management'
+  | 'post_production'
+  | 'artist_overtime'
+  | 'artist_travel'
+  | 'crew_labour'
+  | 'crew_overtime'
+  | 'crew_travel'
+  | 'expense';
 
 export type PostProductionOwnership = 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced';
 
