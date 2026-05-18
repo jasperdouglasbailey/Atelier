@@ -64,6 +64,11 @@ describe('brief-intake fixtures — extracted-fields baseline', () => {
     'venroy-loose': { min: 5 },        // dates + duration + count + type
     'inaura-brooke': { min: 3 },        // duration + type + talent_count
     'coronation-caleb': { min: 4 },    // dates + duration + count + type
+    // Testino fixtures cover the new call/wrap extraction (PR #194 era).
+    // Heuristic doesn't pick up "on 25 May to shoot" (no declarative
+    // marker), so dates fall to LLM — baselines exclude them.
+    'testino-resort': { min: 5 },       // location + count + type + call + wrap
+    'testino-resort-loose': { min: 5 }, // location + count + type + call + wrap
   };
 
   for (const [name, baseline] of Object.entries(BASELINES)) {

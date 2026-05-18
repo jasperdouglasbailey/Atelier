@@ -728,6 +728,14 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     if (val !== null && val !== '') updates[f] = Number(val);
   }
 
+  // Call / wrap times — HH:MM 24-hour. Validated by shape only; the parser
+  // only emits a value when it's a confident extraction.
+  const TIME_RE = /^\d{2}:\d{2}$/;
+  for (const f of ['call_time', 'wrap_time'] as const) {
+    const val = formData.get(f);
+    if (typeof val === 'string' && TIME_RE.test(val)) updates[f] = val;
+  }
+
   // Build date range from start/end strings
   const shootStart = formData.get('shoot_date_start') as string | null;
   const shootEnd = formData.get('shoot_date_end') as string | null;
