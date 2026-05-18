@@ -40,6 +40,9 @@ export async function generateQuoteFromTemplateAction(
   template: QuoteTemplate,
   shootFeeOverride?: number,
 ) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
+
   const qv = await createQuoteVersion(bookingId);
   if (!qv) return { error: 'Failed to create quote version' };
 
@@ -80,6 +83,14 @@ export async function generateQuoteFromTemplateAction(
       sort_order: i,
     });
   }
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'generate_quote_from_template',
+    tableName: 'atelier_quote_versions',
+    recordId: qv.id,
+    newValue: { booking_id: bookingId, template, line_count: lines.length, shoot_fee_override: shootFeeOverride ?? null } as never,
+  }).catch(() => { /* non-fatal */ });
 
   revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: qv.id, version: qv.version };
@@ -692,6 +703,9 @@ export async function updateCrewDayRateOverrideAction(args: {
  * because computeOT depends on runtime inputs (actual hours, day rate).
  */
 export async function addOTLineAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
+
   const bookingId = formData.get('booking_id') as string;
   const quoteVersionId = formData.get('quote_version_id') as string;
   const description = formData.get('description') as string;
@@ -726,6 +740,14 @@ export async function addOTLineAction(formData: FormData) {
   const line = await addFeeLine(input);
   if (!line) return { error: 'Failed to add OT line' };
 
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'add_ot_line',
+    tableName: 'atelier_fee_lines',
+    recordId: line.id,
+    newValue: input as never,
+  }).catch(() => { /* non-fatal */ });
+
   revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: line.id };
 }
@@ -735,15 +757,24 @@ export async function addOTLineAction(formData: FormData) {
  * during the morning-after OT/expenses window.
  */
 export async function addExpenseLineAction(formData: FormData) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
+
   const bookingId = formData.get('booking_id') as string;
   const quoteVersionId = formData.get('quote_version_id') as string;
   const lineType = formData.get('line_type') as FeeLineType;
   const description = formData.get('description') as string;
   const amount = Number(formData.get('amount') || 0);
+  const crewId = (formData.get('crew_id') as string) || null;
+  const talentId = (formData.get('talent_id') as string) || null;
 
-  // Expenses typically have no ASF unless explicitly specified
-  const asfRate = 0;
-  const asfAmount = 0;
+  // Doctrine (CLAUDE.md fee model rules): expense lines default to
+  // ASF 15% on. Audit 2026-05-18 caught this defaulting to 0, which
+  // under-charged the agency by 15% on every post-shoot expense.
+  // Pre-existing rows are unchanged — only newly-added ones get this.
+  const defaults = lineTypeDefaults('expense');
+  const asfRate = defaults.asf_rate;
+  const asfAmount = Math.round(amount * asfRate * 100) / 100;
 
   const input: CreateFeeLineInput = {
     quote_version_id: quoteVersionId,
@@ -755,17 +786,27 @@ export async function addExpenseLineAction(formData: FormData) {
     subtotal: amount,
     asf_rate: asfRate,
     asf_amount: asfAmount,
-    is_gst_exempt: false,
+    is_gst_exempt: defaults.is_gst_exempt,
     is_super_bearing: false,
     super_rate_charged: 0,
     super_rate_paid: 0,
     is_commissionable: false,
     commission_rate: 0,
+    crew_id: crewId,
+    talent_id: talentId,
     notes: (formData.get('notes') as string) || null,
   };
 
   const line = await addFeeLine(input);
   if (!line) return { error: 'Failed to add expense line' };
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'add_expense_line',
+    tableName: 'atelier_fee_lines',
+    recordId: line.id,
+    newValue: input as never,
+  }).catch(() => { /* non-fatal */ });
 
   revalidatePath(`/bookings/${bookingId}`); revalidateTag('bookings', {});
   return { ok: true, id: line.id };

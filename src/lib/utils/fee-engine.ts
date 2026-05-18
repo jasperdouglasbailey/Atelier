@@ -455,7 +455,12 @@ export function createExpenseLine(
   description: string,
   unitPrice: number,
   quantity = 1,
-  asfRate = 0, // fringes/expenses typically no ASF
+  // Test-helper convenience default — leaves ASF off so the canonical
+  // AJE eComm #3579 test can pass `createExpenseLine('expense', 'Catering', 180, 1)`
+  // and get a 0% ASF line without specifying it explicitly. Production
+  // code paths (`addExpenseLineAction`, QuoteBuilder UI) honour the
+  // doctrine ASF 15% default via `lineTypeDefaults('expense')`.
+  asfRate = 0,
 ): Partial<FeeLine> {
   return {
     line_type: lineType,

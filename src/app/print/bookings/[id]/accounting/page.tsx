@@ -19,11 +19,16 @@ type Props = { params: Promise<{ id: string }> };
 
 const ARTIST_LINE_TYPES = new Set<FeeLineType>(['artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel']);
 // All crew labour types — used for the GST-passthrough calc (GST IS due on
-// overtime). Per-person crew-payment calls split these further into
-// super-bearing vs non-super-bearing because overtime is NOT super-bearing.
-const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'crew_overtime']);
+// overtime AND travel). Per-person crew-payment calls split these further
+// into super-bearing vs non-super-bearing because only `crew_labour` bears
+// super; `crew_overtime` + `crew_travel` are GST-bearing only.
+const CREW_LABOUR_LINE_TYPES = new Set<FeeLineType>(['crew_labour', 'crew_overtime', 'crew_travel']);
 const CREW_SUPER_BEARING_TYPES = new Set<FeeLineType>(['crew_labour']);
-const CREW_OVERTIME_TYPES = new Set<FeeLineType>(['crew_overtime']);
+// Audit 2026-05-18: crew_travel was previously not bucketed in the
+// per-crew payment loop, silently dropping crew-linked travel lines
+// from the accounting statement. Treated identically to crew_overtime
+// (non-super, GST-bearing).
+const CREW_NON_SUPER_TYPES = new Set<FeeLineType>(['crew_overtime', 'crew_travel']);
 
 /**
  * Job accounting statement — a single-job GST reconciliation suitable
@@ -112,7 +117,11 @@ export default async function AccountingPrintPage({ params }: Props) {
     if (CREW_SUPER_BEARING_TYPES.has(l.line_type)) {
       crewLabourByCrew.set(key, (crewLabourByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
-    } else if (CREW_OVERTIME_TYPES.has(l.line_type)) {
+    } else if (CREW_NON_SUPER_TYPES.has(l.line_type)) {
+      // crew_overtime + crew_travel — both flow through the same
+      // non-super crew bucket (the variable + map keep the legacy
+      // "overtime" name to avoid a wider rename, but the semantic
+      // is "non-super crew amount").
       crewOvertimeByCrew.set(key, (crewOvertimeByCrew.get(key) ?? 0) + effectiveCost(l));
       crewIds.add(key);
     } else if (l.line_type === 'expense' && !isReimbursement(l) && l.crew_id != null) {
