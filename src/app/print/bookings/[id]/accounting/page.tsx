@@ -99,9 +99,11 @@ export default async function AccountingPrintPage({ params }: Props) {
     artistReimbursementSubtotal,
   });
 
-  // Artist payment derivation (for the cost-of-sales narrative)
-  const artistPayment = artistFeeSubtotal > 0
-    ? computeArtistPayment(artistFeeSubtotal, artistGstRegistered)
+  // Artist payment derivation (for the cost-of-sales narrative). Includes
+  // reimbursements so the "owed to artist" figure matches the payout
+  // statement at /print/bookings/<id>/artist/<talentId>.
+  const artistPayment = (artistFeeSubtotal > 0 || artistReimbursementSubtotal > 0)
+    ? computeArtistPayment(artistFeeSubtotal, artistGstRegistered, artistReimbursementSubtotal)
     : null;
 
   // Crew payments — group by crew_id, then unlinked block.

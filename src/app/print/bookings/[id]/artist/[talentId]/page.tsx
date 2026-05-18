@@ -17,7 +17,7 @@ import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { listFeeLinesForActiveQuote } from '@/lib/data/quotes';
 import { getTalent } from '@/lib/data/entities';
-import { computeArtistPayment, effectiveCost } from '@/lib/utils/fee-engine';
+import { computeArtistPayment, effectiveCost, isArtistReimbursement } from '@/lib/utils/fee-engine';
 import { FEE_LINE_TYPE_LABELS } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -40,18 +40,30 @@ export default async function ArtistRemittancePage({ params }: Props) {
 
   if (!booking || !talent) notFound();
 
-  // Lines for this artist on this booking. Falls back to ALL artist-type
-  // lines if none have talent_id set (some quotes pre-date per-line linking).
-  const linkedLines = allFeeLines.filter(
+  // Labour lines for this artist (commissionable types). Falls back to ALL
+  // artist-type lines if none have talent_id set (legacy quotes pre-date
+  // per-line linking).
+  const linkedLabourLines = allFeeLines.filter(
     (l) => l.talent_id === talentId && ARTIST_LINE_TYPES.has(l.line_type),
   );
   const allArtistLines = allFeeLines.filter((l) => ARTIST_LINE_TYPES.has(l.line_type));
-  const lines = linkedLines.length > 0 ? linkedLines : allArtistLines;
+  const labourLines = linkedLabourLines.length > 0 ? linkedLabourLines : allArtistLines;
+
+  // Reimbursement lines — any non-commissionable line (typically `expense`)
+  // linked to this artist. Engine-side classification: isArtistReimbursement
+  // returns true iff talent_id matches AND is_commissionable is false. Added
+  // PR#198 to fix payout under-statement (the engine had been passing GST
+  // through correctly since PR#196 but the print stat sheet was missing the
+  // reimbursement amount entirely).
+  const reimbursementLines = allFeeLines.filter(
+    (l) => l.talent_id === talentId && isArtistReimbursement(l),
+  );
 
   // Use COST subtotal — what the artist actually invoiced (falls back to
   // billed when cost_subtotal isn't set, preserving legacy behaviour).
-  const subtotal = lines.reduce((s, l) => s + effectiveCost(l), 0);
-  const payment = computeArtistPayment(subtotal, talent.gst_registered);
+  const subtotal = labourLines.reduce((s, l) => s + effectiveCost(l), 0);
+  const reimbursementSubtotal = reimbursementLines.reduce((s, l) => s + effectiveCost(l), 0);
+  const payment = computeArtistPayment(subtotal, talent.gst_registered, reimbursementSubtotal);
 
   const agency = getAgencyConfig();
   const today = new Date();
@@ -136,35 +148,66 @@ export default async function ArtistRemittancePage({ params }: Props) {
           </tr>
         </thead>
         <tbody>
-          {lines.length === 0 ? (
+          {labourLines.length === 0 && reimbursementLines.length === 0 ? (
             <tr>
               <td colSpan={4} style={{ ...tdStyle, color: '#999', textAlign: 'center', fontStyle: 'italic' }}>
-                No artist fee lines recorded for this booking yet.
+                No fee lines recorded for this booking yet.
               </td>
             </tr>
           ) : (
-            lines.map((line) => (
-              <tr key={line.id}>
-                <td style={tdStyle}>
-                  <div style={{ fontWeight: 500 }}>{line.description}</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                    {FEE_LINE_TYPE_LABELS[line.line_type]}
-                  </div>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
-              </tr>
-            ))
+            <>
+              {labourLines.map((line) => (
+                <tr key={line.id}>
+                  <td style={tdStyle}>
+                    <div style={{ fontWeight: 500 }}>{line.description}</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                      {FEE_LINE_TYPE_LABELS[line.line_type]}
+                    </div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.subtotal)}</td>
+                </tr>
+              ))}
+              {reimbursementLines.length > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={4} style={{ ...thStyle, paddingTop: 14, background: '#fafafa' }}>
+                      Reimbursements (paid back at cost)
+                    </td>
+                  </tr>
+                  {reimbursementLines.map((line) => (
+                    <tr key={line.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500 }}>{line.description}</div>
+                        <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                          {FEE_LINE_TYPE_LABELS[line.line_type]} · reimbursement
+                        </div>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{line.quantity}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(line.unit_price)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(effectiveCost(line))}</td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </>
           )}
         </tbody>
       </table>
 
       {/* Totals */}
-      <div style={{ marginLeft: 'auto', maxWidth: 360, marginBottom: 40 }}>
+      <div style={{ marginLeft: 'auto', maxWidth: 380, marginBottom: 40 }}>
         <Row label="Gross fees" value={formatCurrency(payment.grossFees)} />
         <Row label="Less: Agency commission (20%)" value={`− ${formatCurrency(payment.commission)}`} muted />
         <Row label="Less: GST on commission" value={`− ${formatCurrency(payment.commissionGst)}`} muted />
+        {payment.reimbursementSubtotal > 0 && (
+          <Row
+            label="Plus: Reimbursements"
+            value={`+ ${formatCurrency(payment.reimbursementSubtotal)}`}
+            muted
+          />
+        )}
         {payment.artistGst > 0 && (
           <Row label="Plus: GST you charge (10%)" value={`+ ${formatCurrency(payment.artistGst)}`} muted />
         )}
