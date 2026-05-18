@@ -13,7 +13,7 @@ import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import BookingTabs from '@/components/bookings/BookingTabs';
 import { getBookingDetail } from '@/lib/data/booking-detail';
-import { listClients } from '@/lib/data/entities';
+import { getCachedActiveClients } from '@/lib/data/entities-cache';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
 import { searchInbox } from '@/lib/integrations/gmail';
@@ -108,8 +108,9 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
     listAppUsers(),
     getBookingsRoster([id]),
     countPendingHoldApprovals(id),
-    // Active clients for the inline Client picker in JobFacts.
-    listClients(),
+    // Active clients for the inline Client picker in JobFacts. Cached
+    // (entities tag) — invalidated by entity mutation actions.
+    getCachedActiveClients(),
   ]);
   const roster = rosterMap.get(id) ?? null;
 

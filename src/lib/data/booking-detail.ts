@@ -14,7 +14,7 @@ import {
   type RatePrecedent,
 } from '@/lib/data/quotes';
 import { listUsageLicences } from '@/lib/data/usage-licences';
-import { listTalent, listCrew } from '@/lib/data/entities';
+import { getCachedActiveTalent, getCachedActiveCrew } from '@/lib/data/entities-cache';
 import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
 import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
 import { getCrewUnavailabilityForRange, getTalentUnavailabilityForRange } from '@/lib/data/portal';
@@ -75,8 +75,8 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
     listBookingTalent(id),
     listBookingCrew(id),
     listUsageLicences(id),
-    listTalent(),
-    listCrew(),
+    getCachedActiveTalent(),
+    getCachedActiveCrew(),
     shootRange.start
       ? getCrewBookedOnRange({
           startDate: shootRange.start,

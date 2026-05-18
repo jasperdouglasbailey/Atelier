@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import BookingEditForm from '@/components/bookings/BookingEditForm';
 import { getBooking } from '@/lib/data/bookings';
-import { listClients, listBrands, listTalent } from '@/lib/data/entities';
+import { listBrands } from '@/lib/data/entities';
+import { getCachedActiveClients, getCachedActiveTalent } from '@/lib/data/entities-cache';
 import { listLocations } from '@/lib/data/locations';
 import { listBookingTalent } from '@/lib/data/quotes';
 import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
@@ -14,9 +15,9 @@ export default async function BookingEditPage({ params }: Props) {
   const { id } = await params;
   const [booking, clients, brands, talent, locations, bookingTalent] = await Promise.all([
     getBooking(id),
-    listClients(),
+    getCachedActiveClients(),
     listBrands(),
-    listTalent(),
+    getCachedActiveTalent(),
     listLocations({ active_only: true }),
     listBookingTalent(id),
   ]);
