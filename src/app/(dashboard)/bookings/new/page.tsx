@@ -1,13 +1,14 @@
 import Topbar from '@/components/layout/Topbar';
 import BookingForm from '@/components/bookings/BookingForm';
-import { listClients, listBrands, listTalent } from '@/lib/data/entities';
+import { listBrands } from '@/lib/data/entities';
+import { getCachedActiveClients, getCachedActiveTalent } from '@/lib/data/entities-cache';
 import { listLocations } from '@/lib/data/locations';
 
 export default async function NewBookingPage() {
   const [clients, brands, talent, locations] = await Promise.all([
-    listClients(),
+    getCachedActiveClients(),
     listBrands(),
-    listTalent(),
+    getCachedActiveTalent(),
     listLocations({ active_only: true }),
   ]);
 

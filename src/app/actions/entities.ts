@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { createClientRecord, updateClient, createBrand } from '@/lib/data/entities';
 import { createTalentRecord, updateTalent } from '@/lib/data/entities';
 import { createCrewRecord, updateCrew } from '@/lib/data/entities';
@@ -82,7 +82,7 @@ export async function createClientAction(formData: FormData) {
   // Auto-create Drive folder using the company name when present, else contact name
   const folderLabel = (formData.get('company') as string) || result.name;
   await attachEntityDriveFolder('Clients', result.id, folderLabel, 'atelier_clients');
-  revalidatePath('/clients');
+  revalidatePath('/clients'); revalidateTag('entities', {});
   return { id: result.id };
 }
 
@@ -105,7 +105,7 @@ export async function updateClientAction(id: string, formData: FormData) {
   const result = await updateClient(id, updates);
   if (!result) return { error: 'Failed to update client' };
   await auditEntityMutation({ table: 'atelier_clients', recordId: id, action: 'update', payload: updates });
-  revalidatePath('/clients');
+  revalidatePath('/clients'); revalidateTag('entities', {});
   revalidatePath(`/clients/${id}`);
   return { ok: true };
 }
@@ -120,7 +120,7 @@ export async function createBrandAction(formData: FormData) {
   });
   if (!result) return { error: 'Failed to create brand' };
   await auditEntityMutation({ table: 'atelier_brands', recordId: result.id, action: 'create', payload: { name: result.name } });
-  revalidatePath('/clients');
+  revalidatePath('/clients'); revalidateTag('entities', {});
   return { id: result.id, name: result.name };
 }
 
@@ -150,7 +150,7 @@ export async function createTalentAction(formData: FormData) {
   if (!result) return { error: 'Failed to create talent' };
   await auditEntityMutation({ table: 'atelier_talent', recordId: result.id, action: 'create', payload: { working_name: result.working_name, discipline } });
   await attachEntityDriveFolder('Talent', result.id, result.working_name, 'atelier_talent');
-  revalidatePath('/talent');
+  revalidatePath('/talent'); revalidateTag('entities', {});
   return { id: result.id };
 }
 
@@ -171,7 +171,7 @@ export async function createCrewAction(formData: FormData) {
   if (!result) return { error: 'Failed to create crew member' };
   await auditEntityMutation({ table: 'atelier_crew', recordId: result.id, action: 'create', payload: { name: result.name, tier: result.tier } });
   await attachEntityDriveFolder('Crew', result.id, result.name, 'atelier_crew');
-  revalidatePath('/crew');
+  revalidatePath('/crew'); revalidateTag('entities', {});
   return { id: result.id };
 }
 
@@ -222,7 +222,7 @@ export async function updateCrewAction(id: string, formData: FormData) {
   const result = await updateCrew(id, updates);
   if (!result) return { error: 'Failed to update crew member' };
   await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: 'update', payload: updates });
-  revalidatePath('/crew');
+  revalidatePath('/crew'); revalidateTag('entities', {});
   revalidatePath(`/crew/${id}`);
   return { ok: true };
 }
@@ -254,7 +254,7 @@ export async function deleteCrewAction(id: string) {
 
   const { error } = await supabase.from('atelier_crew').delete().eq('id', id);
   if (error) return { error: error.message };
-  revalidatePath('/crew');
+  revalidatePath('/crew'); revalidateTag('entities', {});
   return { ok: true };
 }
 
@@ -281,7 +281,7 @@ export async function deleteTalentAction(id: string) {
 
   const { error } = await supabase.from('atelier_talent').delete().eq('id', id);
   if (error) return { error: error.message };
-  revalidatePath('/talent');
+  revalidatePath('/talent'); revalidateTag('entities', {});
   return { ok: true };
 }
 
@@ -395,7 +395,7 @@ export async function anonymiseTalentAction(id: string) {
     },
   });
 
-  revalidatePath('/talent');
+  revalidatePath('/talent'); revalidateTag('entities', {});
   revalidatePath(`/talent/${id}`);
   return { ok: true, anonId, driveTrashed };
 }
@@ -446,7 +446,7 @@ export async function anonymiseClientAction(id: string) {
     },
   });
 
-  revalidatePath('/clients');
+  revalidatePath('/clients'); revalidateTag('entities', {});
   revalidatePath(`/clients/${id}`);
   return { ok: true, anonId, driveTrashed };
 }
@@ -505,7 +505,7 @@ export async function anonymiseCrewAction(id: string) {
     },
   });
 
-  revalidatePath('/crew');
+  revalidatePath('/crew'); revalidateTag('entities', {});
   revalidatePath(`/crew/${id}`);
   return { ok: true, anonId, driveTrashed };
 }
@@ -520,7 +520,7 @@ export async function setTalentActiveAction(id: string, active: boolean) {
   const result = await updateTalent(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} talent` };
   await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: active ? 'reactivate' : 'archive' });
-  revalidatePath('/talent');
+  revalidatePath('/talent'); revalidateTag('entities', {});
   revalidatePath(`/talent/${id}`);
   return { ok: true };
 }
@@ -532,7 +532,7 @@ export async function setCrewActiveAction(id: string, active: boolean) {
   const result = await updateCrew(id, { is_active: active });
   if (!result) return { error: `Failed to ${active ? 'reactivate' : 'archive'} crew member` };
   await auditEntityMutation({ table: 'atelier_crew', recordId: id, action: active ? 'reactivate' : 'archive' });
-  revalidatePath('/crew');
+  revalidatePath('/crew'); revalidateTag('entities', {});
   revalidatePath(`/crew/${id}`);
   return { ok: true };
 }
@@ -591,7 +591,7 @@ export async function updateTalentAction(id: string, formData: FormData) {
   const result = await updateTalent(id, updates);
   if (!result) return { error: 'Failed to update talent' };
   await auditEntityMutation({ table: 'atelier_talent', recordId: id, action: 'update', payload: updates });
-  revalidatePath('/talent');
+  revalidatePath('/talent'); revalidateTag('entities', {});
   revalidatePath(`/talent/${id}`);
   return { ok: true };
 }
