@@ -11,6 +11,7 @@ import {
   substituteTalentAction,
 } from '@/app/actions/quotes';
 import { approveAllHoldsAction } from '@/app/actions/approvals';
+import { quickPencilPreferredCrewAction } from '@/app/actions/quick-pencil-crew';
 import CrewStatusSelect from './CrewStatusSelect';
 import CrewDayPicker from './CrewDayPicker';
 import HoldExpiryBadge from './HoldExpiryBadge';
@@ -68,11 +69,47 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
   const preferredSet = useMemo(() => new Set(preferredCrewIds), [preferredCrewIds]);
   const router = useRouter();
   const [approvingHolds, startApproveHolds] = useTransition();
+  const [quickPencilling, startQuickPencil] = useTransition();
+  const [quickPencilMessage, setQuickPencilMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [showAddCrew, setShowAddCrew] = useState(false);
   const [busy, setBusy] = useState(false);
   const [talentDayRate, setTalentDayRate] = useState('');
   const [crewDayRate, setCrewDayRate] = useState('');
+
+  // Quick-pencil eligibility:
+  //   - There IS a primary talent (we need someone whose preferred crew to pencil)
+  //   - They have at least one preferred crew member set up (else nothing to do)
+  //   - We have no crew on the booking yet, OR at least some preferred crew aren't
+  //     yet attached. The action itself filters duplicates, but we hide the button
+  //     when there's nothing for it to add — keeps the UI honest.
+  // The "preferredCrewIds has entries not in bookingCrew" check is the cheap UI
+  // approximation; the action does the authoritative filter (including role_hint
+  // and never_again checks) server-side.
+  const attachedCrewIds = useMemo(() => new Set(bookingCrew.map((bc) => bc.crew_id)), [bookingCrew]);
+  const hasUnattachedPreferred = preferredCrewIds.some((id) => !attachedCrewIds.has(id));
+  const showQuickPencil = bookingTalent.length > 0 && preferredCrewIds.length > 0 && hasUnattachedPreferred;
+
+  function handleQuickPencil() {
+    setQuickPencilMessage(null);
+    const confirmed = window.confirm(
+      `Pencil ${primaryTalentName ?? 'the primary artist'}'s preferred crew (top per role) and draft hold-request emails?`,
+    );
+    if (!confirmed) return;
+    startQuickPencil(async () => {
+      const result = await quickPencilPreferredCrewAction(bookingId);
+      if (result.ok) {
+        const names = result.pencilled.map((p) => `${p.name} (${p.role_hint.replace(/_/g, ' ')})`).join(', ');
+        const emailNote = result.emailsDrafted > 0
+          ? ` · ${result.emailsDrafted} email${result.emailsDrafted === 1 ? '' : 's'} drafted`
+          : '';
+        setQuickPencilMessage({ kind: 'ok', text: `Pencilled ${names}${emailNote}.` });
+        router.refresh();
+      } else {
+        setQuickPencilMessage({ kind: 'err', text: result.error });
+      }
+    });
+  }
 
   // Build lookup maps for fast rate pre-fill
   const talentById = Object.fromEntries(allTalent.map(t => [t.id, t]));
@@ -372,7 +409,19 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
           <h3 className="section-title">
             Crew ({bookingCrew.length})
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {showQuickPencil && (
+              <button
+                type="button"
+                disabled={quickPencilling}
+                onClick={handleQuickPencil}
+                className="rounded px-2 py-0.5 text-[10px] font-medium disabled:opacity-50"
+                style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}44` }}
+                title={`Pencil top preferred digital op + first assistant (etc) from ${primaryTalentName ?? 'the artist'}'s list, then draft hold-request emails`}
+              >
+                {quickPencilling ? 'Pencilling…' : `★ Pencil preferred crew`}
+              </button>
+            )}
             {pendingHoldCount > 0 && (
               <button
                 type="button"
@@ -396,6 +445,19 @@ export default function BookingTeam({ bookingId, bookingTalent, bookingCrew, all
             </button>
           </div>
         </div>
+
+        {quickPencilMessage && (
+          <div
+            className="mb-3 rounded border p-2 text-[11px]"
+            style={{
+              borderColor: quickPencilMessage.kind === 'ok' ? PALETTE.ok : PALETTE.danger,
+              color: quickPencilMessage.kind === 'ok' ? PALETTE.ok : PALETTE.danger,
+              background: quickPencilMessage.kind === 'ok' ? PALETTE.okBg : PALETTE.dangerBg,
+            }}
+          >
+            {quickPencilMessage.text}
+          </div>
+        )}
 
         {showAddCrew && (
           <form action={handleAddCrew} className="mb-3 space-y-2 rounded border p-2" style={{ borderColor: PALETTE.border }}>
