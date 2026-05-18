@@ -433,6 +433,36 @@ export async function updateBookingShootDatesAction(
   return { ok: true };
 }
 
+/**
+ * States that "lock in" a booking_ref. Once a booking reaches one of
+ * these states for the first time, we assign BOOK-NNNN (if not yet
+ * assigned) and the ref is permanent thereafter — even through
+ * cancellation/release.
+ *
+ * The cut-line is `quote_sent` because that's the first state where
+ * the ref is shown externally (on the quote PDF / email subject). The
+ * downstream states are included so a booking that skips quote_sent
+ * (e.g. direct entry at quote_confirmed for verbal agreements) still
+ * gets a ref.
+ *
+ * Pre-cut states (brief_received, brief_parsed, quote_drafted) never
+ * trigger assignment. Bookings cancelled before quote_sent never get
+ * a number, so the BOOK-NNNN sequence has no gaps for work that
+ * didn't ship — per Jasper's 2026-05-18 request.
+ */
+const REF_LOCK_STATES = new Set<BookingState>([
+  'quote_sent',
+  'artists_crew_held',
+  'quote_confirmed',
+  'pre_production',
+  'shoot_live',
+  'morning_after_check',
+  'post_production',
+  'final_delivery',
+  'invoice_issued',
+  'paid',
+]);
+
 export async function transitionBookingAction(
   id: string,
   newState: BookingState,
@@ -449,6 +479,20 @@ export async function transitionBookingAction(
       error: result.error,
     });
     return { error: result.error };
+  }
+
+  // Assign a booking_ref on first transition into a "ref-lock" state.
+  // Idempotent via the SQL function — calling twice on the same booking
+  // returns the existing ref. Migration 0064 dropped the BEFORE INSERT
+  // trigger that previously assigned refs at creation time.
+  if (REF_LOCK_STATES.has(newState)) {
+    try {
+      const supabase = await createSupabaseServer();
+      await supabase.rpc('atelier_assign_booking_ref_if_null', { p_booking_id: id });
+      revalidatePath(`/bookings/${id}`);
+    } catch (err) {
+      reportDataError('[transitionBookingAction] booking_ref assignment failed', err);
+    }
   }
 
   // Auto-trigger crew hold requests when quote is sent.
