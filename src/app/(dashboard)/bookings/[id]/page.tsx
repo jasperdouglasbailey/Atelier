@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
+import { withTiming } from '@/lib/utils/perf-trace';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
 import FilesPanel from '@/components/bookings/FilesPanel';
@@ -99,18 +100,22 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   // Set by the StageChecklist "Parse brief" CTA so the user gets a
   // one-click flow from the top of the page.
   const autoParseBrief = sp.action === 'parse';
-  const detail = await getBookingDetail(id);
+  const pageStart = performance.now();
+  const detail = await withTiming('booking-page.getBookingDetail', () => getBookingDetail(id));
   if (!detail) notFound();
 
   const [bookingTasks, allAppUsers, rosterMap, pendingHoldCount, allClients] = await Promise.all([
-    listTasksForBooking(id),
-    listAppUsers(),
-    getBookingsRoster([id]),
-    countPendingHoldApprovals(id),
+    withTiming('booking-page.listTasksForBooking', () => listTasksForBooking(id)),
+    withTiming('booking-page.listAppUsers', () => listAppUsers()),
+    withTiming('booking-page.getBookingsRoster', () => getBookingsRoster([id])),
+    withTiming('booking-page.countPendingHoldApprovals', () => countPendingHoldApprovals(id)),
     // Active clients for the inline Client picker in JobFacts. Cached
     // (entities tag) — invalidated by entity mutation actions.
-    getCachedActiveClients(),
+    withTiming('booking-page.getCachedActiveClients', () => getCachedActiveClients()),
   ]);
+  if (process.env.PERF_TRACE_ENABLED === '1') {
+    console.log(`[perf] booking-page.TOTAL_FETCH ${(performance.now() - pageStart).toFixed(1)}ms id=${id}`);
+  }
   const roster = rosterMap.get(id) ?? null;
 
   // Surface only id/name/company for the JobFacts picker — keeps the
