@@ -85,7 +85,7 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
                 color: PALETTE.muted,
               }}
             >
-              JOB / {booking.booking_ref ?? '—'}
+              JOB / {booking.booking_ref ?? 'DRAFT'}
             </div>
           </div>
         </div>
