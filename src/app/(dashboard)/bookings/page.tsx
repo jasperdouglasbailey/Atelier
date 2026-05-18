@@ -6,9 +6,7 @@ import BookingsBoard from '@/components/bookings/BookingsBoard';
 import BookingsCalendar from '@/components/bookings/BookingsCalendar';
 import BookingsViewToggle from '@/components/bookings/BookingsViewToggle';
 import BookingHoverCard from '@/components/bookings/BookingHoverCard';
-import CalendarTalentFilter from '@/components/bookings/CalendarTalentFilter';
 import { listBookings } from '@/lib/data/bookings';
-import { listTalent } from '@/lib/data/entities';
 import { getCalendarShoots } from '@/lib/data/crew-bookings';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
 import { BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
@@ -23,8 +21,6 @@ type SearchParams = Promise<{
   search?: string;
   page?: string;
   view?: string;
-  /** Calendar talent filter — UUID of a single talent. Only applies when view=calendar. */
-  talent?: string;
 }>;
 
 export default async function BookingsPage({ searchParams }: { searchParams: SearchParams }) {
@@ -50,15 +46,12 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
 
   // Calendar uses its own data source (one row per booking with attached crew + dates).
   // Board fetches all active bookings (no pagination needed — small N).
-  const allCalendarShoots = view === 'calendar' ? await getCalendarShoots() : [];
-
-  // Talent filter — only meaningful on the calendar view. When set, we
-  // narrow `calendarShoots` to bookings that include this talent in
-  // their roster, AND we pre-fetch the talent list for the dropdown.
-  const talentFilterId = view === 'calendar' && params.talent ? params.talent : null;
-  const allTalentForFilter = view === 'calendar'
-    ? await listTalent().then((rows) => rows.filter((t) => t.is_active))
-    : [];
+  // The bookings calendar is now ALWAYS agency-wide; per-talent and
+  // per-crew calendars live on the entity detail pages (/talent/[id],
+  // /crew/[id]) instead of being a filter here. Cleaner mental model
+  // per Jasper 2026-05-18 — the landing is "agency at a glance"; the
+  // detail pages are "individual at a glance".
+  const calendarShoots = view === 'calendar' ? await getCalendarShoots() : [];
 
   const { bookings, total, pageSize } = view === 'calendar'
     ? { bookings: [], total: 0, pageSize: 20 }
@@ -75,24 +68,13 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
       });
 
   // Roster lookup for hover card. Pulled in one batched query for the
-  // visible bookings — avoids N+1. We also use the full roster (not the
-  // post-filter list) to drive the talent filter, so even bookings
-  // hidden by the filter still contribute to its dropdown options.
+  // visible bookings — avoids N+1.
   const visibleIds =
     view === 'calendar'
-      ? allCalendarShoots.map((s) => s.bookingId)
+      ? calendarShoots.map((s) => s.bookingId)
       : bookings.map((b) => b.id);
   const rosterMap = await getBookingsRoster(visibleIds);
   const rosterByBookingId = Object.fromEntries(rosterMap);
-
-  // Apply talent filter AFTER fetching roster — needs the roster to
-  // know which bookings include the talent.
-  const calendarShoots = talentFilterId
-    ? allCalendarShoots.filter((shoot) => {
-        const roster = rosterMap.get(shoot.bookingId);
-        return roster?.talent.some((t) => t.id === talentFilterId) ?? false;
-      })
-    : allCalendarShoots;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -131,17 +113,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
         </div>
 
         {view === 'calendar' ? (
-          <>
-            {/* Talent filter — surfaces the bookings calendar from one
-                talent's POV. When set, only their bookings render. The
-                full talent list comes from active roster, not the
-                currently-visible bookings, so you can pick any talent. */}
-            <CalendarTalentFilter
-              talent={allTalentForFilter.map((t) => ({ id: t.id, name: t.working_name }))}
-              selectedId={talentFilterId}
-            />
-            <BookingsCalendar shoots={calendarShoots} rosterByBookingId={rosterByBookingId} />
-          </>
+          <BookingsCalendar shoots={calendarShoots} rosterByBookingId={rosterByBookingId} />
         ) : view === 'board' ? (
           <BookingsBoard bookings={bookings} />
         ) : (
