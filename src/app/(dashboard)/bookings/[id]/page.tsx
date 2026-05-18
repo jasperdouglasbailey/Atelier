@@ -38,7 +38,10 @@ import { getBookingsRoster } from '@/lib/data/booking-roster';
 import BookingMiniCalendar from '@/components/bookings/BookingMiniCalendar';
 import ActivityFeed from '@/components/bookings/ActivityFeed';
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ action?: string }>;
+};
 
 async function StreamingComms({ bookingRef }: { bookingRef: string | null }) {
   if (!bookingRef) return null;
@@ -89,8 +92,13 @@ async function StreamingPrecedents({
   );
 }
 
-export default async function BookingDetailPage({ params }: Props) {
+export default async function BookingDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
+  // ?action=parse triggers BriefParser to auto-run its parse on mount.
+  // Set by the StageChecklist "Parse brief" CTA so the user gets a
+  // one-click flow from the top of the page.
+  const autoParseBrief = sp.action === 'parse';
   const detail = await getBookingDetail(id);
   if (!detail) notFound();
 
@@ -240,6 +248,7 @@ export default async function BookingDetailPage({ params }: Props) {
                       bookingId={id}
                       hasBriefText={!!booking.brief_raw_text}
                       currentState={booking.state}
+                      autoParseOnMount={autoParseBrief}
                     />
                   )}
 

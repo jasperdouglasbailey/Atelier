@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { StageChecklist as ChecklistData } from '@/lib/utils/booking-stages';
 import { PALETTE } from '@/lib/utils/constants';
 
@@ -30,24 +31,45 @@ export default function StageChecklist({ checklist }: Props) {
         </div>
         {nextAction && (
           <div className="flex-none">
-            <span
-              className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium"
-              style={
+            {(() => {
+              // When href is set, render as a Link so the action is actually
+              // clickable. The legacy passive `<span>` rendered like a button
+              // but did nothing — confused operators into thinking the
+              // workflow was stuck. Wait/danger states with no href stay as
+              // passive labels because there's genuinely no user action.
+              const styleByIntent =
                 nextAction.intent === 'primary'
-                  ? { background: PALETTE.accent, color: PALETTE.bg }
+                  ? { background: PALETTE.accent, color: PALETTE.bg, border: 'none' as const }
                   : nextAction.intent === 'danger'
-                  ? { background: PALETTE.danger, color: '#fff' }
-                  : { background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }
-              }
-              title={
+                  ? { background: PALETTE.danger, color: '#fff', border: 'none' as const }
+                  : { background: 'transparent', color: PALETTE.muted, border: `1px solid ${PALETTE.border}` };
+              const baseClasses = 'inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium';
+              const interactiveClasses = nextAction.href ? ' transition-opacity hover:opacity-90 active:opacity-80 cursor-pointer' : '';
+              const titleText =
                 nextAction.intent === 'wait'
                   ? 'Nothing to do right now — waiting on the next signal'
-                  : 'Use the state transition buttons to advance the booking'
+                  : nextAction.href
+                  ? `Click to ${nextAction.label.toLowerCase()}`
+                  : 'Use the state transition buttons to advance the booking';
+              const content = (
+                <>
+                  {nextAction.intent === 'wait' && <span className="mr-1.5 opacity-60">◷</span>}
+                  {nextAction.label}
+                </>
+              );
+              if (nextAction.href) {
+                return (
+                  <Link href={nextAction.href} className={baseClasses + interactiveClasses} style={styleByIntent} title={titleText}>
+                    {content}
+                  </Link>
+                );
               }
-            >
-              {nextAction.intent === 'wait' && <span className="mr-1.5 opacity-60">◷</span>}
-              {nextAction.label}
-            </span>
+              return (
+                <span className={baseClasses} style={styleByIntent} title={titleText}>
+                  {content}
+                </span>
+              );
+            })()}
           </div>
         )}
       </div>

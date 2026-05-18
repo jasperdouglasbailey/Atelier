@@ -103,7 +103,13 @@ export type StageChecklist = {
   /** Headline summary of where this booking stands at this stage. */
   summary: string;
   /** What Jasper should do next. Drives the primary CTA. */
-  nextAction: { label: string; intent: 'primary' | 'wait' | 'danger' } | null;
+  /**
+   * Next action shown as a button/link in the stage card.
+   * `href` makes the label clickable; without it, the label renders as a
+   * passive pill (intentional for `wait` intents where there's nothing
+   * for the user to do).
+   */
+  nextAction: { label: string; intent: 'primary' | 'wait' | 'danger'; href?: string } | null;
   items: ChecklistItem[];
 };
 
@@ -157,7 +163,10 @@ function briefChecklist({ booking }: ChecklistInput): StageChecklist {
       : 'Read the brief and parse it into structured fields.',
     nextAction: isParsed
       ? { label: 'Draft quote', intent: 'primary' }
-      : { label: 'Parse brief', intent: 'primary' },
+      // ?action=parse triggers the BriefParser to auto-run on mount, then
+      // scrolls to it via the hash anchor. One-click parse from the
+      // "What's left" card.
+      : { label: 'Parse brief', intent: 'primary', href: '?action=parse#brief-parser' },
     items,
   };
 }

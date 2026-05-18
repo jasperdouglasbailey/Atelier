@@ -82,7 +82,19 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       )}
 
       {/* Primary rows — always visible, the integral operational facts. */}
+      {/* Primary rows — Jasper's spec (2026-05-18):
+            Title → Dates → Location → Tier → Deliverables → Count →
+            Call time → Wrap time → Producer → Producer number.
+          Producer email + post/grade/looks/deadline live in the expander. */}
       <div className="px-2 py-1">
+        <InlineField
+          bookingId={booking.id}
+          field="title"
+          label="Title"
+          value={booking.title}
+          placeholder="Job title"
+          layout="horizontal"
+        />
         <InlineDateRange
           bookingId={booking.id}
           label="Dates"
@@ -175,10 +187,10 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
         />
         <InlineField
           bookingId={booking.id}
-          field="producer_email"
-          label="Producer email"
-          value={booking.producer_email}
-          placeholder="natarsha@..."
+          field="producer_phone"
+          label="Producer number"
+          value={booking.producer_phone}
+          placeholder="04…"
           layout="horizontal"
         />
       </div>
@@ -191,12 +203,20 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
           className="w-full px-4 py-2 text-left text-[11px] font-medium"
           style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer' }}
         >
-          {expanded ? '− Hide additional details' : '+ More details (post, grade, looks, deadline, phone…)'}
+          {expanded ? '− Hide additional details' : '+ More details (producer email, post, grade, looks, deadline…)'}
         </button>
       </div>
 
       {expanded && (
         <div className="border-t px-2 py-1" style={{ borderColor: PALETTE.border }}>
+          <InlineField
+            bookingId={booking.id}
+            field="producer_email"
+            label="Producer email"
+            value={booking.producer_email}
+            placeholder="natarsha@..."
+            layout="horizontal"
+          />
           <InlineField
             bookingId={booking.id}
             field="post_production_ownership"
@@ -229,20 +249,6 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
             label="Confirmation due"
             value={booking.confirmation_deadline}
             variant="date"
-            layout="horizontal"
-          />
-          <InlineField
-            bookingId={booking.id}
-            field="producer_phone"
-            label="Producer phone"
-            value={booking.producer_phone}
-            layout="horizontal"
-          />
-          <InlineField
-            bookingId={booking.id}
-            field="title"
-            label="Title"
-            value={booking.title}
             layout="horizontal"
           />
         </div>
