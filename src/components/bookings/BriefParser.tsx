@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { parseBriefAction, applyBriefSuggestionsAction, draftClarifyingEmailAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
@@ -10,6 +10,12 @@ type Props = {
   bookingId: string;
   hasBriefText: boolean;
   currentState: string;
+  /**
+   * Trigger a parse immediately on mount. Used when navigating from the
+   * StageChecklist "Parse brief" CTA via `?action=parse#brief-parser` —
+   * lets the user one-click from the top of the page to a running parse.
+   */
+  autoParseOnMount?: boolean;
 };
 
 // Subset of brief-intake fields we expose for review. Intentionally excludes
@@ -59,7 +65,7 @@ const KEY_FIELDS: Record<string, string> = {
   deliverables_type: 'deliverables_type',
 };
 
-export default function BriefParser({ bookingId, hasBriefText, currentState }: Props) {
+export default function BriefParser({ bookingId, hasBriefText, currentState, autoParseOnMount = false }: Props) {
   const [parsing, setParsing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -68,6 +74,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [clarifyResult, setClarifyResult] = useState<{ mode: string; body?: string } | null>(null);
+  const autoParsedRef = useRef(false);
 
   async function handleParse() {
     setParsing(true);
@@ -148,6 +155,20 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     setClarifyResult(result);
   }
 
+  // Auto-parse when arriving from the StageChecklist "Parse brief" CTA
+  // (which navigates to ?action=parse#brief-parser). One-click flow:
+  // operator sees "Parse brief" at the top, clicks, lands here with the
+  // parse already running.
+  useEffect(() => {
+    if (autoParseOnMount && hasBriefText && !autoParsedRef.current && !parsing && !suggestions) {
+      autoParsedRef.current = true;
+      void handleParse();
+    }
+    // handleParse closes over component state; safe to omit as a dep
+    // because we guard with autoParsedRef so it only fires once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoParseOnMount, hasBriefText]);
+
   if (!hasBriefText) return null;
 
   // Allowlist-driven: only iterate the fields we explicitly surface.
@@ -173,7 +194,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState }: P
     : [];
 
   return (
-    <div className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+    <div id="brief-parser" className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border, scrollMarginTop: 80 }}>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="section-title">Brief Auto-Parser</h3>

@@ -265,12 +265,37 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     });
   }
 
+  // Log a failed LLM call so we have a forensic trail when something
+  // fails server-side and console output is gone (Vercel function logs
+  // expire fast). Distinct from successful logs which include token
+  // usage; failure rows just capture model + truncated error message.
+  // Doesn't throw — best-effort.
+  async function logFailure(modelId: AnthropicModel, errorText: string): Promise<void> {
+    try {
+      await supabase.from('atelier_llm_calls').insert({
+        model: modelId,
+        agent_name: request.purpose,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        estimated_cost_usd: 0,
+        booking_id: request.bookingId ?? null,
+        success: false,
+        response_preview: errorText.slice(0, 500),
+      });
+    } catch (logErr) {
+      console.error('[anthropic] failed to log failure', logErr);
+    }
+  }
+
   let model: AnthropicModel = requestedModel;
   let response: Response;
   try {
     response = await callOnce(model, apiKey);
   } catch (err) {
     console.error('[anthropic] fetch failed', err);
+    await logFailure(model, `network: ${err instanceof Error ? err.message : String(err)}`);
     return { ok: false, error: 'Network error calling Anthropic API', reason: 'api_error' };
   }
 
@@ -287,6 +312,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
       model = fallbackModel;
     } catch (err) {
       console.error('[anthropic] fallback fetch failed', err);
+      await logFailure(fallbackModel, `fallback network: ${err instanceof Error ? err.message : String(err)}`);
       return { ok: false, error: 'Network error on fallback model', reason: 'api_error' };
     }
   }
@@ -294,6 +320,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
   if (!response.ok) {
     const errText = await response.text().catch(() => 'unknown');
     console.error('[anthropic] API error', response.status, errText, 'model:', model);
+    await logFailure(model, `HTTP ${response.status}: ${errText}`);
     return { ok: false, error: `Anthropic API error ${response.status}`, reason: 'api_error' };
   }
 
