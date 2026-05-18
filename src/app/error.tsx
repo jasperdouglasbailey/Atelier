@@ -5,13 +5,17 @@
  * inside the app shell and renders a recoverable fallback. Next.js
  * resets the boundary when the user clicks "Try again" or navigates.
  *
- * Server-side errors are logged to the platform (Vercel/etc.) — this
- * file only handles the client-visible recovery flow.
+ * Server-side errors flow through captureError() in server actions /
+ * route handlers. This boundary handles the CLIENT-side recovery flow
+ * AND reports the caught error to atelier_error_log via a server
+ * action — so client render errors aren't invisible.
  */
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { PALETTE } from '@/lib/utils/constants';
+import { reportClientErrorAction } from '@/app/actions/error-report';
 
 export default function ErrorBoundary({
   error,
@@ -20,10 +24,20 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname();
   useEffect(() => {
     // Surface in browser console for local dev; production logs go to platform
     console.error('[atelier] error boundary caught', error);
-  }, [error]);
+    // Fire-and-forget to atelier_error_log. Never blocks the render.
+    void reportClientErrorAction({
+      message: error.message || 'Unknown error',
+      stack: error.stack,
+      digest: error.digest,
+      pathname: pathname ?? undefined,
+    }).catch((reportErr) => {
+      console.error('[atelier] failed to report error to server', reportErr);
+    });
+  }, [error, pathname]);
 
   return (
     <div
