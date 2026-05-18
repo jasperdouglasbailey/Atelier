@@ -71,7 +71,7 @@ export default function BookingsBoard({ bookings }: Props) {
                   >
                     <div className="flex items-start justify-between gap-1 mb-1">
                       <span className="font-mono text-[10px]" style={{ color: PALETTE.accent }}>
-                        {b.booking_ref ?? '—'}
+                        {b.booking_ref ?? 'DRAFT'}
                       </span>
                       <span
                         className="text-[9px] rounded px-1.5 py-0.5 flex-shrink-0"
