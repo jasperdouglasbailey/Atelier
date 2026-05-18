@@ -25,11 +25,14 @@ import PrintActions from '../../quote/PrintActions';
 
 type Props = { params: Promise<{ id: string; crewId: string }> };
 
-// Labour split: super-bearing (`crew_labour`, `crew_travel`) vs non-super-bearing
-// (`crew_overtime`). Lumping them together previously over-paid super by 12% of
-// every overtime line. The fee engine now expects them separate.
-const LABOUR_TYPES = new Set(['crew_labour', 'crew_travel']);
-const OVERTIME_TYPES = new Set(['crew_overtime']);
+// Labour split: only `crew_labour` is super-bearing per doctrine.
+// `crew_overtime` and `crew_travel` are GST-bearing but NOT super-bearing
+// — they share the "non-super crew amount" bucket that computeCrewPayment
+// already accepts as `overtimeSubtotal`. Audit 2026-05-18 caught
+// `crew_travel` being miscategorised here as super-bearing labour, which
+// would have over-paid super by 12% on every crew travel line.
+const LABOUR_TYPES = new Set(['crew_labour']);
+const NON_SUPER_LABOUR_TYPES = new Set(['crew_overtime', 'crew_travel']);
 const EXPENSE_TYPES = new Set(['expense']);
 
 export default async function CrewBillPage({ params }: Props) {
@@ -46,14 +49,17 @@ export default async function CrewBillPage({ params }: Props) {
   // Lines for this crew on this booking
   const myLines = allFeeLines.filter((l) => l.crew_id === crewId);
   const labourLines = myLines.filter((l) => LABOUR_TYPES.has(l.line_type));
-  const overtimeLines = myLines.filter((l) => OVERTIME_TYPES.has(l.line_type));
+  const nonSuperLabourLines = myLines.filter((l) => NON_SUPER_LABOUR_TYPES.has(l.line_type));
   const expenseLines = myLines.filter((l) => EXPENSE_TYPES.has(l.line_type));
 
   // Use COST subtotal — what the crew actually invoiced.
   const labourSubtotal = labourLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const overtimeSubtotal = overtimeLines.reduce((s, l) => s + effectiveCost(l), 0);
+  // crew_overtime + crew_travel both flow into the "non-super crew amount"
+  // bucket — same math (GST-bearing, no super), kept together because
+  // computeCrewPayment exposes one slot for non-super crew labour.
+  const nonSuperSubtotal = nonSuperLabourLines.reduce((s, l) => s + effectiveCost(l), 0);
   const expensesSubtotal = expenseLines.reduce((s, l) => s + effectiveCost(l), 0);
-  const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered, overtimeSubtotal);
+  const payment = computeCrewPayment(labourSubtotal, expensesSubtotal, crew.gst_registered, nonSuperSubtotal);
 
   const agency = getAgencyConfig();
   const today = new Date();
