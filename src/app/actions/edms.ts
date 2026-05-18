@@ -28,12 +28,11 @@ export async function createEdmAction(formData: FormData): Promise<void> {
   }
   if (!title) throw new Error('Title required');
 
-  const userId = await getCurrentActor();
-  const edm = await createEdm({ template: template as EdmTemplate, title, created_by: userId });
+  const edm = await createEdm({ template: template as EdmTemplate, title });
   if (!edm) throw new Error('Failed to create EDM');
 
   await logAudit({
-    userId,
+    userId: await getCurrentActor(),
     action: 'create_edm',
     tableName: 'atelier_edms',
     recordId: edm.id,

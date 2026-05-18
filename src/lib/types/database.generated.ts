@@ -1160,7 +1160,6 @@ export type Database = {
       atelier_edms: {
         Row: {
           created_at: string
-          created_by: string | null
           gmail_draft_id: string | null
           id: string
           payload: Json
@@ -1174,7 +1173,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by?: string | null
           gmail_draft_id?: string | null
           id?: string
           payload?: Json
@@ -1188,7 +1186,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string | null
           gmail_draft_id?: string | null
           id?: string
           payload?: Json
