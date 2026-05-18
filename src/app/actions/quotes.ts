@@ -289,6 +289,21 @@ export async function updateFeeLineAction(id: string, formData: FormData): Promi
   const notes = formData.get('notes');
   if (notes != null) updates.notes = notes || null;
 
+  // Reimburse-to: talent_id / crew_id are mutually exclusive. Empty
+  // string clears the link (line becomes a plain agency cost). Only
+  // touch the columns when the form actually sent the keys — null vs
+  // absent matters here.
+  const talentIdRaw = formData.get('talent_id');
+  if (talentIdRaw != null) {
+    const v = String(talentIdRaw).trim();
+    updates.talent_id = v === '' ? null : v;
+  }
+  const crewIdRaw = formData.get('crew_id');
+  if (crewIdRaw != null) {
+    const v = String(crewIdRaw).trim();
+    updates.crew_id = v === '' ? null : v;
+  }
+
   // is_artist_reimbursement is no longer touched on update — it's derived
   // server-side from talent_id + commissionable via isReimbursement() in
   // fee-engine.ts. Legacy column remains in the row for backward compat
