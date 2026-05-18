@@ -4,6 +4,8 @@ import Topbar from '@/components/layout/Topbar';
 import { getTalent, listCrew } from '@/lib/data/entities';
 import { listTalentBookingHistory } from '@/lib/data/quotes';
 import { listPreferredCrew } from '@/lib/data/talent-preferred-crew';
+import { getTalentCalendarData } from '@/lib/data/person-calendar';
+import AgencyPersonCalendar from '@/components/bookings/AgencyPersonCalendar';
 import PreferredCrewPanel from '@/components/entities/PreferredCrewPanel';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, ARTIST_DISCIPLINE_LABELS, PREFERRED_COMMS_LABELS } from '@/lib/utils/constants';
 import type { ArtistDiscipline, PreferredComms } from '@/lib/types/database';
@@ -56,13 +58,14 @@ function Badge({ label, active }: { label: string; active: boolean }) {
 
 export default async function TalentDetailPage({ params }: Props) {
   const { id } = await params;
-  const [talent, bookingHistory, preferredCrew, allCrew, talentTasks, allAppUsers] = await Promise.all([
+  const [talent, bookingHistory, preferredCrew, allCrew, talentTasks, allAppUsers, calendarData] = await Promise.all([
     getTalent(id),
     listTalentBookingHistory(id),
     listPreferredCrew(id),
     listCrew(),
     listTasksForTalent(id),
     listAppUsers(),
+    getTalentCalendarData(id),
   ]);
   const taskAssignees = allAppUsers
     .filter((u) => u.is_active && (u.role === 'owner' || u.role === 'partner'))
@@ -281,6 +284,17 @@ export default async function TalentDetailPage({ params }: Props) {
             assignees={taskAssignees}
           />
         </section>
+
+        {/* Calendar — same view the talent sees in their portal,
+            read-only on the agency side. Lets Jasper see at a glance
+            when this talent is booked or has marked themselves
+            unavailable, without having to start a new booking to
+            discover conflicts. */}
+        <AgencyPersonCalendar
+          bookings={calendarData.bookings}
+          unavailability={calendarData.unavailability}
+          personName={talent.working_name}
+        />
 
         {/* Booking history */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
