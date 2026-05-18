@@ -27,6 +27,12 @@ const GRADE_RETOUCH_OPTIONS = [
 type Props = {
   booking: BookingDetailRow;
   schedules: BookingSchedule[];
+  /**
+   * Active clients for the inline Client picker. Passed from the booking
+   * detail page (server-side fetch). Includes the booking's existing
+   * client (if set + active) so the current selection renders correctly.
+   */
+  clients: { id: string; name: string; company: string | null }[];
 };
 
 /**
@@ -45,8 +51,24 @@ type Props = {
  * and the value (click-to-edit) flex-1 on the right. Two-column grid for
  * paired fields like Call/Wrap and Producer/Email.
  */
-export default function BookingJobFacts({ booking, schedules }: Props) {
+export default function BookingJobFacts({ booking, schedules, clients }: Props) {
   const [expanded, setExpanded] = useState(false);
+
+  // Client dropdown options. Sorted alphabetically + a "— Clear —" row
+  // at the top so an operator can unset the client on a booking that
+  // started attached and shouldn't be (e.g. internal test / portfolio
+  // job per Jasper 2026-05-18). Company suffix disambiguates when two
+  // clients share a primary name.
+  const CLIENT_OPTIONS = [
+    { value: '', label: '— No client —' },
+    ...clients
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({
+        value: c.id,
+        label: c.company ? `${c.name} · ${c.company}` : c.name,
+      })),
+  ];
 
   const callTimeSchedules = schedules.filter((s) => s.call_time || s.wrap_time);
 
@@ -82,10 +104,14 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
       )}
 
       {/* Primary rows — always visible, the integral operational facts. */}
-      {/* Primary rows — Jasper's spec (2026-05-18):
-            Title → Dates → Location → Tier → Deliverables → Count →
-            Call time → Wrap time → Producer → Producer number.
-          Producer email + post/grade/looks/deadline live in the expander. */}
+      {/* Primary rows — Jasper's spec (2026-05-18, revised):
+            Title → Dates → Client → Location → Tier → Deliverables →
+            Count → Call time → Wrap time → Producer → Producer number.
+          Producer email + post/grade/looks/deadline live in the expander.
+          Client added 2026-05-18 — operator couldn't find where to set
+          the client on an existing booking; it now lives here, inline-
+          editable, with "— No client —" available for internal / unpaid
+          jobs. */}
       <div className="px-2 py-1">
         <InlineField
           bookingId={booking.id}
@@ -100,6 +126,23 @@ export default function BookingJobFacts({ booking, schedules }: Props) {
           label="Dates"
           shootDates={booking.shoot_dates}
           shootDateNotes={booking.shoot_date_notes}
+          layout="horizontal"
+        />
+        <InlineField
+          bookingId={booking.id}
+          field="client_id"
+          label="Client"
+          // Use the joined client object's display name from the booking
+          // row — falls back to the raw id (which is what the picker
+          // value sees). Empty string when no client is set.
+          value={booking.client_id ?? ''}
+          variant="select"
+          options={CLIENT_OPTIONS}
+          format={(v) => {
+            if (!v) return null;
+            const c = clients.find((x) => x.id === v);
+            return c ? (c.company ? `${c.name} · ${c.company}` : c.name) : 'Unknown client';
+          }}
           layout="horizontal"
         />
         <InlineField

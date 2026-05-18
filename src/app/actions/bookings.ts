@@ -328,6 +328,11 @@ const INLINE_TEXT_FIELDS = new Set([
   'post_production_ownership',
   'grade_retouch_scope',
   'tier',
+  // client_id is a UUID stored as text. Inline edit goes through the
+  // `select` variant of InlineField with the active client list as
+  // options. Empty string from the picker is normalised to null in
+  // the action, so the client can be cleared too.
+  'client_id',
 ] as const);
 
 const INLINE_NUMERIC_FIELDS = new Set([
@@ -1018,9 +1023,12 @@ export async function draftClarifyingEmailAction(
   const booking = await getBooking(bookingId);
   if (!booking) return { error: 'Booking not found' };
 
+  // 2026-05-18: clarifying drafts no longer require a client email.
+  // Bookings without a client are real (internal jobs, portfolio
+  // shoots, test bookings). In those cases we still draft the email
+  // and return the body for the operator to send manually; we just
+  // skip the Gmail draft creation if there's no recipient address.
   const clientEmail = booking.client?.email ?? null;
-  if (!clientEmail) return { error: 'No client email on this booking — add one to the client profile first.' };
-
   const clientName = booking.client?.company || booking.client?.name || 'there';
   const ref = booking.booking_ref ?? bookingId.slice(0, 8);
 
@@ -1092,7 +1100,18 @@ Write only the email body (no subject line). Keep it under 120 words.`;
 
   const subject = `[${ref}] Brief follow-up — ${booking.title}`;
 
+  // No Google integration → return the body for the operator to copy.
   if (!isGoogleConfigured()) {
+    return { ok: true, mode: 'no_google', body };
+  }
+
+  // No client email on the booking → still return the body so the
+  // operator can copy-paste into whatever channel they need. Don't
+  // create a Gmail draft because we have no recipient. This is the
+  // 2026-05-18 relaxation per Jasper — internal/unpaid jobs don't
+  // always have a client to email, but the operator still benefits
+  // from the LLM-drafted body.
+  if (!clientEmail) {
     return { ok: true, mode: 'no_google', body };
   }
 

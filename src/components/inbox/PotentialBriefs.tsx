@@ -85,6 +85,13 @@ export default function PotentialBriefs({ candidates, dismissed }: Props) {
     setOptimisticallyHidden((prev) => new Set(prev).add(c.id));
     setToast({ id: c.id, subject: c.subject || '(no subject)' });
 
+    // Fire-and-forget the server action. Each dismissal runs independently
+    // — no router.refresh() inside because concurrent dismissals raced:
+    // action A's refresh would refetch data before action B's insert
+    // committed, making B's row reappear. Now we trust the optimistic-hide
+    // and let `revalidatePath('/inbox')` inside the server action handle
+    // cache invalidation. Next natural navigation picks up the persisted
+    // dismissal. Jasper-reported bug 2026-05-18.
     startTransition(async () => {
       const result = await dismissBriefCandidateAction({
         gmail_message_id: c.id,
@@ -104,7 +111,7 @@ export default function PotentialBriefs({ candidates, dismissed }: Props) {
         setError(result.error);
         return;
       }
-      router.refresh();
+      // Deliberately no router.refresh() here — see comment above.
     });
 
     // Auto-clear the toast after 8s (server persistence stays).
