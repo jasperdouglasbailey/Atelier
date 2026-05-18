@@ -719,3 +719,25 @@ export interface LLMCallRow {
   /** Added migration 0056 — false on error paths. */
   success: boolean;
 }
+
+export type EdmTemplate = 'monthly_roundup' | 'artist_campaign';
+export type EdmStatus = 'draft' | 'sent' | 'archived';
+
+export interface Edm {
+  id: string;
+  template: EdmTemplate;
+  /** Internal label, not the email subject. */
+  title: string;
+  subject: string | null;
+  /** Preview text shown in the inbox preview pane (~90 chars). */
+  preheader: string | null;
+  /** Template-shaped slot payload. Keys vary by template. */
+  payload: Json;
+  status: EdmStatus;
+  /** Last Gmail draft id created from this EDM. Re-rendering overwrites. */
+  gmail_draft_id: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}

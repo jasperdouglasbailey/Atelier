@@ -1157,6 +1157,51 @@ export type Database = {
         }
         Relationships: []
       }
+      atelier_edms: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          gmail_draft_id: string | null
+          id: string
+          payload: Json
+          preheader: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          gmail_draft_id?: string | null
+          id?: string
+          payload?: Json
+          preheader?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          gmail_draft_id?: string | null
+          id?: string
+          payload?: Json
+          preheader?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       atelier_events: {
         Row: {
           actor: string | null
@@ -2833,6 +2878,10 @@ export type Database = {
       }
     }
     Functions: {
+      atelier_assign_booking_ref_if_null: {
+        Args: { p_booking_id: string }
+        Returns: string
+      }
       current_app_role: { Args: never; Returns: string }
       current_crew_id: { Args: never; Returns: string }
       current_talent_id: { Args: never; Returns: string }

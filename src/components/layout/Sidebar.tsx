@@ -145,22 +145,23 @@ export default function Sidebar({ inboxCount = 0, userEmail = null }: Props) {
         { label: 'Clients',      href: '/clients',      num: '06' },
         { label: 'Locations',    href: '/locations',    num: '07' },
         { label: 'Grid Planner', href: '/grid-planner', num: '08' },
+        { label: 'EDMs',         href: '/edms',         num: '09' },
       ],
     },
     {
       title: 'Analytics',
       items: [
-        { label: 'Reports', href: '/reports', num: '09' },
-        { label: 'Costs',   href: '/costs',   num: '10' },
+        { label: 'Reports', href: '/reports', num: '10' },
+        { label: 'Costs',   href: '/costs',   num: '11' },
       ],
     },
     {
       title: 'System',
       items: [
-        { label: 'Compliance', href: '/settings/compliance',        num: '11' },
-        { label: 'Renewals',   href: '/settings/business-renewals', num: '12' },
-        { label: 'Audit',      href: '/audit',                      num: '13' },
-        { label: 'Settings',   href: '/settings',                   num: '14' },
+        { label: 'Compliance', href: '/settings/compliance',        num: '12' },
+        { label: 'Renewals',   href: '/settings/business-renewals', num: '13' },
+        { label: 'Audit',      href: '/audit',                      num: '14' },
+        { label: 'Settings',   href: '/settings',                   num: '15' },
       ],
     },
   ];

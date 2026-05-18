@@ -28,7 +28,7 @@ import type {
   Brand, Location, Approval, AtelierEvent, AuditLogRow, BookingSchedule,
   BusinessRenewal, Campaign, KillSwitchState, LLMCallRow, QuoteVersion,
   Task, TalentUnavailability, CrewUnavailability,
-  UsageLicence,
+  UsageLicence, Edm,
 } from './database';
 // NB: StudioRoom is a jsonb-shape type for Location.studio_rooms, not a
 // table row — intentionally absent from this exhaustiveness check.
@@ -80,6 +80,7 @@ const _TaskMatch: KeysMatch<Tables['atelier_tasks']['Row'], Task> = true;
 const _TalentUnavailMatch: KeysMatch<Tables['atelier_talent_unavailability']['Row'], TalentUnavailability> = true;
 const _CrewUnavailMatch: KeysMatch<Tables['atelier_crew_unavailability']['Row'], CrewUnavailability> = true;
 const _UsageMatch: KeysMatch<Tables['atelier_usage_licences']['Row'], UsageLicence> = true;
+const _EdmMatch: KeysMatch<Tables['atelier_edms']['Row'], Edm> = true;
 
 // Silence unused-variable lints — these are compile-time checks, not runtime values.
 void _BookingMatch; void _ClientMatch; void _TalentMatch; void _CrewMatch;
@@ -88,6 +89,7 @@ void _BrandMatch; void _LocationMatch; void _ApprovalMatch; void _EventMatch;
 void _AuditMatch; void _ScheduleMatch; void _RenewalMatch; void _CampaignMatch;
 void _KillSwitchMatch; void _LLMMatch; void _QuoteVersionMatch;
 void _TaskMatch; void _TalentUnavailMatch; void _CrewUnavailMatch; void _UsageMatch;
+void _EdmMatch;
 
 describe('database type compatibility', () => {
   it('hand-typed interfaces match the generated schema', () => {
