@@ -33,6 +33,11 @@ const FIELD_LABELS = {
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
   post_production_ownership: 'Post-Production',
+  // Usage fields surfaced 2026-05-18 — LLM was extracting these but
+  // they had no checkboxes so they never reached the booking record.
+  usage_duration_months: 'Usage Duration',
+  usage_territory_raw: 'Usage Territory',
+  usage_media_raw: 'Usage Media',
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
@@ -83,6 +88,14 @@ function formatSuggestionValue(key: FieldKey, value: unknown): string {
   }
   if (key === 'post_production_ownership' && typeof value === 'string') {
     return POST_PROD_LABELS[value] ?? value;
+  }
+  if (key === 'usage_duration_months' && typeof value === 'number') {
+    if (value >= 999) return 'In perpetuity';
+    if (value === 12) return '1 year';
+    if (value === 24) return '2 years';
+    if (value === 36) return '3 years';
+    if (value % 12 === 0) return `${value / 12} years`;
+    return `${value} month${value === 1 ? '' : 's'}`;
   }
   if (typeof value === 'object') {
     // Defensive: should never happen given the allowlist, but if it does

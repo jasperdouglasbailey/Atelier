@@ -13,6 +13,7 @@ import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import BookingTeam from '@/components/bookings/BookingTeam';
 import BookingTabs from '@/components/bookings/BookingTabs';
 import { getBookingDetail } from '@/lib/data/booking-detail';
+import { listClients } from '@/lib/data/entities';
 import { getTalentRateBand, getClientRateBand, getTalentClientHistory, getClientCorpusSignal } from '@/lib/data/precedents';
 import PrecedentSignals from '@/components/bookings/PrecedentSignals';
 import { searchInbox } from '@/lib/integrations/gmail';
@@ -102,13 +103,24 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   const detail = await getBookingDetail(id);
   if (!detail) notFound();
 
-  const [bookingTasks, allAppUsers, rosterMap, pendingHoldCount] = await Promise.all([
+  const [bookingTasks, allAppUsers, rosterMap, pendingHoldCount, allClients] = await Promise.all([
     listTasksForBooking(id),
     listAppUsers(),
     getBookingsRoster([id]),
     countPendingHoldApprovals(id),
+    // Active clients for the inline Client picker in JobFacts.
+    listClients(),
   ]);
   const roster = rosterMap.get(id) ?? null;
+
+  // Surface only id/name/company for the JobFacts picker — keeps the
+  // client payload small and avoids leaking full client records to the
+  // page if not needed elsewhere.
+  const clientOptions = allClients.map((c) => ({
+    id: c.id,
+    name: c.name,
+    company: c.company ?? null,
+  }));
 
   const {
     booking, events, quoteVersions, latestQuote, feeLines,
@@ -185,7 +197,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                     }}
                   />
 
-                  <BookingJobFacts booking={booking} schedules={schedules} />
+                  <BookingJobFacts booking={booking} schedules={schedules} clients={clientOptions} />
 
                   {/* Usage Licences — surface its own section here. Previously
                       this was nested inside BookingDetail's Brief panel which

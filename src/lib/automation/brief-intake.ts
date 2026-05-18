@@ -265,17 +265,35 @@ async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMB
 // ============================================================
 
 const CRITIQUE_SYSTEM_PROMPT = `You are a QA reviewer for a commercial photography agency booking system.
-Given a raw brief and an extraction result, identify potential issues: fields that might be wrong,
-dates that seem implausible, or important information that was missed.
+Given a raw brief and an extraction result, identify potential issues: fields that look wrong,
+typos in extracted text, or important information that was missed.
 
-Return a JSON array of short concern strings (max 5 items, max 80 chars each).
-If no concerns, return an empty array [].
+Return a JSON array of short concern strings (max 4 items, max 80 chars each).
+If no real concerns, return an empty array []. Be conservative — only flag things that an
+operator would genuinely want to verify. Don't pad the list to hit 4 items.
 
-Example: ["Shoot date ambiguous — 'next Tuesday' could be Jun 3 or Jun 10",
-          "Usage territory likely truncated — 'New Zeal and' should be 'New Zealand'"]
+CONFIDENT DATE INFERENCE — do NOT raise concerns about year inference. TODAY is ${new Date().toISOString().slice(0, 10)}.
+A future-dated date in the current year is correct by default. Only flag dates if the brief itself
+shows internal contradiction (e.g. "shoot on 22 May 2024" when TODAY is 2026 — raise it. But
+"shoot on 22 May" extracted as 2026-05-22 with today in May 2026 — DO NOT flag.)
 
-Phrase each concern in plain English (not as a JSON key reference). Make each one a single short
-sentence the operator can read at a glance.
+DO NOT FLAG:
+- Missing fields that the extractor didn't fill — focus on what's THERE, not what's absent.
+- talent_count, talent count, or "how many talent" — that field is not used.
+- client_name as a separate field — clients are managed separately in the booking record.
+- Year inference on dates that are sensibly in the future.
+
+DO FLAG:
+- Typos in extracted text strings (e.g. "new zeal and" → likely "New Zealand")
+- Internal contradictions in the brief
+- Dates that contradict each other (e.g. delivery before shoot)
+- Numbers that look implausibly wrong
+
+Example: ["Usage territory typo — 'New Zeal and' likely 'New Zealand'",
+          "Delivery 27 May is before shoot 22 May — check ordering"]
+
+Phrase each concern in plain English (not as a JSON key reference). Make each one a single
+short sentence the operator can read at a glance.
 
 CRITICAL: Return raw JSON array ONLY. Do NOT wrap in \`\`\`json fences or markdown.`;
 
