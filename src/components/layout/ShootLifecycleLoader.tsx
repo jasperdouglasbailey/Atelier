@@ -78,7 +78,10 @@ function pickNarrative(): Narrative {
 const STEP_MS = 650;
 
 export default function ShootLifecycleLoader({ subtitle }: { subtitle?: string }) {
-  const narrative = useMemo(pickNarrative, []);
+  // Pick once per mount. eslint-disable for exhaustive-deps because we
+  // intentionally want a single random pick on mount, not a re-pick on
+  // every render.
+  const narrative = useMemo(() => pickNarrative(), []);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
