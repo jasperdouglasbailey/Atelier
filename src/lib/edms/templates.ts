@@ -145,14 +145,14 @@ function imageBlock(img: EdmImage | undefined, width = 536): string {
   const linked = safeHref(img.href)
     ? `<a href="${esc(img.href)}" style="text-decoration:none;color:inherit;">${inner}</a>`
     : inner;
-  // Captions only render when the user has explicitly set one. We no
-  // longer auto-fill from filename, so this is empty by default.
-  const cap = img.caption?.trim()
-    ? `<div style="padding:8px 0 0;font-size:12px;color:${COLOR.muted};line-height:1.5;">${esc(img.caption)}</div>`
-    : '';
+  // Captions are intentionally NOT rendered. There's no UI to set one
+  // deliberately yet, and the old auto-fill-from-filename behaviour
+  // left junk like "BAKER+STREET+1.jpeg" baked into existing payloads.
+  // Ignoring the field at render time cleans those up without a data
+  // migration. If/when an explicit caption input lands, re-enable here.
   // 32px horizontal padding so images line up with section dividers and
   // body copy. Width of inner image stays at 536px to fit (600 - 64).
-  return `<tr><td style="padding:0 32px;">${linked}${cap}</td></tr>`;
+  return `<tr><td style="padding:0 32px;">${linked}</td></tr>`;
 }
 
 function button(label: string | undefined, href: string | undefined): string {
