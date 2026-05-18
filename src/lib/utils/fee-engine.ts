@@ -330,33 +330,53 @@ export function computeGstPassthrough(args: {
 // ============================================================
 
 export interface ArtistPayment {
-  grossFees: number;       // sum of artist fee lines
-  commission: number;      // 20% of grossFees
-  commissionGst: number;   // GST on commission
-  artistGst: number;       // GST the artist charges (if GST registered)
-  netPayment: number;      // grossFees - commission - commissionGst + artistGst
+  grossFees: number;             // sum of artist fee lines (labour)
+  commission: number;            // 20% of grossFees
+  commissionGst: number;         // GST on commission
+  artistGst: number;             // GST the artist charges on fees + reimbursements
+  /** Sum of artist-linked non-commissionable lines (gear/travel paid for and on-charged). */
+  reimbursementSubtotal: number;
+  netPayment: number;            // grossFees - commission - commissionGst + reimbursementSubtotal + artistGst
 }
 
 /**
  * Compute the artist's net cheque from the agency.
  *
- * `artistFeeSubtotal` should be the artist's COST subtotal — what the artist
- * actually invoices the agency for. When cost_subtotal isn't set on the lines
- * (cost = billed), behaviour is unchanged from before. When the artist
- * underbills relative to quote, commission scales with the smaller cost
- * amount, not the larger billed amount — agency captures the difference as
- * spreadCaptured in AgencyMargin instead.
+ * Two cost buckets feed into the artist's take-home:
+ *   1. `artistFeeSubtotal` — commissionable labour (artist_fee, file_management,
+ *      post_production, usage_licence, artist_overtime, artist_travel).
+ *      Commission is deducted; the artist's GST applies on top if registered.
+ *   2. `reimbursementSubtotal` — non-commissionable lines linked to this
+ *      artist (typically `expense` lines where the artist fronted gear or
+ *      travel costs). NO commission. NO ASF (ASF stays with agency on the
+ *      client side). The artist's GST applies on top if registered, which
+ *      agency claims back as an input credit per PR#196.
+ *
+ * Both subtotals should be COST subtotals — what the artist actually invoices.
+ * When cost_subtotal isn't set, cost = billed (legacy behaviour preserved).
  */
 export function computeArtistPayment(
   artistFeeSubtotal: number,
   isGstRegistered: boolean,
+  reimbursementSubtotal: number = 0,
 ): ArtistPayment {
   const commission = r2(artistFeeSubtotal * DEFAULT_COMMISSION_RATE);
   const commissionGst = r2(commission * GST_RATE);
-  const artistGst = isGstRegistered ? r2(artistFeeSubtotal * GST_RATE) : 0;
-  const netPayment = r2(artistFeeSubtotal - commission - commissionGst + artistGst);
+  const artistGst = isGstRegistered
+    ? r2((artistFeeSubtotal + reimbursementSubtotal) * GST_RATE)
+    : 0;
+  const netPayment = r2(
+    artistFeeSubtotal - commission - commissionGst + reimbursementSubtotal + artistGst,
+  );
 
-  return { grossFees: artistFeeSubtotal, commission, commissionGst, artistGst, netPayment };
+  return {
+    grossFees: artistFeeSubtotal,
+    commission,
+    commissionGst,
+    artistGst,
+    reimbursementSubtotal,
+    netPayment,
+  };
 }
 
 // ============================================================

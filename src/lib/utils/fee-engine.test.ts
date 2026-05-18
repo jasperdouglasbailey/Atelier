@@ -352,8 +352,43 @@ describe('computeArtistPayment', () => {
     closeTo(r.commission, 2000);
     closeTo(r.commissionGst, 200);
     closeTo(r.artistGst, 1000);
+    closeTo(r.reimbursementSubtotal, 0);
     // Net: 10000 - 2000 - 200 + 1000 = 8800
     closeTo(r.netPayment, 8800);
+  });
+
+  it('with reimbursement (GST-registered): adds cost + GST on top, no commission on reimbursement', () => {
+    // The Testino scenario: $4,000 of artist fees + $1,200 equipment that
+    // Oliver fronted. Reimbursement isn't commissionable, but Oliver still
+    // charges GST on it because he's GST-registered.
+    const r = computeArtistPayment(4000, true, 1200);
+    closeTo(r.grossFees, 4000);
+    closeTo(r.commission, 800);        // 20% × 4000 (NOT × 5200)
+    closeTo(r.commissionGst, 80);
+    closeTo(r.reimbursementSubtotal, 1200);
+    closeTo(r.artistGst, 520);          // 10% × (4000 + 1200)
+    // Net: 4000 - 800 - 80 + 1200 + 520 = 4840
+    closeTo(r.netPayment, 4840);
+  });
+
+  it('with reimbursement (NOT GST-registered): no GST on either bucket', () => {
+    const r = computeArtistPayment(4000, false, 1200);
+    closeTo(r.commission, 800);
+    closeTo(r.commissionGst, 80);
+    closeTo(r.artistGst, 0);
+    closeTo(r.reimbursementSubtotal, 1200);
+    // Net: 4000 - 800 - 80 + 1200 + 0 = 4320
+    closeTo(r.netPayment, 4320);
+  });
+
+  it('reimbursement only (zero artist fees): reimbursement + GST passes through', () => {
+    // Edge: an expense-only booking where the artist paid for everything
+    // upfront and gets reimbursed without doing labour.
+    const r = computeArtistPayment(0, true, 1200);
+    closeTo(r.commission, 0);
+    closeTo(r.commissionGst, 0);
+    closeTo(r.artistGst, 120);
+    closeTo(r.netPayment, 1320);
   });
 });
 
