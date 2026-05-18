@@ -87,7 +87,6 @@ export default async function CallSheetPage({ params }: Props) {
           <Row label="Shoot date" value={shootDates ?? '—'} />
           <Row label="Call time" value={booking.call_time ?? '—'} />
           <Row label="Wrap time" value={booking.wrap_time ?? '—'} />
-          <Row label="Looks per talent" value={booking.looks_per_talent ?? '—'} />
           {booking.shoot_date_notes && <Row label="Notes" value={booking.shoot_date_notes} />}
         </div>
       </section>

@@ -427,14 +427,6 @@ export default function BookingDetail({
           />
           <InlineField
             bookingId={booking.id}
-            field="looks_per_talent"
-            label="Looks per talent"
-            value={booking.looks_per_talent}
-            variant="number"
-            placeholder="e.g. 12"
-          />
-          <InlineField
-            bookingId={booking.id}
             field="confirmation_deadline"
             label="Confirm by"
             value={booking.confirmation_deadline}

@@ -263,7 +263,7 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
           <InlineField
             bookingId={booking.id}
             field="post_production_ownership"
-            label="Post-production"
+            label="Retouching"
             value={booking.post_production_ownership}
             variant="select"
             options={POST_PROD_OPTIONS}
@@ -276,14 +276,6 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
             value={booking.grade_retouch_scope}
             variant="select"
             options={GRADE_RETOUCH_OPTIONS}
-            layout="horizontal"
-          />
-          <InlineField
-            bookingId={booking.id}
-            field="looks_per_talent"
-            label="Looks per talent"
-            value={booking.looks_per_talent}
-            placeholder="e.g. 12"
             layout="horizontal"
           />
           <InlineField

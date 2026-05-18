@@ -184,7 +184,7 @@ export async function updateBookingAction(id: string, formData: FormData) {
   if (shootStart !== null || shootEnd !== null) {
     updates.shoot_dates = buildDateRange(shootStart || null, shootEnd || null);
   }
-  const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication', 'looks_per_talent'];
+  const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication'];
   for (const f of numFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = val ? Number(val) : null;
@@ -337,7 +337,6 @@ const INLINE_TEXT_FIELDS = new Set([
 
 const INLINE_NUMERIC_FIELDS = new Set([
   'deliverables_count',
-  'looks_per_talent',
 ] as const);
 
 const INLINE_DATE_FIELDS = new Set([

@@ -900,10 +900,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
           style={{
             background: PALETTE.surface,
             borderColor: PALETTE.border,
-            position: 'sticky',
-            bottom: 12,
-            zIndex: 10,
-            boxShadow: '0 -4px 12px -6px rgba(0,0,0,0.18)',
           }}
         >
           {/* GRAND TOTAL — the headline */}

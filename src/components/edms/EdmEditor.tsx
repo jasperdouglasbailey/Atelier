@@ -9,6 +9,7 @@ import {
   deleteEdmAction,
   duplicateEdmAction,
   sendEdmTestAction,
+  archiveEdmAction,
 } from '@/app/actions/edms';
 import DriveImagePicker from './DriveImagePicker';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
@@ -125,6 +126,15 @@ export default function EdmEditor({ edm, googleConnected }: Props) {
     startTransition(async () => {
       const result = await deleteEdmAction(edm.id);
       if (result.ok) router.push('/edms');
+      else setFeedback({ kind: 'err', msg: result.error });
+    });
+  }
+
+  function archive() {
+    if (!confirm('Archive this EDM? It moves to the archived tab and stops appearing in drafts/sent.')) return;
+    startTransition(async () => {
+      const result = await archiveEdmAction(edm.id);
+      if (result.ok) router.push('/edms?status=archived');
       else setFeedback({ kind: 'err', msg: result.error });
     });
   }
@@ -632,6 +642,16 @@ export default function EdmEditor({ edm, googleConnected }: Props) {
               style={{ borderColor: PALETTE.border, color: PALETTE.muted }}
             >
               Mark sent
+            </button>
+          )}
+          {edm.status !== 'archived' && (
+            <button
+              type="button"
+              onClick={archive}
+              className="rounded-md border px-3 py-2 text-xs"
+              style={{ borderColor: PALETTE.border, color: PALETTE.muted }}
+            >
+              Archive
             </button>
           )}
           <button
