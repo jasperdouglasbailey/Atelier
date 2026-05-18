@@ -23,6 +23,10 @@ export type AgencyConfig = {
   email: string | null;
   phone: string | null;
   website: string | null;
+  /** Instagram handle without the @, eg "saundersandcoagency". */
+  instagram: string | null;
+  /** LinkedIn slug, eg "saunders-and-co". */
+  linkedin: string | null;
   quoteValidityDays: number;
   defaultPaymentTermsDays: number;
 };
@@ -36,6 +40,8 @@ export function getAgencyConfig(): AgencyConfig {
     email: process.env.NEXT_PUBLIC_AGENCY_EMAIL ?? null,
     phone: process.env.NEXT_PUBLIC_AGENCY_PHONE ?? null,
     website: process.env.NEXT_PUBLIC_AGENCY_WEBSITE ?? null,
+    instagram: process.env.NEXT_PUBLIC_AGENCY_INSTAGRAM ?? null,
+    linkedin: process.env.NEXT_PUBLIC_AGENCY_LINKEDIN ?? null,
     quoteValidityDays: parseInt(process.env.NEXT_PUBLIC_QUOTE_VALIDITY_DAYS ?? '30', 10),
     defaultPaymentTermsDays: parseInt(process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_TERMS_DAYS ?? '30', 10),
   };

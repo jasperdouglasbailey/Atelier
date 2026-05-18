@@ -120,7 +120,7 @@ const SHELL_OPEN = (preheader: string) => `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EDM</title>
 </head>
-<body style="margin:0;padding:0;background:${COLOR.bg};font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:${COLOR.text};">
+<body style="margin:0;padding:0;background:${COLOR.bg};font-family:Georgia,'Times New Roman',Times,serif;color:${COLOR.text};">
 <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">${esc(preheader)}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${COLOR.bg};">
 <tr><td align="center" style="padding:32px 12px;">
@@ -137,16 +137,20 @@ ${footer}
 </body>
 </html>`;
 
-function imageBlock(img: EdmImage | undefined, width = 600): string {
+function imageBlock(img: EdmImage | undefined, width = 536): string {
   if (!img?.url) return '';
   const inner = `<img src="${esc(img.url)}" width="${width}" alt="" style="display:block;width:100%;max-width:${width}px;height:auto;border:0;">`;
   const linked = safeHref(img.href)
     ? `<a href="${esc(img.href)}" style="text-decoration:none;color:inherit;">${inner}</a>`
     : inner;
+  // Captions only render when the user has explicitly set one. We no
+  // longer auto-fill from filename, so this is empty by default.
   const cap = img.caption?.trim()
-    ? `<div style="padding:8px 24px 0;font-size:12px;color:${COLOR.muted};line-height:1.5;">${esc(img.caption)}</div>`
+    ? `<div style="padding:8px 0 0;font-size:12px;color:${COLOR.muted};line-height:1.5;">${esc(img.caption)}</div>`
     : '';
-  return `<tr><td style="padding:0;">${linked}${cap}</td></tr>`;
+  // 32px horizontal padding so images line up with section dividers and
+  // body copy. Width of inner image stays at 536px to fit (600 - 64).
+  return `<tr><td style="padding:0 32px;">${linked}${cap}</td></tr>`;
 }
 
 function button(label: string | undefined, href: string | undefined): string {
@@ -159,13 +163,31 @@ function button(label: string | undefined, href: string | undefined): string {
 
 function footerBlock(): string {
   const cfg = getAgencyConfig();
+  // Uppercase BEFORE escaping — esc() turns '&' into '&amp;' and a
+  // subsequent .toUpperCase() would produce '&AMP;', which some email
+  // clients render literally instead of unescaping. Doing it in this
+  // order produces 'SAUNDERS &amp; CO' → 'SAUNDERS & CO' in the inbox.
+  const nameUpper = esc(cfg.name.toUpperCase());
+
+  const linkStyle = `color:${COLOR.muted};text-decoration:none;border-bottom:1px solid ${COLOR.border};padding-bottom:1px;`;
+  const links: string[] = [];
+  if (cfg.website) {
+    links.push(`<a href="https://${esc(cfg.website)}" style="${linkStyle}">${esc(cfg.website)}</a>`);
+  }
+  if (cfg.instagram) {
+    links.push(`<a href="https://instagram.com/${esc(cfg.instagram)}" style="${linkStyle}">Instagram</a>`);
+  }
+  if (cfg.linkedin) {
+    links.push(`<a href="https://linkedin.com/company/${esc(cfg.linkedin)}" style="${linkStyle}">LinkedIn</a>`);
+  }
+
   const parts = [
-    `<strong style="color:${COLOR.text};letter-spacing:0.12em;">${esc(cfg.name).toUpperCase()}</strong>`,
+    `<strong style="color:${COLOR.text};letter-spacing:0.12em;">${nameUpper}</strong>`,
     cfg.address ? esc(cfg.address) : '',
-    cfg.website ? `<a href="https://${esc(cfg.website)}" style="color:${COLOR.muted};text-decoration:underline;">${esc(cfg.website)}</a>` : '',
+    links.length ? links.join(' &nbsp;·&nbsp; ') : '',
   ].filter(Boolean);
-  return parts.join('<br>') +
-    `<br><br><span style="color:${COLOR.muted};">You're receiving this because you've worked with us. Reply to unsubscribe.</span>`;
+
+  return parts.join('<br>');
 }
 
 // ============================================================
@@ -178,8 +200,8 @@ function renderMonthlyRoundup(p: MonthlyRoundupPayload, preheader: string): stri
     imageBlock(p.hero) +
     `<tr><td style="padding:28px 32px 4px;">
 ${p.edition ? `<div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${COLOR.muted};margin-bottom:10px;">${esc(p.edition)}</div>` : ''}
-${p.headline ? `<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:500;color:${COLOR.text};">${esc(p.headline)}</h1>` : ''}
-${p.intro ? `<p style="margin:0;font-size:14px;line-height:1.7;color:${COLOR.text};">${escMultiline(p.intro)}</p>` : ''}
+${p.headline ? `<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:${COLOR.text};">${esc(p.headline)}</h1>` : ''}
+${p.intro ? `<p style="margin:0;font-size:15px;line-height:1.7;color:${COLOR.text};">${escMultiline(p.intro)}</p>` : ''}
 </td></tr>` +
     entries.map((e) => {
       const cta = button(e.cta_label, e.cta_href);
@@ -187,8 +209,8 @@ ${p.intro ? `<p style="margin:0;font-size:14px;line-height:1.7;color:${COLOR.tex
 <tr><td style="padding:24px 32px 8px;"><hr style="border:0;border-top:1px solid ${COLOR.border};margin:0;"></td></tr>
 ${imageBlock(e.image)}
 <tr><td style="padding:16px 32px 0;">
-${e.title ? `<h2 style="margin:0 0 8px;font-size:18px;font-weight:500;color:${COLOR.text};">${esc(e.title)}</h2>` : ''}
-${e.body ? `<p style="margin:0;font-size:14px;line-height:1.7;color:${COLOR.text};">${escMultiline(e.body)}</p>` : ''}
+${e.title ? `<h2 style="margin:0 0 8px;font-size:19px;font-weight:700;color:${COLOR.text};">${esc(e.title)}</h2>` : ''}
+${e.body ? `<p style="margin:0;font-size:15px;line-height:1.7;color:${COLOR.text};">${escMultiline(e.body)}</p>` : ''}
 </td></tr>
 ${cta}
 `;
@@ -206,14 +228,14 @@ function renderArtistCampaign(p: ArtistCampaignPayload, preheader: string): stri
   for (let i = 0; i < gallery.length; i += 2) {
     const left = gallery[i];
     const right = gallery[i + 1];
-    galleryRows.push(`<tr><td style="padding:6px 24px;">
+    galleryRows.push(`<tr><td style="padding:6px 32px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
 <tr>
 <td valign="top" style="padding:0 6px 0 0;width:50%;">
-${left ? `<img src="${esc(left.url)}" alt="" width="270" style="display:block;width:100%;height:auto;border:0;">` : ''}
+${left ? `<img src="${esc(left.url)}" alt="" width="262" style="display:block;width:100%;height:auto;border:0;">` : ''}
 </td>
 <td valign="top" style="padding:0 0 0 6px;width:50%;">
-${right ? `<img src="${esc(right.url)}" alt="" width="270" style="display:block;width:100%;height:auto;border:0;">` : ''}
+${right ? `<img src="${esc(right.url)}" alt="" width="262" style="display:block;width:100%;height:auto;border:0;">` : ''}
 </td>
 </tr>
 </table>
@@ -224,9 +246,9 @@ ${right ? `<img src="${esc(right.url)}" alt="" width="270" style="display:block;
     imageBlock(p.hero) +
     `<tr><td style="padding:28px 32px 4px;">
 ${p.eyebrow ? `<div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${COLOR.muted};margin-bottom:10px;">${esc(p.eyebrow)}</div>` : ''}
-${p.headline ? `<h1 style="margin:0 0 6px;font-size:26px;line-height:1.2;font-weight:500;color:${COLOR.text};">${esc(p.headline)}</h1>` : ''}
-${p.subhead ? `<div style="font-size:14px;color:${COLOR.muted};margin-bottom:14px;">${esc(p.subhead)}</div>` : ''}
-${p.body ? `<p style="margin:0;font-size:14px;line-height:1.7;color:${COLOR.text};">${escMultiline(p.body)}</p>` : ''}
+${p.headline ? `<h1 style="margin:0 0 6px;font-size:28px;line-height:1.2;font-weight:700;color:${COLOR.text};">${esc(p.headline)}</h1>` : ''}
+${p.subhead ? `<div style="font-size:15px;color:${COLOR.muted};margin-bottom:14px;font-style:italic;">${esc(p.subhead)}</div>` : ''}
+${p.body ? `<p style="margin:0;font-size:15px;line-height:1.7;color:${COLOR.text};">${escMultiline(p.body)}</p>` : ''}
 </td></tr>` +
     (galleryRows.length ? `<tr><td style="padding:20px 0 4px;">&nbsp;</td></tr>${galleryRows.join('')}` : '') +
     button(p.cta_label, p.cta_href) +

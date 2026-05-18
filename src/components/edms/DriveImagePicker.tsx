@@ -54,7 +54,9 @@ export default function DriveImagePicker({ onPick, onClose }: Props) {
   }
 
   function pickFile(hit: ImageHit) {
-    onPick({ fileId: hit.id, url: driveThumbUrl(hit.id), caption: hit.name });
+    // Intentionally no caption — filenames look like "BAKER+STREET+1.jpeg",
+    // which is noise in the email. A real caption is a separate UI field.
+    onPick({ fileId: hit.id, url: driveThumbUrl(hit.id) });
   }
 
   // Initial load on mount — must NOT be a render-time side effect, that
