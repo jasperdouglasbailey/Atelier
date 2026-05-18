@@ -29,12 +29,11 @@ export async function getEdm(id: string): Promise<Edm | null> {
 export async function createEdm(input: {
   template: EdmTemplate;
   title: string;
-  created_by: string | null;
 }): Promise<Edm | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('atelier_edms')
-    .insert({ template: input.template, title: input.title, created_by: input.created_by })
+    .insert({ template: input.template, title: input.title })
     .select()
     .single();
   if (error) { reportDataError('[edms] create', error); return null; }
