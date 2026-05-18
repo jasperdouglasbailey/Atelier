@@ -59,6 +59,11 @@ const FIELD_QUESTIONS: Record<keyof BriefIntakeResult & string, string> = {
   // brief either gives them or it doesn't; no clarifying question).
   title_suggestion: '',
   post_production_ownership: '',
+  // Call/wrap times — only ask if the brief has none. "What's the
+  // planned shoot day — start and finish times?" covers both in one
+  // question; both keys point at the same string so we don't ask twice.
+  call_time: 'What are the planned start and finish times for the shoot day?',
+  wrap_time: 'What are the planned start and finish times for the shoot day?',
 } as const;
 
 const PRIORITY_FIELDS: Array<keyof BriefIntakeResult> = [

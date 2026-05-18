@@ -32,6 +32,10 @@ export type ParsedBrief = {
   /** Raw extracted media list text for review. */
   usage_media_raw: string | null;
   budget_indication: number | null;
+  /** HH:MM 24-hour shoot start (call time). */
+  call_time: string | null;
+  /** HH:MM 24-hour shoot finish (wrap time). */
+  wrap_time: string | null;
 };
 
 // ============================================================
@@ -330,6 +334,90 @@ function extractMedia(text: string): string | null {
 }
 
 // ============================================================
+// Call / wrap time parsing
+// ============================================================
+
+/**
+ * Match a clock time. Supports:
+ *   - "8am", "8 am", "8AM"
+ *   - "8:30am", "8.30am"
+ *   - "0800" (24-hour military) — only when surrounded by word boundaries
+ *
+ * Returns HH:MM in 24-hour form or null. Single-digit hours always have a
+ * leading zero in the output.
+ */
+function normaliseClockTime(raw: string): string | null {
+  const t = raw.trim().toLowerCase().replace(/\s+/g, '');
+  // "8am", "8:30am", "8.30am", "8.30pm"
+  const m = t.match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2], 10) : 0;
+    const ampm = m[3];
+    if (h > 23 || min > 59) return null;
+    if (ampm === 'pm' && h < 12) h += 12;
+    if (ampm === 'am' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/**
+ * Pull call (start) and wrap (finish) times out of natural-language phrases.
+ * Triggers — all must be paired with a clock time on the same clause:
+ *
+ *   call:  "8am start", "start at 8am", "arrive by 8am", "get there by 8am",
+ *          "call time 8am", "call: 8am"
+ *   wrap:  "1pm finish", "finish at 1pm", "wrap by 1pm", "wrap: 1pm",
+ *          "leave by 1pm", "head out by 1pm"
+ *
+ * The "by X / by Y" range form ("8am start and 1pm finish", "arrive by 8am
+ * and head out by 1pm") populates both slots.
+ *
+ * If the brief sets only one half, we leave the other null rather than
+ * inferring a shoot length.
+ */
+function extractShootTimes(text: string): { call: string | null; wrap: string | null } {
+  const CLOCK = '(\\d{1,2}(?:[:.]\\d{2})?\\s*(?:am|pm)?)';
+
+  const CALL_PATTERNS: RegExp[] = [
+    new RegExp(`${CLOCK}\\s+start\\b`, 'i'),                  // "8am start"
+    new RegExp(`\\bstart(?:ing)?\\s+at\\s+${CLOCK}\\b`, 'i'), // "start at 8am" / "starting at 8am"
+    new RegExp(`\\barrive\\s+(?:by|at)\\s+${CLOCK}\\b`, 'i'), // "arrive by 8am"
+    new RegExp(`\\bget\\s+there\\s+by\\s+${CLOCK}\\b`, 'i'),  // "get there by 8am"
+    new RegExp(`\\bcall(?:\\s+time)?\\s*:?\\s*${CLOCK}\\b`, 'i'), // "Call: 8am" / "Call time 8am"
+  ];
+
+  const WRAP_PATTERNS: RegExp[] = [
+    new RegExp(`${CLOCK}\\s+finish\\b`, 'i'),                   // "1pm finish"
+    new RegExp(`\\bfinish(?:ing)?\\s+at\\s+${CLOCK}\\b`, 'i'),  // "finish at 1pm"
+    new RegExp(`\\bwrap(?:\\s+by|\\s+at|\\s*:)?\\s+${CLOCK}\\b`, 'i'),
+    new RegExp(`\\bwrap(?:\\s+time)?\\s*:\\s*${CLOCK}\\b`, 'i'),
+    new RegExp(`\\bleave\\s+(?:by|at)\\s+${CLOCK}\\b`, 'i'),    // "leave by 1pm"
+    new RegExp(`\\bhead\\s+out\\s+by\\s+${CLOCK}\\b`, 'i'),     // "head out by 1pm"
+  ];
+
+  let call: string | null = null;
+  let wrap: string | null = null;
+
+  for (const pat of CALL_PATTERNS) {
+    const m = text.match(pat);
+    if (m) { call = normaliseClockTime(m[1]); if (call) break; }
+  }
+  for (const pat of WRAP_PATTERNS) {
+    const m = text.match(pat);
+    if (m) { wrap = normaliseClockTime(m[1]); if (wrap) break; }
+  }
+
+  // Sanity: call < wrap. If we somehow got call=18:00 and wrap=08:00,
+  // assume the AM/PM inference flipped and drop both rather than mislead.
+  if (call && wrap && call >= wrap) {
+    return { call: null, wrap: null };
+  }
+  return { call, wrap };
+}
+
+// ============================================================
 // Main parser
 // ============================================================
 
@@ -341,6 +429,7 @@ export function parseBrief(text: string): ParsedBrief {
       deliverables_type: null, deliverables_count: null,
       usage_duration_months: null, usage_territory_raw: null,
       usage_media_raw: null, budget_indication: null,
+      call_time: null, wrap_time: null,
     };
   }
 
@@ -348,19 +437,26 @@ export function parseBrief(text: string): ParsedBrief {
   const { dateStart, dateEnd, dateNotes } = extractShootDates(text);
 
   // ---- Location ----
+  //
+  // Pattern order matters: try the most-specific "at X Studio …" form
+  // BEFORE the bare "Studio X" form, otherwise the bare form wins on
+  // "at Salt Studio …" and we lose the "Salt" prefix.
+  //
+  // Stop chars `[^\n,.]*` deliberately include the period so we don't
+  // gobble the rest of the sentence after the venue (e.g. "Salt Studio
+  // in Brookvale. An easy day of just 2 x stills" — without `.` in the
+  // stop set, we'd capture everything up to the next comma after
+  // "stills").
   let location: string | null = null;
   const locationPatterns = [
     /(?:shoot\s+)?location[:\s]+([^\n.]+)/i,
-    /(?:at|@)\s+(studio\s+[\w\d]+[^\n,]*)/i,
-    /(studio\s+[\w\d]+[^\n,]*)/i,
-    /(?:at\s+)([\w\s]+(?:studio|warehouse|rooftop|location|space)[^\n,]*)/i,
+    /(?:at|@)\s+(studio\s+[\w\d]+[^\n,.]*)/i,
+    /(?:at\s+)([\w\s]+(?:studio|studios|warehouse|rooftop|location|space)[^\n,.]*)/i,
+    /(studio\s+[\w\d]+[^\n,.]*)/i,
   ];
   for (const pat of locationPatterns) {
     const m = text.match(pat);
     if (m) {
-      // Strip trailing sentence punctuation that the "(?:studio|warehouse|
-      // rooftop|location|space)[^\n,]*" pattern can swallow — without this
-      // we end up with "Lunar Studios." (trailing period from end-of-sentence).
       location = m[1].trim().replace(/[.,;:!?]+$/, '').trim().slice(0, 100);
       break;
     }
@@ -419,8 +515,9 @@ export function parseBrief(text: string): ParsedBrief {
   if (/\bsocial\s+(?:media\s+)?(?:content|images?|stills?|assets?|reels?)\b/i.test(textWithoutMediaLine)) deliverableTypes.push('Social content');
   if (deliverableTypes.length > 0) deliverablesType = deliverableTypes.join(' + ');
 
+  // "2 stills", "2 x stills", "2x stills" — optional 'x' separator.
   const delivCountMatch = text.match(
-    /(\d+)\s+(?:hero\s+)?(?:images?|selects?|shots?|deliverables?|stills?|files?)\b/i
+    /(\d+)\s*(?:x\s+)?(?:hero\s+)?(?:images?|selects?|shots?|deliverables?|stills?|files?)\b/i
   );
   if (delivCountMatch) {
     const n = parseInt(delivCountMatch[1], 10);
@@ -431,6 +528,9 @@ export function parseBrief(text: string): ParsedBrief {
   const usageDurationMonths = extractUsageDuration(text);
   const usageTerritoryRaw = extractTerritory(text);
   const usageMediaRaw = extractMedia(text);
+
+  // ---- Call / wrap times ----
+  const { call: callTime, wrap: wrapTime } = extractShootTimes(text);
 
   return {
     shoot_location: location,
@@ -445,6 +545,8 @@ export function parseBrief(text: string): ParsedBrief {
     usage_territory_raw: usageTerritoryRaw,
     usage_media_raw: usageMediaRaw,
     budget_indication: budget,
+    call_time: callTime,
+    wrap_time: wrapTime,
   };
 }
 

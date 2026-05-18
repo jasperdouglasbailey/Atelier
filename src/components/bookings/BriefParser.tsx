@@ -30,9 +30,11 @@ const FIELD_LABELS = {
   shoot_date_start: 'Shoot Start Date',
   shoot_date_end: 'Shoot End Date',
   shoot_date_notes: 'Date Notes',
+  call_time: 'Call Time',
+  wrap_time: 'Wrap Time',
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
-  post_production_ownership: 'Post-Production',
+  post_production_ownership: 'Retouching',
   // Usage fields surfaced 2026-05-18 — LLM was extracting these but
   // they had no checkboxes so they never reached the booking record.
   usage_duration_months: 'Usage Duration',

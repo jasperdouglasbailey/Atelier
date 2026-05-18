@@ -174,4 +174,43 @@ export const FIXTURES: Record<string, FixtureExpectation> = {
     },
     notes: 'New-client first-touch enquiry. Soft dates ("not locked in yet"). Range deliverables (35-40). Client + Project + Brand (here Client=Coronation, Project=Archer). Explicit budget. Referrer metadata.',
   },
+
+  'testino-resort': {
+    heuristic: {
+      shoot_location: 'Salt Studio in Brookvale',
+      deliverables_type: 'Stills',
+      deliverables_count: 2,
+      // Critical: call/wrap from "8am start and a 1pm finish".
+      call_time: '08:00',
+      wrap_time: '13:00',
+    },
+    idealLlm: {
+      shoot_location: 'Salt Studio, Brookvale',
+      deliverables_type: 'Stills',
+      talent_spec: 'Oliver Begg',
+      // First-person rule: "retouched by us" = client_in_house.
+      // Grading by Oly (us_via_artist) and retouching by client (in_house)
+      // both stated — we resolve to retouching attribution.
+      project_name: 'Testino Resort 2026',
+    },
+    notes: 'Testino-style brief — natural prose, no labels. Verifies (a) "Xam start and Ypm finish" → call/wrap, (b) first-person "by us" maps to client_in_house, (c) "graded by Oly + retouched by us" doesn\'t flip ownership the wrong way.',
+  },
+
+  'testino-resort-loose': {
+    heuristic: {
+      shoot_location: 'Lunar Studios',
+      deliverables_type: 'Stills',
+      deliverables_count: 2,
+      // "get there by 9am" → call, "head out by 2pm" → wrap.
+      call_time: '09:00',
+      wrap_time: '14:00',
+    },
+    idealLlm: {
+      shoot_location: 'Lunar Studios',
+      deliverables_type: 'Stills',
+      talent_spec: 'Oliver Begg',
+      project_name: 'Testino',
+    },
+    notes: 'Variant phrasing for time extraction: "get there by 9am and head out by 2pm". Also tests "We\'ll handle the retouch in-house" mapping to client_in_house via first-person pronoun rule.',
+  },
 };

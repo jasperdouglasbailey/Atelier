@@ -122,6 +122,10 @@ type LLMBriefOutput = Partial<{
   usage_territory_raw: string; // e.g. "Australia"
   usage_media_raw: string;     // e.g. "POS, social media, digital display"
   budget_indication: number;
+  /** Shoot start (call time). HH:MM 24-hour. */
+  call_time: string;
+  /** Shoot finish (wrap time). HH:MM 24-hour. */
+  wrap_time: string;
   /**
    * Suggested booking title — typically the campaign / project name
    * pulled from phrases like "For X campaign", "X collection", or
@@ -176,6 +180,8 @@ IMPORTANT: Return raw JSON ONLY — do NOT wrap in \`\`\`json fences or markdown
   "usage_media_raw": string or null,     // media as written, e.g. "POS, social, digital display"
   "budget_indication": number or null,   // numeric amount in AUD (strip currency symbols)
   "post_production_ownership": string or null, // one of: "client_in_house", "us_via_artist", "us_via_post_team", "client_outsourced"
+  "call_time": string or null,           // HH:MM 24-hour (shoot start / call time)
+  "wrap_time": string or null,           // HH:MM 24-hour (shoot finish / wrap time)
 
   // STRUCTURED USAGE TAXONOMY — extract IN ADDITION to usage_*_raw above:
   "usage_market": string or null,        // exactly one of: "consumer", "trade", "editorial"
@@ -207,15 +213,46 @@ CRITICAL RULES — read carefully:
 6. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
 7. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief. Normalise
    obvious typos in usage_territory_iso (e.g. "new zeal and" → ["NZ"], "Aus." → ["AU"]).
-8. POST-PRODUCTION OWNERSHIP — explicit phrases:
-     "client doing post in-house" / "client handles post" / "post in-house" → "client_in_house"
-     "we'll do post" / "you handle the retouch" / "post via us" → "us_via_post_team"
-     "artist to retouch" / "Oliver handles post" → "us_via_artist"
-     "external post house" / "outsourced post" → "client_outsourced"
-   If the brief is explicit, set the field. Do NOT mark this as inferred when the brief is literal.
+8. POST-PRODUCTION OWNERSHIP — IMPORTANT pronoun rule:
+   The brief is ALWAYS from the client to the agency. First-person pronouns ("we",
+   "us", "our", "I", "in-house") in the brief refer to the CLIENT, not the agency.
+   So "retouched by us", "we'll handle post", "we will retouch in-house" all mean
+   the CLIENT is doing it → "client_in_house".
+
+   Explicit phrases:
+     "we'll handle post" / "retouched by us" / "post in-house" / "we will retouch"
+       → "client_in_house"  (client first-person pronouns)
+     "client handles post" / "client doing post in-house"
+       → "client_in_house"  (third-person reference to client)
+     "the agency to handle retouch" / "you handle the retouch" / "post via your team"
+       → "us_via_post_team"  (second-person "you" addressed to agency)
+     "artist to retouch" / "Oliver handles post" / "the photographer will grade"
+       → "us_via_artist"  (named artist or "the artist")
+     "external post house" / "outsourced post" / "via [third-party] post"
+       → "client_outsourced"
+   If the brief is explicit, set the field. The retouching/grading split is
+   common — a brief may say "graded by [artist] but retouched by us" which means
+   us_via_artist (grading) AND client_in_house (retouching). When BOTH are stated,
+   prefer the RETOUCHING attribution for this field — that's the bigger workload.
 9. TITLE SUGGESTION — if the brief mentions a campaign / project / collection name (e.g. "For X
    campaign", "X Collection SS26", "Project Archer"), extract just the name (e.g. "Testing Testo
    Campaign") into title_suggestion. Used to upgrade the auto-generated booking title.
+
+12. CALL / WRAP TIMES — convert to HH:MM 24-hour. Triggers — pair with a clock time:
+     CALL (shoot start):
+       "8am start", "start at 8am", "we'll start at 8am"
+       "arrive by 8am", "get there by 8am", "we'll arrive by 8am"
+       "call: 8am", "call time 8am"
+     WRAP (shoot finish):
+       "1pm finish", "finish at 1pm", "wrapping at 1pm"
+       "leave by 1pm", "head out by 1pm", "out by 1pm"
+       "wrap: 5pm", "wrap at 5pm"
+   Examples:
+     "8am start and 1pm finish"     → call_time "08:00", wrap_time "13:00"
+     "arrive by 9am and leave by 6pm" → call_time "09:00", wrap_time "18:00"
+     "get there by 8 and head out by 4pm" → infer "8am" given "head out by 4pm",
+       so call_time "08:00", wrap_time "16:00"
+   Output strictly HH:MM 24-hour (e.g. "08:00", "13:30"). Reject if call >= wrap.
 10. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.
 11. Only include fields you can extract with confidence. Omit nulls entirely.
 
@@ -457,6 +494,8 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     // alone.
     talent_count: heuristic.talent_count,
     talent_spec: llm.talent_spec ?? heuristic.talent_spec,
+    call_time: llm.call_time ?? heuristic.call_time,
+    wrap_time: llm.wrap_time ?? heuristic.wrap_time,
     deliverables_type: llm.deliverables_type ?? heuristic.deliverables_type,
     deliverables_count: typeof llm.deliverables_count === 'number' ? llm.deliverables_count : heuristic.deliverables_count,
     usage_duration_months: typeof llm.usage_duration_months === 'number' ? llm.usage_duration_months : heuristic.usage_duration_months,
