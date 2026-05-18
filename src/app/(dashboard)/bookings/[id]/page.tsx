@@ -34,7 +34,6 @@ import type { BookingTalent, BookingCrew } from '@/lib/types/database';
 import BookingPageHeader from '@/components/bookings/BookingPageHeader';
 import BookingJobFacts from '@/components/bookings/BookingJobFacts';
 import StageChecklist from '@/components/bookings/StageChecklist';
-import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
 import BookingMiniCalendar from '@/components/bookings/BookingMiniCalendar';
 import ActivityFeed from '@/components/bookings/ActivityFeed';
@@ -251,9 +250,18 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                             </span>
                           </div>
                         )}
+                        {booking.usage_duration_months != null && (
+                          <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
+                            Duration: <span style={{ color: PALETTE.text }}>{booking.usage_duration_months} months</span>
+                          </div>
+                        )}
                       </div>
                     )}
-                    <UsageLicenceBuilder bookingId={booking.id} licences={usageLicences} />
+                    {/* UsageLicenceBuilder retired 2026-05-19 — usage is now
+                        captured booking-level via the structured taxonomy
+                        strip above (PR#170 fields). The per-talent
+                        atelier_usage_licences table stays for backward compat
+                        but isn't surfaced in the UI. */}
                   </section>
 
                   {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
