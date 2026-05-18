@@ -17,6 +17,9 @@ import {
   computeCrewPayment,
   computeOT,
   effectiveCost,
+  isReimbursement,
+  isArtistReimbursement,
+  isCrewReimbursement,
   createArtistFeeLine,
   createCrewLabourLine,
   createExpenseLine,
@@ -573,5 +576,178 @@ describe('cost_subtotal split: cost < billed (the windfall case)', () => {
     closeTo(gst.artistInputCredits, 400);
     // Net to ATO: 568.75 - 400 = 168.75
     closeTo(gst.netToAto, 168.75);
+  });
+});
+
+// ============================================================
+// Reimbursement classification + pass-through
+// ============================================================
+
+describe('isReimbursement / isArtistReimbursement / isCrewReimbursement', () => {
+  it('returns false for commissionable lines regardless of links', () => {
+    const line: Partial<FeeLine> = {
+      line_type: 'artist_fee', is_commissionable: true,
+      talent_id: 'tal-1', crew_id: null,
+    };
+    expect(isReimbursement(line)).toBe(false);
+    expect(isArtistReimbursement(line)).toBe(false);
+  });
+
+  it('returns true when expense line links to talent (artist reimbursement)', () => {
+    const line: Partial<FeeLine> = {
+      line_type: 'expense', is_commissionable: false,
+      talent_id: 'tal-1', crew_id: null,
+    };
+    expect(isReimbursement(line)).toBe(true);
+    expect(isArtistReimbursement(line)).toBe(true);
+    expect(isCrewReimbursement(line)).toBe(false);
+  });
+
+  it('returns true when expense line links to crew (crew reimbursement)', () => {
+    const line: Partial<FeeLine> = {
+      line_type: 'expense', is_commissionable: false,
+      talent_id: null, crew_id: 'crew-1',
+    };
+    expect(isReimbursement(line)).toBe(true);
+    expect(isArtistReimbursement(line)).toBe(false);
+    expect(isCrewReimbursement(line)).toBe(true);
+  });
+
+  it('returns false when expense line has no linked payee', () => {
+    const line: Partial<FeeLine> = {
+      line_type: 'expense', is_commissionable: false,
+      talent_id: null, crew_id: null,
+    };
+    expect(isReimbursement(line)).toBe(false);
+  });
+
+  it('artist link takes precedence over crew when both set (artist wins)', () => {
+    // Belt-and-braces: if a row somehow had both set, the artist link is
+    // canonical (artists are higher-priority payees in this app).
+    const line: Partial<FeeLine> = {
+      line_type: 'expense', is_commissionable: false,
+      talent_id: 'tal-1', crew_id: 'crew-1',
+    };
+    expect(isArtistReimbursement(line)).toBe(true);
+    expect(isCrewReimbursement(line)).toBe(false);
+  });
+});
+
+describe('computeGstPassthrough — reimbursement pass-through', () => {
+  it('artist expense reimbursement: GST passes through when artist is GST-registered', () => {
+    // The Testino Resort scenario: $1,200 equipment allowance with 15%
+    // ASF, agency bills client $1,200 + $180 ASF + $138 GST = $1,518.
+    // Oliver fronted the gear and on-invoices the agency for $1,200 +
+    // $120 GST. Agency claims the $120 as input credit.
+    const reimbursementLine: Partial<FeeLine> = {
+      ...createExpenseLine('expense', 'Camera kit allowance', 1200, 1, 0.15),
+      talent_id: 'tal-oliver',
+      is_commissionable: false,
+    };
+    const t = computeQuoteTotals([reimbursementLine as FeeLine]);
+
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 0,           // no artist labour on this booking
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 0,
+      artistReimbursementSubtotal: 1200,
+    });
+    // GST collected: 10% × (1200 + 180) = 138
+    closeTo(gst.collectedOnLines, 138);
+    // Commission GST: zero (expense isn't commissionable)
+    closeTo(gst.collectedOnCommission, 0);
+    // Input credit: 10% × 1200 reimbursement = 120
+    closeTo(gst.artistInputCredits, 120);
+    closeTo(gst.crewInputCredits, 0);
+    // Net to ATO: 138 collected - 120 credit = 18 (ASF GST only)
+    closeTo(gst.netToAto, 18);
+  });
+
+  it('artist expense reimbursement: no GST pass-through when artist is NOT GST-registered', () => {
+    const reimbursementLine: Partial<FeeLine> = {
+      ...createExpenseLine('expense', 'Camera kit allowance', 1200, 1, 0.15),
+      talent_id: 'tal-oliver',
+      is_commissionable: false,
+    };
+    const t = computeQuoteTotals([reimbursementLine as FeeLine]);
+
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 0,
+      artistGstRegistered: false,
+      crewLabourSubtotalGstRegistered: 0,
+      artistReimbursementSubtotal: 1200,
+    });
+    closeTo(gst.artistInputCredits, 0);
+    closeTo(gst.netToAto, 138);
+  });
+
+  it('crew expense reimbursement: GST passes through when crew is GST-registered', () => {
+    // Assistant fronted the catering bill ($600 with 15% ASF). Agency
+    // bills client and pays them back. Crew is GST-registered.
+    const reimbursementLine: Partial<FeeLine> = {
+      ...createExpenseLine('expense', 'Catering reimbursement', 600, 1, 0.15),
+      crew_id: 'crew-asst',
+      is_commissionable: false,
+    };
+    const t = computeQuoteTotals([reimbursementLine as FeeLine]);
+
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 0,
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 0,
+      crewReimbursementSubtotalGstRegistered: 600,
+    });
+    // GST collected: 10% × (600 + 90) = 69
+    closeTo(gst.collectedOnLines, 69);
+    closeTo(gst.crewInputCredits, 60);     // 10% × 600
+    closeTo(gst.artistInputCredits, 0);
+    closeTo(gst.netToAto, 9);              // 69 - 60 (ASF GST only)
+  });
+
+  it('crew expense reimbursement: no pass-through when crew is NOT GST-registered', () => {
+    // Caller filters the subtotal to GST-registered crew only — when crew
+    // is not registered, the caller passes 0 and no credit is generated.
+    const reimbursementLine: Partial<FeeLine> = {
+      ...createExpenseLine('expense', 'Catering reimbursement', 600, 1, 0.15),
+      crew_id: 'crew-asst',
+      is_commissionable: false,
+    };
+    const t = computeQuoteTotals([reimbursementLine as FeeLine]);
+
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 0,
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 0,
+      crewReimbursementSubtotalGstRegistered: 0,
+    });
+    closeTo(gst.crewInputCredits, 0);
+    closeTo(gst.netToAto, 69);
+  });
+
+  it('mixed: artist labour + artist reimbursement + crew reimbursement all aggregate correctly', () => {
+    const lines: Partial<FeeLine>[] = [
+      { ...createArtistFeeLine('Photography', 3500, 1) },                              // commissionable
+      { ...createExpenseLine('expense', 'Camera kit', 1200, 1, 0.15), talent_id: 'tal', is_commissionable: false },
+      { ...createExpenseLine('expense', 'Catering',  600, 1, 0.15), crew_id: 'crew', is_commissionable: false },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+
+    const gst = computeGstPassthrough({
+      totals: t,
+      artistFeeSubtotal: 3500,
+      artistGstRegistered: true,
+      crewLabourSubtotalGstRegistered: 0,
+      artistReimbursementSubtotal: 1200,
+      crewReimbursementSubtotalGstRegistered: 600,
+    });
+    // Artist input credit: 10% × (3500 + 1200) = 470
+    closeTo(gst.artistInputCredits, 470);
+    // Crew input credit: 10% × 600 = 60
+    closeTo(gst.crewInputCredits, 60);
+    closeTo(gst.inputCreditsTotal, 530);
   });
 });

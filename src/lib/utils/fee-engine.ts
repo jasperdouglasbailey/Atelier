@@ -62,25 +62,41 @@ export function effectiveCost(line: Partial<FeeLine>): number {
 }
 
 /**
- * Is this line a reimbursement to the linked talent?
+ * Is this line a reimbursement to the linked person (talent OR crew)?
  *
- * Doctrine (Jasper-approved 2026-05-17): a fee line is a reimbursement
- * IFF it has a `talent_id` linked AND it isn't commissionable. The
- * standalone `is_artist_reimbursement` boolean column is retained for
- * backward compatibility but no longer used as a source of truth — the
- * link itself IS the reimbursement signal.
+ * Doctrine (extended 2026-05-19): a fee line is a reimbursement IFF
+ * it has a `talent_id` OR a `crew_id` linked AND it isn't
+ * commissionable. The standalone `is_artist_reimbursement` boolean
+ * column is retained for backward compatibility but no longer used as
+ * a source of truth — the link itself IS the reimbursement signal.
+ *
+ * Real-world examples this enables:
+ *   - Artist pays for their own gear, agency on-charges to client and
+ *     passes through (Jasper's typical flow for Oliver). Line type
+ *     `expense`, talent_id linked.
+ *   - Crew member fronts the catering bill on shoot day, agency pays
+ *     them back via this line. Line type `expense`, crew_id linked.
  *
  * Replaces the previous half-state where you could set the flag without
  * linking a person, or link a person without flagging — both of which
  * caused real data-integrity bugs (the 2 orphan reimbursements stripped
  * in migration 0060 were exactly this class).
- *
- * Pre-flight verification 2026-05-17: zero rows in prod would change
- * meaning under this derivation vs the legacy column.
  */
 export function isReimbursement(line: Partial<FeeLine>): boolean {
   if (line.is_commissionable) return false;
+  return line.talent_id != null || line.crew_id != null;
+}
+
+/** Narrower helper: artist reimbursement specifically. */
+export function isArtistReimbursement(line: Partial<FeeLine>): boolean {
+  if (line.is_commissionable) return false;
   return line.talent_id != null;
+}
+
+/** Narrower helper: crew reimbursement specifically. */
+export function isCrewReimbursement(line: Partial<FeeLine>): boolean {
+  if (line.is_commissionable) return false;
+  return line.crew_id != null && line.talent_id == null;
 }
 
 export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
@@ -259,14 +275,29 @@ export function computeGstPassthrough(args: {
   artistFeeSubtotal: number;
   artistGstRegistered: boolean;
   crewLabourSubtotalGstRegistered: number;
-  /** Sum of lines flagged `is_artist_reimbursement`. When the artist is
-   *  GST-registered and owns the gear (or paid the vendor's tax invoice),
-   *  their on-charge to the agency includes 10% GST — agency claims it
-   *  back from the ATO and passes the cash to the artist. Confirmed with
-   *  Jasper 2026-05-15 for the typical Atelier flow. */
+  /** Sum of artist-linked non-commissionable lines (reimbursements).
+   *  When the artist is GST-registered and on-charges what they paid
+   *  (gear, travel, etc.), their invoice to the agency includes 10%
+   *  GST — agency claims it back as input credit and passes the cash
+   *  to the artist. */
   artistReimbursementSubtotal?: number;
+  /** Sum of crew-linked non-commissionable lines (reimbursements) paid
+   *  to GST-registered crew. Same flow as artist reimbursements —
+   *  agency claims the input credit and reimburses the crew member.
+   *  Added 2026-05-19: previously crew reimbursements (e.g. an
+   *  assistant fronting the catering bill) were treated as agency
+   *  costs with no pass-through, which over-stated agency margin and
+   *  under-stated input credits. */
+  crewReimbursementSubtotalGstRegistered?: number;
 }): GstPassthrough {
-  const { totals, artistFeeSubtotal, artistGstRegistered, crewLabourSubtotalGstRegistered, artistReimbursementSubtotal = 0 } = args;
+  const {
+    totals,
+    artistFeeSubtotal,
+    artistGstRegistered,
+    crewLabourSubtotalGstRegistered,
+    artistReimbursementSubtotal = 0,
+    crewReimbursementSubtotalGstRegistered = 0,
+  } = args;
 
   const collectedOnLines = totals.totalGst;
   const collectedOnCommission = totals.totalCommissionGst;
@@ -278,7 +309,12 @@ export function computeGstPassthrough(args: {
   const artistInputCredits = artistGstRegistered
     ? r2((artistFeeSubtotal + artistReimbursementSubtotal) * GST_RATE)
     : 0;
-  const crewInputCredits = r2(crewLabourSubtotalGstRegistered * GST_RATE);
+  // Crew input credits: GST on crew labour + crew reimbursements paid
+  // to GST-registered crew. Caller is responsible for filtering both
+  // subtotals to GST-registered crew only.
+  const crewInputCredits = r2(
+    (crewLabourSubtotalGstRegistered + crewReimbursementSubtotalGstRegistered) * GST_RATE,
+  );
   const inputCreditsTotal = r2(artistInputCredits + crewInputCredits);
 
   const netToAto = r2(collectedTotal - inputCreditsTotal);

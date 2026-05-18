@@ -95,6 +95,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     /** Optional actual-cost override. Empty string = same as billed (= subtotal). */
     cost_subtotal: string;
     asf_rate: string; // stored as percent string, e.g. '15' or '0'
+    /** Reimburse-to picker value: '' | 'talent:<uuid>' | 'crew:<uuid>'. */
+    reimburse_target: string;
   } | null>(null);
 
   // Totals breakdown — collapsed by default so the quote totals panel reads
@@ -134,6 +136,9 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       unit_price: String(line.unit_price),
       cost_subtotal: line.cost_subtotal != null ? String(line.cost_subtotal) : '',
       asf_rate: String(Math.round((line.asf_rate ?? DEFAULT_ASF_RATE) * 100)),
+      reimburse_target:
+        line.talent_id ? `talent:${line.talent_id}` :
+        line.crew_id ? `crew:${line.crew_id}` : '',
     });
     setShowAddLine(false);
   }
@@ -162,6 +167,11 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     // Optional actual-cost override. Empty input = clear (set to null on server).
     const costTrim = editValues.cost_subtotal.trim();
     fd.set('cost_subtotal', costTrim);
+    // Reimburse-to: route to talent_id OR crew_id (mutually exclusive).
+    // Empty string clears any existing link. Server action accepts both keys.
+    const rt = editValues.reimburse_target;
+    fd.set('talent_id', rt.startsWith('talent:') ? rt.slice('talent:'.length) : '');
+    fd.set('crew_id', rt.startsWith('crew:') ? rt.slice('crew:'.length) : '');
     // Optimistic: update local state immediately so the QuoteBuilder snaps
     // without waiting for the round-trip.
     const newQty = parseFloat(editValues.quantity) || line.quantity;
@@ -711,6 +721,35 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                             })()}
                           </div>
 
+                          {/* Row 2.6 — Reimburse-to picker. Only on expense
+                              lines, only when the booking actually has a
+                              person (talent or attached crew) to reimburse. */}
+                          {editValues.line_type === 'expense' && (bookingTalent[0] || (bookingCrew ?? []).length > 0) && (
+                            <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: PALETTE.muted }}>
+                              <label className="flex items-center gap-1.5" title="Pass this expense through to the named person — engine treats it as a reimbursement and passes GST through if they're GST-registered. Leave blank for an agency cost.">
+                                Reimburse to
+                                <select
+                                  value={editValues.reimburse_target}
+                                  onChange={(ev) => setEditValues((v) => v && { ...v, reimburse_target: ev.target.value })}
+                                  className="rounded border px-2 py-1 text-xs"
+                                  style={{ background: PALETTE.bg, borderColor: PALETTE.accent + '66', color: PALETTE.text, minWidth: 200 }}
+                                >
+                                  <option value="">— not a reimbursement —</option>
+                                  {bookingTalent[0]?.talent && (
+                                    <option value={`talent:${bookingTalent[0].talent_id}`}>
+                                      {bookingTalent[0].talent.working_name ?? 'Primary talent'} (artist)
+                                    </option>
+                                  )}
+                                  {(bookingCrew ?? []).map((bc) => (
+                                    <option key={bc.crew_id} value={`crew:${bc.crew_id}`}>
+                                      {bc.crew?.name ?? bc.crew_id} (crew)
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          )}
+
                           {/* Row 3 — Live computed preview */}
                           <div className="text-[10px] tabular-nums" style={{ color: PALETTE.muted }}>
                             ASF <span style={{ color: PALETTE.text }}>{formatCurrency(previewComputed?.asfAmount ?? 0)}</span>
@@ -880,14 +919,26 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         // Artist reimbursement cost — when the artist is GST-registered they
         // on-charge what they actually paid (cost) + 10% GST.
         const artistReimbursementCostSubtotal = previewLines
-          .filter((l) => isReimbursement(l))
+          .filter((l) => isReimbursement(l) && l.talent_id != null)
           .reduce((sum, l) => sum + effectiveCost(l), 0);
+        // Crew reimbursement cost (added 2026-05-19) — same pass-through
+        // pattern: a crew-linked non-commissionable expense is a
+        // reimbursement to that crew member. Input credit only applies
+        // when the crew is GST-registered, so the filter mirrors the
+        // crewLabour computation above.
+        const crewReimbursementCostGstRegistered = previewLines
+          .filter((l) => isReimbursement(l) && l.crew_id != null && l.talent_id == null)
+          .reduce((sum, l) => {
+            const crewRow = bookingCrew.find((bc) => bc.crew_id === l.crew_id);
+            return crewRow?.crew?.gst_registered ? sum + effectiveCost(l) : sum;
+          }, 0);
         const gst = computeGstPassthrough({
           totals,
           artistFeeSubtotal: artistTotals.costSubtotal,
           artistGstRegistered,
           crewLabourSubtotalGstRegistered: crewLabourCostGstRegistered,
           artistReimbursementSubtotal: artistReimbursementCostSubtotal,
+          crewReimbursementSubtotalGstRegistered: crewReimbursementCostGstRegistered,
         });
         // "Paid through" = grand total minus what agency keeps and ATO net.
         // This is the residual that flows out to artist/crew/vendors.
@@ -1178,8 +1229,12 @@ function AddLineForm({
   const [lineType, setLineType] = useState<FeeLineType>('artist_fee');
   const [chargeAsf, setChargeAsf] = useState<boolean>(!ASF_OFF_BY_DEFAULT.has('artist_fee'));
   const [selectedCrewId, setSelectedCrewId] = useState<string>('');
+  // For expense lines, the picker can route to talent OR crew. Value
+  // shape: '' | 'talent:<uuid>' | 'crew:<uuid>'. On submit we parse
+  // this into one of talent_id / crew_id (mutually exclusive).
+  const [reimburseTarget, setReimburseTarget] = useState<string>('');
   // Reimbursement-flag state removed — derived server-side from
-  // talent_id + commissionable. UI selecting a talent on a non-
+  // talent_id + commissionable. UI selecting a person on a non-
   // commissionable line IS the reimbursement signal.
 
   // GST: default on. Only flips off when the payee is a known non-GST-
@@ -1214,6 +1269,10 @@ function AddLineForm({
 
   const isCrewLine = CREW_LINE_TYPES_SET.has(lineType);
   const isArtistLine = ARTIST_LINE_TYPES.has(lineType);
+  const isExpenseLine = lineType === 'expense';
+  // Parse reimburseTarget into the right hidden field for submission.
+  const reimburseTalentId = reimburseTarget.startsWith('talent:') ? reimburseTarget.slice('talent:'.length) : '';
+  const reimburseCrewId = reimburseTarget.startsWith('crew:') ? reimburseTarget.slice('crew:'.length) : '';
 
   return (
     <form
@@ -1253,8 +1312,10 @@ function AddLineForm({
         </div>
       </div>
 
-      {/* Crew picker — shown for crew_labour / overtime so we can link the line and derive GST status */}
-      {isCrewLine && attachedCrew.length > 0 && (
+      {/* Crew picker — shown for crew_labour / crew_overtime / crew_travel
+          so we can link the line and derive GST status. Hidden for `expense`
+          because expense uses the unified Reimburse-to picker below. */}
+      {isCrewLine && !isExpenseLine && attachedCrew.length > 0 && (
         <div>
           <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>Crew Member</label>
           <select
@@ -1275,6 +1336,41 @@ function AddLineForm({
       {/* Artist line: auto-link to primary talent */}
       {isArtistLine && primaryTalent && (
         <input type="hidden" name="talent_id" value={primaryTalent.talent_id} />
+      )}
+
+      {/* Expense lines: unified "Reimburse to" picker. Routes to either
+          talent_id or crew_id. Picking a person AND keeping the line
+          non-commissionable makes it a reimbursement — engine passes
+          the GST through to that person if they're GST-registered. */}
+      {isExpenseLine && (primaryTalent || attachedCrew.length > 0) && (
+        <div>
+          <label className="block text-[10px] font-semibold uppercase" style={{ color: PALETTE.muted }}>
+            Reimburse to
+            <span className="ml-2 font-normal normal-case" style={{ color: PALETTE.muted, opacity: 0.7 }}>
+              (optional — leave blank for an agency cost)
+            </span>
+          </label>
+          <select
+            value={reimburseTarget}
+            onChange={(e) => setReimburseTarget(e.target.value)}
+            className="mt-0.5 w-full rounded border px-2 py-1.5 text-xs"
+            style={{ background: PALETTE.bg, borderColor: PALETTE.border, color: PALETTE.text }}
+          >
+            <option value="">— not a reimbursement —</option>
+            {primaryTalent?.talent && (
+              <option value={`talent:${primaryTalent.talent_id}`}>
+                {primaryTalent.talent.working_name ?? 'Primary talent'} (artist)
+              </option>
+            )}
+            {attachedCrew.map((c) => (
+              <option key={c.crew_id} value={`crew:${c.crew_id}`}>
+                {c.name} (crew)
+              </option>
+            ))}
+          </select>
+          <input type="hidden" name="talent_id" value={reimburseTalentId} />
+          <input type="hidden" name="crew_id" value={reimburseCrewId} />
+        </div>
       )}
 
       <div className="grid gap-2 sm:grid-cols-4">
