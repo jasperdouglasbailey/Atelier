@@ -7,7 +7,6 @@
 import { notFound } from 'next/navigation';
 import { getBooking } from '@/lib/data/bookings';
 import { getActiveQuoteVersion, listFeeLinesForActiveQuote, listBookingTalent } from '@/lib/data/quotes';
-import { listUsageLicences } from '@/lib/data/usage-licences';
 import { computeQuoteTotals } from '@/lib/utils/fee-engine';
 import { SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -50,12 +49,11 @@ function formatShootDates(range: string | null): string | null {
 export default async function BookingConfirmationPage({ params }: Props) {
   const { id } = await params;
 
-  const [booking, quoteVersion, feeLines, bookingTalent, usageLicences] = await Promise.all([
+  const [booking, quoteVersion, feeLines, bookingTalent] = await Promise.all([
     getBooking(id),
     getActiveQuoteVersion(id),
     listFeeLinesForActiveQuote(id),
     listBookingTalent(id),
-    listUsageLicences(id),
   ]);
 
   if (!booking) notFound();
@@ -184,30 +182,38 @@ export default async function BookingConfirmationPage({ params }: Props) {
         </div>
       )}
 
-      {/* Usage licences */}
-      {usageLicences.length > 0 && (
+      {/* Usage — booking-level (replaces the per-talent UsageLicenceBuilder
+          retired 2026-05-19). Single-row summary covering media, territory,
+          duration. Per-line usage fees still live in the Fee Schedule below. */}
+      {(booking.usage_duration_months != null ||
+        (booking.usage_media_categories?.length ?? 0) > 0 ||
+        (booking.usage_specific_channels?.length ?? 0) > 0 ||
+        (booking.usage_territory_iso?.length ?? 0) > 0) && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa', marginBottom: 10 }}>Usage Licences</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Media</th>
-                <th style={thStyle}>Territory</th>
-                <th style={thStyle}>Duration</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Fee</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usageLicences.map((lic) => (
-                <tr key={lic.id}>
-                  <td style={tdStyle}>{lic.media.length > 0 ? lic.media.join(', ') : '—'}</td>
-                  <td style={tdStyle}>{lic.territory.length > 0 ? lic.territory.join(', ') : '—'}</td>
-                  <td style={tdStyle}>{lic.duration_months ? `${lic.duration_months} months` : '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>{lic.fee ? formatCurrency(lic.fee) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa', marginBottom: 10 }}>Usage</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', fontSize: 12 }}>
+            {(booking.usage_media_categories?.length ?? 0) > 0 && (
+              <Row
+                label="Media"
+                value={[
+                  ...(booking.usage_media_categories ?? []),
+                  ...((booking.usage_specific_channels ?? []).map((c) => c.replace(/_/g, ' '))),
+                ].join(', ')}
+              />
+            )}
+            {(booking.usage_specific_channels?.length ?? 0) > 0 &&
+              !(booking.usage_media_categories?.length ?? 0) && (
+              <Row label="Media" value={(booking.usage_specific_channels ?? []).map((c) => c.replace(/_/g, ' ')).join(', ')} />
+            )}
+            {(booking.usage_territory_iso?.length ?? 0) > 0 && (
+              <Row label="Territory" value={(booking.usage_territory_iso ?? []).join(', ')} />
+            )}
+            {booking.usage_duration_months != null && (
+              <Row label="Duration" value={`${booking.usage_duration_months} months`} />
+            )}
+            {booking.usage_market && <Row label="Market" value={booking.usage_market} />}
+            {booking.usage_realm && <Row label="Realm" value={booking.usage_realm} />}
+          </div>
         </div>
       )}
 

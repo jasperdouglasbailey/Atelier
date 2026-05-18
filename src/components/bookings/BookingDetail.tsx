@@ -5,7 +5,6 @@ import Link from 'next/link';
 import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { UsageLicence } from '@/lib/types/database';
 import { dateRangeToInputs } from '@/lib/utils/daterange';
-import UsageLicenceBuilder from '@/components/quotes/UsageLicenceBuilder';
 import SendQuotePanel, { type PreflightData } from '@/components/bookings/SendQuotePanel';
 import StageStepper from '@/components/bookings/StageStepper';
 import StageChecklist from '@/components/bookings/StageChecklist';
@@ -476,9 +475,6 @@ export default function BookingDetail({
           />
         </div>
 
-        <div className="pt-2 border-t" style={{ borderColor: PALETTE.border }}>
-          <UsageLicenceBuilder bookingId={booking.id} licences={licences} />
-        </div>
           </>
         )}
       </section>)}

@@ -187,8 +187,16 @@ function quoteChecklist(input: ChecklistInput): StageChecklist {
       status: bookingCrew.length === 0
         ? 'optional'
         : bookingCrew.every((c) => c.status === 'sent' || c.status === 'confirmed') ? 'done' : 'pending' },
-    { label: 'Usage licence attached',
-      status: usageLicences.length > 0 ? 'done' : 'optional',
+    { label: 'Usage captured',
+      // Was per-talent licence count; consolidated 2026-05-19 to read
+      // from booking-level usage fields. Any of duration / media /
+      // territory counts as "captured" — the LLM brief intake fills
+      // these from the brief automatically.
+      status: (booking.usage_duration_months != null ||
+               (booking.usage_media_categories?.length ?? 0) > 0 ||
+               (booking.usage_territory_iso?.length ?? 0) > 0 ||
+               usageLicences.length > 0)
+        ? 'done' : 'optional',
       hint: 'Required for licensable usage; skip for content shoots' },
     { label: 'Quote v1 drafted',
       status: latestQuote ? 'done' : 'pending' },
