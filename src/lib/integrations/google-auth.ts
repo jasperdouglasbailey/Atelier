@@ -25,6 +25,10 @@ export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/drive.file',
+  // drive.readonly added 2026-05-18 for EDM image picker — needs to
+  // list files in folders not created by this app (Jasper's existing
+  // shoot archive). Re-auth required when this scope first lands.
+  'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/calendar.events',
 ] as const;
 

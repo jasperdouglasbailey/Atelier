@@ -433,3 +433,99 @@ export async function trashDriveFolder(folderId: string | null | undefined): Pro
     return false;
   }
 }
+
+// ─── Image picker helpers (EDM composer) ──────────────────────────────────
+//
+// drive.readonly scope (added 2026-05-18) lets these calls see any image
+// in the connected Google account, not just files the app created. Used
+// by the EDM image picker so Jasper can pull from his historical shoot
+// archive without uploading everything anew.
+
+export type DriveImageHit = {
+  id: string;
+  name: string;
+  mimeType: string;
+  thumbnailLink: string | null;
+  webViewLink: string | null;
+  /** Drive folder this file lives in, if known. */
+  parents: string[] | null;
+  modifiedTime: string;
+};
+
+export type DriveFolder = {
+  id: string;
+  name: string;
+  webViewLink: string | null;
+};
+
+const IMAGE_MIME_CLAUSE =
+  "(mimeType='image/jpeg' or mimeType='image/png' or mimeType='image/webp' or mimeType='image/gif')";
+
+/**
+ * Search images across all of Drive by name. Used by the EDM composer
+ * when Jasper knows the filename or shoot ref but not the folder.
+ */
+export async function searchDriveImages(query: string, limit = 30): Promise<DriveImageHit[]> {
+  if (!isGoogleConfigured()) return [];
+  const token = await getAccessToken();
+  const q = query.trim().replace(/'/g, "\\'");
+  const clauses = [IMAGE_MIME_CLAUSE, 'trashed=false'];
+  if (q) clauses.push(`name contains '${q}'`);
+  const qParam = encodeURIComponent(clauses.join(' and '));
+  const fields = 'files(id,name,mimeType,thumbnailLink,webViewLink,parents,modifiedTime)';
+  const result = await driveGet<{ files: DriveImageHit[] }>(
+    `${DRIVE_BASE}?q=${qParam}&fields=${encodeURIComponent(fields)}&pageSize=${limit}&orderBy=modifiedTime%20desc`,
+    token,
+  );
+  return result.files ?? [];
+}
+
+/**
+ * List images inside a specific Drive folder. Pass the folder ID copied
+ * from a Drive URL (the long string after /folders/).
+ */
+export async function listImagesInFolder(folderId: string, limit = 60): Promise<DriveImageHit[]> {
+  if (!isGoogleConfigured()) return [];
+  const token = await getAccessToken();
+  const id = folderId.replace(/'/g, "\\'");
+  const clauses = [`'${id}' in parents`, IMAGE_MIME_CLAUSE, 'trashed=false'];
+  const qParam = encodeURIComponent(clauses.join(' and '));
+  const fields = 'files(id,name,mimeType,thumbnailLink,webViewLink,parents,modifiedTime)';
+  const result = await driveGet<{ files: DriveImageHit[] }>(
+    `${DRIVE_BASE}?q=${qParam}&fields=${encodeURIComponent(fields)}&pageSize=${limit}&orderBy=name`,
+    token,
+  );
+  return result.files ?? [];
+}
+
+/**
+ * List sub-folders of a folder, for breadcrumb navigation in the picker.
+ * Pass `rootId = null` for a top-level "My Drive" listing.
+ */
+export async function listSubfolders(rootId: string | null, limit = 60): Promise<DriveFolder[]> {
+  if (!isGoogleConfigured()) return [];
+  const token = await getAccessToken();
+  const clauses = [`mimeType='${FOLDER_MIME}'`, 'trashed=false'];
+  if (rootId) {
+    clauses.push(`'${rootId.replace(/'/g, "\\'")}' in parents`);
+  } else {
+    clauses.push("'root' in parents");
+  }
+  const qParam = encodeURIComponent(clauses.join(' and '));
+  const fields = 'files(id,name,webViewLink)';
+  const result = await driveGet<{ files: DriveFolder[] }>(
+    `${DRIVE_BASE}?q=${qParam}&fields=${encodeURIComponent(fields)}&pageSize=${limit}&orderBy=name`,
+    token,
+  );
+  return result.files ?? [];
+}
+
+/** Extract a folder ID from a Drive folder URL or return the input if it's already an ID. */
+export function parseDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const urlMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (urlMatch) return urlMatch[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
+  return null;
+}
