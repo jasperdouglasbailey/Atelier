@@ -115,11 +115,21 @@ const KEY_FIELDS: Record<string, string> = {
   deliverables_type: 'deliverables_type',
 };
 
+type ProposedTalent = {
+  talent_id: string;
+  working_name: string;
+  matched_via: 'working_name' | 'legal_name' | 'nickname';
+  matched_token: string;
+  confidence: number;
+};
+
 export default function BriefParser({ bookingId, hasBriefText, currentState, autoParseOnMount = false }: Props) {
   const [parsing, setParsing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [suggestions, setSuggestions] = useState<BriefIntakeResult | null>(null);
+  const [proposedTalent, setProposedTalent] = useState<ProposedTalent | null>(null);
+  const [includeProposedTalent, setIncludeProposedTalent] = useState(true);
   const [selected, setSelected] = useState<Set<FieldKey>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -130,6 +140,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
     setParsing(true);
     setError(null);
     setSuggestions(null);
+    setProposedTalent(null);
     setSuccess(false);
 
     const result = await parseBriefAction(bookingId);
@@ -140,8 +151,11 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
       return;
     }
 
-    const s = (result as { ok: true; suggestions: BriefIntakeResult }).suggestions;
+    const ok = result as { ok: true; suggestions: BriefIntakeResult; proposed_talent: ProposedTalent | null };
+    const s = ok.suggestions;
     setSuggestions(s);
+    setProposedTalent(ok.proposed_talent ?? null);
+    setIncludeProposedTalent(!!ok.proposed_talent);
 
     // Auto-select non-null fields from the displayed allowlist only.
     // Denylist filtering bit us before: new BriefIntakeResult fields (e.g.
@@ -184,6 +198,14 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
     }
     if (suggestions.usage_territory_iso?.length) {
       fd.set('usage_territory_iso', suggestions.usage_territory_iso.join(','));
+    }
+
+    // Proposed talent attach — only when the brief named a known artist
+    // AND the operator left the checkbox ticked. Server treats already-
+    // attached talent as a silent no-op, so accidental double-apply is safe.
+    if (proposedTalent && includeProposedTalent) {
+      fd.set('proposed_talent_id', proposedTalent.talent_id);
+      fd.set('proposed_talent_role', 'Primary artist');
     }
 
     const result = await applyBriefSuggestionsAction(bookingId, fd);
@@ -330,6 +352,29 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
 
       {suggestions && !success && (
         <>
+          {/* Proposed talent — the brief named someone on our roster.
+              Operator can untick to skip the attach; defaults on. */}
+          {proposedTalent && (
+            <div
+              className="rounded px-3 py-2 text-xs flex items-center gap-2"
+              style={{ background: `${PALETTE.ok}11`, borderLeft: `2px solid ${PALETTE.ok}` }}
+            >
+              <input
+                type="checkbox"
+                id="proposed-talent-toggle"
+                checked={includeProposedTalent}
+                onChange={(e) => setIncludeProposedTalent(e.target.checked)}
+                style={{ accentColor: PALETTE.ok }}
+              />
+              <label htmlFor="proposed-talent-toggle" className="flex-1 cursor-pointer" style={{ color: PALETTE.text }}>
+                Attach <strong>{proposedTalent.working_name}</strong> as primary artist —
+                <span style={{ color: PALETTE.muted }}>
+                  {' '}matched via {proposedTalent.matched_via.replace(/_/g, ' ')} (&quot;{proposedTalent.matched_token}&quot;)
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* Critique / uncertainty warnings. Each line is stripped of
               syntactic noise (quotes, trailing commas, code fences) and
               rendered as a plain bullet. The LLM is instructed to return
