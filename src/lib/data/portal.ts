@@ -53,6 +53,12 @@ export type PortalFeeLine = {
   subtotal: number;
 };
 
+/** Minimal crew identity surfaced to the talent — name + role, never rates. */
+export type PortalCrewMember = {
+  name: string;
+  role: string | null;
+};
+
 export type TalentPortalBookingRow = PortalBookingRow & {
   bookingTalentId: string;
   status: string;
@@ -60,6 +66,12 @@ export type TalentPortalBookingRow = PortalBookingRow & {
   briefAcknowledgedAt: string | null;
   /** Artist's own fee lines + shoot equipment lines — so they know their budget. */
   feeLines: PortalFeeLine[];
+  /**
+   * Confirmed crew on this booking — name + role only, never rates or
+   * pay details (column-level RLS doctrine). Added 2026-05-18 so the
+   * artist can see who they're shooting with before the call sheet.
+   */
+  crew: PortalCrewMember[];
 };
 
 export type CrewPortalBookingRow = PortalBookingRow & {
@@ -167,6 +179,33 @@ export async function getTalentPortalData(talentId: string): Promise<{
     feeLinesByBooking.set(fl.booking_id, list);
   }
 
+  // Crew on each booking — name + role only. Filtered to confirmed
+  // crew (those with confirmed_at set) so a pending hold doesn't show
+  // up to the talent. Uses the service client via the crew join — same
+  // pattern as the call sheet team query but earlier in the lifecycle
+  // (talent sees their crew as soon as the booking exists, not just
+  // when the call sheet is generated).
+  const crewByBooking = new Map<string, PortalCrewMember[]>();
+  if (bookingIds.length > 0) {
+    const crewResp = await supabase
+      .from('atelier_booking_crew')
+      .select('booking_id, role_on_booking, confirmed_at, crew:atelier_crew!atelier_booking_crew_crew_id_fkey(name)')
+      .in('booking_id', bookingIds)
+      .not('confirmed_at', 'is', null);
+    if (crewResp.error) {
+      reportDataError('[portal] talent-visible crew', crewResp.error);
+    } else {
+      type CrewRow = { booking_id: string; role_on_booking: string | null; crew: { name: string } | { name: string }[] | null };
+      for (const row of (crewResp.data ?? []) as unknown as CrewRow[]) {
+        const c = Array.isArray(row.crew) ? row.crew[0] : row.crew;
+        if (!c) continue;
+        const list = crewByBooking.get(row.booking_id) ?? [];
+        list.push({ name: c.name, role: row.role_on_booking ?? null });
+        crewByBooking.set(row.booking_id, list);
+      }
+    }
+  }
+
   const bookings: TalentPortalBookingRow[] = assignments
     .map((a) => {
       const b = bookingMap.get(a.booking_id as string);
@@ -188,6 +227,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
         rateAccepted: (a.rate_accepted as boolean) ?? false,
         briefAcknowledgedAt: a.brief_acknowledged_at as string | null,
         feeLines: feeLinesByBooking.get(b.id) ?? [],
+        crew: crewByBooking.get(b.id) ?? [],
       };
     })
     .filter((r): r is TalentPortalBookingRow => r !== null);

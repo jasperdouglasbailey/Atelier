@@ -19,6 +19,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getTalentPortalData, getPortalCallSheets } from '@/lib/data/portal';
+import { humanise } from '@/lib/utils/humanise';
 import PortalDataRights from '@/components/portal/PortalDataRights';
 import PortalCalendar from '@/components/portal/PortalCalendar';
 import HoldCard from '@/components/portal/HoldCard';
@@ -319,6 +320,25 @@ function TalentBookingRow({
         {row.dayRate && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Day rate</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.dayRate)}</div></div>}
         {row.usageFee && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage fee</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.usageFee)}</div></div>}
       </div>
+
+      {/* Crew — names + roles, never rates. Added 2026-05-18 so the
+          artist can see who they're shooting with before call sheet
+          generation. Only confirmed crew shown. */}
+      {row.crew.length > 0 && (
+        <div className="mt-2 rounded border p-2.5" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
+            Crew on this booking
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {row.crew.map((c, i) => (
+              <div key={i} className="text-xs" style={{ color: PALETTE.text }}>
+                {c.name}
+                {c.role && <span style={{ color: PALETTE.muted }}> · {humanise(c.role)}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Fee lines — artist's own fees + equipment so they know the shoot budget */}
       {row.feeLines.length > 0 && (
