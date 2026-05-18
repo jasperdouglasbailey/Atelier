@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { browseDriveAction } from '@/app/actions/drive-picker';
 import { driveThumbUrl } from '@/lib/edms/templates';
 import { PALETTE } from '@/lib/utils/constants';
@@ -57,10 +57,15 @@ export default function DriveImagePicker({ onPick, onClose }: Props) {
     onPick({ fileId: hit.id, url: driveThumbUrl(hit.id), caption: hit.name });
   }
 
-  // Initial load on mount
-  if (folders.length === 0 && images.length === 0 && !error && !pending) {
+  // Initial load on mount — must NOT be a render-time side effect, that
+  // loops on every state update via startTransition.
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     browse(null, '', 'My Drive');
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
