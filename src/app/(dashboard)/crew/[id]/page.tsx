@@ -3,6 +3,8 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import { getCrewMember } from '@/lib/data/entities';
 import { listCrewBookings } from '@/lib/data/crew-bookings';
+import { getCrewCalendarData } from '@/lib/data/person-calendar';
+import AgencyPersonCalendar from '@/components/bookings/AgencyPersonCalendar';
 import SendOnboardingLinkButton from '@/components/onboarding/SendOnboardingLinkButton';
 import DeleteEntityButton from '@/components/entities/DeleteEntityButton';
 import ArchiveCrewButton from '@/components/entities/ArchiveCrewButton';
@@ -45,11 +47,12 @@ const TIER_COLORS: Record<string, string> = {
 
 export default async function CrewDetailPage({ params }: Props) {
   const { id } = await params;
-  const [crew, bookingRows, crewTasks, allAppUsers] = await Promise.all([
+  const [crew, bookingRows, crewTasks, allAppUsers, calendarData] = await Promise.all([
     getCrewMember(id),
     listCrewBookings(id),
     listTasksForCrew(id),
     listAppUsers(),
+    getCrewCalendarData(id),
   ]);
   if (!crew) notFound();
   const taskAssignees = allAppUsers
@@ -267,6 +270,18 @@ export default async function CrewDetailPage({ params }: Props) {
           </div>{/* /RIGHT */}
 
         </div>{/* /grid */}
+
+        {/* Calendar — same view the crew member sees in their portal,
+            read-only on the agency side. Lets Jasper see at a glance
+            when this crew is booked or has marked themselves
+            unavailable, without having to start a new booking to
+            discover conflicts (closes the gap surfaced by Jasper
+            2026-05-18). */}
+        <AgencyPersonCalendar
+          bookings={calendarData.bookings}
+          unavailability={calendarData.unavailability}
+          personName={crew.name}
+        />
 
         {/* Booking history — full width */}
         <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
