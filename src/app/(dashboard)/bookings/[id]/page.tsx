@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
+import { withTiming } from '@/lib/utils/perf-trace';
 import Topbar from '@/components/layout/Topbar';
 import BookingDetail from '@/components/bookings/BookingDetail';
 import FilesPanel from '@/components/bookings/FilesPanel';
@@ -99,18 +100,37 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   // Set by the StageChecklist "Parse brief" CTA so the user gets a
   // one-click flow from the top of the page.
   const autoParseBrief = sp.action === 'parse';
-  const detail = await getBookingDetail(id);
+  // All fetches go through withTiming so we get one log line per query
+  // when PERF_TRACE_ENABLED=1. The TOTAL_FETCH label wraps the whole
+  // wave so we can read end-to-end cost from a single line, but the
+  // wrapping is also what avoids a bare `performance.now()` in the
+  // component body (which React's purity lint blocks in server
+  // components). See src/lib/utils/perf-trace.ts.
+  const { detail, bookingTasks, allAppUsers, rosterMap, pendingHoldCount, allClients } = await withTiming(
+    'booking-page.TOTAL_FETCH',
+    async () => {
+      const d = await withTiming('booking-page.getBookingDetail', () => getBookingDetail(id));
+      if (!d) return { detail: null as Awaited<ReturnType<typeof getBookingDetail>>, bookingTasks: [], allAppUsers: [], rosterMap: new Map(), pendingHoldCount: 0, allClients: [] };
+      const [tasks, users, roster, holdCount, clients] = await Promise.all([
+        withTiming('booking-page.listTasksForBooking', () => listTasksForBooking(id)),
+        withTiming('booking-page.listAppUsers', () => listAppUsers()),
+        withTiming('booking-page.getBookingsRoster', () => getBookingsRoster([id])),
+        withTiming('booking-page.countPendingHoldApprovals', () => countPendingHoldApprovals(id)),
+        // Active clients for the inline Client picker in JobFacts. Cached
+        // (entities tag) — invalidated by entity mutation actions.
+        withTiming('booking-page.getCachedActiveClients', () => getCachedActiveClients()),
+      ]);
+      return {
+        detail: d,
+        bookingTasks: tasks,
+        allAppUsers: users,
+        rosterMap: roster,
+        pendingHoldCount: holdCount,
+        allClients: clients,
+      };
+    },
+  );
   if (!detail) notFound();
-
-  const [bookingTasks, allAppUsers, rosterMap, pendingHoldCount, allClients] = await Promise.all([
-    listTasksForBooking(id),
-    listAppUsers(),
-    getBookingsRoster([id]),
-    countPendingHoldApprovals(id),
-    // Active clients for the inline Client picker in JobFacts. Cached
-    // (entities tag) — invalidated by entity mutation actions.
-    getCachedActiveClients(),
-  ]);
   const roster = rosterMap.get(id) ?? null;
 
   // Surface only id/name/company for the JobFacts picker — keeps the

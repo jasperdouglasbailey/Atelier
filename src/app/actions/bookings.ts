@@ -3,11 +3,13 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { reportDataError } from '@/lib/utils/data-errors';
 import { createBooking, getBooking, updateBooking, transitionState, deleteBookingWithCorpus, type CreateBookingInput } from '@/lib/data/bookings';
-import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent, listBookingCrew } from '@/lib/data/quotes';
+import { createQuoteVersion, addFeeLine, listQuoteVersions, listBookingTalent, listBookingCrew, addBookingTalent } from '@/lib/data/quotes';
 import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
+import { matchTalentInBrief, type TalentMatch } from '@/lib/automation/talent-match';
+import { getCachedActiveTalent } from '@/lib/data/entities-cache';
 import { autoQueueBriefClarifyIfNeeded } from '@/lib/automation/brief-clarify';
 import { mapTerritoryRaw, mapMediaRaw } from '@/lib/utils/brief-parser';
 import { buildDateRange } from '@/lib/utils/daterange';
@@ -696,7 +698,22 @@ export async function parseBriefAction(id: string) {
     console.error('[parseBriefAction] auto-queue clarify failed', err);
   });
 
-  return { ok: true, suggestions };
+  // Match the brief against the active talent roster — if it names a
+  // specific artist (full name, head word, or known nickname), surface
+  // them so the operator can attach them with one click. See
+  // src/lib/automation/talent-match.ts for the scoring model.
+  let proposed_talent: TalentMatch | null = null;
+  try {
+    const roster = await getCachedActiveTalent();
+    proposed_talent = matchTalentInBrief(booking.brief_raw_text, suggestions.talent_spec, roster);
+  } catch (err) {
+    // Roster fetch should never fail in a way that blocks brief parse —
+    // surface no match and move on. The operator can still link talent
+    // manually via the existing picker.
+    console.error('[parseBriefAction] talent match failed', err);
+  }
+
+  return { ok: true, suggestions, proposed_talent };
 }
 
 /**
@@ -805,6 +822,33 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
 
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to apply suggestions' };
+
+  // Proposed-talent attach: when the BriefParser surfaces a matched
+  // artist and the operator ticks the checkbox, the form posts
+  // `proposed_talent_id`. We add them to the booking team only if
+  // they're not already attached — idempotent re-applies are safe.
+  const proposedTalentId = formData.get('proposed_talent_id');
+  if (typeof proposedTalentId === 'string' && proposedTalentId.length > 0) {
+    const existingTeam = await listBookingTalent(id);
+    const alreadyAttached = existingTeam.some((bt) => bt.talent_id === proposedTalentId);
+    if (!alreadyAttached) {
+      const proposedRole = (formData.get('proposed_talent_role') as string | null) || 'Primary artist';
+      const added = await addBookingTalent({
+        booking_id: id,
+        talent_id: proposedTalentId,
+        role_on_booking: proposedRole,
+      });
+      if (added) {
+        await logAudit({
+          userId: await getCurrentActor(),
+          action: 'add_booking_talent',
+          tableName: 'atelier_booking_talent',
+          recordId: id,
+          newValue: { talent_id: proposedTalentId, role: proposedRole, source: 'brief_match' } as never,
+        }).catch(() => { /* non-fatal */ });
+      }
+    }
+  }
 
   // Advance state to brief_parsed if still at brief_received
   const current = await getBooking(id);
