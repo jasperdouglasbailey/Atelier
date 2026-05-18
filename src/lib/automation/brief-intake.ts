@@ -46,7 +46,23 @@ export const EMPTY_STRUCTURED_USAGE: StructuredUsage = {
   usage_territory_iso: [],
 };
 
-export type BriefIntakeResult = ParsedBrief & StructuredUsage & {
+/**
+ * LLM-only fields surfaced on the intake result (added 2026-05-18).
+ * Each maps directly to a booking column the operator can apply.
+ */
+export type ExtraBriefFields = {
+  /** Campaign/project name suggestion to upgrade the booking title. */
+  title_suggestion: string | null;
+  /** Maps to atelier_post_production_ownership enum. */
+  post_production_ownership: 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced' | null;
+};
+
+export const EMPTY_EXTRA_BRIEF_FIELDS: ExtraBriefFields = {
+  title_suggestion: null,
+  post_production_ownership: null,
+};
+
+export type BriefIntakeResult = ParsedBrief & StructuredUsage & ExtraBriefFields & {
   source: 'heuristic' | 'llm' | 'merged';
   confidence: number; // 0–100
   llmAvailable: boolean;
@@ -82,9 +98,9 @@ function bestNextQuestion(parsed: ParsedBrief, missing: string[]): string | null
   if (parsed.deliverables_type == null) {
     return 'What deliverables are you expecting (stills, BTS video, both)?';
   }
-  if (parsed.talent_count == null) {
-    return 'How many talent will you need on set?';
-  }
+  // talent_count removed from the platform per Jasper 2026-05-18 — no
+  // follow-up question for it. Heuristic still extracts the field for
+  // backward compat with old fixtures, but it's never surfaced in UI.
   return null;
 }
 
@@ -97,7 +113,8 @@ type LLMBriefOutput = Partial<{
   shoot_date_start: string; // YYYY-MM-DD
   shoot_date_end: string;
   shoot_date_notes: string;
-  talent_count: number;
+  // talent_count removed 2026-05-18 — Jasper doesn't need it on the
+  // platform. talent_spec stays for natural-language description.
   talent_spec: string;
   deliverables_type: string;
   deliverables_count: number;
@@ -105,6 +122,22 @@ type LLMBriefOutput = Partial<{
   usage_territory_raw: string; // e.g. "Australia"
   usage_media_raw: string;     // e.g. "POS, social media, digital display"
   budget_indication: number;
+  /**
+   * Suggested booking title — typically the campaign / project name
+   * pulled from phrases like "For X campaign", "X collection", or
+   * "X project". Used to surface a better title than the auto-generated
+   * one set when converting from the inbox.
+   */
+  title_suggestion: string;
+  /**
+   * Who owns post-production. Maps from natural-language phrases:
+   *   "client doing post in-house" / "client handles post" → 'client_in_house'
+   *   "we'll do post" / "you handle the retouching" → 'us_via_post_team'
+   *   "artist handles post" / "Oliver to retouch" → 'us_via_artist'
+   *   "external post house" → 'client_outsourced'
+   * Matches the `atelier_post_production_ownership` enum.
+   */
+  post_production_ownership: 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced';
   // ─── Structured usage taxonomy (added 2026-05-17, PR #169) ───────
   // Maps directly to the advertising-media + market-realm doctrine.
   // Surfaced through BriefIntakeResult; persisted via PR C (not yet).
@@ -126,20 +159,23 @@ function isLLMBriefOutput(v: unknown): v is LLMBriefOutput {
 const BRIEF_INTAKE_SYSTEM_PROMPT = `You are a production coordinator for an Australian commercial photography agency.
 Extract structured fields from the incoming brief or email text.
 
-Return a JSON object with these fields (only include fields you can confidently extract):
+Return a JSON object with these fields (only include fields you can confidently extract).
+IMPORTANT: Return raw JSON ONLY — do NOT wrap in \`\`\`json fences or markdown.
+
 {
+  "title_suggestion": string or null,    // campaign / project name, e.g. "Testing Testo Campaign"
   "shoot_location": string or null,      // venue, studio name, suburb — brief and specific
   "shoot_date_start": string or null,    // YYYY-MM-DD — the date photography/filming HAPPENS
   "shoot_date_end": string or null,      // YYYY-MM-DD — end of multi-day shoot (same as start for 1 day)
   "shoot_date_notes": string or null,    // free-text if dates unclear (e.g. "TBC", "mid-May")
-  "talent_count": number or null,        // number of MODELS/ON-CAMERA TALENT, NOT the photographer
-  "talent_spec": string or null,         // brief description of talent needed
+  "talent_spec": string or null,         // brief description of talent needed (e.g. "Oliver Begg")
   "deliverables_type": string or null,   // e.g. "Stills + BTS Video", "eComm stills"
   "deliverables_count": number or null,  // number of final selects/images
   "usage_duration_months": number or null, // usage/licence period in months (convert weeks/years)
   "usage_territory_raw": string or null, // territory as written, e.g. "Australia" or "AU, NZ"
   "usage_media_raw": string or null,     // media as written, e.g. "POS, social, digital display"
   "budget_indication": number or null,   // numeric amount in AUD (strip currency symbols)
+  "post_production_ownership": string or null, // one of: "client_in_house", "us_via_artist", "us_via_post_team", "client_outsourced"
 
   // STRUCTURED USAGE TAXONOMY — extract IN ADDITION to usage_*_raw above:
   "usage_market": string or null,        // exactly one of: "consumer", "trade", "editorial"
@@ -155,15 +191,33 @@ CRITICAL RULES — read carefully:
    "In-store from", "Air Date", "Campaign Live" ALL describe when the finished images go public —
    they are NEVER the shoot date. Do not put live dates into shoot_date_start.
 3. The SHOOT DATE is when the actual photography or filming takes place. Look for phrases like
-   "lock in", "confirmed for", "pencilled for", "shoot on", "shoot a [full|half] day on", "Shoot:",
-   "schedule", "booked for".
-4. If you find a date but cannot confidently determine it is the shoot date (vs a live/publish date),
+   "lock in", "confirmed for", "pencilled for", "shoot on", "shoot a [full|half] day on", "free on",
+   "Shoot:", "schedule", "booked for".
+4. DATE YEAR INFERENCE — when a brief gives a bare date like "22 May" with no year, pick the year
+   that makes the date FUTURE OR VERY RECENT PAST (within 30 days of TODAY). DO NOT hedge with
+   "could be 2025". Make a confident choice. Examples assuming TODAY = 2026-05-18:
+     - "22 May"     → 2026-05-22 (4 days future)        ← confident
+     - "20 May"     → 2026-05-20 (2 days past)          ← confident, too recent for next year
+     - "10 April"   → 2026-04-10 (5 weeks past)         ← confident, retrospective
+     - "10 February"→ 2027-02-10 (next Feb — too far in past otherwise)
+   Only use shoot_date_notes when the brief explicitly says the date is TBC, tentative, "sometime in
+   X", etc. A bare date without explicit caveat ALWAYS gets a confident YYYY-MM-DD answer.
+5. If you find a date but cannot confidently determine it is the shoot date (vs a live/publish date),
    put it in shoot_date_notes with context, not shoot_date_start.
-5. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
-6. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief where it
-   appears after "Territory:" or "Media:" labels.
-7. Only include fields you can extract with confidence. Omit nulls entirely.
-8. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.
+6. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
+7. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief. Normalise
+   obvious typos in usage_territory_iso (e.g. "new zeal and" → ["NZ"], "Aus." → ["AU"]).
+8. POST-PRODUCTION OWNERSHIP — explicit phrases:
+     "client doing post in-house" / "client handles post" / "post in-house" → "client_in_house"
+     "we'll do post" / "you handle the retouch" / "post via us" → "us_via_post_team"
+     "artist to retouch" / "Oliver handles post" → "us_via_artist"
+     "external post house" / "outsourced post" → "client_outsourced"
+   If the brief is explicit, set the field. Do NOT mark this as inferred when the brief is literal.
+9. TITLE SUGGESTION — if the brief mentions a campaign / project / collection name (e.g. "For X
+   campaign", "X Collection SS26", "Project Archer"), extract just the name (e.g. "Testing Testo
+   Campaign") into title_suggestion. Used to upgrade the auto-generated booking title.
+10. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.
+11. Only include fields you can extract with confidence. Omit nulls entirely.
 
 USAGE TAXONOMY GUIDANCE:
 - "Consumer" = brand selling to public. Most fashion/beauty/retail briefs.
@@ -180,10 +234,11 @@ USAGE TAXONOMY GUIDANCE:
 - Map "earned PR" → channel "pr_earned" (category "online" — earned media doesn't fit neatly; default online).
 - Map "Aus" / "Aus." / "Australia" → ["AU"]; "NZ" / "New Zealand" → ["NZ"].
 
-TALENT COUNT vs RECIPIENT:
-- If the brief is from a producer and names a photographer (e.g. "How is Dan Knott for…") and ALSO
-  mentions "6 talent" or "8 models", the photographer is the BOOKING SUBJECT — do not include them
-  in talent_count. talent_count = on-camera talent only.`;
+TALENT_SPEC vs RECIPIENT:
+- The booking is FOR the named artist (photographer/videographer/HMU). e.g. "Can I check if Oliver
+  is free on 22 May" → talent_spec = "Oliver" (the agency-represented artist).
+- Do NOT confuse the named artist with on-camera models. If the brief mentions both, talent_spec
+  refers to the agency-represented artist who's being booked.`;
 
 async function extractWithLLM(rawText: string, bookingId?: string): Promise<LLMBriefOutput | null> {
   return callLLMJson<LLMBriefOutput>(
@@ -216,8 +271,13 @@ dates that seem implausible, or important information that was missed.
 Return a JSON array of short concern strings (max 5 items, max 80 chars each).
 If no concerns, return an empty array [].
 
-Example: ["shoot_date_start may be ambiguous — 'next Tuesday' could be Jun 3 or Jun 10",
-          "talent_count not found — brief mentions 'models' without a number"]`;
+Example: ["Shoot date ambiguous — 'next Tuesday' could be Jun 3 or Jun 10",
+          "Usage territory likely truncated — 'New Zeal and' should be 'New Zealand'"]
+
+Phrase each concern in plain English (not as a JSON key reference). Make each one a single short
+sentence the operator can read at a glance.
+
+CRITICAL: Return raw JSON array ONLY. Do NOT wrap in \`\`\`json fences or markdown.`;
 
 async function critiqueBriefExtraction(
   rawText: string,
@@ -245,15 +305,26 @@ async function critiqueBriefExtraction(
 
   if (!result.ok || !result.text) return [];
 
+  // Strip markdown code fences that some models wrap JSON in. Without
+  // this, JSON.parse threw and the fallback splitter treated every
+  // line literally — including the ```json fence itself — and surfaced
+  // it in the UI as a bullet point (audit 2026-05-18).
+  const cleaned = result.text
+    .trim()
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?\s*```\s*$/i, '')
+    .trim();
+
   try {
-    const parsed = JSON.parse(result.text.trim());
+    const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === 'string');
   } catch {
-    // Not valid JSON — extract lines as concerns
-    return result.text
+    // Not valid JSON even after stripping fences — extract meaningful lines.
+    // Skip pure-syntax noise (fences, brackets, lone quotes).
+    return cleaned
       .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 5 && s.length < 120)
+      .map((s) => s.trim().replace(/^["'`]+|["'`,]+$/g, '').trim())
+      .filter((s) => s.length > 5 && s.length < 200 && !/^[`{}\[\],]+$/.test(s))
       .slice(0, 5);
   }
   return [];
@@ -271,7 +342,8 @@ function computeUncertaintySources(merged: ParsedBrief): string[] {
   const KEY_FIELDS: Array<[keyof ParsedBrief, string]> = [
     ['shoot_date_start', 'shoot dates unclear'],
     ['shoot_location', 'location not specified'],
-    ['talent_count', 'talent count missing'],
+    // talent_count removed from surface — was producing "talent count
+    // missing" concerns that Jasper didn't want.
     ['deliverables_type', 'deliverables type not specified'],
   ];
   return KEY_FIELDS
@@ -312,9 +384,25 @@ function pluckStructuredUsage(llm: LLMBriefOutput | null): StructuredUsage {
   };
 }
 
+/**
+ * Pluck the title_suggestion + post_production_ownership LLM extras.
+ * Validates the enum against the allowed set; unknown values drop.
+ */
+function pluckExtras(llm: LLMBriefOutput | null): ExtraBriefFields {
+  if (!llm) return { ...EMPTY_EXTRA_BRIEF_FIELDS };
+  const POST_PROD = ['us_via_artist', 'us_via_post_team', 'client_in_house', 'client_outsourced'] as const;
+  const postProd = POST_PROD.includes(llm.post_production_ownership as typeof POST_PROD[number])
+    ? (llm.post_production_ownership as ExtraBriefFields['post_production_ownership'])
+    : null;
+  const title = typeof llm.title_suggestion === 'string' && llm.title_suggestion.trim().length > 0
+    ? llm.title_suggestion.trim()
+    : null;
+  return { title_suggestion: title, post_production_ownership: postProd };
+}
+
 function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): BriefIntakeResult {
   if (!llm) {
-    // No LLM — use heuristic alone. Structured usage fields are LLM-only
+    // No LLM — use heuristic alone. Structured usage + extras are LLM-only
     // (the heuristic cannot reliably extract enum-valued taxonomy), so
     // they come through empty.
     const baseFields = Object.entries(heuristic)
@@ -324,6 +412,7 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     return {
       ...heuristic,
       ...EMPTY_STRUCTURED_USAGE,
+      ...EMPTY_EXTRA_BRIEF_FIELDS,
       source: 'heuristic',
       confidence,
       llmAvailable: false,
@@ -344,7 +433,11 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     shoot_date_start: validateDateStr(llm.shoot_date_start) ?? heuristic.shoot_date_start,
     shoot_date_end: validateDateStr(llm.shoot_date_end) ?? heuristic.shoot_date_end,
     shoot_date_notes: llm.shoot_date_notes ?? heuristic.shoot_date_notes,
-    talent_count: typeof llm.talent_count === 'number' ? llm.talent_count : heuristic.talent_count,
+    // talent_count: LLM no longer extracts it (removed from prompt
+    // 2026-05-18). Heuristic still fills the field for backward compat
+    // with old tests/fixtures, so we keep the value off the heuristic
+    // alone.
+    talent_count: heuristic.talent_count,
     talent_spec: llm.talent_spec ?? heuristic.talent_spec,
     deliverables_type: llm.deliverables_type ?? heuristic.deliverables_type,
     deliverables_count: typeof llm.deliverables_count === 'number' ? llm.deliverables_count : heuristic.deliverables_count,
@@ -355,6 +448,7 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
   };
 
   const structuredUsage = pluckStructuredUsage(llm);
+  const extras = pluckExtras(llm);
 
   const fieldsFound = Object.values(merged).filter((v) => v != null).length;
   const uncertainty_sources = computeUncertaintySources(merged);
@@ -363,6 +457,7 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
   return {
     ...merged,
     ...structuredUsage,
+    ...extras,
     source: 'merged',
     confidence,
     llmAvailable: true,

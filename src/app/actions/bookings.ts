@@ -703,11 +703,19 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
   const updates: Record<string, unknown> = {};
 
   const textFields = [
-    'shoot_location', 'shoot_date_notes', 'talent_spec', 'deliverables_type',
+    'title', 'shoot_location', 'shoot_date_notes', 'talent_spec', 'deliverables_type',
   ] as const;
   for (const f of textFields) {
     const val = formData.get(f);
     if (val !== null && val !== '') updates[f] = val;
+  }
+
+  // post_production_ownership is enum-valued; validate against the
+  // allowed set before persisting. Unknown values are silently dropped.
+  const POST_PROD_VALUES = new Set(['us_via_artist', 'us_via_post_team', 'client_in_house', 'client_outsourced']);
+  const postProd = formData.get('post_production_ownership') as string | null;
+  if (postProd && POST_PROD_VALUES.has(postProd)) {
+    updates.post_production_ownership = postProd;
   }
 
   const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication'] as const;

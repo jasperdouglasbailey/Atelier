@@ -21,15 +21,47 @@ type Props = {
 // Subset of brief-intake fields we expose for review. Intentionally excludes
 // talent_count and budget_indication — both removed from the app per Jasper's
 // direction. Heuristic parser still extracts them, we just don't surface them.
+//
+// title_suggestion + post_production_ownership added 2026-05-18 — LLM-only
+// fields (heuristic won't fill them) that map to existing booking columns.
 const FIELD_LABELS = {
+  title_suggestion: 'Title (Campaign)',
   shoot_location: 'Shoot Location',
   shoot_date_start: 'Shoot Start Date',
   shoot_date_end: 'Shoot End Date',
   shoot_date_notes: 'Date Notes',
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
+  post_production_ownership: 'Post-Production',
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
+
+const POST_PROD_LABELS: Record<string, string> = {
+  us_via_artist: 'Us — via artist',
+  us_via_post_team: 'Us — via post team',
+  client_in_house: 'Client (in-house)',
+  client_outsourced: 'Client (outsourced)',
+};
+
+/**
+ * Strip syntactic noise from an LLM critique line. The model sometimes
+ * leaks JSON-array fragments (leading/trailing quotes, commas, code
+ * fences) even though the prompt says "plain English". Belt-and-braces
+ * cleanup so the operator never sees ```json or trailing quote-comma.
+ *
+ * Returns null when the line is pure syntax (just a fence or bracket),
+ * which the caller drops from the render.
+ */
+function cleanCritique(raw: string): string | null {
+  let s = raw.trim();
+  // Drop pure fence/bracket lines
+  if (/^[`{}\[\],]+$/.test(s) || /^```/.test(s)) return null;
+  // Strip leading "field_name:" coding references — convert to plain
+  // English by capitalising the prefix.
+  s = s.replace(/^["'`]+/, '').replace(/["'`,]+$/, '').trim();
+  if (s.length < 4) return null;
+  return s;
+}
 
 /**
  * Render a suggestion value as a short human string. Anchored to the
@@ -48,6 +80,9 @@ function formatSuggestionValue(key: FieldKey, value: unknown): string {
   }
   if (key === 'deliverables_count' && typeof value === 'number') {
     return `${value} ${value === 1 ? 'deliverable' : 'deliverables'}`;
+  }
+  if (key === 'post_production_ownership' && typeof value === 'string') {
+    return POST_PROD_LABELS[value] ?? value;
   }
   if (typeof value === 'object') {
     // Defensive: should never happen given the allowlist, but if it does
@@ -111,7 +146,13 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
     const fd = new FormData();
     for (const key of selected) {
       const val = suggestions[key];
-      if (val != null) fd.set(key, String(val));
+      if (val != null) {
+        // The LLM exposes title under `title_suggestion` (so it doesn't
+        // overwrite the existing title until the user opts in); the
+        // booking column is just `title`. Map on the way out.
+        const fieldName = key === 'title_suggestion' ? 'title' : key;
+        fd.set(fieldName, String(val));
+      }
     }
 
     // Structured usage taxonomy (LLM-only fields). Sent automatically
@@ -274,7 +315,11 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
 
       {suggestions && !success && (
         <>
-          {/* Critique / uncertainty warnings */}
+          {/* Critique / uncertainty warnings. Each line is stripped of
+              syntactic noise (quotes, trailing commas, code fences) and
+              rendered as a plain bullet. The LLM is instructed to return
+              plain-English critique sentences but occasionally leaks
+              JSON-shaped output — `cleanCritique()` belts-and-braces it. */}
           {(suggestions.critique?.length > 0 || suggestions.uncertainty_sources?.length > 0) && (
             <div className="rounded px-3 py-2 text-xs space-y-1" style={{ background: `${PALETTE.warning}11`, borderLeft: `2px solid ${PALETTE.warning}` }}>
               <div className="font-semibold text-[10px] uppercase tracking-wide" style={{ color: PALETTE.warning }}>
@@ -283,9 +328,13 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
               {suggestions.uncertainty_sources?.map((s, i) => (
                 <div key={`u-${i}`} style={{ color: PALETTE.warning }}>· {s}</div>
               ))}
-              {suggestions.critique?.map((c, i) => (
-                <div key={`c-${i}`} style={{ color: PALETTE.text }}>{c}</div>
-              ))}
+              {suggestions.critique?.map((c, i) => {
+                const cleaned = cleanCritique(c);
+                if (!cleaned) return null;
+                return (
+                  <div key={`c-${i}`} style={{ color: PALETTE.text }}>· {cleaned}</div>
+                );
+              })}
             </div>
           )}
 
