@@ -12,6 +12,7 @@
  */
 
 import { PALETTE } from '@/lib/utils/constants';
+import ShootLifecycleLoader from './ShootLifecycleLoader';
 
 type Variant = 'list' | 'detail' | 'dashboard';
 
@@ -117,6 +118,7 @@ export default function PageSkeleton({ variant = 'list' }: { variant?: Variant }
   return (
     <>
       <TopbarSkeleton />
+      <ShootLifecycleLoader />
       {variant === 'list' && <ListSkeleton />}
       {variant === 'detail' && <DetailSkeleton />}
       {variant === 'dashboard' && <DashboardSkeleton />}
