@@ -35,7 +35,10 @@ const FIELD_QUESTIONS: Record<keyof BriefIntakeResult & string, string> = {
   shoot_date_start: 'Can you confirm the shoot date(s)? The brief mentions timing but no firm date.',
   shoot_date_end: 'Can you confirm the shoot date(s)? The brief mentions timing but no firm date.',
   shoot_date_notes: 'Can you confirm the shoot date(s)? The brief mentions timing but no firm date.',
-  talent_count: 'How many talent will you need on set?',
+  // talent_count removed from clarify-questions per Jasper 2026-05-18.
+  // No string here = never asked about. The Record requires the key,
+  // empty string is the "never ask" convention used by metadata fields.
+  talent_count: '',
   talent_spec: 'What kind of talent are you after — gender, age range, look?',
   deliverables_type: 'What deliverables are you expecting (stills, BTS video, both)?',
   deliverables_count: 'Roughly how many final images / selects do you need?',
@@ -52,13 +55,17 @@ const FIELD_QUESTIONS: Record<keyof BriefIntakeResult & string, string> = {
   usage_market: '', usage_realm: '',
   usage_media_categories: '', usage_specific_channels: '',
   usage_territory_iso: '',
+  // Extra LLM-only fields added 2026-05-18 — never asked-about (the
+  // brief either gives them or it doesn't; no clarifying question).
+  title_suggestion: '',
+  post_production_ownership: '',
 } as const;
 
 const PRIORITY_FIELDS: Array<keyof BriefIntakeResult> = [
   'shoot_date_start',
   'shoot_location',
   'deliverables_type',
-  'talent_count',
+  // talent_count removed 2026-05-18 — never asked.
   'usage_duration_months',
 ];
 
