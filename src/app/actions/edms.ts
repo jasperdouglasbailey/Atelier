@@ -7,7 +7,7 @@ import { getCurrentAppUser } from '@/lib/data/app-users';
 import { getCurrentActor } from '@/lib/utils/actor';
 import { logAudit } from '@/lib/utils/audit';
 import { renderEdmHtml } from '@/lib/edms/templates';
-import { draftEmail } from '@/lib/integrations/gmail';
+import { draftEmail, sendEmail } from '@/lib/integrations/gmail';
 import { getAgencyConfig } from '@/lib/utils/agency-config';
 import type { EdmTemplate } from '@/lib/types/database';
 
@@ -163,4 +163,88 @@ export async function archiveEdmAction(id: string): Promise<{ ok: true } | { ok:
   if (!result.ok) return result;
   revalidatePath('/edms');
   return { ok: true };
+}
+
+/**
+ * Duplicate an EDM. The clone keeps the same template + payload, gets a
+ * "Copy of …" title, status `draft`, and a fresh id. No draft id is
+ * copied — the new EDM has no Gmail draft until "Create draft" is hit.
+ */
+export async function duplicateEdmAction(
+  id: string,
+): Promise<{ ok: true; newId: string } | { ok: false; error: string }> {
+  const auth = await requireOwnerOrPartner();
+  if (auth) return { ok: false, error: auth.error };
+
+  const src = await getEdm(id);
+  if (!src) return { ok: false, error: 'Source EDM not found' };
+
+  const clone = await createEdm({
+    template: src.template,
+    title: `Copy of ${src.title}`,
+  });
+  if (!clone) return { ok: false, error: 'Failed to duplicate' };
+
+  await updateEdm(clone.id, {
+    subject: src.subject,
+    preheader: src.preheader,
+    payload: src.payload,
+  });
+
+  await logAudit({
+    userId: await getCurrentActor(),
+    action: 'duplicate_edm',
+    tableName: 'atelier_edms',
+    recordId: clone.id,
+    newValue: { source_id: id },
+  }).catch(() => {});
+
+  revalidatePath('/edms');
+  return { ok: true, newId: clone.id };
+}
+
+/**
+ * Send a test of the rendered EDM to the agency's own inbox. Recipients
+ * default to the agency email from agency-config; if absent (env not set)
+ * it errors. Does NOT update the EDM status — it stays in draft.
+ *
+ * Goes through sendEmail directly (no kill-switch dependency) because
+ * the recipient is always the agency itself, not a client.
+ */
+export async function sendEdmTestAction(
+  id: string,
+): Promise<{ ok: true; to: string } | { ok: false; error: string }> {
+  const auth = await requireOwnerOrPartner();
+  if (auth) return { ok: false, error: auth.error };
+
+  const edm = await getEdm(id);
+  if (!edm) return { ok: false, error: 'EDM not found' };
+  if (!edm.subject?.trim()) return { ok: false, error: 'Set a subject line first.' };
+
+  const cfg = getAgencyConfig();
+  if (!cfg.email) return { ok: false, error: 'No agency email configured (NEXT_PUBLIC_AGENCY_EMAIL).' };
+
+  const html = renderEdmHtml(edm.template, edm.payload, edm.preheader);
+
+  try {
+    await sendEmail({
+      to: [cfg.email],
+      subject: `[TEST] ${edm.subject}`,
+      body: html,
+      bodyType: 'html',
+      from: cfg.email,
+    });
+
+    await logAudit({
+      userId: await getCurrentActor(),
+      action: 'send_edm_test',
+      tableName: 'atelier_edms',
+      recordId: id,
+      newValue: { to: cfg.email },
+    }).catch(() => {});
+
+    return { ok: true, to: cfg.email };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
 }

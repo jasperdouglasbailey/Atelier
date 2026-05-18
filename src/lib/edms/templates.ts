@@ -25,8 +25,10 @@ export type EdmImage = {
   url: string;
   /** Optional caption shown below the image. */
   caption?: string;
-  /** Optional link the image should hyperlink to. */
+  /** Optional link the image should hyperlink to (the click-through URL in the email). */
   href?: string;
+  /** Drive's webViewLink — used by the editor for "Open in Drive ↗"; ignored in render. */
+  viewLink?: string;
 };
 
 export type MonthlyRoundupPayload = {
