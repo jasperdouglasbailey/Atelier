@@ -34,7 +34,7 @@ const FIELD_LABELS = {
   wrap_time: 'Wrap Time',
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
-  post_production_ownership: 'Retouching',
+  post_production_ownership: 'Grading',
   // Grade/retouch scope (added 2026-05-19) — captures the split case
   // where the brief assigns grading to the artist but retouching to
   // the client (or vice versa). Surfaced as a checkbox so the operator
