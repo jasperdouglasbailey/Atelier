@@ -18,20 +18,18 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { archiveBookingAction, unarchiveBookingAction, deleteBookingAction } from '@/app/actions/bookings';
-import { PALETTE, TERMINAL_STATES } from '@/lib/utils/constants';
-import type { BookingState } from '@/lib/types/database';
+import { PALETTE } from '@/lib/utils/constants';
 
 type Props = {
   bookingId: string;
   bookingRef: string | null;
   bookingState: string;
   isArchived: boolean;
-  /** Compact mode: renders just the Archive button (and Delete when terminal) without the surrounding card. */
+  /** Compact mode: renders the action buttons inline without the surrounding card. */
   compact?: boolean;
 };
 
-export default function BookingLifecycleControls({ bookingId, bookingRef, bookingState, isArchived, compact = false }: Props) {
-  const isTerminal = TERMINAL_STATES.includes(bookingState as BookingState);
+export default function BookingLifecycleControls({ bookingId, bookingRef, isArchived, compact = false }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -116,9 +114,12 @@ export default function BookingLifecycleControls({ bookingId, bookingRef, bookin
           </button>
         )}
 
-        {/* Delete — only shown when booking is in a terminal state (paid / released / cancelled / written off).
-            In all other states the button is hidden entirely so the action bar stays uncluttered. */}
-        {!isTerminal ? null : confirmingDelete ? (
+        {/* Delete — available at any stage. The type-DELETE confirmation
+            step below IS the safety layer; an operator deleting a draft is
+            no riskier than deleting a paid booking (both irreversible),
+            and gating mid-flight drafts behind "cancel first then delete"
+            was just friction. */}
+        {confirmingDelete ? (
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="booking-delete-confirm" className="flex flex-col gap-1 text-[11px]" style={{ color: PALETTE.danger }}>
               <span>Permanent delete. Type DELETE to confirm.</span>
