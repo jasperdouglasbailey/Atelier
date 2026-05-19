@@ -183,6 +183,12 @@ export const ARTIST_OT_MULTIPLIER = 1.0;
 export const CREW_OT_MULTIPLIER = 1.5;
 export const OT_INCREMENT_MINUTES = 15;
 
+// Travel rate defaults — used to prefill travel-line unit prices on the
+// OT/expense form and to compose the rate row in crew/talent outreach
+// emails. These are defaults, not rules — operators can override per line.
+export const DEFAULT_CREW_TRAVEL_HOURLY = 50;
+export const DEFAULT_TALENT_TRAVEL_HOURLY = 100;
+
 // Crew roles
 export const CREW_ROLES = [
   'digital_operator', 'assistant', 'stylist', 'hmua',

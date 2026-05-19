@@ -81,9 +81,14 @@ function toISO(day: string | number, month: string | number, year: string | numb
 function inferYear(monthNum: number, day: number): number {
   const now = new Date();
   const thisYear = now.getFullYear();
-  // If the month/day has already passed this year, assume next year
+  // Compare day-to-day (not datetime-to-datetime). A brief sent on
+  // May 20 referring to "20 May" means TODAY, not next year — the
+  // previous `thisDate < now` check bumped to next year for the rest
+  // of the day after midnight because `thisDate` was 00:00 and `now`
+  // was a later moment of the same day.
+  const today = new Date(thisYear, now.getMonth(), now.getDate());
   const thisDate = new Date(thisYear, monthNum - 1, day);
-  return thisDate < now ? thisYear + 1 : thisYear;
+  return thisDate < today ? thisYear + 1 : thisYear;
 }
 
 /**
