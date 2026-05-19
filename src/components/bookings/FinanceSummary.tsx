@@ -34,23 +34,35 @@ import { formatCurrency } from '@/lib/utils/format';
 // ── Palette (spec-fixed) ──────────────────────────────────────────────
 // Inlined rather than added to PALETTE — these tones are specific to the
 // finance breakdown and don't compose with the rest of the design system.
+//
+// 2026-05-20 polish: cards now use the cream surface (was white), so the
+// whole finance section reads as one cohesive panel on the booking page
+// instead of white tiles floating on cream. Highlight blocks keep their
+// amber / blue / teal — they're semantically load-bearing (Agency / ATO
+// / Paid through), and an operator scans by colour. Metric tiles dropped
+// per-tile coloured backgrounds in favour of a single neutral background
+// with a thin top-accent stripe; preserves the colour cue without flooding
+// the page with four ramps.
 const TONES = {
   amber: { bg: '#FAEEDA', tintBg: '#FAEEDA66', text: '#854F0B', accent: '#BA7517' },
   blue:  { bg: '#E6F1FB', tintBg: '#E6F1FB66', text: '#0C447C', accent: '#185FA5' },
   teal:  { bg: '#E1F5EE', tintBg: '#E1F5EE66', text: '#085041', accent: '#0F6E56' },
   neg:   '#993C1D',
   ok:    '#1D9E75',
-  card:  '#FFFFFF',
   cardBorder: 'rgba(0,0,0,0.08)',
   surface: '#F7F5EF',
+  // Slightly lifted surface for tile / table backgrounds — sits one step
+  // above the page cream so the structure is still readable, but never
+  // jumps to stark white.
+  tileBg: '#FBF9F3',
   muted: '#6B6B6B',
   text: '#1B1B1B',
 } as const;
 
 const CARD_STYLE: React.CSSProperties = {
   borderRadius: 12,
-  border: `0.5px solid ${TONES.cardBorder}`,
-  background: TONES.card,
+  border: `1px solid ${TONES.cardBorder}`,
+  background: TONES.tileBg,
 };
 
 type Props = {
@@ -117,11 +129,11 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
   ].filter(Boolean) as Array<{ label: string; value: number }>;
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       {/* ════════════════════════════════════════════════════════════════
           1. Four metric tiles
           ════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricTile
           label="Line subtotals"
           value={totals.subtotal}
@@ -190,9 +202,9 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
                 const typeLabel = line.line_type ? FEE_LINE_TYPE_LABELS[line.line_type] : '—';
                 return (
                   <tr key={i} style={{ borderTop: `1px solid ${TONES.cardBorder}` }}>
-                    <td style={{ padding: '8px 12px' }}>
+                    <td style={{ padding: '12px 14px' }}>
                       <div style={{ color: TONES.text }}>{line.description || '—'}</div>
-                      <div style={{ fontSize: 11, color: TONES.muted, marginTop: 2 }}>{typeLabel}</div>
+                      <div style={{ fontSize: 11, color: TONES.muted, marginTop: 3 }}>{typeLabel}</div>
                     </td>
                     <Td>{formatCurrency(c.subtotal)}</Td>
                     <Td color={c.asfAmount > 0 ? TONES.amber.accent : TONES.muted}>
@@ -229,7 +241,7 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'baseline',
-            padding: '14px 16px',
+            padding: '18px 20px',
             borderTop: `1px solid ${TONES.cardBorder}`,
           }}
         >
@@ -253,7 +265,7 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
           style={{
             width: '100%',
             textAlign: 'left',
-            padding: '12px 16px',
+            padding: '16px 20px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -287,7 +299,7 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
             transition: 'max-height 0.3s ease',
           }}
         >
-          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* AMBER — Agency keeps */}
             <DestBlock
               tone={TONES.amber}
@@ -364,24 +376,43 @@ function MetricTile({
   subtitle: string;
   tone: 'neutral' | 'amber' | 'blue' | 'teal';
 }) {
+  // Tile palette pass-through — used for the label + a thin 3px top stripe
+  // that lets the operator scan by colour without flooding the whole tile
+  // with a tint. The body of every tile stays on the neutral tileBg.
   const palette = tone === 'amber' ? TONES.amber
     : tone === 'blue' ? TONES.blue
     : tone === 'teal' ? TONES.teal
     : null;
 
-  const background = palette ? palette.bg : TONES.surface;
-  const textColor = palette ? palette.text : TONES.text;
-  const accentColor = palette ? palette.accent : TONES.muted;
-
   return (
-    <div style={{ borderRadius: 8, background, padding: '12px 14px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: accentColor }}>
+    <div
+      style={{
+        borderRadius: 10,
+        background: TONES.tileBg,
+        border: `1px solid ${TONES.cardBorder}`,
+        padding: '16px 18px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Top accent stripe — visible only on coloured tones. */}
+      {palette && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            height: 3,
+            background: palette.accent,
+          }}
+        />
+      )}
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: palette?.accent ?? TONES.muted }}>
         {label}
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: textColor, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: TONES.text, fontVariantNumeric: 'tabular-nums', marginTop: 6 }}>
         {formatCurrency(value)}
       </div>
-      <div style={{ fontSize: 11, color: accentColor, marginTop: 2, opacity: 0.85 }}>
+      <div style={{ fontSize: 11, color: TONES.muted, marginTop: 3 }}>
         {subtitle}
       </div>
     </div>
@@ -402,7 +433,7 @@ function DestBlock({
 }) {
   const realRows = rows.filter(Boolean) as Array<{ l: string; v: number }>;
   return (
-    <div style={{ borderRadius: 10, background: tone.bg, padding: '12px 14px' }}>
+    <div style={{ borderRadius: 10, background: tone.bg, padding: '16px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tone.text }}>
           {label}
@@ -452,7 +483,7 @@ function Reconciliation({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'baseline',
-        padding: '10px 12px',
+        padding: '14px 16px',
         borderRadius: 8,
         background: TONES.surface,
         fontSize: 12,
@@ -480,7 +511,7 @@ function Th({ children, align = 'left', color }: { children: React.ReactNode; al
   return (
     <th
       style={{
-        padding: '10px 12px',
+        padding: '12px 14px',
         textAlign: align,
         fontSize: 11,
         fontWeight: 600,
@@ -498,8 +529,9 @@ function Td({ children, color, bold }: { children: React.ReactNode; color?: stri
   return (
     <td
       style={{
-        padding: '8px 12px',
+        padding: '12px 14px',
         textAlign: 'right',
+        verticalAlign: 'top',
         fontVariantNumeric: 'tabular-nums',
         color: color ?? TONES.text,
         fontWeight: bold ? 600 : 400,
