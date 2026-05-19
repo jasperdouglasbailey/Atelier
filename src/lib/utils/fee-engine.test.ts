@@ -13,6 +13,7 @@ import {
   computeQuoteTotals,
   computeAgencyMargin,
   computeGstPassthrough,
+  computeGstDestinations,
   computeArtistPayment,
   computeCrewPayment,
   computeOT,
@@ -784,5 +785,124 @@ describe('computeGstPassthrough — reimbursement pass-through', () => {
     // Crew input credit: 10% × 600 = 60
     closeTo(gst.crewInputCredits, 60);
     closeTo(gst.inputCreditsTotal, 530);
+  });
+});
+
+describe('computeGstDestinations — per-person GST passthrough', () => {
+  const OLIVER = { talent_id: 'tal-oliver', talent: { working_name: 'Oliver Begg', discipline: 'photographer', gst_registered: true } };
+  const ASSISTANT = { crew_id: 'crew-asst', crew: { name: 'Sam Assistant', primary_role: 'digi assist', gst_registered: true } };
+  const UNREG = { crew_id: 'crew-unreg', crew: { name: 'New Crew', primary_role: 'assistant', gst_registered: false } };
+
+  it('line with no person linked: full GST → ATO, zero passthrough', () => {
+    const lines: Partial<FeeLine>[] = [
+      { ...createExpenseLine('expense', 'Studio hire', 1000, 1, 0.15) }, // no person linked
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [], bookingCrew: [] },
+    });
+    closeTo(d.atoFromAgencyLines, 115); // (1000 + 150) × 10%
+    closeTo(d.totalPassthrough, 0);
+    expect(d.passthroughs).toHaveLength(0);
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('line with GST-registered talent linked: cost-portion passes to talent, ASF stays at ATO', () => {
+    // Artist fee $3500 with 15% ASF. Cost = billed (no override).
+    const lines: Partial<FeeLine>[] = [
+      { ...createArtistFeeLine('Photography', 3500, 1, 0.15), talent_id: 'tal-oliver' },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [OLIVER], bookingCrew: [] },
+    });
+    // GST collected on line: (3500 + 525) × 10% = 402.5
+    // Passthrough to Oliver: 3500 × 10% = 350
+    // ATO on spread/ASF: 402.5 − 350 = 52.5
+    // Commission GST: 700 × 10% = 70 → ATO
+    closeTo(d.passthroughs[0].amount, 350);
+    expect(d.passthroughs[0].name).toBe('Oliver Begg');
+    expect(d.passthroughs[0].roleLabel).toBe('photographer');
+    closeTo(d.atoFromAgencySpreadOnPersonLines, 52.5);
+    closeTo(d.atoFromCommission, 70);
+    closeTo(d.netToAto, 122.5);
+    // Reconciliation: netToAto + totalPassthrough = collected
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('line with NON-registered person linked: full GST → ATO, no passthrough', () => {
+    const lines: Partial<FeeLine>[] = [
+      { ...createCrewLabourLine('Assistant day', 500, 1, 0.15), crew_id: 'crew-unreg' },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [], bookingCrew: [UNREG] },
+    });
+    // No passthrough — crew isn't GST-registered.
+    expect(d.passthroughs).toHaveLength(0);
+    // (500 + 75) × 10% = 57.5 → ATO via non-registered bucket.
+    closeTo(d.atoFromNonRegisteredPersonLines, 57.5);
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('multiple people on the booking: passthroughs aggregate per-person', () => {
+    const lines: Partial<FeeLine>[] = [
+      { ...createArtistFeeLine('Photography', 3500, 1, 0.15), talent_id: 'tal-oliver' },
+      { ...createCrewLabourLine('Digi assist', 700, 1, 0.15), crew_id: 'crew-asst' },
+      { ...createExpenseLine('expense', 'Catering', 600, 1, 0.15), crew_id: 'crew-asst', is_commissionable: false }, // reimbursement
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [OLIVER], bookingCrew: [ASSISTANT] },
+    });
+    expect(d.passthroughs).toHaveLength(2);
+    // Oliver: 3500 × 10% = 350
+    const oliver = d.passthroughs.find((p) => p.id === 'tal-oliver')!;
+    closeTo(oliver.amount, 350);
+    // Assistant: (700 + 600) × 10% = 130
+    const sam = d.passthroughs.find((p) => p.id === 'crew-asst')!;
+    closeTo(sam.amount, 130);
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('cost < billed: only cost-portion passes through, agency keeps the spread GST', () => {
+    // Quoted $3500, artist invoiced $3000 (captured $500 spread).
+    // Passthrough should be 3000 × 10% = 300, not 3500 × 10% = 350.
+    const lines: Partial<FeeLine>[] = [
+      { ...createArtistFeeLine('Photography', 3500, 1, 0.15), talent_id: 'tal-oliver', cost_subtotal: 3000 },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [OLIVER], bookingCrew: [] },
+    });
+    const oliver = d.passthroughs.find((p) => p.id === 'tal-oliver')!;
+    closeTo(oliver.amount, 300); // 3000 × 10%
+    // Reconciliation holds even under cost_subtotal override.
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('is_gst_exempt line: contributes nothing to either bucket', () => {
+    const lines: Partial<FeeLine>[] = [
+      { ...createCrewLabourLine('Super charge', 1000, 1, 0), is_gst_exempt: true, crew_id: 'crew-asst' },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [], bookingCrew: [ASSISTANT] },
+    });
+    closeTo(d.collectedTotal, 0);
+    closeTo(d.netToAto, 0);
+    closeTo(d.totalPassthrough, 0);
   });
 });
