@@ -351,6 +351,12 @@ export interface Booking {
   usage_specific_channels: string[] | null;
   /** ISO 3166-1 alpha-2 (e.g. ["AU", "NZ"]) plus a handful of region aggregates. */
   usage_territory_iso: string[] | null;
+  /** Licence duration in months. Brief-intake LLM extracts from
+   *  "6 months" / "1 year" / "in perpetuity" (→ 999). Restored 2026-05-19
+   *  via migration 0073 — dropped in 0071 by mistake (taxonomy describes
+   *  what-the-images-are-for; duration is how-long-the-licence-runs,
+   *  not redundant). */
+  usage_duration_months: number | null;
   tier: ShootTier;
   post_production_ownership: PostProductionOwnership | null;
   grade_retouch_scope: 'grade_and_retouch' | 'grade_only' | null;

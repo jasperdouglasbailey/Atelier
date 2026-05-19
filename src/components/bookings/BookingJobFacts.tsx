@@ -301,6 +301,7 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
           mediaCategories={booking.usage_media_categories}
           specificChannels={booking.usage_specific_channels}
           territoryIso={booking.usage_territory_iso}
+          durationMonths={booking.usage_duration_months}
           layout="horizontal"
         />
       </div>

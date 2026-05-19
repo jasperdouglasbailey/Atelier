@@ -492,6 +492,7 @@ export type Database = {
           total_asf: number | null
           total_gst: number | null
           updated_at: string
+          usage_duration_months: number | null
           usage_market: string | null
           usage_media_categories: string[] | null
           usage_realm: string | null
@@ -559,6 +560,7 @@ export type Database = {
           total_asf?: number | null
           total_gst?: number | null
           updated_at?: string
+          usage_duration_months?: number | null
           usage_market?: string | null
           usage_media_categories?: string[] | null
           usage_realm?: string | null
@@ -626,6 +628,7 @@ export type Database = {
           total_asf?: number | null
           total_gst?: number | null
           updated_at?: string
+          usage_duration_months?: number | null
           usage_market?: string | null
           usage_media_categories?: string[] | null
           usage_realm?: string | null
@@ -2826,50 +2829,100 @@ export type Database = {
       atelier_bookings_portal: {
         Row: {
           booking_ref: string | null
+          call_time: string | null
+          confirmation_deadline: string | null
+          creative_agency_id: string | null
           deliverables_count: number | null
           deliverables_type: string | null
+          grade_retouch_scope: string | null
           id: string | null
           post_production_ownership:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email: string | null
+          producer_name: string | null
+          producer_phone: string | null
           shoot_date_notes: string | null
           shoot_dates: unknown
           shoot_location: string | null
           state: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title: string | null
+          usage_duration_months: number | null
+          usage_market: string | null
+          usage_media_categories: string[] | null
+          usage_realm: string | null
+          usage_specific_channels: string[] | null
+          usage_territory_iso: string[] | null
+          wrap_time: string | null
         }
         Insert: {
           booking_ref?: string | null
+          call_time?: string | null
+          confirmation_deadline?: string | null
+          creative_agency_id?: string | null
           deliverables_count?: number | null
           deliverables_type?: string | null
+          grade_retouch_scope?: string | null
           id?: string | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email?: string | null
+          producer_name?: string | null
+          producer_phone?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
           state?: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title?: string | null
+          usage_duration_months?: number | null
+          usage_market?: string | null
+          usage_media_categories?: string[] | null
+          usage_realm?: string | null
+          usage_specific_channels?: string[] | null
+          usage_territory_iso?: string[] | null
+          wrap_time?: string | null
         }
         Update: {
           booking_ref?: string | null
+          call_time?: string | null
+          confirmation_deadline?: string | null
+          creative_agency_id?: string | null
           deliverables_count?: number | null
           deliverables_type?: string | null
+          grade_retouch_scope?: string | null
           id?: string | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
+          producer_email?: string | null
+          producer_name?: string | null
+          producer_phone?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
           state?: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title?: string | null
+          usage_duration_months?: number | null
+          usage_market?: string | null
+          usage_media_categories?: string[] | null
+          usage_realm?: string | null
+          usage_specific_channels?: string[] | null
+          usage_territory_iso?: string[] | null
+          wrap_time?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "atelier_bookings_creative_agency_id_fkey"
+            columns: ["creative_agency_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {

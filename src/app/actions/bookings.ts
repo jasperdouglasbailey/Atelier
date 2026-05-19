@@ -849,6 +849,17 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     if (cleaned.length > 0) updates.usage_territory_iso = cleaned;
   }
 
+  // Usage duration — restored 2026-05-19 via migration 0073. The LLM
+  // extracts "6 months" / "1 year" / "in perpetuity" → integer. Persist
+  // alongside the rest of the taxonomy. Defensive: reject negatives + cap
+  // at a generous sanity ceiling (1200 = 100 years; "in perpetuity" maps
+  // to 999 by convention).
+  const durationRaw = formData.get('usage_duration_months') as string | null;
+  if (durationRaw) {
+    const n = parseInt(durationRaw, 10);
+    if (Number.isFinite(n) && n >= 0 && n <= 1200) updates.usage_duration_months = n;
+  }
+
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to apply suggestions' };
 

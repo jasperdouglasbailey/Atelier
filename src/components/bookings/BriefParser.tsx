@@ -222,6 +222,11 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
     if (suggestions.usage_territory_iso?.length) {
       fd.set('usage_territory_iso', suggestions.usage_territory_iso.join(','));
     }
+    // Usage duration — restored alongside taxonomy 2026-05-19 (migration
+    // 0073). Auto-applied as part of the indivisible usage block.
+    if (typeof suggestions.usage_duration_months === 'number' && suggestions.usage_duration_months > 0) {
+      fd.set('usage_duration_months', String(suggestions.usage_duration_months));
+    }
 
     // Proposed talent attach — multi-match. Apply every checkbox the
     // operator left ticked. Server-side action treats already-attached
@@ -492,7 +497,8 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
               {(suggestions.usage_market || suggestions.usage_realm ||
                 suggestions.usage_media_categories?.length ||
                 suggestions.usage_specific_channels?.length ||
-                suggestions.usage_territory_iso?.length) && (
+                suggestions.usage_territory_iso?.length ||
+                (typeof suggestions.usage_duration_months === 'number' && suggestions.usage_duration_months > 0)) && (
                 <div
                   className="rounded border px-3 py-2.5 space-y-1.5"
                   style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}
@@ -506,6 +512,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
                     mediaCategories={suggestions.usage_media_categories}
                     specificChannels={suggestions.usage_specific_channels}
                     territoryIso={suggestions.usage_territory_iso}
+                    durationMonths={suggestions.usage_duration_months}
                     layout="block"
                   />
                 </div>

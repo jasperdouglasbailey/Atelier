@@ -25,9 +25,24 @@ type Props = {
   mediaCategories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null | undefined;
   specificChannels: string[] | null | undefined;
   territoryIso: string[] | null | undefined;
+  /** Licence duration in months. 999 = in perpetuity. Restored 2026-05-19. */
+  durationMonths?: number | null | undefined;
   /** Inline label position. 'horizontal' = JobFacts-style row; 'block' = standalone (e.g. on the brief preview). */
   layout?: 'horizontal' | 'block';
 };
+
+/**
+ * Human-friendly duration label. The LLM brief intake emits an integer
+ * count of months ("6 months" → 6, "1 year" → 12, "in perpetuity" → 999).
+ * Render: < 12 → "N months", multiples of 12 → "N year(s)", otherwise
+ * fallback to months, and 999+ → "In perpetuity".
+ */
+function humaniseDuration(months: number): string {
+  if (months >= 999) return 'In perpetuity';
+  if (months === 12) return '1 year';
+  if (months > 0 && months % 12 === 0) return `${months / 12} years`;
+  return `${months} month${months === 1 ? '' : 's'}`;
+}
 
 // snake_case channel keys → readable labels. Anything not in this map
 // is humanised via underscore-to-space + title case so a new channel
@@ -101,18 +116,20 @@ function joinList(items: string[]): string {
 }
 
 export default function UsageSummary({
-  market, realm, mediaCategories, specificChannels, territoryIso, layout = 'horizontal',
+  market, realm, mediaCategories, specificChannels, territoryIso, durationMonths, layout = 'horizontal',
 }: Props) {
   const territories = (territoryIso ?? []).filter(Boolean);
   const categories = (mediaCategories ?? []).filter(Boolean);
   const channels = (specificChannels ?? []).filter(Boolean);
+  const hasDuration = typeof durationMonths === 'number' && durationMonths > 0;
 
   const hasAny =
     market != null ||
     realm != null ||
     territories.length > 0 ||
     categories.length > 0 ||
-    channels.length > 0;
+    channels.length > 0 ||
+    hasDuration;
 
   if (!hasAny) {
     return (
@@ -133,10 +150,18 @@ export default function UsageSummary({
     );
   }
 
-  // Line 1 — territories. e.g. "Australia + New Zealand"
-  const territoriesLine = territories.length > 0
+  // Line 1 — duration + territories on the same line. e.g.
+  //   "6 months · Australia + New Zealand"
+  //   "1 year · Australia"
+  //   (territory only) "Australia"
+  //   (duration only) "6 months"
+  // Pairs naturally: duration is "how long", territory is "where" — both
+  // scope the licence.
+  const durationLabel = hasDuration ? humaniseDuration(durationMonths as number) : null;
+  const territoriesJoined = territories.length > 0
     ? joinList(territories.map(humaniseIso))
     : null;
+  const territoriesLine = [durationLabel, territoriesJoined].filter(Boolean).join(' · ') || null;
 
   // Line 2 — media: categories with channels grouped in parens after each
   // applicable category. e.g. "Online (Paid social, EDM), Print, Outdoor"
