@@ -427,6 +427,16 @@ DO NOT FLAG:
 - talent_count, talent count, or "how many talent" — that field is not used.
 - client_name as a separate field — clients are managed separately in the booking record.
 - Year inference on dates that are sensibly in the future.
+- talent_spec identity — DO NOT ask the operator to "verify this is the talent
+  name, not the sender". The brief uses canonical enquiry phrasing
+  ("Can I check if X is free on Y", "Is X available on Y", "Hold X for Y") —
+  in this phrasing X is unambiguously the agency-represented artist being
+  enquired about, NOT the sender. The sender is identified by the sign-off
+  block (Kind regards, Thanks, signature with name + agency + phone), which
+  is structurally distinct from the body. The downstream talent-matcher will
+  resolve talent_spec against the actual roster and surface a green-chip
+  match the operator can see directly — second-guessing the extraction here
+  is noise the operator has to dismiss every time.
 
 DO FLAG:
 - Typos in extracted text strings (e.g. "new zeal and" → likely "New Zealand")
