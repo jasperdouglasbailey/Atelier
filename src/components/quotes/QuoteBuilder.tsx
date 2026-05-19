@@ -425,8 +425,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
           <p className="text-[10px]" style={{ color: PALETTE.muted }}>
             {selectedTemplate === 'photographer' && 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'}
             {selectedTemplate === 'videographer' && 'Creates: shoot fee · 1AC labour ($900) · 1AC kit ($400) · lighting tech ($750). Agency commission + crew fringes auto-computed.'}
-            {selectedTemplate === 'stylist' && 'Creates: shoot day rate · pre-pro days · kit fee · wardrobe pull · travel. Lines marked TBD start at $0 — fill them in after.'}
-            {selectedTemplate === 'hmu' && 'Creates: shoot day rate · pre-pro / test day · kit fee · travel. Lines marked TBD start at $0 — fill them in after.'}
+            {selectedTemplate === 'stylist' && 'Creates: shoot day rate · pre-pro days · kit fee · wardrobe pull · travel. Lines with no preset rate start at $0 — fill them in after.'}
+            {selectedTemplate === 'hmu' && 'Creates: shoot day rate · pre-pro / test day · kit fee · travel. Lines with no preset rate start at $0 — fill them in after.'}
           </p>
           <div className="flex gap-2">
             <button

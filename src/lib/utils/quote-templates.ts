@@ -14,7 +14,9 @@
  *   Lighting tech labour:   $750/day
  *
  * Usage fee, grading, equipment hire, fringes, and agency fee lines are added
- * as TBD (unit_price: 0) so Jasper fills them in after the client brief.
+ * with unit_price: 0 so Jasper fills them in after the client brief. The
+ * descriptions used to carry a literal " — TBD" suffix but the placeholder
+ * read as boilerplate noise on the printable quote — dropped 2026-05-20.
  */
 
 import { DEFAULT_ASF_RATE, DEFAULT_COMMISSION_RATE, SUPER_RATE_CHARGED, SUPER_RATE_PAID } from './constants';
@@ -49,7 +51,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     // when booking.post_production_ownership is 'us_via_artist' or 'us_via_post_team'
     {
       line_type: 'post_production',
-      description: 'Post production fee — TBD',
+      description: 'Post production fee',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -57,7 +59,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: 'Camera, digital and lighting equipment allowance — TBD',
+      description: 'Camera, digital and lighting equipment allowance',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -91,7 +93,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'post_production',
-      description: 'Grading — TBD',
+      description: 'Grading',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -99,7 +101,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'post_production',
-      description: 'Edit fee — TBD ($/day)',
+      description: 'Edit fee ($/day)',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -107,7 +109,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: 'Camera equipment — TBD',
+      description: 'Camera equipment',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -115,7 +117,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: 'Digital equipment — TBD',
+      description: 'Digital equipment',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -123,7 +125,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: 'Lighting equipment — TBD',
+      description: 'Lighting equipment',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -139,7 +141,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: '1AC kit — TBD',
+      description: '1AC kit',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -165,7 +167,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'artist_fee',
-      description: 'Pre-pro / styling days — TBD',
+      description: 'Pre-pro / styling days',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
@@ -173,7 +175,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'artist_fee',
-      description: 'Stylist kit fee — TBD',
+      description: 'Stylist kit fee',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -181,7 +183,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'expense',
-      description: 'Wardrobe pull / return / steaming — TBD',
+      description: 'Wardrobe pull / return / steaming',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -189,7 +191,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'crew_travel',
-      description: 'Travel / couriers — TBD',
+      description: 'Travel / couriers',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -207,7 +209,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'artist_fee',
-      description: 'Pre-pro / test day — TBD',
+      description: 'Pre-pro / test day',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: true, super_rate_charged: SUPER_RATE_CHARGED, super_rate_paid: SUPER_RATE_PAID,
@@ -215,7 +217,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'artist_fee',
-      description: 'Kit fee — TBD',
+      description: 'Kit fee',
       quantity: 1, unit_price: 0,
       is_commissionable: true, commission_rate: DEFAULT_COMMISSION_RATE,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
@@ -223,7 +225,7 @@ export const TEMPLATE_LINES_MAP: Record<QuoteTemplate, TemplateLine[]> = {
     },
     {
       line_type: 'crew_travel',
-      description: 'Travel — TBD',
+      description: 'Travel',
       quantity: 1, unit_price: 0,
       is_commissionable: false, commission_rate: 0,
       is_super_bearing: false, super_rate_charged: 0, super_rate_paid: 0,
