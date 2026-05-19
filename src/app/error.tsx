@@ -14,6 +14,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import * as Sentry from '@sentry/nextjs';
 import { PALETTE } from '@/lib/utils/constants';
 import { reportClientErrorAction } from '@/app/actions/error-report';
 
@@ -28,6 +29,13 @@ export default function ErrorBoundary({
   useEffect(() => {
     // Surface in browser console for local dev; production logs go to platform
     console.error('[atelier] error boundary caught', error);
+    // Forward to Sentry directly — duplicate-safe (server-action below
+    // also forwards, but if that call itself fails Sentry still has a
+    // record). Inert when DSN env var is unset.
+    Sentry.captureException(error, {
+      tags: { boundary: 'app_error', source: 'client' },
+      extra: { pathname, digest: error.digest },
+    });
     // Fire-and-forget to atelier_error_log. Never blocks the render.
     void reportClientErrorAction({
       message: error.message || 'Unknown error',

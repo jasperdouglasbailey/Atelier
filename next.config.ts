@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 /**
  * Security headers applied to every response.
@@ -62,4 +63,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry wrapper. Inert when no DSN env var is set (the runtime init
+ * code checks for NEXT_PUBLIC_SENTRY_DSN before calling Sentry.init).
+ * The wrapper itself adds source-map upload + tracing instrumentation
+ * at build time; it's a no-op if SENTRY_AUTH_TOKEN is also unset.
+ *
+ * Re-export through withSentryConfig so the headers() etc. above stay
+ * intact while Sentry layers on its build-time hooks.
+ */
+export default withSentryConfig(nextConfig, {
+  silent: !process.env.CI,
+  // Project / org left to env vars (SENTRY_ORG, SENTRY_PROJECT) so the
+  // codebase doesn't hardcode either. Build proceeds without source-map
+  // upload when those aren't set.
+  widenClientFileUpload: true,
+  disableLogger: true,
+  sourcemaps: { disable: false },
+});

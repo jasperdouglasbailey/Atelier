@@ -30,6 +30,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/service';
+import * as Sentry from '@sentry/nextjs';
 
 export type ErrorSource =
   | 'client'
@@ -93,6 +94,25 @@ export async function captureError(
     `[error-capture] ${ctx.source}${ctx.context ? `:${ctx.context}` : ''} ${message}`,
     stack ? `\n${stack.slice(0, 1_000)}` : '',
   );
+
+  // Forward to Sentry when DSN is configured. Inert when not. Sentry
+  // capture is sync-safe — it queues the event internally and flushes
+  // out-of-band, so this doesn't slow the caller's error path.
+  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    try {
+      Sentry.captureException(err instanceof Error ? err : new Error(message), {
+        tags: {
+          source: ctx.source,
+          ...(ctx.context ? { context: ctx.context } : {}),
+        },
+        user: ctx.userId ? { id: ctx.userId } : undefined,
+        extra: ctx.metadata ?? undefined,
+      });
+    } catch (sentryErr) {
+      // Sentry itself failing must not break the recovery path.
+      console.error('[error-capture] Sentry forward failed', sentryErr);
+    }
+  }
 
   try {
     const supabase = createServiceClient();
