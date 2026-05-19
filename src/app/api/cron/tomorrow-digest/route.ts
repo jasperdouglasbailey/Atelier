@@ -68,12 +68,13 @@ export async function GET(req: NextRequest) {
   // serialises a daterange as "[YYYY-MM-DD,YYYY-MM-DD)" with the upper
   // bound exclusive. We pull every active-ish booking and filter in JS
   // (volume is tiny — at most a few dozen rows).
+  // brand:atelier_brands join dropped 2026-05-19 — migration 0071
+  // removed atelier_bookings.brand_id. brandLabel below now always null.
   const { data: bookings, error } = await supabase
     .from('atelier_bookings')
     .select(`
       id, booking_ref, title, state, shoot_dates, shoot_location, shoot_date_notes,
-      client:atelier_clients!atelier_bookings_client_id_fkey(name, company),
-      brand:atelier_brands(name)
+      client:atelier_clients!atelier_bookings_client_id_fkey(name, company)
     `)
     .in('state', ['quote_confirmed', 'pre_production', 'shoot_live'])
     .eq('is_archived', false)

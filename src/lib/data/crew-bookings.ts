@@ -221,12 +221,14 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
   // Same query also enriches every entry with client / brand / talent / location
   // so the calendar bar can render the agreed title format and hover card.
   const supabase = await createClient();
+  // Migration 0071 dropped atelier_bookings.brand_id. The `brand:` join
+  // here is implicit (no explicit FK hint) so PostgREST tolerates it
+  // returning null, but we drop it for clarity + future-proofing.
   const { data: enrichRows } = await supabase
     .from('atelier_bookings')
     .select(`
       id, booking_ref, title, state, tier, shoot_dates, shoot_location,
       client:atelier_clients!atelier_bookings_client_id_fkey(name, company),
-      brand:atelier_brands(name),
       booking_talent:atelier_booking_talent(talent:atelier_talent(working_name))
     `)
     .not('shoot_dates', 'is', null);
@@ -234,7 +236,7 @@ export async function getCalendarShoots(): Promise<CalendarShoot[]> {
   for (const b of (enrichRows ?? []) as Record<string, unknown>[]) {
     const id = b.id as string;
     const client = b.client as { name?: string; company?: string | null } | null;
-    const brand = b.brand as { name?: string } | null;
+    const brand = null as { name?: string } | null; // brand removed with migration 0071
     const bookingTalent = (b.booking_talent ?? []) as Array<{ talent: { working_name?: string } | null }>;
     const talentNames = bookingTalent
       .map((bt) => bt.talent?.working_name)
