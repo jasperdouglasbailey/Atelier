@@ -29,9 +29,13 @@ export default function BookingForm(props: Props) {
         if ('error' in result) return { error: result.error ?? 'Unknown error' };
         return { ok: true, id: result.id };
       }}
-      onSuccessRedirect={(id) => {
+      onSuccessRedirect={(id, opts) => {
         if (id) {
-          router.push(`/bookings/${id}`);
+          // When the operator pasted a brief into the create form, route
+          // to the parser anchor with ?action=parse so the LLM auto-runs
+          // on mount — saves them the manual "Parse brief" click.
+          const suffix = opts?.hasBriefText ? '?action=parse#brief-parser' : '';
+          router.push(`/bookings/${id}${suffix}`);
           router.refresh();
         }
       }}
