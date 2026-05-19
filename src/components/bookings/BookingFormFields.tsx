@@ -85,9 +85,20 @@ export default function BookingFormFields({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Primary artist
-  const [selectedTalentId, setSelectedTalentId] = useState<string>(initialPrimaryTalentId ?? '');
-  const selectedArtist = talent.find((t) => t.id === selectedTalentId) ?? null;
+  // Artists. Create mode supports 1..N artists ("+ Add another artist"
+  // pattern). Edit mode keeps the single-primary-swap shape — adding
+  // artists post-creation happens through the BookingTeam panel, which
+  // already supports N-artist teams.
+  const [selectedTalentIds, setSelectedTalentIds] = useState<string[]>(
+    initialPrimaryTalentId ? [initialPrimaryTalentId] : [],
+  );
+  // Picker for adding another artist in create mode. Cleared after each add.
+  const [pendingPickTalentId, setPendingPickTalentId] = useState<string>('');
+  // Lead artist drives tier auto-suggest + the discipline hint passed
+  // to the create action for template auto-selection.
+  const leadArtist = selectedTalentIds[0]
+    ? (talent.find((t) => t.id === selectedTalentIds[0]) ?? null)
+    : null;
 
   // Client / brand state with inline quick-create
   const [clients, setClients] = useState(initialClients);
@@ -116,15 +127,36 @@ export default function BookingFormFields({
     }
   }
 
-  function handleTalentChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  // Edit mode keeps the single-pick semantics. Create mode uses
+  // `addTalent` / `removeTalent` (multi-pick chip list) below.
+  function handleTalentChangeEdit(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
-    setSelectedTalentId(id);
-    if (id && mode === 'create') {
+    setSelectedTalentIds(id ? [id] : []);
+    if (id) {
       const artist = talent.find((t) => t.id === id);
       if (artist) {
         setTier((prev) => (prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
       }
     }
+  }
+
+  function addTalent(id: string) {
+    if (!id) return;
+    if (selectedTalentIds.includes(id)) return; // de-dupe
+    const isFirst = selectedTalentIds.length === 0;
+    setSelectedTalentIds((prev) => [...prev, id]);
+    setPendingPickTalentId('');
+    // First add seeds the tier from the lead artist's discipline.
+    if (isFirst) {
+      const artist = talent.find((t) => t.id === id);
+      if (artist) {
+        setTier((prev) => (prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
+      }
+    }
+  }
+
+  function removeTalent(id: string) {
+    setSelectedTalentIds((prev) => prev.filter((x) => x !== id));
   }
 
   function handleClientChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -143,13 +175,24 @@ export default function BookingFormFields({
     setError(null);
     const formData = new FormData(e.currentTarget);
 
-    if (selectedTalentId) formData.set('primary_talent_id', selectedTalentId);
-    if (selectedArtist) formData.set('primary_talent_discipline', selectedArtist.discipline);
-    // Track whether the primary artist changed during edit so the action can update the join.
-    if (mode === 'edit') {
-      const changed = (initialPrimaryTalentId ?? '') !== selectedTalentId;
+    if (mode === 'create') {
+      // Multi-artist payload — JSON array of talent IDs, ordered as the
+      // user added them. createBookingAction loops and inserts one
+      // atelier_booking_talent row per id. Empty array = no artists
+      // attached at create (operator will use BookingTeam later).
+      formData.set('primary_talent_ids', JSON.stringify(selectedTalentIds));
+      // Lead-artist discipline still drives template auto-select. First
+      // id in the array is the lead by convention.
+      if (leadArtist) formData.set('primary_talent_discipline', leadArtist.discipline);
+    } else {
+      // Edit mode — single-swap semantics. BookingTeam handles adds/removes.
+      const single = selectedTalentIds[0] ?? '';
+      if (single) formData.set('primary_talent_id', single);
+      if (leadArtist) formData.set('primary_talent_discipline', leadArtist.discipline);
+      const changed = (initialPrimaryTalentId ?? '') !== single;
       formData.set('primary_talent_changed', changed ? '1' : '0');
     }
+
     if (selectedClientId) formData.set('client_id', selectedClientId);
     formData.set('tier', tier);
 
@@ -180,57 +223,121 @@ export default function BookingFormFields({
         </div>
       )}
 
-      {/* ── Primary Artist ─────────────────────────────────────── */}
+      {/* ── Artist(s) ──────────────────────────────────────────── */}
       <div>
         <label className={labelClass} style={{ ...labelStyle, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          Primary Artist {mode === 'create' ? '*' : ''}
+          {mode === 'create' ? 'Artist(s) *' : 'Primary Artist'}
         </label>
         <p className="text-[11px] mb-1.5" style={{ color: PALETTE.muted }}>
-          The photographer or videographer this shoot is built around.
+          {mode === 'create'
+            ? 'One or more artists this booking is built around. Add additional artists after picking the first.'
+            : 'The photographer or videographer this shoot is built around. Use BookingTeam on the detail page to add more artists.'}
         </p>
-        <select
-          value={selectedTalentId}
-          onChange={handleTalentChange}
-          className={inputClass}
-          style={{ ...inputStyle, fontWeight: selectedTalentId ? 500 : undefined }}
-          required={mode === 'create'}
-        >
-          <option value="">— Select artist —</option>
-          {artistGroups.map(({ label, artists }) => (
-            <optgroup key={label} label={label}>
-              {artists.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.working_name}{t.specialty ? ` · ${t.specialty}` : ''}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-          {inactiveArtists.length > 0 && (
-            <optgroup label="Inactive">
-              {inactiveArtists.map((t) => (
-                <option key={t.id} value={t.id}>{t.working_name} (inactive)</option>
-              ))}
-            </optgroup>
-          )}
-        </select>
 
-        {selectedArtist && (
-          <div className="mt-2 flex items-center gap-2">
-            <span
-              className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-              style={{ background: `${PALETTE.accent}20`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}40` }}
-            >
-              {DISCIPLINE_LABELS[selectedArtist.discipline]}
-            </span>
-            {selectedArtist.default_day_rate && (
-              <span className="text-[11px]" style={{ color: PALETTE.muted }}>
-                Day rate: ${selectedArtist.default_day_rate.toLocaleString()}
-              </span>
+        {mode === 'create' ? (
+          <>
+            {/* Chips — already-selected artists */}
+            {selectedTalentIds.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {selectedTalentIds.map((id, idx) => {
+                  const a = talent.find((t) => t.id === id);
+                  if (!a) return null;
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+                      style={{ background: `${PALETTE.accent}20`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}40` }}
+                    >
+                      {a.working_name}
+                      <span style={{ opacity: 0.7, fontSize: 10 }}>{DISCIPLINE_LABELS[a.discipline]}</span>
+                      {idx === 0 && selectedTalentIds.length > 1 && (
+                        <span style={{ opacity: 0.55, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>lead</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeTalent(id)}
+                        aria-label={`Remove ${a.working_name}`}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: PALETTE.accent,
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          lineHeight: 1,
+                          padding: '0 2px',
+                          marginLeft: 2,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
             )}
-          </div>
+
+            {/* Picker — adds to the chip list */}
+            <select
+              value={pendingPickTalentId}
+              onChange={(e) => addTalent(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+              required={selectedTalentIds.length === 0}
+            >
+              <option value="">
+                {selectedTalentIds.length === 0 ? '— Select artist —' : '+ Add another artist'}
+              </option>
+              {artistGroups.map(({ label, artists }) => (
+                <optgroup key={label} label={label}>
+                  {artists
+                    .filter((t) => !selectedTalentIds.includes(t.id))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.working_name}{t.specialty ? ` · ${t.specialty}` : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+              {inactiveArtists.length > 0 && (
+                <optgroup label="Inactive">
+                  {inactiveArtists
+                    .filter((t) => !selectedTalentIds.includes(t.id))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>{t.working_name} (inactive)</option>
+                    ))}
+                </optgroup>
+              )}
+            </select>
+          </>
+        ) : (
+          // Edit mode keeps the single-pick UX. Adds/removes happen on BookingTeam.
+          <select
+            value={selectedTalentIds[0] ?? ''}
+            onChange={handleTalentChangeEdit}
+            className={inputClass}
+            style={{ ...inputStyle, fontWeight: selectedTalentIds[0] ? 500 : undefined }}
+          >
+            <option value="">— Select artist —</option>
+            {artistGroups.map(({ label, artists }) => (
+              <optgroup key={label} label={label}>
+                {artists.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.working_name}{t.specialty ? ` · ${t.specialty}` : ''}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            {inactiveArtists.length > 0 && (
+              <optgroup label="Inactive">
+                {inactiveArtists.map((t) => (
+                  <option key={t.id} value={t.id}>{t.working_name} (inactive)</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         )}
 
-        {mode === 'edit' && initialPrimaryTalentId && selectedTalentId !== initialPrimaryTalentId && (
+        {mode === 'edit' && initialPrimaryTalentId && (selectedTalentIds[0] ?? '') !== initialPrimaryTalentId && (
           <p className="mt-2 text-[11px]" style={{ color: PALETTE.warning }}>
             Changing the primary artist will replace the existing booking-team artist record.
           </p>
@@ -249,9 +356,9 @@ export default function BookingFormFields({
       <div>
         <label className={labelClass} style={labelStyle}>
           Shoot Tier *
-          {mode === 'create' && selectedArtist && (
+          {mode === 'create' && leadArtist && (
             <span className="ml-2 font-normal normal-case" style={{ color: PALETTE.muted }}>
-              — suggested from artist discipline
+              — suggested from lead artist discipline
             </span>
           )}
         </label>
@@ -477,7 +584,7 @@ export default function BookingFormFields({
       <div className="flex gap-3">
         <button
           type="submit"
-          disabled={submitting || (mode === 'create' && !selectedTalentId)}
+          disabled={submitting || (mode === 'create' && selectedTalentIds.length === 0)}
           className="rounded-md px-6 py-2.5 text-sm font-medium disabled:opacity-50"
           style={{ background: PALETTE.accent, color: PALETTE.bg }}
         >
@@ -496,8 +603,8 @@ export default function BookingFormFields({
           </button>
         )}
       </div>
-      {mode === 'create' && !selectedTalentId && (
-        <p className="text-[11px]" style={{ color: PALETTE.muted }}>Select a primary artist to create the booking.</p>
+      {mode === 'create' && selectedTalentIds.length === 0 && (
+        <p className="text-[11px]" style={{ color: PALETTE.muted }}>Select at least one artist to create the booking.</p>
       )}
     </form>
   );

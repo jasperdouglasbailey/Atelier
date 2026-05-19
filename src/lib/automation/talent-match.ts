@@ -150,3 +150,73 @@ export function matchTalentInBrief(
   if (!best || best.confidence < 0.75) return null;
   return best;
 }
+
+/**
+ * Multi-match variant — returns ALL talents whose best score meets the
+ * 0.75 threshold, ordered by descending confidence (ties broken by
+ * working_name for determinism).
+ *
+ * Used by the brief-apply flow to surface a checkbox per matched
+ * artist when a brief names more than one ("Oliver and Maria for the
+ * Resort campaign"). The single-match wrapper above is kept for any
+ * callsites that only want the top hit.
+ *
+ * Threshold + scoring are identical to `matchTalentInBrief`; the only
+ * difference is we collect every per-talent best instead of one
+ * overall best.
+ */
+export function matchTalentsInBrief(
+  rawText: string,
+  talentSpec: string | null | undefined,
+  talents: Pick<Talent, 'id' | 'working_name' | 'legal_name' | 'nicknames' | 'assigned_agent_user_id'>[],
+): TalentMatch[] {
+  if (talents.length === 0) return [];
+
+  const haystack = [(rawText ?? ''), (talentSpec ?? '')]
+    .join(' ')
+    .toLowerCase()
+    .replace(/['’`.\-_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (haystack.length === 0) return [];
+
+  const perTalentBest = new Map<string, TalentMatch>();
+  for (const t of talents) {
+    const candidates: Array<{ source: 'working_name' | 'legal_name' | 'nickname'; tokens: string[] }> = [
+      { source: 'working_name', tokens: buildMatchTokens(t.working_name) },
+      { source: 'legal_name',   tokens: t.legal_name ? buildMatchTokens(t.legal_name) : [] },
+      ...((t.nicknames ?? []).map((n) => ({ source: 'nickname' as const, tokens: buildMatchTokens(n) }))),
+    ];
+
+    let bestForT: TalentMatch | null = null;
+    for (const cand of candidates) {
+      for (let i = 0; i < cand.tokens.length; i++) {
+        const token = cand.tokens[i];
+        if (!tokenAppearsAsWord(haystack, token)) continue;
+        const isFullPhrase = i === 0;
+        let score: number;
+        if (cand.source === 'working_name') score = isFullPhrase ? 1.0 : 0.8;
+        else if (cand.source === 'legal_name') score = isFullPhrase ? 0.95 : 0.75;
+        else score = 0.9;
+        if (!bestForT || score > bestForT.confidence) {
+          bestForT = {
+            talent_id: t.id,
+            working_name: t.working_name,
+            matched_via: cand.source,
+            matched_token: token,
+            confidence: score,
+            assigned_agent_user_id: t.assigned_agent_user_id ?? null,
+          };
+        }
+      }
+    }
+    if (bestForT && bestForT.confidence >= 0.75) {
+      perTalentBest.set(t.id, bestForT);
+    }
+  }
+
+  return Array.from(perTalentBest.values()).sort((a, b) => {
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+    return a.working_name.localeCompare(b.working_name);
+  });
+}
