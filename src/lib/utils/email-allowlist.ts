@@ -1,16 +1,22 @@
 /**
- * Email allow-list — pilot-grade access control.
+ * Email allow-list — EMERGENCY-OVERRIDE FALLBACK ONLY.
  *
- * Atelier is single-tenant at launch (Jasper is sole user, partners join
- * later). Magic-link auth is wide open by design — Supabase will send a
- * link to ANY email address typed into the form. To stop random people
- * from typing their own email and getting in, we require the email to
- * appear in the `ATELIER_ALLOWED_EMAILS` env var (comma-separated).
+ * As of migration 0068 the primary sign-in allowlist is DB-driven:
+ * `public.is_signin_email_allowed(email)` joins atelier_app_users to
+ * auth.users and returns true iff there's an active app-user. That's
+ * the source of truth.
  *
- * When multi-user RBAC lands (see docs/RBAC.md), this is replaced by a
- * DB lookup against `atelier_user_links`. For now: env list = the floor.
+ * This env var (`ATELIER_ALLOWED_EMAILS`) is kept as a fallback for:
+ *   - Fresh prod databases where no app_users exist yet (chicken-and-egg
+ *     bootstrap: first sign-in needs to happen before the operator can
+ *     provision app_users).
+ *   - Ops break-glass when the DB function is unreachable (e.g. RLS
+ *     misconfig, transient outage) and someone needs in.
  *
- * Empty / unset env var → allow all (dev mode). Production must set this.
+ * In normal operation the env var stays empty. Adding an email here
+ * effectively grants sign-in without an app_user row — use sparingly.
+ *
+ * Empty / unset env var → fallback is inert (dev mode + production-normal).
  */
 
 export function getAllowedEmails(): string[] {
@@ -24,8 +30,11 @@ export function getAllowedEmails(): string[] {
 
 export function isEmailAllowed(email: string): boolean {
   const list = getAllowedEmails();
-  // Empty list = no env set = allow all (dev mode). Document this clearly.
-  if (list.length === 0) return true;
+  // Behaviour change 2026-05-19: empty env list now returns FALSE (not
+  // true). The DB function is the primary check; an empty env-var
+  // fallback shouldn't open every email to sign-in. Dev environments
+  // bootstrap via DB seed of atelier_app_users like prod does.
+  if (list.length === 0) return false;
   return list.includes(email.trim().toLowerCase());
 }
 
