@@ -692,24 +692,29 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
 // ============================================================
 
 /**
- * Map a booking's terminal state to a corpus outcome value.
+ * Map a booking's state to a corpus outcome value.
  *
  * won              → reached 'paid' or 'released' (shoot happened, invoiced)
- * lost_pre_quote   → cancelled before a quote was ever sent to the client
- * lost_post_quote  → cancelled after quote_sent (client saw the number and walked)
- * cancelled        → any other terminal state we don't have a sharper label for
- */
-/**
- * Map a booking's terminal state to a corpus outcome value. Exported
- * for unit testing (also used by deleteBookingWithCorpus internally).
+ * lost_pre_quote   → killed before a quote was ever sent to the client
+ * lost_post_quote  → killed after quote_sent (client saw the number and walked,
+ *                    or operator pulled it for any reason)
+ * cancelled        → fallback when neither above applies (rare; defensive)
+ *
+ * Used for both terminal-state deletes AND mid-stage deletes (PR shipping
+ * 2026-05-20): when an operator deletes a draft / quote / live booking
+ * outright, the corpus outcome is still derivable from the state +
+ * whether a quote was ever sent.
  */
 export function deriveOutcome(
   state: BookingState,
   quoteWasSent: boolean,
 ): 'won' | 'lost_pre_quote' | 'lost_post_quote' | 'cancelled' {
   if (state === 'paid' || state === 'released') return 'won';
-  if (state === 'cancelled' || state === 'written_off') return quoteWasSent ? 'lost_post_quote' : 'lost_pre_quote';
-  return 'cancelled';
+  // Anything else — terminal cancelled/written_off OR mid-stage delete —
+  // is classified by whether the client ever saw the quote. This is what
+  // matters for win-rate analysis: did the deal die before or after the
+  // client was given a number.
+  return quoteWasSent ? 'lost_post_quote' : 'lost_pre_quote';
 }
 
 /**
@@ -725,11 +730,13 @@ async function sha256hex(value: string): Promise<string> {
 /**
  * Hard-delete a booking and write one anonymised row to atelier_corpus_bookings.
  *
- * Only valid for bookings in terminal states: paid, released, cancelled,
- * written_off. Returns `{ ok: true }` on success, `{ ok: false, error }`
- * with the actual failure reason on any error path — used to be a bare
- * boolean which surfaced "Delete returned false — check logs" with no
- * actionable detail (PR shipping 2026-05-16 fixed that).
+ * Permitted at ANY state (PR shipping 2026-05-20). The previous
+ * terminal-state-only guard forced operators to first transition a draft
+ * or quote-stage booking to `cancelled` before they could delete it, which
+ * was friction with no real safety benefit — the type-DELETE confirmation
+ * UX is the actual safety layer, and the type-DELETE step happens client
+ * side regardless of state. Returns `{ ok: true }` on success,
+ * `{ ok: false, error }` with the actual failure reason on any error path.
  *
  * Cascade behaviour on the parent delete:
  *   - atelier_booking_talent / atelier_booking_crew / atelier_fee_lines /
@@ -765,16 +772,10 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<{ ok: 
     booking_talent?: Array<{ talent_id: string }> | null;
   };
 
-  // Guard: only allow deletion of terminal states
-  const TERMINAL: BookingState[] = ['paid', 'released', 'cancelled', 'written_off'];
-  if (!TERMINAL.includes(b.state)) {
-    const msg = `Booking is in state '${b.state}'; only terminal bookings (paid / released / cancelled / written_off) can be deleted.`;
-    reportDataError(
-      '[bookings] deleteWithCorpus — refused',
-      new Error(`Booking ${bookingId}: ${msg}`),
-    );
-    return { ok: false, error: msg };
-  }
+  // No state guard — delete is permitted at any stage. The type-DELETE
+  // confirmation step (BookingLifecycleControls) is the user-facing safety
+  // layer. See deriveOutcome() above for how non-terminal states map to
+  // corpus outcomes.
 
   // 2. Determine whether a quote was ever sent (to pick the right outcome)
   //    We check the audit log for a 'transition' row whose new_value contains 'quote_sent'.
