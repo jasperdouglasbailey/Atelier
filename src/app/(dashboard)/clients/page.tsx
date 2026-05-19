@@ -1,10 +1,13 @@
 import Topbar from '@/components/layout/Topbar';
-import { listClients } from '@/lib/data/entities';
+import { listClients, getAllClientTags } from '@/lib/data/entities';
 import CreateClientDialog from '@/components/entities/CreateClientDialog';
 import ClientsClient from '@/components/clients/ClientsClient';
 
 export default async function ClientsPage() {
-  const clients = await listClients();
+  const [clients, allTags] = await Promise.all([
+    listClients(),
+    getAllClientTags(),
+  ]);
 
   return (
     <>
@@ -15,7 +18,7 @@ export default async function ClientsPage() {
           <CreateClientDialog />
         </div>
 
-        <ClientsClient allClients={clients} />
+        <ClientsClient allClients={clients} allTags={allTags} />
       </div>
     </>
   );
