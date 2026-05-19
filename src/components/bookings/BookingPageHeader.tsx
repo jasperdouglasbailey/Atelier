@@ -14,9 +14,16 @@ type Props = {
   booking: BookingDetailRow;
   primaryTalent: (BookingTalent & { talent?: { working_name?: string; name?: string } | null }) | null;
   roster: BookingRoster | null;
+  /**
+   * Distinct agents (owner/partner display names) whose talent is on
+   * this booking team. Surfaced as a "Co-managing" line when there are
+   * 2+ — gives Gary visibility when his client wants Oliver + Maria and
+   * Maria's agent (Jemma) is co-handling. Phase 1 multi-agent rollout.
+   */
+  coManagingAgents?: string[];
 };
 
-export default function BookingPageHeader({ booking, primaryTalent, roster }: Props) {
+export default function BookingPageHeader({ booking, primaryTalent, roster, coManagingAgents = [] }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
   const talentName = (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.working_name
     ?? (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.name
@@ -110,6 +117,25 @@ export default function BookingPageHeader({ booking, primaryTalent, roster }: Pr
             />
           </div>
         </div>
+
+        {/* Co-managing line — shown when 2+ distinct agents have talent on
+            this booking team. Single-agent bookings stay clean; this row
+            only appears when collaboration matters. */}
+        {coManagingAgents.length > 1 && (
+          <div
+            className="mt-3 text-[10px]"
+            style={{
+              fontFamily: 'var(--font-dm-mono), monospace',
+              color: PALETTE.muted,
+              letterSpacing: '0.04em',
+            }}
+          >
+            <span style={{ textTransform: 'uppercase', letterSpacing: '0.12em', marginRight: 8 }}>
+              Co-managing
+            </span>
+            <span style={{ color: PALETTE.text }}>{coManagingAgents.join(' · ')}</span>
+          </div>
+        )}
 
         {/* Metadata strip — generous padding so text doesn't crowd the dividers */}
         <div

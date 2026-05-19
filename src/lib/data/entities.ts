@@ -62,10 +62,19 @@ export async function createBrand(input: { name: string; industry?: string; note
 // Talent
 // ============================================================
 
-export async function listTalent(search?: string): Promise<Talent[]> {
+export async function listTalent(opts: {
+  search?: string;
+  /** Filter to talent assigned to a specific agent. Migration 0069. */
+  assignedAgentId?: string;
+} | string = {}): Promise<Talent[]> {
+  // Back-compat: callers passing a bare search string still work.
+  const filters = typeof opts === 'string' ? { search: opts } : opts;
   const supabase = await createClient();
   let query = supabase.from('atelier_talent').select('*').eq('is_active', true).order('working_name');
-  if (search) query = query.ilike('working_name', `%${search}%`);
+  if (filters.search) query = query.ilike('working_name', `%${filters.search}%`);
+  if (filters.assignedAgentId) {
+    query = query.eq('assigned_agent_user_id', filters.assignedAgentId);
+  }
   const { data } = await query;
   return (data ?? []) as Talent[];
 }

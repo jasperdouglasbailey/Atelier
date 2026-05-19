@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
+import ClientTabs from '@/components/clients/ClientTabs';
+import ClientActivityTab from '@/components/clients/ClientActivityTab';
 import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
@@ -38,6 +40,7 @@ const ACTIVE_STATES = new Set([
   'artists_crew_held', 'quote_confirmed', 'pre_production', 'shoot_live',
   'morning_after_check', 'post_production',
 ]);
+
 export default async function ClientDetailPage({ params }: Props) {
   const { id } = await params;
   const client = await getClient(id);
@@ -77,7 +80,6 @@ export default async function ClientDetailPage({ params }: Props) {
       if (b.grand_total > 0) pipeline += b.grand_total;
     }
 
-    // Tally talent appearances
     for (const bt of (b.booking_talent ?? [])) {
       const t = bt.talent;
       if (!t) continue;
@@ -95,15 +97,17 @@ export default async function ClientDetailPage({ params }: Props) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  const contacts = Array.isArray(client.contacts) ? (client.contacts as ClientContact[]) : [];
+
   return (
     <>
       <Topbar title={client.name} />
-      <div className="p-4 sm:p-6 max-w-3xl space-y-4">
+      <div className="p-4 sm:p-6 max-w-4xl space-y-4">
         <Link href="/clients" className="text-xs" style={{ color: PALETTE.accent }}>← Clients</Link>
 
-        {/* Header — three tidy rows: identity / status badges / actions */}
+        {/* Header — identity / badges / actions. Lives above the tabs so it's
+            always visible regardless of which tab the user is on. */}
         <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          {/* Row 1 — identity */}
           <div>
             <h2 className="text-lg font-semibold" style={{ color: PALETTE.text }}>{client.name}</h2>
             {client.company && client.company !== client.name && (
@@ -114,7 +118,6 @@ export default async function ClientDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* Row 2 — status badges */}
           <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
             {client.is_creative_agency && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
@@ -133,7 +136,6 @@ export default async function ClientDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* Row 3 — actions */}
           <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
             <Link
               href={`/clients/${client.id}/edit`}
@@ -156,197 +158,223 @@ export default async function ClientDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Revenue KPIs */}
-        {bookings.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <KpiCard
-              label="Total Billed"
-              value={totalBilled > 0 ? formatCurrency(totalBilled) : '—'}
-              sub={`${wonCount} completed booking${wonCount !== 1 ? 's' : ''}`}
-            />
-            <KpiCard
-              label={`${thisYear} Revenue`}
-              value={ytdBilled > 0 ? formatCurrency(ytdBilled) : '—'}
-              sub="year to date"
-            />
-            <KpiCard
-              label="Avg Booking"
-              value={avgValue > 0 ? formatCurrency(avgValue) : '—'}
-              sub="completed jobs"
-            />
-            <KpiCard
-              label="Pipeline"
-              value={pipeline > 0 ? formatCurrency(pipeline) : '—'}
-              sub={`${activeCount} active${lostCount > 0 ? ` · ${lostCount} lost` : ''}`}
-            />
-          </div>
-        )}
-
-        {/* Top artists */}
-        {topTalent.length > 0 && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="section-title mb-3">
-              Frequent Artists
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {topTalent.map((t) => (
-                <div
-                  key={t.name}
-                  className="flex items-center gap-2 rounded border px-3 py-1.5"
-                  style={{ borderColor: PALETTE.border }}
-                >
-                  <span className="text-xs font-medium" style={{ color: PALETTE.text }}>{t.name}</span>
-                  {t.discipline && (
-                    <span className="text-[10px]" style={{ color: PALETTE.muted }}>{t.discipline}</span>
-                  )}
-                  <span
-                    className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
-                    style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}
-                  >
-                    ×{t.count}
-                  </span>
+        <ClientTabs
+          counts={{
+            staff: contacts.length,
+            bookings: bookings.length,
+          }}
+          details={
+            <>
+              {/* Revenue KPIs */}
+              {bookings.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <KpiCard
+                    label="Total Billed"
+                    value={totalBilled > 0 ? formatCurrency(totalBilled) : '—'}
+                    sub={`${wonCount} completed booking${wonCount !== 1 ? 's' : ''}`}
+                  />
+                  <KpiCard
+                    label={`${thisYear} Revenue`}
+                    value={ytdBilled > 0 ? formatCurrency(ytdBilled) : '—'}
+                    sub="year to date"
+                  />
+                  <KpiCard
+                    label="Avg Booking"
+                    value={avgValue > 0 ? formatCurrency(avgValue) : '—'}
+                    sub="completed jobs"
+                  />
+                  <KpiCard
+                    label="Pipeline"
+                    value={pipeline > 0 ? formatCurrency(pipeline) : '—'}
+                    sub={`${activeCount} active${lostCount > 0 ? ` · ${lostCount} lost` : ''}`}
+                  />
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+              )}
 
-        {/* Details */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <h3 className="section-title mb-3">Details</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Company" value={client.company} />
-            <Field label="Email" value={client.email} />
-            <Field label="Phone" value={client.phone} />
-            <Field label="ABN" value={client.abn} />
-            <Field label="Address" value={client.address} />
-            <Field label="Preferred Comms" value={client.preferred_comms ?? null} />
-            <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
-            {client.communication_style && (
-              <Field
-                label="Email Tone"
-                value={COMMUNICATION_STYLE_LABELS[client.communication_style as CommunicationStyle] ?? client.communication_style}
-              />
-            )}
-            {client.avg_doi_days ? (
-              (() => {
-                const isSlowPayer = client.payment_terms_days != null
-                  ? client.avg_doi_days > client.payment_terms_days
-                  : client.avg_doi_days > 30;
-                return (
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Avg DOI</div>
-                    <div className="mt-0.5 text-sm font-semibold" style={{ color: isSlowPayer ? PALETTE.danger : PALETTE.success }}>
-                      {client.avg_doi_days} days
-                      {isSlowPayer ? ' — slow payer' : ' — on time'}
-                    </div>
-                  </div>
-                );
-              })()
-            ) : null}
-          </div>
-        </section>
-
-        {/* Additional contacts */}
-        {Array.isArray(client.contacts) && client.contacts.length > 0 && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="section-title mb-3">Contacts</h3>
-            <div className="space-y-3">
-              {(client.contacts as ClientContact[]).map((c, i) => (
-                <div key={i} className="rounded-md border p-3" style={{ borderColor: PALETTE.border }}>
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</span>
-                    {c.role && <span className="text-[11px]" style={{ color: PALETTE.muted }}>{c.role}</span>}
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                    {c.email && <span className="text-xs" style={{ color: PALETTE.text }}>{c.email}</span>}
-                    {c.phone && <span className="text-xs" style={{ color: PALETTE.text }}>{c.phone}</span>}
-                  </div>
-                  {c.brands && c.brands.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {c.brands.map((b) => (
-                        <span key={b} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
-                          {b}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {client.notes && (
-          <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-            <h3 className="section-title mb-2">Notes</h3>
-            <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{client.notes}</p>
-          </section>
-        )}
-
-        {/* Booking history */}
-        <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="section-title">
-              Bookings ({bookings.length})
-            </h3>
-            {bookings.length > 0 && (
-              <CloneBookingButton sourceBookingId={bookings[0].id} label="Repeat last booking" />
-            )}
-          </div>
-          {bookings.length === 0 ? (
-            <p className="text-xs" style={{ color: PALETTE.muted }}>No bookings for this client yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {bookings.map((b) => {
-                const primaryArtist = b.booking_talent?.[0]?.talent;
-                return (
-                  <Link
-                    key={b.id}
-                    href={`/bookings/${b.id}`}
-                    className="flex items-center justify-between rounded border px-3 py-2 transition hover:border-opacity-80"
-                    style={{ borderColor: PALETTE.border }}
-                  >
-                    <div>
-                      <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
-                        {b.booking_ref ?? b.title}
-                      </div>
-                      <div className="text-[10px] flex gap-2" style={{ color: PALETTE.muted }}>
-                        <span>{SHOOT_TIER_LABELS[b.tier]}</span>
-                        <span>{formatDate(b.created_at)}</span>
-                        {primaryArtist && (
-                          <span style={{ color: PALETTE.accent }}>
-                            {primaryArtist.name}
-                            {primaryArtist.discipline && ` · ${primaryArtist.discipline}`}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {b.grand_total > 0 && (
-                        <span className="text-xs tabular-nums" style={{ color: PALETTE.muted }}>
-                          {formatCurrency(b.grand_total)}
-                        </span>
-                      )}
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{ background: `${STATE_COLORS[b.state]}22`, color: STATE_COLORS[b.state] }}
+              {/* Top artists */}
+              {topTalent.length > 0 && (
+                <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                  <h3 className="section-title mb-3">Frequent Artists</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {topTalent.map((t) => (
+                      <div
+                        key={t.name}
+                        className="flex items-center gap-2 rounded border px-3 py-1.5"
+                        style={{ borderColor: PALETTE.border }}
                       >
-                        {BOOKING_STATE_LABELS[b.state]}
-                      </span>
+                        <span className="text-xs font-medium" style={{ color: PALETTE.text }}>{t.name}</span>
+                        {t.discipline && (
+                          <span className="text-[10px]" style={{ color: PALETTE.muted }}>{t.discipline}</span>
+                        )}
+                        <span
+                          className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                          style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}
+                        >
+                          ×{t.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Details grid */}
+              <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+                <h3 className="section-title mb-3">Details</h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Company" value={client.company} />
+                  <Field label="Email" value={client.email} />
+                  <Field label="Phone" value={client.phone} />
+                  <Field label="ABN" value={client.abn} />
+                  <Field label="Address" value={client.address} />
+                  <Field label="Preferred Comms" value={client.preferred_comms ?? null} />
+                  <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
+                  {client.communication_style && (
+                    <Field
+                      label="Email Tone"
+                      value={COMMUNICATION_STYLE_LABELS[client.communication_style as CommunicationStyle] ?? client.communication_style}
+                    />
+                  )}
+                  {client.avg_doi_days ? (
+                    (() => {
+                      const isSlowPayer = client.payment_terms_days != null
+                        ? client.avg_doi_days > client.payment_terms_days
+                        : client.avg_doi_days > 30;
+                      return (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: PALETTE.muted }}>Avg DOI</div>
+                          <div className="mt-0.5 text-sm font-semibold" style={{ color: isSlowPayer ? PALETTE.danger : PALETTE.success }}>
+                            {client.avg_doi_days} days
+                            {isSlowPayer ? ' — slow payer' : ' — on time'}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : null}
+                </div>
+              </section>
+
+              {/* GDPR controls live on Details — owner action, not day-to-day. */}
+              <DataRightsControls type="client" id={client.id} name={client.name} />
+
+              <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
+                Created {formatDate(client.created_at)} · Updated {formatDate(client.updated_at)}
+              </div>
+            </>
+          }
+          staff={
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="section-title">Staff &amp; Contacts</h3>
+                <Link
+                  href={`/clients/${client.id}/edit`}
+                  className="text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: PALETTE.accent }}
+                >
+                  Edit
+                </Link>
+              </div>
+              {contacts.length === 0 ? (
+                <p className="text-xs" style={{ color: PALETTE.muted }}>
+                  No additional contacts yet. Use Edit to add staff working at this client.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {contacts.map((c, i) => (
+                    <div key={i} className="rounded-md border p-3" style={{ borderColor: PALETTE.border }}>
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</span>
+                        {c.role && <span className="text-[11px]" style={{ color: PALETTE.muted }}>{c.role}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        {c.email && <span className="text-xs" style={{ color: PALETTE.text }}>{c.email}</span>}
+                        {c.phone && <span className="text-xs" style={{ color: PALETTE.text }}>{c.phone}</span>}
+                      </div>
+                      {c.brands && c.brands.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {c.brands.map((b) => (
+                            <span key={b} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <DataRightsControls type="client" id={client.id} name={client.name} />
-
-        <div className="text-[10px] pt-2" style={{ color: PALETTE.muted }}>
-          Created {formatDate(client.created_at)} · Updated {formatDate(client.updated_at)}
-        </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          }
+          notes={
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <h3 className="section-title mb-2">Notes</h3>
+              {client.notes ? (
+                <p className="whitespace-pre-wrap text-sm" style={{ color: PALETTE.text }}>{client.notes}</p>
+              ) : (
+                <p className="text-xs" style={{ color: PALETTE.muted }}>No notes yet.</p>
+              )}
+            </section>
+          }
+          bookings={
+            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="section-title">
+                  Bookings ({bookings.length})
+                </h3>
+                {bookings.length > 0 && (
+                  <CloneBookingButton sourceBookingId={bookings[0].id} label="Repeat last booking" />
+                )}
+              </div>
+              {bookings.length === 0 ? (
+                <p className="text-xs" style={{ color: PALETTE.muted }}>No bookings for this client yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {bookings.map((b) => {
+                    const primaryArtist = b.booking_talent?.[0]?.talent;
+                    return (
+                      <Link
+                        key={b.id}
+                        href={`/bookings/${b.id}`}
+                        className="flex items-center justify-between rounded border px-3 py-2 transition hover:border-opacity-80"
+                        style={{ borderColor: PALETTE.border }}
+                      >
+                        <div>
+                          <div className="text-xs font-medium" style={{ color: PALETTE.text }}>
+                            {b.booking_ref ?? b.title}
+                          </div>
+                          <div className="text-[10px] flex gap-2" style={{ color: PALETTE.muted }}>
+                            <span>{SHOOT_TIER_LABELS[b.tier]}</span>
+                            <span>{formatDate(b.created_at)}</span>
+                            {primaryArtist && (
+                              <span style={{ color: PALETTE.accent }}>
+                                {primaryArtist.name}
+                                {primaryArtist.discipline && ` · ${primaryArtist.discipline}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {b.grand_total > 0 && (
+                            <span className="text-xs tabular-nums" style={{ color: PALETTE.muted }}>
+                              {formatCurrency(b.grand_total)}
+                            </span>
+                          )}
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{ background: `${STATE_COLORS[b.state]}22`, color: STATE_COLORS[b.state] }}
+                          >
+                            {BOOKING_STATE_LABELS[b.state]}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          }
+          activity={<ClientActivityTab clientId={client.id} />}
+        />
       </div>
     </>
   );

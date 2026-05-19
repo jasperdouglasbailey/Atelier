@@ -38,6 +38,16 @@ export type BookingListFilters = {
   includeArchived?: boolean;
   /** When true, ONLY return archived rows. Used by the "Show archived" tab. */
   archivedOnly?: boolean;
+  /**
+   * "My artists" filter — narrow to bookings where AT LEAST ONE talent on
+   * the team is assigned to this agent (atelier_talent.assigned_agent_user_id).
+   * Multi-agent bookings (e.g. Oliver + Maria from different agents) are
+   * visible to both agents because each has talent on the team.
+   * Implemented as a sub-select to keep the existing single-shot query
+   * shape rather than fanning out into multi-step IN clauses.
+   * Migration 0069.
+   */
+  assignedAgentId?: string;
 };
 
 export async function listBookings(filters: BookingListFilters = {}): Promise<{
@@ -86,6 +96,29 @@ export async function listBookings(filters: BookingListFilters = {}): Promise<{
 
   if (filters.tier) query = query.eq('tier', filters.tier);
   if (filters.clientId) query = query.eq('client_id', filters.clientId);
+
+  // "My artists" filter — narrow to bookings where any talent on the team
+  // is assigned to this agent. Implemented as a two-step query because
+  // PostgREST's embed-with-inner-join syntax has surprising quirks under
+  // the JS client and we'd rather a clear single-purpose pre-fetch.
+  // Performance: the join table is small (talent_id × booking_id) and
+  // both columns are indexed.
+  if (filters.assignedAgentId) {
+    const { data: bookingTalentRows } = await supabase
+      .from('atelier_booking_talent')
+      .select('booking_id, talent:atelier_talent!inner(assigned_agent_user_id)')
+      .eq('talent.assigned_agent_user_id', filters.assignedAgentId);
+    const matchingBookingIds = Array.from(
+      new Set(((bookingTalentRows ?? []) as { booking_id: string }[]).map((r) => r.booking_id)),
+    );
+    if (matchingBookingIds.length === 0) {
+      // No bookings match — short-circuit. Avoids an `.in('id', [])` which
+      // PostgREST handles oddly.
+      return { bookings: [], total: 0, page, pageSize };
+    }
+    query = query.in('id', matchingBookingIds);
+  }
+
   if (filters.search) {
     // Pre-fetch matching client IDs so we can OR on client_id (PostgREST
     // can't filter on embedded foreign-table columns inside .or())
