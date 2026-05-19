@@ -6,7 +6,7 @@ import type { BookingSchedule } from '@/lib/types/database';
 import InlineField from '@/components/bookings/InlineField';
 import InlineDateRange from '@/components/bookings/InlineDateRange';
 import { PALETTE, SHOOT_TIERS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
-import { formatDate } from '@/lib/utils/format';
+import { formatDate, formatCurrency } from '@/lib/utils/format';
 
 const TIER_OPTIONS = SHOOT_TIERS.map((t) => ({ value: t, label: SHOOT_TIER_LABELS[t] }));
 
@@ -28,11 +28,13 @@ type Props = {
   booking: BookingDetailRow;
   schedules: BookingSchedule[];
   /**
-   * Active clients for the inline Client picker. Passed from the booking
-   * detail page (server-side fetch). Includes the booking's existing
-   * client (if set + active) so the current selection renders correctly.
+   * Active clients for the inline Client + Agency pickers. Passed from
+   * the booking detail page (server-side fetch). The Agency picker
+   * filters down to rows with `is_creative_agency=true`. Includes the
+   * booking's existing client (if set + active) so the current
+   * selection renders correctly.
    */
-  clients: { id: string; name: string; company: string | null }[];
+  clients: { id: string; name: string; company: string | null; is_creative_agency: boolean }[];
 };
 
 /**
@@ -62,6 +64,22 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
   const CLIENT_OPTIONS = [
     { value: '', label: '— No client —' },
     ...clients
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({
+        value: c.id,
+        label: c.company ? `${c.name} · ${c.company}` : c.name,
+      })),
+  ];
+
+  // Agency picker — filter the same client roster down to creative /
+  // production agency rows. Operator marks a client as "Agency" via the
+  // toggle on the client edit form. The label intentionally drops the
+  // word "Creative" — production agencies use the same flag.
+  const AGENCY_OPTIONS = [
+    { value: '', label: '— None —' },
+    ...clients
+      .filter((c) => c.is_creative_agency)
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((c) => ({
@@ -142,6 +160,24 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
             if (!v) return null;
             const c = clients.find((x) => x.id === v);
             return c ? (c.company ? `${c.name} · ${c.company}` : c.name) : 'Unknown client';
+          }}
+          layout="horizontal"
+        />
+        {/* Agency — production or creative agency working on the brief.
+            Surfaces the previously-buried `creative_agency_id` that you
+            could only set on manual create. Empty = direct client (no
+            agency in the middle). */}
+        <InlineField
+          bookingId={booking.id}
+          field="creative_agency_id"
+          label="Agency"
+          value={booking.creative_agency_id ?? ''}
+          variant="select"
+          options={AGENCY_OPTIONS}
+          format={(v) => {
+            if (!v) return null;
+            const c = clients.find((x) => x.id === v);
+            return c ? (c.company ? `${c.name} · ${c.company}` : c.name) : 'Unknown agency';
           }}
           layout="horizontal"
         />
@@ -236,6 +272,24 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
           placeholder="04…"
           layout="horizontal"
         />
+        {/* PO + Job number — invoice-critical. Surfaced inline so they
+            stop being trapped on the /edit form. */}
+        <InlineField
+          bookingId={booking.id}
+          field="po_number"
+          label="PO number"
+          value={booking.po_number}
+          placeholder="Client's PO ref"
+          layout="horizontal"
+        />
+        <InlineField
+          bookingId={booking.id}
+          field="job_number"
+          label="Job number"
+          value={booking.job_number}
+          placeholder="Client or internal ref"
+          layout="horizontal"
+        />
       </div>
 
       {/* Expand for the long tail of fields */}
@@ -246,7 +300,7 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
           className="w-full px-4 py-2 text-left text-[11px] font-medium"
           style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer' }}
         >
-          {expanded ? '− Hide additional details' : '+ More details (producer email, post, grade, looks, deadline…)'}
+          {expanded ? '− Hide additional details' : '+ More details (producer email, post, grade, budget, notes, deadline…)'}
         </button>
       </div>
 
@@ -284,6 +338,33 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
             label="Confirmation due"
             value={booking.confirmation_deadline}
             variant="date"
+            layout="horizontal"
+          />
+          {/* Budget — populated by the LLM brief parser when the brief
+              names a figure. Editable here post-parse. AUD assumed
+              (budget_currency stays as the column-level toggle if/when
+              non-AUD clients arrive). */}
+          <InlineField
+            bookingId={booking.id}
+            field="budget_indication"
+            label="Budget"
+            value={booking.budget_indication}
+            variant="number"
+            placeholder="e.g. 8000"
+            format={(v) => {
+              const n = typeof v === 'number' ? v : Number(v);
+              return Number.isFinite(n) && n > 0 ? formatCurrency(n, booking.budget_currency ?? 'AUD') : null;
+            }}
+            layout="horizontal"
+          />
+          {/* Internal notes — Jasper's headspace. Was only on /edit. */}
+          <InlineField
+            bookingId={booking.id}
+            field="agency_notes"
+            label="Agency notes"
+            value={booking.agency_notes}
+            variant="textarea"
+            placeholder="Internal notes"
             layout="horizontal"
           />
         </div>
