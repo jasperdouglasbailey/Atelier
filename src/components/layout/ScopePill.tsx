@@ -37,6 +37,7 @@ export default function ScopePill({ current, cookieKey, pathname, preserveParams
   // not just within this list. Browser-side document.cookie write keeps
   // it dead simple — no server round-trip.
   function setCookie(value: 'mine' | 'all') {
+    // eslint-disable-next-line react-hooks/immutability -- writing to document.cookie is the documented way to persist a small preference; not really "modifying state outside a component" in the sense the rule guards against. Same pattern as BookingsViewToggle.
     document.cookie = `${cookieKey}=${value}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
   }
 
