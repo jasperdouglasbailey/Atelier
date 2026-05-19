@@ -59,6 +59,8 @@ export type PortalBookingRow = {
   usageMediaCategories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
   usageSpecificChannels: string[] | null;
   usageTerritoryIso: string[] | null;
+  /** Licence duration in months. 999 = perpetuity. Restored via 0073. */
+  usageDurationMonths: number | null;
 };
 
 /** A fee line the artist is entitled to see — own fees + shoot equipment. */
@@ -182,7 +184,8 @@ export async function getTalentPortalData(talentId: string): Promise<{
           producer_name, producer_phone, producer_email,
           creative_agency_id, confirmation_deadline,
           post_production_ownership, grade_retouch_scope,
-          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso
+          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso,
+          usage_duration_months
         `)
         .in('id', bookingIds);
 
@@ -201,6 +204,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
     usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
     usage_specific_channels: string[] | null;
     usage_territory_iso: string[] | null;
+    usage_duration_months: number | null;
   };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
@@ -320,6 +324,7 @@ export async function getTalentPortalData(talentId: string): Promise<{
         usageMediaCategories: b.usage_media_categories,
         usageSpecificChannels: b.usage_specific_channels,
         usageTerritoryIso: b.usage_territory_iso,
+        usageDurationMonths: b.usage_duration_months,
       };
     })
     .filter((r): r is TalentPortalBookingRow => r !== null);
@@ -372,7 +377,8 @@ export async function getCrewPortalData(crewId: string): Promise<{
           producer_name, producer_phone, producer_email,
           creative_agency_id, confirmation_deadline,
           post_production_ownership, grade_retouch_scope,
-          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso
+          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso,
+          usage_duration_months
         `)
         .in('id', bookingIds);
 
@@ -391,6 +397,7 @@ export async function getCrewPortalData(crewId: string): Promise<{
     usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
     usage_specific_channels: string[] | null;
     usage_territory_iso: string[] | null;
+    usage_duration_months: number | null;
   };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
 
@@ -470,6 +477,7 @@ export async function getCrewPortalData(crewId: string): Promise<{
         usageMediaCategories: b.usage_media_categories,
         usageSpecificChannels: b.usage_specific_channels,
         usageTerritoryIso: b.usage_territory_iso,
+        usageDurationMonths: b.usage_duration_months,
       };
     })
     .filter((r): r is CrewPortalBookingRow => r !== null);

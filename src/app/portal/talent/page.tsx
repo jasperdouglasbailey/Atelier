@@ -414,7 +414,8 @@ function TalentBookingRow({
       {(row.usageMarket || row.usageRealm ||
         (row.usageMediaCategories?.length ?? 0) > 0 ||
         (row.usageSpecificChannels?.length ?? 0) > 0 ||
-        (row.usageTerritoryIso?.length ?? 0) > 0) && (
+        (row.usageTerritoryIso?.length ?? 0) > 0 ||
+        (row.usageDurationMonths != null && row.usageDurationMonths > 0)) && (
         <div className="mt-2 rounded border p-2.5" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
           <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
             Usage
@@ -425,6 +426,7 @@ function TalentBookingRow({
             mediaCategories={row.usageMediaCategories}
             specificChannels={row.usageSpecificChannels}
             territoryIso={row.usageTerritoryIso}
+            durationMonths={row.usageDurationMonths}
             layout="block"
           />
         </div>
