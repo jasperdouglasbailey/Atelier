@@ -10,17 +10,24 @@
  * Surfaces the `primary_contact_email` pointer added in migration 0070
  * with a pip on the chosen row plus a "Make primary" action on the others.
  *
- * State management mirrors the proven pattern from ClientEditForm.tsx:172
- * — a local `contacts` array, edits are field-by-field via `updateContact`,
- * save calls a dedicated server action so the rest of the client record
- * stays untouched.
+ * UX policy:
+ * - **Autosave** (debounced 1.5s) for parity with the main edit form,
+ *   which uses `useAutoSave`. The Staff tab manages contacts as React
+ *   state rather than a form, so we run a state-driven debounce here
+ *   instead of reusing the form-based hook directly. Same SaveIndicator
+ *   visual.
+ * - **Click-to-confirm Remove** — first click flips the button to
+ *   "Confirm?" for 3s; second click within that window deletes. Prevents
+ *   one-click data loss on a phone number you just finished typing.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateClientStaffAction } from '@/app/actions/entities';
 import type { ClientContact } from '@/lib/types/database';
 import { PALETTE } from '@/lib/utils/constants';
+import SaveIndicator from '@/components/ui/SaveIndicator';
+import type { SaveStatus } from '@/lib/hooks/useAutoSave';
 
 type Props = {
   clientId: string;
@@ -29,24 +36,94 @@ type Props = {
 };
 
 const EMPTY_CONTACT: ClientContact = { name: '', role: '', email: '', phone: '', brands: [] };
+const AUTOSAVE_DEBOUNCE_MS = 1500;
+const REMOVE_CONFIRM_TIMEOUT_MS = 3000;
 
 export default function ClientStaffTab({ clientId, initialContacts, initialPrimaryEmail }: Props) {
   const router = useRouter();
   const [contacts, setContacts] = useState<ClientContact[]>(initialContacts);
   const [primaryEmail, setPrimaryEmail] = useState<string | null>(initialPrimaryEmail);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [savedTick, setSavedTick] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [pendingRemoveIdx, setPendingRemoveIdx] = useState<number | null>(null);
+
+  // Skip the autosave fire on initial mount so we don't write back the
+  // server-rendered values verbatim. `dirtyRef` flips on the first user
+  // edit and stays true for the lifetime of the component.
+  const dirtyRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const savedTickRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Keep a live ref to the latest state so the debounced closure sees the
+  // freshest values without re-binding on every render.
+  const latestRef = useRef({ contacts, primaryEmail });
+  useEffect(() => {
+    latestRef.current = { contacts, primaryEmail };
+  });
+
+  // Debounced autosave on every edit. We can't reuse `useAutoSave` directly
+  // because that hook is wired to form change events; our editor is state-
+  // driven (contacts as useState array). Same 1500ms debounce + SaveIndicator
+  // visuals so the two surfaces feel identical.
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    clearTimeout(debounceRef.current);
+    clearTimeout(savedTickRef.current);
+    setSaveStatus('saving');
+    debounceRef.current = setTimeout(async () => {
+      const { contacts: c, primaryEmail: p } = latestRef.current;
+      const result = await updateClientStaffAction(clientId, {
+        contacts: c.map((row) => ({
+          name: row.name,
+          role: row.role,
+          email: row.email,
+          phone: row.phone,
+          brands: row.brands,
+        })),
+        primary_contact_email: p,
+      });
+      if ('error' in result && result.error) {
+        setSaveStatus('error');
+        return;
+      }
+      setSaveStatus('saved');
+      router.refresh();
+      savedTickRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [contacts, primaryEmail, clientId, router]);
+
+  // Cleanup on unmount.
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    clearTimeout(savedTickRef.current);
+  }, []);
+
+  function markDirty() {
+    dirtyRef.current = true;
+  }
 
   function addContact() {
+    markDirty();
     setContacts((prev) => [...prev, { ...EMPTY_CONTACT }]);
   }
 
-  function removeContact(idx: number) {
+  function attemptRemove(idx: number) {
+    // Two-stage click. First click arms the row; second click within the
+    // timeout removes. Re-clicking a different row resets the arm.
+    if (pendingRemoveIdx !== idx) {
+      setPendingRemoveIdx(idx);
+      // Clear the armed state after the timeout if no second click came.
+      window.setTimeout(() => {
+        setPendingRemoveIdx((current) => (current === idx ? null : current));
+      }, REMOVE_CONFIRM_TIMEOUT_MS);
+      return;
+    }
+    markDirty();
     setContacts((prev) => prev.filter((_, i) => i !== idx));
+    setPendingRemoveIdx(null);
   }
 
   function updateContact(idx: number, field: keyof ClientContact, value: string) {
+    markDirty();
     setContacts((prev) => prev.map((c, i) => {
       if (i !== idx) return c;
       if (field === 'brands') {
@@ -58,31 +135,8 @@ export default function ClientStaffTab({ clientId, initialContacts, initialPrima
 
   function makePrimary(email: string | undefined) {
     if (!email) return;
+    markDirty();
     setPrimaryEmail(email);
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setError(null);
-    setSavedTick(false);
-    const result = await updateClientStaffAction(clientId, {
-      contacts: contacts.map((c) => ({
-        name: c.name,
-        role: c.role,
-        email: c.email,
-        phone: c.phone,
-        brands: c.brands,
-      })),
-      primary_contact_email: primaryEmail,
-    });
-    setSaving(false);
-    if ('error' in result && result.error) {
-      setError(result.error);
-      return;
-    }
-    setSavedTick(true);
-    router.refresh();
-    setTimeout(() => setSavedTick(false), 2000);
   }
 
   const inputStyle = {
@@ -108,21 +162,24 @@ export default function ClientStaffTab({ clientId, initialContacts, initialPrima
 
   return (
     <section className="rounded-lg border p-4 space-y-3" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="section-title">Staff &amp; Contacts</h3>
           <p className="text-[11px] mt-0.5" style={{ color: PALETTE.muted }}>
-            In-house producers, brand managers, accounts. Pick a primary so the booking team knows who to chase.
+            In-house producers, brand managers, accounts. Pick a primary so the booking team knows who to chase. Saves automatically.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addContact}
-          className="rounded px-3 py-1 text-xs font-medium"
-          style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33`, cursor: 'pointer' }}
-        >
-          + Add Staff
-        </button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <SaveIndicator status={saveStatus} />
+          <button
+            type="button"
+            onClick={addContact}
+            className="rounded px-3 py-1 text-xs font-medium"
+            style={{ background: `${PALETTE.accent}18`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33`, cursor: 'pointer' }}
+          >
+            + Add Staff
+          </button>
+        </div>
       </div>
 
       {contacts.length === 0 && (
@@ -133,6 +190,7 @@ export default function ClientStaffTab({ clientId, initialContacts, initialPrima
 
       {contacts.map((contact, idx) => {
         const isPrimary = !!contact.email && contact.email === primaryEmail;
+        const isPendingRemove = pendingRemoveIdx === idx;
         return (
           <div
             key={idx}
@@ -170,11 +228,18 @@ export default function ClientStaffTab({ clientId, initialContacts, initialPrima
                 )}
                 <button
                   type="button"
-                  onClick={() => removeContact(idx)}
-                  className="text-[10px] px-2 py-0.5 rounded"
-                  style={{ color: PALETTE.danger, background: `${PALETTE.danger}15`, border: `1px solid ${PALETTE.danger}30`, cursor: 'pointer' }}
+                  onClick={() => attemptRemove(idx)}
+                  className="text-[10px] px-2 py-0.5 rounded transition-colors"
+                  style={{
+                    color: isPendingRemove ? PALETTE.bg : PALETTE.danger,
+                    background: isPendingRemove ? PALETTE.danger : `${PALETTE.danger}15`,
+                    border: `1px solid ${isPendingRemove ? PALETTE.danger : `${PALETTE.danger}30`}`,
+                    cursor: 'pointer',
+                    minWidth: isPendingRemove ? 92 : undefined,
+                  }}
+                  aria-label={isPendingRemove ? 'Confirm remove contact' : 'Remove contact'}
                 >
-                  Remove
+                  {isPendingRemove ? 'Click to confirm' : 'Remove'}
                 </button>
               </div>
             </div>
@@ -229,27 +294,6 @@ export default function ClientStaffTab({ clientId, initialContacts, initialPrima
           </div>
         );
       })}
-
-      {error && (
-        <div className="rounded px-3 py-2 text-xs" style={{ color: PALETTE.danger, background: `${PALETTE.danger}15` }}>
-          {error}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 pt-1">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded px-4 py-1.5 text-xs font-medium disabled:opacity-50"
-          style={{ background: PALETTE.accent, color: PALETTE.bg, border: 'none', cursor: 'pointer' }}
-        >
-          {saving ? 'Saving…' : 'Save Staff'}
-        </button>
-        {savedTick && (
-          <span className="text-[11px]" style={{ color: PALETTE.success }}>Saved.</span>
-        )}
-      </div>
     </section>
   );
 }

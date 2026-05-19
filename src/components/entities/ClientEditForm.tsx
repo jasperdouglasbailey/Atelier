@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateClientAction } from '@/app/actions/entities';
 import { PALETTE, PREFERRED_COMMS_OPTIONS, PREFERRED_COMMS_LABELS, COMMUNICATION_STYLE_OPTIONS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
@@ -9,11 +9,19 @@ import EmailTonePreview from './EmailTonePreview';
 import { useAutoSave } from '@/lib/hooks/useAutoSave';
 import SaveIndicator from '@/components/ui/SaveIndicator';
 
-type Props = { client: Client };
+type Props = {
+  client: Client;
+  /**
+   * Union of every tag in use across all clients. Drives the click-to-add
+   * suggestion chips below the tags input — keeps tag spelling consistent
+   * (no `magazine` vs `Magazine` drift) without forcing a chip-input rewrite.
+   */
+  allTags?: string[];
+};
 
 const EMPTY_CONTACT: ClientContact = { name: '', role: '', email: '', phone: '', brands: [] };
 
-export default function ClientEditForm({ client }: Props) {
+export default function ClientEditForm({ client, allTags = [] }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +33,30 @@ export default function ClientEditForm({ client }: Props) {
       ? client.contacts
       : []
   );
+  const [tagsValue, setTagsValue] = useState<string>(
+    (client.tags ?? []).join(', '),
+  );
+  const tagsInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Current tags on this client — used to filter the suggestion chips so
+  // we don't suggest something that's already typed.
+  const currentTags = useMemo(() => {
+    return new Set(
+      tagsValue.split(',').map((s) => s.trim()).filter(Boolean),
+    );
+  }, [tagsValue]);
+
+  function appendTag(tag: string) {
+    // Append cleanly: if input ends with empty or already-comma, just add;
+    // otherwise add ", tag". Trim trailing comma if user already had one.
+    const trimmed = tagsValue.trim().replace(/,\s*$/, '');
+    const next = trimmed.length === 0 ? tag : `${trimmed}, ${tag}`;
+    setTagsValue(next);
+    // Trigger the autosave hook explicitly — programmatic value change
+    // doesn't fire a native onChange event.
+    handleChange();
+    tagsInputRef.current?.focus();
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -147,11 +179,34 @@ export default function ClientEditForm({ client }: Props) {
         <div>
           <label style={labelStyle}>Tags</label>
           <input
+            ref={tagsInputRef}
             name="tags"
-            defaultValue={(client.tags ?? []).join(', ')}
+            value={tagsValue}
+            onChange={(e) => setTagsValue(e.target.value)}
             style={inputStyle}
             placeholder="e.g. magazine, agency, fashion (comma-separated)"
           />
+          {allTags.length > 0 && allTags.some((t) => !currentTags.has(t)) && (
+            <div className="mt-1.5 flex flex-wrap gap-1 items-center">
+              <span className="text-[10px]" style={{ color: PALETTE.muted }}>Suggestions:</span>
+              {allTags.filter((t) => !currentTags.has(t)).map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => appendTag(tag)}
+                  className="rounded-full px-2 py-0.5 text-[10px]"
+                  style={{
+                    background: `${PALETTE.accent}10`,
+                    color: PALETTE.accent,
+                    border: `1px solid ${PALETTE.accent}33`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + {tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

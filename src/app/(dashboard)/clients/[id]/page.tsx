@@ -184,9 +184,10 @@ export default async function ClientDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Important pinned note — extracted to a reusable component in
-            Phase C so the same panel can ship on talent/crew pages later. */}
-        <ImportantPanel note={client.important_note} />
+        {/* Important pinned note — inline-editable. Round-tripping through
+            /edit every time you want to update "CC accounts@…" is friction;
+            click "Edit" right on the banner instead. */}
+        <ImportantPanel note={client.important_note} clientId={client.id} editable />
 
         <ClientTabs
           counts={{
