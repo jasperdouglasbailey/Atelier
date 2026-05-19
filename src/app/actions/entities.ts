@@ -336,6 +336,14 @@ export async function anonymiseTalentAction(id: string) {
     .maybeSingle();
   const driveFolderId = existing?.drive_folder_id ?? null;
 
+  // Fields cleared per GDPR / APP 13 right-to-be-forgotten audit
+  // (docs/AUDIT-2026-05-19.md P1.1). Anything that could re-identify
+  // the person — informal names, banking, employment status — joins
+  // the original list. Fields kept: gst_registered, entity_type,
+  // discipline, day-rate ranges, default_day_rate. They're either
+  // booleans without re-identification value or aggregated business
+  // state (helpful for audit retention of historical financials, no
+  // tie to the individual once names are scrubbed).
   const updates = {
     working_name: `Anonymised ${anonId}`,
     legal_name: `Anonymised ${anonId}`,
@@ -373,6 +381,13 @@ export async function anonymiseTalentAction(id: string) {
     onboarding_token: null,
     onboarding_token_expires_at: null,
     is_active: false,
+    // PR#205: added to close the GDPR gap flagged in audit findings.
+    nicknames: [],
+    representation_status: null,
+    bank_account_name: null,
+    bank_bsb: null,
+    bank_account_number: null,
+    bank_setup_in_xero: false,
   };
 
   const result = await updateTalent(id, updates as never);
@@ -464,6 +479,9 @@ export async function anonymiseCrewAction(id: string) {
     .maybeSingle();
   const driveFolderId = existing?.drive_folder_id ?? null;
 
+  // Fields cleared per GDPR / APP 13 right-to-be-forgotten audit
+  // (docs/AUDIT-2026-05-19.md P1.1). See parallel comment on the
+  // talent action above for rationale on what's retained vs cleared.
   const updates = {
     name: `Anonymised ${anonId}`,
     preferred_comms: null,
@@ -486,6 +504,11 @@ export async function anonymiseCrewAction(id: string) {
     onboarding_token: null,
     onboarding_token_expires_at: null,
     is_active: false,
+    // PR#205: added to close the GDPR gap flagged in audit findings.
+    bank_account_name: null,
+    bank_bsb: null,
+    bank_account_number: null,
+    bank_setup_in_xero: false,
   };
 
   const result = await updateCrew(id, updates as never);

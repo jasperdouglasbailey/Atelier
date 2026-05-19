@@ -46,9 +46,9 @@ export default async function ReportsPage() {
             accent
           />
           <KpiCard
-            label="Revenue YTD"
-            value={formatCurrency(summary.revenueThisYear)}
-            sub={`All time: ${formatCurrency(summary.totalRevenueAllTime)}`}
+            label={`Revenue ${summary.currentFYLabel}`}
+            value={formatCurrency(summary.revenueThisFY)}
+            sub={`AU fiscal year · all time: ${formatCurrency(summary.totalRevenueAllTime)}`}
           />
           <KpiCard
             label="Avg booking"

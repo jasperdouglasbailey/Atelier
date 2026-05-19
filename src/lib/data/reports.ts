@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { ACTIVE_STATES, QUERY_LIMITS } from '@/lib/utils/constants';
+import { currentFiscalYear } from '@/lib/utils/fiscal-year';
 
 export type WinRateStat = {
   sent: number;       // quote has been sent (all non-early states)
@@ -43,7 +44,14 @@ export type ClientRevenueStat = {
 export type ReportSummary = {
   totalActiveBookings: number;
   totalRevenueAllTime: number;
-  revenueThisYear: number;
+  /**
+   * Revenue inside the current Australian fiscal year (Jul 1 – Jun 30).
+   * Renamed from `revenueThisYear` 2026-05-19 — calendar-year framing
+   * was misleading for tax planning. See `src/lib/utils/fiscal-year.ts`.
+   */
+  revenueThisFY: number;
+  /** Human-readable label for the FY this revenue covers (e.g. "FY 25/26"). */
+  currentFYLabel: string;
   revenueThisMonth: number;
   revenueLastMonth: number;
   /**
@@ -61,6 +69,7 @@ const TABLE = 'atelier_bookings';
 export async function getReportSummary(): Promise<ReportSummary> {
   const supabase = await createClient();
   const now = new Date();
+  const fy = currentFiscalYear(now);
 
   // Two parallel queries:
   //   1. SQL-aggregated KPIs via RPC (replaces pulling every row into JS)
@@ -74,19 +83,33 @@ export async function getReportSummary(): Promise<ReportSummary> {
     // written_off intentionally excluded — invoice unrecoverable, not revenue
   ] as const;
 
-  const [aggResult, weekResult] = await Promise.all([
+  const [aggResult, weekResult, fyResult] = await Promise.all([
     supabase.rpc('get_report_summary_agg'),
     supabase
       .from(TABLE)
       .select('grand_total, shoot_dates')
       .in('state', CONFIRMED_OR_LATER_STATES as unknown as string[]),
+    // AU fiscal-year revenue — runs as a separate filtered query so we
+    // don't have to change the RPC. created_at sits inside the FY range
+    // (start inclusive, end exclusive). Bookings written off are still
+    // excluded — matches the all-time revenue semantics elsewhere.
+    supabase
+      .from(TABLE)
+      .select('grand_total')
+      .gte('created_at', fy.startISO)
+      .lt('created_at', fy.endExclusiveISO)
+      .neq('state', 'written_off'),
   ]);
 
   const ZERO: ReportSummary = {
     totalActiveBookings: 0, totalRevenueAllTime: 0,
-    revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0,
+    revenueThisFY: 0, currentFYLabel: fy.label,
+    revenueThisMonth: 0, revenueLastMonth: 0,
     revenueThisWeek: 0, avgBookingValue: 0,
   };
+
+  const fyRows = (fyResult.data ?? []) as { grand_total: number | null }[];
+  const revenueThisFY = fyRows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
 
   // If the RPC errors (e.g. pre-migration local dev), fall back gracefully.
   let agg = aggResult.data?.[0] as {
@@ -107,12 +130,19 @@ export async function getReportSummary(): Promise<ReportSummary> {
     agg = {
       total_active: rows.filter((r) => ACTIVE_STATES.includes(r.state as never)).length,
       revenue_all_time: rows.reduce((s, r) => s + (r.grand_total ?? 0), 0),
+      // RPC's revenue_this_year is calendar-year (legacy field, kept on
+      // the RPC for backward compat). We don't use it — the parallel
+      // `fyResult` query above produces the FY figure we surface.
       revenue_this_year: rows.filter((r) => new Date(r.created_at).getFullYear() === thisYear).reduce((s, r) => s + (r.grand_total ?? 0), 0),
       revenue_this_month: rows.filter((r) => { const d = new Date(r.created_at); return d.getFullYear() === thisYear && d.getMonth() + 1 === thisMonth; }).reduce((s, r) => s + (r.grand_total ?? 0), 0),
       revenue_last_month: rows.filter((r) => { const d = new Date(r.created_at); return d.getFullYear() === lastMonthDate.getFullYear() && d.getMonth() + 1 === (lastMonthDate.getMonth() + 1); }).reduce((s, r) => s + (r.grand_total ?? 0), 0),
       avg_booking_value: (() => { const w = rows.filter((r) => r.grand_total > 0); return w.length > 0 ? w.reduce((s, r) => s + r.grand_total, 0) / w.length : 0; })(),
     };
   }
+
+  // If the fyResult query errored (e.g. transient RLS hiccup), the
+  // tile renders $0 rather than blowing up — same fallback posture as
+  // the all-time RPC path.
 
   // Week revenue: JS range-overlap on shoot_dates (Postgres daterange string)
   const todayStart = new Date(now);
@@ -140,7 +170,8 @@ export async function getReportSummary(): Promise<ReportSummary> {
   return {
     totalActiveBookings: Number(agg.total_active),
     totalRevenueAllTime: Number(agg.revenue_all_time),
-    revenueThisYear: Number(agg.revenue_this_year),
+    revenueThisFY: Number(revenueThisFY),
+    currentFYLabel: fy.label,
     revenueThisMonth: Number(agg.revenue_this_month),
     revenueLastMonth: Number(agg.revenue_last_month),
     revenueThisWeek,
