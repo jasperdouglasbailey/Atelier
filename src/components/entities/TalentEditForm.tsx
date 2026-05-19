@@ -12,7 +12,15 @@ import type { Talent } from '@/lib/types/database';
 import { useAutoSave } from '@/lib/hooks/useAutoSave';
 import SaveIndicator from '@/components/ui/SaveIndicator';
 
-type Props = { talent: Talent };
+type Props = {
+  talent: Talent;
+  /**
+   * Owner + partner accounts that can be assigned as this talent's agent.
+   * Passed from the server page (uses listAppUsers, filters to is_active
+   * + role in owner/partner). Empty array hides the dropdown entirely.
+   */
+  agents?: Array<{ user_id: string; display_name: string | null; role: string }>;
+};
 
 const REPRESENTATION_OPTIONS = [
   { value: 'exclusive', label: 'Exclusive' },
@@ -28,7 +36,7 @@ const ENTITY_TYPE_OPTIONS = [
   { value: 'individual', label: 'Individual (no ABN)' },
 ];
 
-export default function TalentEditForm({ talent }: Props) {
+export default function TalentEditForm({ talent, agents = [] }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +133,24 @@ export default function TalentEditForm({ talent }: Props) {
               ))}
             </select>
           </div>
+          {agents.length > 0 && (
+            <div>
+              <label style={labelStyle}>Assigned agent</label>
+              <select
+                name="assigned_agent_user_id"
+                defaultValue={talent.assigned_agent_user_id ?? ''}
+                style={inputStyle}
+                title="The human agent at the agency who owns this artist's relationship by default. Drives the 'my artists' filter and the booking owner default. Past bookings stay attributed to whoever held them at the time — only present/future flows with the new assignment."
+              >
+                <option value="">— Unassigned —</option>
+                {agents.map((a) => (
+                  <option key={a.user_id} value={a.user_id}>
+                    {a.display_name ?? a.user_id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label style={labelStyle}>City / Home Base</label>
             <input

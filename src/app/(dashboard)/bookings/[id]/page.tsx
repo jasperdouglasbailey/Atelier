@@ -166,6 +166,20 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
     .filter((u) => u.is_active && (u.role === 'owner' || u.role === 'partner'))
     .map((u) => ({ userId: u.user_id, displayName: u.display_name ?? u.user_id }));
 
+  // Co-managing agents: distinct assigned_agent_user_id values across all
+  // talent on this booking, mapped to display names. The header shows a
+  // "Co-managing" line when 2+ — surfaces collaboration on multi-agent
+  // bookings (e.g. one client wants Oliver + Maria, who are on different
+  // agents' rosters). Phase 1 multi-agent rollout.
+  const userDisplayNameByUserId = new Map(
+    allAppUsers.map((u) => [u.user_id, u.display_name ?? u.user_id.slice(0, 8)]),
+  );
+  const coManagingAgents = Array.from(new Set(
+    (bookingTalent as Array<{ talent?: { assigned_agent_user_id?: string | null } | null }>)
+      .map((bt) => bt.talent?.assigned_agent_user_id ?? null)
+      .filter((id): id is string => typeof id === 'string'),
+  )).map((id) => userDisplayNameByUserId.get(id) ?? 'Unknown agent');
+
   const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
   const proposedDayRate = bookingTalent[0]?.day_rate ?? null;
   const stage = stageOf(booking.state);
@@ -189,6 +203,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
         booking={booking}
         primaryTalent={bookingTalent[0] ?? null}
         roster={roster}
+        coManagingAgents={coManagingAgents}
       />
 
       <div className="p-4 sm:p-6">
