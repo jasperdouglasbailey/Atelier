@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { createLocation, getLocation, updateLocation } from '@/lib/data/locations';
 import { createLocationFolder, createLocationFolderWithRooms } from '@/lib/integrations/drive';
 import { isGoogleConfigured } from '@/lib/integrations/google-auth';
@@ -162,6 +162,11 @@ export async function createLocationAction(formData: FormData) {
   await syncLocationSideEffects(result, input);
 
   revalidatePath('/locations');
+  // Bust the shared entities cache so /bookings/new (and any other
+  // surface reading the active-locations roster via entities-cache.ts)
+  // picks up the new row immediately. Same tag as the clients/talent/
+  // crew caches use.
+  revalidateTag('entities', {});
   return { ok: true, id: result.id };
 }
 
@@ -178,6 +183,7 @@ export async function updateLocationAction(id: string, formData: FormData) {
 
   revalidatePath('/locations');
   revalidatePath(`/locations/${id}`);
+  revalidateTag('entities', {});
   return { ok: true };
 }
 

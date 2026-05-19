@@ -23,7 +23,7 @@
 
 import { unstable_cache } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
-import type { Client, Talent, Crew } from '@/lib/types/database';
+import type { Client, Talent, Crew, Brand, Location } from '@/lib/types/database';
 
 const CACHE_OPTIONS = { revalidate: 120, tags: ['entities'] };
 
@@ -65,5 +65,48 @@ export const getCachedActiveClients: () => Promise<Client[]> = unstable_cache(
     return (data ?? []) as Client[];
   },
   ['entities-active-clients'],
+  CACHE_OPTIONS,
+);
+
+/**
+ * Cached brands list. Brands are even more static than the other entity
+ * rosters (a brand row is added once, rarely edited), so the 120s revalidate
+ * + entities-tag invalidation pattern is more than enough.
+ *
+ * Added 2026-05-19 — `/bookings/new` was hitting `listBrands()` uncached,
+ * adding a fourth uncached round-trip to a page that already does three.
+ */
+export const getCachedBrands: () => Promise<Brand[]> = unstable_cache(
+  async () => {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from('atelier_brands')
+      .select('*')
+      .order('name');
+    return (data ?? []) as Brand[];
+  },
+  ['entities-brands'],
+  CACHE_OPTIONS,
+);
+
+/**
+ * Cached active-locations list. Same pattern: `/bookings/new` and
+ * several other pages fetch the active-locations roster on every render,
+ * which would otherwise hit Supabase uncached.
+ *
+ * Filtering helpers (search, studio_type) still go through `listLocations`
+ * since they're parametric and don't benefit from a single shared cache.
+ */
+export const getCachedActiveLocations: () => Promise<Location[]> = unstable_cache(
+  async () => {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from('atelier_locations')
+      .select('*')
+      .eq('is_active', true)
+      .order('name');
+    return (data ?? []) as Location[];
+  },
+  ['entities-active-locations'],
   CACHE_OPTIONS,
 );
