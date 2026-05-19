@@ -313,8 +313,8 @@ export default function FinanceSummary({ feeLines, totals, bookingTalent, bookin
               label="Owed to ATO · net GST"
               total={destinations.netToAto}
               rows={[
-                destinations.atoFromAgencyLines > 0 && { l: `GST on agency-only lines · ${pct(GST_RATE)} × (subtotals + ASF)`, v: destinations.atoFromAgencyLines },
-                destinations.atoFromAgencySpreadOnPersonLines > 0 && { l: 'GST on agency-side ASF / spread of person-linked lines', v: destinations.atoFromAgencySpreadOnPersonLines },
+                destinations.atoFromAgencyLines > 0 && { l: `GST kept by agency on its own lines · ${pct(GST_RATE)} × (subtotal + ASF)`, v: destinations.atoFromAgencyLines },
+                destinations.atoFromAgencySpreadOnPersonLines > 0 && { l: 'GST on ASF / cost spread of person-linked lines', v: destinations.atoFromAgencySpreadOnPersonLines },
                 destinations.atoFromNonRegisteredPersonLines > 0 && { l: 'GST on lines where linked person is not GST-registered', v: destinations.atoFromNonRegisteredPersonLines },
                 destinations.atoFromCommission > 0 && { l: `GST on agency commission income · ${pct(GST_RATE)} × commission`, v: destinations.atoFromCommission },
               ]}

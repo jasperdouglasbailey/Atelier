@@ -99,6 +99,21 @@ export function isCrewReimbursement(line: Partial<FeeLine>): boolean {
   return line.crew_id != null && line.talent_id == null;
 }
 
+/**
+ * Commissionable artist-labour line types. Listed once here so consumers
+ * (QuoteBuilder, JobPnLPanel, computeGstDestinations, the apply path)
+ * agree on what counts as "artist labour" vs. "expense / reimbursement".
+ *
+ * Doctrine: any line whose `line_type` is in this set is, by default,
+ * the primary attached artist's labour income — even if the operator
+ * forgot to link `talent_id` on the row. `computeGstDestinations` uses
+ * this set to fall back to the primary attached talent so the GST
+ * passthrough breakdown agrees with `computePaidOut` in JobPnLPanel.
+ */
+export const ARTIST_LABOUR_LINE_TYPES: ReadonlySet<FeeLineType> = new Set([
+  'artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel',
+]);
+
 export function computeFeeLine(line: Partial<FeeLine>): ComputedFeeLine {
   const qty = line.quantity ?? 1;
   const price = line.unit_price ?? 0;
@@ -414,17 +429,38 @@ export function computeGstDestinations(args: {
   let atoFromNonRegisteredPersonLines = 0;
   let atoFromAgencySpreadOnPersonLines = 0;
 
+  // Primary attached talent — used as the fallback owner for any
+  // commissionable artist-labour line that wasn't explicitly linked to
+  // a talent on the row (operator forgot, or it was auto-generated from
+  // a template before the per-line talent_id model existed). Mirrors
+  // computePaidOut in JobPnLPanel — without this fallback the two
+  // panels disagree by the artist's labour-GST amount.
+  const primaryTalentRow = bookingTalent[0] ?? null;
+  const primaryTalentId = primaryTalentRow?.talent_id ?? null;
+
   for (const line of lines) {
     if (line.is_gst_exempt) continue;
     const computed = computeFeeLine(line);
     if (computed.gstAmount === 0) continue;
 
-    const talentId = line.talent_id ?? null;
+    let talentId = line.talent_id ?? null;
     const crewId = line.crew_id ?? null;
+    const isCommissionableArtistLine = !crewId
+      && !!line.line_type
+      && ARTIST_LABOUR_LINE_TYPES.has(line.line_type as FeeLineType)
+      && line.is_commissionable !== false;
+
+    // Fallback: commissionable artist-labour line with no explicit
+    // talent_id → attribute to the primary attached artist. Crew lines
+    // never fall back (no parallel "primary crew" concept).
+    if (!talentId && !crewId && isCommissionableArtistLine && primaryTalentId) {
+      talentId = primaryTalentId;
+    }
 
     // Mutually-exclusive person link: prefer talent if both somehow set.
     if (!talentId && !crewId) {
-      // No person linked — full line GST is agency's, owed to ATO.
+      // No person linked AND not a fallback-eligible artist line —
+      // full line GST is agency's, owed to ATO.
       atoFromAgencyLines = r2(atoFromAgencyLines + computed.gstAmount);
       continue;
     }

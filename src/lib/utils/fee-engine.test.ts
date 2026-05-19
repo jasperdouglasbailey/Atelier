@@ -891,6 +891,47 @@ describe('computeGstDestinations — per-person GST passthrough', () => {
     closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
   });
 
+  it('commissionable artist-labour line with no talent_id falls back to primary attached talent', () => {
+    // Real-world case: the QuoteBuilder created an artist_fee line without
+    // setting talent_id, but the booking has Oliver attached as the primary
+    // (and only) artist. Previously this line's GST was routed entirely to
+    // the agency's ATO bucket, causing the FinanceSummary "Agency keeps"
+    // figure to diverge from JobPnL "Retained" by the artist-labour GST.
+    const lines: Partial<FeeLine>[] = [
+      { ...createArtistFeeLine('Photography', 2000, 1, 0.15) }, // no talent_id
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [OLIVER], bookingCrew: [] },
+    });
+    // Fallback: Oliver gets the line-cost passthrough = 2000 × 10% = 200.
+    expect(d.passthroughs).toHaveLength(1);
+    closeTo(d.passthroughs[0].amount, 200);
+    expect(d.passthroughs[0].id).toBe('tal-oliver');
+    // ASF spread on the line: 300 × 10% = 30 stays at ATO.
+    closeTo(d.atoFromAgencySpreadOnPersonLines, 30);
+    closeTo(d.netToAto + d.totalPassthrough, d.collectedTotal);
+  });
+
+  it('non-commissionable line with no person linked does NOT fall back to primary talent', () => {
+    // An equipment / studio-hire line that's purely an agency-side cost must
+    // not be silently re-routed through the primary artist just because one
+    // is attached. Only commissionable artist-labour lines fall back.
+    const lines: Partial<FeeLine>[] = [
+      { ...createExpenseLine('expense', 'Studio hire', 1000, 1, 0.15) },
+    ];
+    const t = computeQuoteTotals(lines as FeeLine[]);
+    const d = computeGstDestinations({
+      lines,
+      totals: t,
+      parties: { bookingTalent: [OLIVER], bookingCrew: [] },
+    });
+    expect(d.passthroughs).toHaveLength(0);
+    closeTo(d.atoFromAgencyLines, 115); // (1000 + 150) × 10%
+  });
+
   it('is_gst_exempt line: contributes nothing to either bucket', () => {
     const lines: Partial<FeeLine>[] = [
       { ...createCrewLabourLine('Super charge', 1000, 1, 0), is_gst_exempt: true, crew_id: 'crew-asst' },
