@@ -5,6 +5,7 @@ import type { BookingDetailRow } from '@/lib/data/bookings';
 import type { BookingSchedule } from '@/lib/types/database';
 import InlineField from '@/components/bookings/InlineField';
 import InlineDateRange from '@/components/bookings/InlineDateRange';
+import UsageSummary from '@/components/bookings/UsageSummary';
 import { PALETTE, SHOOT_TIERS, SHOOT_TIER_LABELS } from '@/lib/utils/constants';
 import { formatDate, formatCurrency } from '@/lib/utils/format';
 
@@ -288,6 +289,18 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
           label="Job number"
           value={booking.job_number}
           placeholder="Client or internal ref"
+          layout="horizontal"
+        />
+        {/* Usage — readable 3-line summary of the structured taxonomy.
+            Read-only here; the brief intake LLM writes the underlying
+            fields and the operator can edit on the booking detail's
+            Usage section. Talent see the same renderer in their portal. */}
+        <UsageSummary
+          market={booking.usage_market}
+          realm={booking.usage_realm}
+          mediaCategories={booking.usage_media_categories}
+          specificChannels={booking.usage_specific_channels}
+          territoryIso={booking.usage_territory_iso}
           layout="horizontal"
         />
       </div>
