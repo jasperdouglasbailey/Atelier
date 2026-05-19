@@ -49,17 +49,26 @@ export const EMPTY_STRUCTURED_USAGE: StructuredUsage = {
 /**
  * LLM-only fields surfaced on the intake result (added 2026-05-18).
  * Each maps directly to a booking column the operator can apply.
+ *
+ * Added 2026-05-19:
+ *   - `grade_retouch_scope` lets the LLM distinguish "grade only" from
+ *     "grade + retouch" when the brief specifies one but not the other.
+ *     Combined with `post_production_ownership`, the engine can capture
+ *     the common split case: grade by artist, retouch by client.
  */
 export type ExtraBriefFields = {
   /** Campaign/project name suggestion to upgrade the booking title. */
   title_suggestion: string | null;
   /** Maps to atelier_post_production_ownership enum. */
   post_production_ownership: 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced' | null;
+  /** Maps to atelier_grade_retouch_scope enum. */
+  grade_retouch_scope: 'grade_and_retouch' | 'grade_only' | null;
 };
 
 export const EMPTY_EXTRA_BRIEF_FIELDS: ExtraBriefFields = {
   title_suggestion: null,
   post_production_ownership: null,
+  grade_retouch_scope: null,
 };
 
 export type BriefIntakeResult = ParsedBrief & StructuredUsage & ExtraBriefFields & {
@@ -122,6 +131,15 @@ type LLMBriefOutput = Partial<{
   usage_territory_raw: string; // e.g. "Australia"
   usage_media_raw: string;     // e.g. "POS, social media, digital display"
   budget_indication: number;
+  /** Production contact at the client/agency. The brief almost always
+   *  names a primary contact ("The producer will be Cat Rose", "X is
+   *  producing", etc.). Added 2026-05-19. */
+  producer_name: string;
+  /** Phone for the producer. AU formats: 04xx, (02)…, +61… */
+  producer_phone: string;
+  /** Email for the producer. NOT the email-signature sender — see
+   *  PRODUCER CONTACT rule in the system prompt. */
+  producer_email: string;
   /** Shoot start (call time). HH:MM 24-hour. */
   call_time: string;
   /** Shoot finish (wrap time). HH:MM 24-hour. */
@@ -142,6 +160,10 @@ type LLMBriefOutput = Partial<{
    * Matches the `atelier_post_production_ownership` enum.
    */
   post_production_ownership: 'us_via_artist' | 'us_via_post_team' | 'client_in_house' | 'client_outsourced';
+  /** Scope of post-production work the agency owns. Captures the split
+   *  case where the brief says e.g. "graded by [artist] but retouched
+   *  by us (= client)" — owner = artist, scope = grade_only. */
+  grade_retouch_scope: 'grade_and_retouch' | 'grade_only';
   // ─── Structured usage taxonomy (added 2026-05-17, PR #169) ───────
   // Maps directly to the advertising-media + market-realm doctrine.
   // Surfaced through BriefIntakeResult; persisted via PR C (not yet).
@@ -180,8 +202,12 @@ IMPORTANT: Return raw JSON ONLY — do NOT wrap in \`\`\`json fences or markdown
   "usage_media_raw": string or null,     // media as written, e.g. "POS, social, digital display"
   "budget_indication": number or null,   // numeric amount in AUD (strip currency symbols)
   "post_production_ownership": string or null, // one of: "client_in_house", "us_via_artist", "us_via_post_team", "client_outsourced"
+  "grade_retouch_scope": string or null, // one of: "grade_and_retouch", "grade_only" — captures the split case (see rule 8)
   "call_time": string or null,           // HH:MM 24-hour (shoot start / call time)
   "wrap_time": string or null,           // HH:MM 24-hour (shoot finish / wrap time)
+  "producer_name": string or null,       // the production contact named in the brief — NOT the email signature sender (see rule 13)
+  "producer_phone": string or null,      // their phone, formatted as written
+  "producer_email": string or null,      // their email, if quoted near their name
 
   // STRUCTURED USAGE TAXONOMY — extract IN ADDITION to usage_*_raw above:
   "usage_market": string or null,        // exactly one of: "consumer", "trade", "editorial"
@@ -232,8 +258,23 @@ CRITICAL RULES — read carefully:
        → "client_outsourced"
    If the brief is explicit, set the field. The retouching/grading split is
    common — a brief may say "graded by [artist] but retouched by us" which means
-   us_via_artist (grading) AND client_in_house (retouching). When BOTH are stated,
-   prefer the RETOUCHING attribution for this field — that's the bigger workload.
+   us_via_artist (grading) AND client_in_house (retouching).
+
+   SPLIT CASE — set BOTH post_production_ownership AND grade_retouch_scope:
+     - "graded by [artist] but retouched by us" / "[artist] grading, we retouch"
+       → post_production_ownership: "us_via_artist", grade_retouch_scope: "grade_only"
+       Reason: the agency-side party (the artist) is doing the GRADE only;
+       retouching falls to the client. Setting grade_retouch_scope explicitly
+       tells the engine "scope is grade only" so we don't bill retouching
+       on the artist-side workflow.
+     - "graded and retouched by [artist]" / "[artist] does all post"
+       → post_production_ownership: "us_via_artist", grade_retouch_scope: "grade_and_retouch"
+     - "we'll handle both grade and retouch" (client = first-person)
+       → post_production_ownership: "client_in_house", grade_retouch_scope is null
+       (client owns everything; the scope field is moot from the agency's
+       perspective).
+   When only ONE side is stated explicitly, leave grade_retouch_scope null —
+   the operator will fill it on the JobFacts panel post-apply.
 9. TITLE SUGGESTION — if the brief mentions a campaign / project / collection name (e.g. "For X
    campaign", "X Collection SS26", "Project Archer"), extract just the name (e.g. "Testing Testo
    Campaign") into title_suggestion. Used to upgrade the auto-generated booking title.
@@ -255,6 +296,37 @@ CRITICAL RULES — read carefully:
    Output strictly HH:MM 24-hour (e.g. "08:00", "13:30"). Reject if call >= wrap.
 10. For budget: only include if explicitly stated as a budget/fee figure, not as a past invoice amount.
 11. Only include fields you can extract with confidence. Omit nulls entirely.
+
+13. PRODUCER CONTACT — the brief almost always names a primary production
+    contact at the client/agency. Extract their name + phone + email if
+    present. Variant phrasings (case-insensitive) you should recognise:
+
+    Name-FOLLOWS-keyword:
+      "The producer will be Cat Rose" / "Producer: Cat Rose"
+      "On set producer: Cat Rose" / "Project lead: Cat Rose"
+      "Production will be done by Cat Rose"
+      "Production will be handled by Cat Rose"
+      "Account exec: Cat Rose" / "Producer / Cat Rose"
+
+    Name-PRECEDES-keyword:
+      "Cat Rose will be the producer"
+      "Cat Rose will be on production" / "Cat Rose heading up production"
+      "Cat Rose is producing" / "Cat Rose handling production"
+      "Cat Rose (Producer)" / "Cat Rose — Producer"
+
+    Contact-following pattern:
+      "her number is 0441 114 441" / "his number is …" / "you can reach
+      them on …" — pair with the most recently-named producer.
+
+    Phone formats to recognise (AU): "0441114441", "0441 114 441",
+    "+61 441 114 441", "(02) 9999 9999". Return as-written (don't reformat).
+    Email format: any "local@host.tld" token within the same paragraph as
+    the producer mention.
+
+    ANTI-PATTERN — do NOT treat the email signature block as the producer.
+    A signature usually follows "Kind regards," / "Cheers," / "Thanks," /
+    "Best,". If the only name in the brief is in the sign-off, that's the
+    SENDER, not the producer. Leave producer_name null in that case.
 
 USAGE TAXONOMY GUIDANCE:
 - "Consumer" = brand selling to public. Most fashion/beauty/retail briefs.
@@ -440,19 +512,27 @@ function pluckStructuredUsage(llm: LLMBriefOutput | null): StructuredUsage {
 }
 
 /**
- * Pluck the title_suggestion + post_production_ownership LLM extras.
- * Validates the enum against the allowed set; unknown values drop.
+ * Pluck the title_suggestion + post_production_ownership + grade_retouch_scope
+ * LLM extras. Validates each enum against the allowed set; unknown values drop.
  */
 function pluckExtras(llm: LLMBriefOutput | null): ExtraBriefFields {
   if (!llm) return { ...EMPTY_EXTRA_BRIEF_FIELDS };
   const POST_PROD = ['us_via_artist', 'us_via_post_team', 'client_in_house', 'client_outsourced'] as const;
+  const SCOPE = ['grade_and_retouch', 'grade_only'] as const;
   const postProd = POST_PROD.includes(llm.post_production_ownership as typeof POST_PROD[number])
     ? (llm.post_production_ownership as ExtraBriefFields['post_production_ownership'])
+    : null;
+  const scope = SCOPE.includes(llm.grade_retouch_scope as typeof SCOPE[number])
+    ? (llm.grade_retouch_scope as ExtraBriefFields['grade_retouch_scope'])
     : null;
   const title = typeof llm.title_suggestion === 'string' && llm.title_suggestion.trim().length > 0
     ? llm.title_suggestion.trim()
     : null;
-  return { title_suggestion: title, post_production_ownership: postProd };
+  return {
+    title_suggestion: title,
+    post_production_ownership: postProd,
+    grade_retouch_scope: scope,
+  };
 }
 
 function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): BriefIntakeResult {
@@ -502,6 +582,12 @@ function mergeResults(heuristic: ParsedBrief, llm: LLMBriefOutput | null): Brief
     usage_territory_raw: llm.usage_territory_raw ?? heuristic.usage_territory_raw,
     usage_media_raw: llm.usage_media_raw ?? heuristic.usage_media_raw,
     budget_indication: typeof llm.budget_indication === 'number' ? llm.budget_indication : heuristic.budget_indication,
+    // Producer fields: LLM wins when present (it understands variant
+    // phrasing better than the regex). Heuristic is the safety net for
+    // common patterns when ANTHROPIC_API_KEY isn't set.
+    producer_name: llm.producer_name ?? heuristic.producer_name,
+    producer_phone: llm.producer_phone ?? heuristic.producer_phone,
+    producer_email: llm.producer_email ?? heuristic.producer_email,
   };
 
   const structuredUsage = pluckStructuredUsage(llm);
