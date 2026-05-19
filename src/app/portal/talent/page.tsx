@@ -24,6 +24,7 @@ import PortalDataRights from '@/components/portal/PortalDataRights';
 import PortalCalendar from '@/components/portal/PortalCalendar';
 import HoldCard from '@/components/portal/HoldCard';
 import CallSheetCard from '@/components/portal/CallSheetCard';
+import UsageSummary from '@/components/bookings/UsageSummary';
 import GreetingHeader from '@/components/dashboard/GreetingHeader';
 import SydneyWeather from '@/components/dashboard/SydneyWeather';
 import {
@@ -303,6 +304,10 @@ function TalentBookingRow({
         </span>
       </div>
 
+      {/* Compact JobFacts grid — what the artist actually needs to plan
+          the day. Three columns on desktop so it doesn't sprawl.
+          Order matches the JobFacts panel on the booking detail page so
+          the experience reads the same. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
         {(() => {
           const formatted = formatShootDates(row.shootDates);
@@ -317,25 +322,148 @@ function TalentBookingRow({
             </div>
           );
         })()}
+        {row.shootLocation && (
+          <div>
+            <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Location</span>
+            <div style={{ color: PALETTE.text }}>{row.shootLocation}</div>
+          </div>
+        )}
+        {(row.callTime || row.wrapTime) && (
+          <div>
+            <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Call / Wrap</span>
+            <div style={{ color: PALETTE.text }}>
+              {row.callTime ? row.callTime.slice(0, 5) : '—'}
+              {' / '}
+              {row.wrapTime ? row.wrapTime.slice(0, 5) : '—'}
+            </div>
+          </div>
+        )}
+        {(row.deliverablesType || row.deliverablesCount != null) && (
+          <div>
+            <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Deliverables</span>
+            <div style={{ color: PALETTE.text }}>
+              {[row.deliverablesType, row.deliverablesCount != null ? `${row.deliverablesCount} count` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          </div>
+        )}
+        {row.agencyName && (
+          <div>
+            <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Agency</span>
+            <div style={{ color: PALETTE.text }}>{row.agencyName}</div>
+          </div>
+        )}
         {row.dayRate && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Day rate</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.dayRate)}</div></div>}
         {row.usageFee && <div><span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Usage fee</span><div style={{ color: PALETTE.text }}>{formatCurrency(row.usageFee)}</div></div>}
       </div>
 
-      {/* Crew — names + roles, never rates. Added 2026-05-18 so the
-          artist can see who they're shooting with before call sheet
-          generation. Only confirmed crew shown. */}
+      {/* Producer contact + post split — separate row, slightly more
+          space so the phone/email is easy to tap on mobile. */}
+      {(row.producerName || row.producerPhone || row.producerEmail || row.postProductionOwnership || row.confirmationDeadline) && (
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          {row.producerName && (
+            <div>
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Producer</span>
+              <div style={{ color: PALETTE.text }}>
+                {row.producerName}
+                {row.producerPhone && (
+                  <a
+                    href={`tel:${row.producerPhone.replace(/\s/g, '')}`}
+                    className="ml-1.5"
+                    style={{ color: PALETTE.accent }}
+                  >
+                    {row.producerPhone}
+                  </a>
+                )}
+              </div>
+              {row.producerEmail && (
+                <a href={`mailto:${row.producerEmail}`} className="text-[10px]" style={{ color: PALETTE.muted }}>{row.producerEmail}</a>
+              )}
+            </div>
+          )}
+          {row.postProductionOwnership && (() => {
+            const POST_LABELS: Record<string, string> = {
+              us_via_artist: 'Us — via artist',
+              us_via_post_team: 'Us — via post team',
+              client_in_house: 'Client (in-house)',
+              client_outsourced: 'Client (outsourced)',
+            };
+            const ownerLabel = POST_LABELS[row.postProductionOwnership] ?? row.postProductionOwnership;
+            const gradeOnly = row.gradeRetouchScope === 'grade_only' &&
+              (row.postProductionOwnership === 'us_via_artist' || row.postProductionOwnership === 'us_via_post_team');
+            const retouchLabel = gradeOnly ? 'Client' : ownerLabel;
+            return (
+              <div>
+                <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Post</span>
+                <div style={{ color: PALETTE.text }}>Grading: {ownerLabel}</div>
+                <div style={{ color: PALETTE.text }}>Retouching: {retouchLabel}</div>
+              </div>
+            );
+          })()}
+          {row.confirmationDeadline && (
+            <div>
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: PALETTE.muted }}>Confirm by</span>
+              <div style={{ color: PALETTE.text }}>{row.confirmationDeadline}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Usage — readable 3-line summary. Same component as JobFacts. */}
+      {(row.usageMarket || row.usageRealm ||
+        (row.usageMediaCategories?.length ?? 0) > 0 ||
+        (row.usageSpecificChannels?.length ?? 0) > 0 ||
+        (row.usageTerritoryIso?.length ?? 0) > 0) && (
+        <div className="mt-2 rounded border p-2.5" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
+            Usage
+          </div>
+          <UsageSummary
+            market={row.usageMarket}
+            realm={row.usageRealm}
+            mediaCategories={row.usageMediaCategories}
+            specificChannels={row.usageSpecificChannels}
+            territoryIso={row.usageTerritoryIso}
+            layout="block"
+          />
+        </div>
+      )}
+
+      {/* Crew — names + roles + status. Talent see held + sent +
+          confirmed so they know who's pencilled vs locked in. */}
       {row.crew.length > 0 && (
         <div className="mt-2 rounded border p-2.5" style={{ borderColor: PALETTE.border, background: PALETTE.bg }}>
           <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: PALETTE.muted }}>
             Crew on this booking
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {row.crew.map((c, i) => (
-              <div key={i} className="text-xs" style={{ color: PALETTE.text }}>
-                {c.name}
-                {c.role && <span style={{ color: PALETTE.muted }}> · {humanise(c.role)}</span>}
-              </div>
-            ))}
+            {row.crew.map((c, i) => {
+              const statusColor = c.confirmed
+                ? PALETTE.success
+                : c.status === 'declined'
+                  ? PALETTE.danger
+                  : PALETTE.warning;
+              const statusLabel = c.confirmed
+                ? 'Confirmed'
+                : c.status === 'declined'
+                  ? 'Declined'
+                  : c.status === 'sent'
+                    ? 'Hold sent'
+                    : 'Hold requested';
+              return (
+                <div key={i} className="text-xs flex items-center gap-1.5" style={{ color: PALETTE.text }}>
+                  <span>{c.name}</span>
+                  {c.role && <span style={{ color: PALETTE.muted }}>· {humanise(c.role)}</span>}
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                    style={{ background: `${statusColor}22`, color: statusColor }}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

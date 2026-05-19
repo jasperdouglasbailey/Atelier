@@ -41,6 +41,24 @@ export type PortalBookingRow = {
   dayRate: number | null;
   usageFee: number | null;
   confirmed: boolean;
+  // Extended JobFacts fields — talent need these to plan + sign off.
+  // Added 2026-05-19 alongside migration 0072 (extended portal view).
+  callTime: string | null;
+  wrapTime: string | null;
+  deliverablesType: string | null;
+  deliverablesCount: number | null;
+  producerName: string | null;
+  producerPhone: string | null;
+  producerEmail: string | null;
+  agencyName: string | null;
+  confirmationDeadline: string | null;
+  postProductionOwnership: string | null;
+  gradeRetouchScope: string | null;
+  usageMarket: 'consumer' | 'trade' | 'editorial' | null;
+  usageRealm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial' | null;
+  usageMediaCategories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
+  usageSpecificChannels: string[] | null;
+  usageTerritoryIso: string[] | null;
 };
 
 /** A fee line the artist is entitled to see — own fees + shoot equipment. */
@@ -53,10 +71,16 @@ export type PortalFeeLine = {
   subtotal: number;
 };
 
-/** Minimal crew identity surfaced to the talent — name + role, never rates. */
+/** Minimal crew identity surfaced to the talent — name + role + status,
+ *  never rates. Status surfaced 2026-05-19 so the artist knows who's
+ *  actually locked in vs still pencilled. */
 export type PortalCrewMember = {
   name: string;
   role: string | null;
+  /** Hold lifecycle status: 'hold_requested' | 'sent' | 'confirmed' | 'declined' etc. */
+  status: string | null;
+  /** Whether the hold has been formally confirmed (confirmed_at IS NOT NULL). */
+  confirmed: boolean;
 };
 
 export type TalentPortalBookingRow = PortalBookingRow & {
@@ -143,17 +167,60 @@ export async function getTalentPortalData(talentId: string): Promise<{
   const assignments = assignmentsResp.data ?? [];
   const bookingIds = assignments.map((a) => a.booking_id as string);
 
+  // Pull the full JobFacts shape from the portal view (migration 0072
+  // extended it 2026-05-19 specifically so talent can plan + sign off
+  // without bouncing back to the agency for call times, deliverables,
+  // producer contact, usage taxonomy etc.).
   const bookingsResp = bookingIds.length === 0
     ? { data: [], error: null as null | { message: string } }
     : await supabase
         .from('atelier_bookings_portal')
-        .select('id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location')
+        .select(`
+          id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location,
+          deliverables_type, deliverables_count,
+          call_time, wrap_time,
+          producer_name, producer_phone, producer_email,
+          creative_agency_id, confirmation_deadline,
+          post_production_ownership, grade_retouch_scope,
+          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso
+        `)
         .in('id', bookingIds);
 
   if (bookingsResp.error) { reportDataError('[portal] talent bookings', bookingsResp.error); return null; }
 
-  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null };
+  type ViewRow = {
+    id: string; booking_ref: string | null; title: string; tier: string; state: BookingState;
+    shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null;
+    deliverables_type: string | null; deliverables_count: number | null;
+    call_time: string | null; wrap_time: string | null;
+    producer_name: string | null; producer_phone: string | null; producer_email: string | null;
+    creative_agency_id: string | null; confirmation_deadline: string | null;
+    post_production_ownership: string | null; grade_retouch_scope: string | null;
+    usage_market: 'consumer' | 'trade' | 'editorial' | null;
+    usage_realm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial' | null;
+    usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
+    usage_specific_channels: string[] | null;
+    usage_territory_iso: string[] | null;
+  };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
+
+  // Agency name lookup — creative_agency_id on each booking is a client
+  // id; fetch the names once and stitch them in below.
+  const agencyIds = Array.from(new Set(
+    ((bookingsResp.data ?? []) as ViewRow[])
+      .map((b) => b.creative_agency_id)
+      .filter((id): id is string => Boolean(id)),
+  ));
+  const agencyNameById = new Map<string, string>();
+  if (agencyIds.length > 0) {
+    const { data: agencyRows } = await supabase
+      .from('atelier_clients')
+      .select('id, name, company')
+      .in('id', agencyIds);
+    for (const a of (agencyRows ?? []) as Array<{ id: string; name: string; company: string | null }>) {
+      agencyNameById.set(a.id, a.company || a.name);
+    }
+  }
 
   // Fetch fee lines the artist is entitled to see:
   // (a) lines tagged to this talent, and (b) equipment/production lines for the shoot
@@ -179,28 +246,36 @@ export async function getTalentPortalData(talentId: string): Promise<{
     feeLinesByBooking.set(fl.booking_id, list);
   }
 
-  // Crew on each booking — name + role only. Filtered to confirmed
-  // crew (those with confirmed_at set) so a pending hold doesn't show
-  // up to the talent. Uses the service client via the crew join — same
-  // pattern as the call sheet team query but earlier in the lifecycle
-  // (talent sees their crew as soon as the booking exists, not just
-  // when the call sheet is generated).
+  // Crew on each booking — name + role + status. Previously filtered to
+  // confirmed crew only; 2026-05-19 surfaces held + sent + confirmed so
+  // the talent can see who's pencilled + who's locked in. The artist
+  // asked for this explicitly.
   const crewByBooking = new Map<string, PortalCrewMember[]>();
   if (bookingIds.length > 0) {
     const crewResp = await supabase
       .from('atelier_booking_crew')
-      .select('booking_id, role_on_booking, confirmed_at, crew:atelier_crew!atelier_booking_crew_crew_id_fkey(name)')
-      .in('booking_id', bookingIds)
-      .not('confirmed_at', 'is', null);
+      .select('booking_id, role_on_booking, status, confirmed_at, crew:atelier_crew!atelier_booking_crew_crew_id_fkey(name)')
+      .in('booking_id', bookingIds);
     if (crewResp.error) {
       reportDataError('[portal] talent-visible crew', crewResp.error);
     } else {
-      type CrewRow = { booking_id: string; role_on_booking: string | null; crew: { name: string } | { name: string }[] | null };
+      type CrewRow = {
+        booking_id: string;
+        role_on_booking: string | null;
+        status: string | null;
+        confirmed_at: string | null;
+        crew: { name: string } | { name: string }[] | null;
+      };
       for (const row of (crewResp.data ?? []) as unknown as CrewRow[]) {
         const c = Array.isArray(row.crew) ? row.crew[0] : row.crew;
         if (!c) continue;
         const list = crewByBooking.get(row.booking_id) ?? [];
-        list.push({ name: c.name, role: row.role_on_booking ?? null });
+        list.push({
+          name: c.name,
+          role: row.role_on_booking ?? null,
+          status: row.status ?? null,
+          confirmed: Boolean(row.confirmed_at),
+        });
         crewByBooking.set(row.booking_id, list);
       }
     }
@@ -228,6 +303,23 @@ export async function getTalentPortalData(talentId: string): Promise<{
         briefAcknowledgedAt: a.brief_acknowledged_at as string | null,
         feeLines: feeLinesByBooking.get(b.id) ?? [],
         crew: crewByBooking.get(b.id) ?? [],
+        // Extended JobFacts (migration 0072 / PR 6 of pure-weaving-piglet plan)
+        callTime: b.call_time,
+        wrapTime: b.wrap_time,
+        deliverablesType: b.deliverables_type,
+        deliverablesCount: b.deliverables_count,
+        producerName: b.producer_name,
+        producerPhone: b.producer_phone,
+        producerEmail: b.producer_email,
+        agencyName: b.creative_agency_id ? (agencyNameById.get(b.creative_agency_id) ?? null) : null,
+        confirmationDeadline: b.confirmation_deadline,
+        postProductionOwnership: b.post_production_ownership,
+        gradeRetouchScope: b.grade_retouch_scope,
+        usageMarket: b.usage_market,
+        usageRealm: b.usage_realm,
+        usageMediaCategories: b.usage_media_categories,
+        usageSpecificChannels: b.usage_specific_channels,
+        usageTerritoryIso: b.usage_territory_iso,
       };
     })
     .filter((r): r is TalentPortalBookingRow => r !== null);
@@ -273,13 +365,51 @@ export async function getCrewPortalData(crewId: string): Promise<{
     ? { data: [], error: null as null | { message: string } }
     : await supabase
         .from('atelier_bookings_portal')
-        .select('id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location')
+        .select(`
+          id, booking_ref, title, tier, state, shoot_dates, shoot_date_notes, shoot_location,
+          deliverables_type, deliverables_count,
+          call_time, wrap_time,
+          producer_name, producer_phone, producer_email,
+          creative_agency_id, confirmation_deadline,
+          post_production_ownership, grade_retouch_scope,
+          usage_market, usage_realm, usage_media_categories, usage_specific_channels, usage_territory_iso
+        `)
         .in('id', bookingIds);
 
   if (bookingsResp.error) { reportDataError('[portal] crew bookings', bookingsResp.error); return null; }
 
-  type ViewRow = { id: string; booking_ref: string | null; title: string; tier: string; state: BookingState; shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null };
+  type ViewRow = {
+    id: string; booking_ref: string | null; title: string; tier: string; state: BookingState;
+    shoot_dates: string | null; shoot_date_notes: string | null; shoot_location: string | null;
+    deliverables_type: string | null; deliverables_count: number | null;
+    call_time: string | null; wrap_time: string | null;
+    producer_name: string | null; producer_phone: string | null; producer_email: string | null;
+    creative_agency_id: string | null; confirmation_deadline: string | null;
+    post_production_ownership: string | null; grade_retouch_scope: string | null;
+    usage_market: 'consumer' | 'trade' | 'editorial' | null;
+    usage_realm: 'advertising' | 'promotional' | 'pr' | 'corporate' | 'editorial' | null;
+    usage_media_categories: Array<'online' | 'broadcast' | 'print' | 'outdoor' | 'ambient'> | null;
+    usage_specific_channels: string[] | null;
+    usage_territory_iso: string[] | null;
+  };
   const bookingMap = new Map(((bookingsResp.data ?? []) as ViewRow[]).map((b) => [b.id, b]));
+
+  // Agency name lookup — same pattern as the talent portal.
+  const agencyIds = Array.from(new Set(
+    ((bookingsResp.data ?? []) as ViewRow[])
+      .map((b) => b.creative_agency_id)
+      .filter((id): id is string => Boolean(id)),
+  ));
+  const agencyNameById = new Map<string, string>();
+  if (agencyIds.length > 0) {
+    const { data: agencyRows } = await supabase
+      .from('atelier_clients')
+      .select('id, name, company')
+      .in('id', agencyIds);
+    for (const a of (agencyRows ?? []) as Array<{ id: string; name: string; company: string | null }>) {
+      agencyNameById.set(a.id, a.company || a.name);
+    }
+  }
 
   // Fetch fee lines tagged with this crew_id. Parity with the talent
   // portal: crew can see their OT, expenses, equipment they're on-charging,
@@ -323,6 +453,23 @@ export async function getCrewPortalData(crewId: string): Promise<{
         roleOnBooking: a.role_on_booking as string | null,
         status: (a.status as string) ?? 'hold_requested',
         feeLines: feeLinesByBooking.get(b.id) ?? [],
+        // Same enriched JobFacts as the talent portal — crew need them too.
+        callTime: b.call_time,
+        wrapTime: b.wrap_time,
+        deliverablesType: b.deliverables_type,
+        deliverablesCount: b.deliverables_count,
+        producerName: b.producer_name,
+        producerPhone: b.producer_phone,
+        producerEmail: b.producer_email,
+        agencyName: b.creative_agency_id ? (agencyNameById.get(b.creative_agency_id) ?? null) : null,
+        confirmationDeadline: b.confirmation_deadline,
+        postProductionOwnership: b.post_production_ownership,
+        gradeRetouchScope: b.grade_retouch_scope,
+        usageMarket: b.usage_market,
+        usageRealm: b.usage_realm,
+        usageMediaCategories: b.usage_media_categories,
+        usageSpecificChannels: b.usage_specific_channels,
+        usageTerritoryIso: b.usage_territory_iso,
       };
     })
     .filter((r): r is CrewPortalBookingRow => r !== null);
