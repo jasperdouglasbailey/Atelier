@@ -236,6 +236,14 @@ CRITICAL RULES — read carefully:
    X", etc. A bare date without explicit caveat ALWAYS gets a confident YYYY-MM-DD answer.
 5. If you find a date but cannot confidently determine it is the shoot date (vs a live/publish date),
    put it in shoot_date_notes with context, not shoot_date_start.
+
+5b. SHOOT_LOCATION — extract the VENUE only. Do NOT prepend collection / campaign
+    / brand names. "We're shooting the [Brand] Resort 2026 campaign at Salt Studio"
+    → shoot_location: "Salt Studio" (the venue), NOT "Brand Resort warehouse" or
+    "Resort 2026 Salt Studio". The collection name belongs in title_suggestion.
+    When a brief says "at our warehouse in Marrickville (29 Carrington Rd)" the
+    location is "29 Carrington Rd, Marrickville" — the brand owns the warehouse,
+    but the warehouse is not named after the brand.
 6. For usage_duration_months: "4 weeks" → 1 month, "6 weeks" → 2 months, "1 year" → 12 months.
 7. For usage_territory_raw and usage_media_raw: copy the text verbatim from the brief. Normalise
    obvious typos in usage_territory_iso (e.g. "new zeal and" → ["NZ"], "Aus." → ["AU"]).
@@ -275,9 +283,37 @@ CRITICAL RULES — read carefully:
        perspective).
    When only ONE side is stated explicitly, leave grade_retouch_scope null —
    the operator will fill it on the JobFacts panel post-apply.
-9. TITLE SUGGESTION — if the brief mentions a campaign / project / collection name (e.g. "For X
-   campaign", "X Collection SS26", "Project Archer"), extract just the name (e.g. "Testing Testo
-   Campaign") into title_suggestion. Used to upgrade the auto-generated booking title.
+9. TITLE SUGGESTION — extract the campaign / project / collection name ONLY when the
+   brief names one explicitly. Set title_suggestion to null when:
+     - The brief just says "we're putting together a shoot for X" without naming a campaign
+     - The only candidate is a generic phrase like "campaign season" or "this one"
+     - The brief uses the brand name + a verb ("Inaura's wrapping up") — that's not a title
+
+   Set title_suggestion when the brief contains an explicit pattern like:
+     - "For the [Brand] [Season] [Year] campaign"          → "[Brand] [Season] [Year]"
+     - "X Collection SS26" / "AW26 Collection"             → "X SS26" / "AW26 Collection"
+     - "[Brand] Resort 2026"                                → "[Brand] Resort 2026"
+     - "[Brand] [Capsule|Drop|Project] [Name]"             → "[Brand] [Capsule|Drop] [Name]"
+     - "Project [Name]"                                    → "Project [Name]"
+
+   DO NOT hallucinate — if you're guessing, return null. The auto-generated booking
+   title is fine; a wrong title is worse than a missing one.
+
+   FASHION SEASON / COLLECTION VOCABULARY — these are SEASON NAMES, not venue or
+   producer or proper-noun candidates. Recognise them and KEEP them in
+   title_suggestion; do NOT mis-tag them as shoot_location or talent_spec:
+     - AW / FW — Autumn-Winter / Fall-Winter (e.g. "AW26", "FW26")
+     - SS — Spring-Summer (e.g. "SS27")
+     - PF — Pre-Fall (e.g. "PF26")
+     - Resort / Cruise — mid-season collection between PF and SS (e.g. "Resort 2026")
+     - Capsule — small limited run, often collaboration-driven (e.g. "Capsule 02")
+     - Pre-Spring — early-year drop
+     - Drop — limited timed release (e.g. "Drop 3", "Drop SS26")
+     - Holiday — late-year collection
+     - Lookbook / Campaign / Editorial — collection-asset type, not a season
+   Suffix convention: "[Brand] [Season] [Year]" e.g. "Aje SS26", "Venroy Resort 2026",
+   "Inaura PF26 Capsule". When you see "Resort 2026" alongside a brand, that's the
+   season + year, NOT a "Resort warehouse" venue.
 
 12. CALL / WRAP TIMES — convert to HH:MM 24-hour. Triggers — pair with a clock time:
      CALL (shoot start):
