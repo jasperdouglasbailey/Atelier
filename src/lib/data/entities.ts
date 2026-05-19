@@ -6,13 +6,56 @@ import type { Client, Brand, Talent, Crew, Campaign, CrewTier, ArtistDiscipline 
 // Clients
 // ============================================================
 
-export async function listClients(search?: string): Promise<Client[]> {
+/**
+ * List clients with optional search + tag filters.
+ *
+ * Backward-compat: a plain string argument is still accepted and treated
+ * as a search term. The object form is preferred for new callers.
+ *
+ * Tag filter semantics: `tags: ['agency','magazine']` returns clients
+ * whose `tags` array CONTAINS ANY of the listed values (OR), not all of
+ * them. Matches the locations index pattern.
+ */
+export async function listClients(
+  opts?: string | { search?: string; tags?: string[] },
+): Promise<Client[]> {
+  const params: { search?: string; tags?: string[] } =
+    typeof opts === 'string' ? { search: opts } : (opts ?? {});
+
   const supabase = await createClient();
   let query = supabase.from('atelier_clients').select('*').order('name');
-  if (search) query = query.ilike('name', `%${search}%`);
+  if (params.search) query = query.ilike('name', `%${params.search}%`);
+  if (params.tags && params.tags.length > 0) {
+    // Postgres `&&` overlap on text[]. PostgREST exposes this as `overlaps`.
+    query = query.overlaps('tags', params.tags);
+  }
   const { data, error } = await query;
   if (error) { reportDataError('[clients]', error); return []; }
   return (data ?? []) as Client[];
+}
+
+/**
+ * Union of every tag across every client. Powers tag-filter chips on
+ * the index and tag-input autocomplete on the edit form. Same shape as
+ * `getAllLocationTags`.
+ */
+export async function getAllClientTags(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('atelier_clients')
+    .select('tags')
+    .not('tags', 'is', null);
+
+  if (error) { reportDataError('[clients] all tags', error); return []; }
+
+  const all = new Set<string>();
+  for (const row of (data ?? []) as Array<{ tags: string[] | null }>) {
+    for (const t of row.tags ?? []) {
+      const trimmed = t.trim();
+      if (trimmed) all.add(trimmed);
+    }
+  }
+  return Array.from(all).sort((a, b) => a.localeCompare(b, 'en-AU', { sensitivity: 'base' }));
 }
 
 export async function getClient(id: string): Promise<Client | null> {

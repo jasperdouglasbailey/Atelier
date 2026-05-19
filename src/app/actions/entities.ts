@@ -118,6 +118,53 @@ export async function updateClientAction(id: string, formData: FormData) {
   return { ok: true };
 }
 
+/**
+ * Dedicated update for the client Staff tab. Accepts only the
+ * `contacts` jsonb and the `primary_contact_email` pointer. Kept separate
+ * from `updateClientAction` so the Staff tab doesn't have to re-submit
+ * every other field (which would clobber autosave from the main edit form).
+ *
+ * Phase C of the clients overhaul.
+ */
+export async function updateClientStaffAction(
+  id: string,
+  input: { contacts: Array<{ name: string; role?: string; email?: string; phone?: string; brands?: string[] }>; primary_contact_email: string | null },
+) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
+  // Normalise: drop empty rows, trim strings.
+  const contacts = (input.contacts ?? [])
+    .map((c) => ({
+      name: (c.name ?? '').trim(),
+      role: (c.role ?? '').trim() || undefined,
+      email: (c.email ?? '').trim() || undefined,
+      phone: (c.phone ?? '').trim() || undefined,
+      brands: Array.isArray(c.brands) ? c.brands.map((b) => b.trim()).filter(Boolean) : undefined,
+    }))
+    .filter((c) => c.name.length > 0);
+
+  // If the primary_contact_email no longer matches any row, clear it so the
+  // pointer doesn't dangle.
+  const primaryEmail = input.primary_contact_email && contacts.some((c) => c.email === input.primary_contact_email)
+    ? input.primary_contact_email
+    : null;
+
+  const result = await updateClient(id, {
+    contacts,
+    primary_contact_email: primaryEmail,
+  } as Partial<import('@/lib/types/database').Client>);
+  if (!result) return { error: 'Failed to update staff' };
+  await auditEntityMutation({
+    table: 'atelier_clients',
+    recordId: id,
+    action: 'update',
+    payload: { kind: 'staff_update', contact_count: contacts.length, primary_contact_email: primaryEmail },
+  });
+  revalidatePath('/clients'); revalidateTag('entities', {});
+  revalidatePath(`/clients/${id}`);
+  return { ok: true };
+}
+
 export async function createBrandAction(formData: FormData) {
   const authError = await requireOwnerOrPartner();
   if (authError) return authError;

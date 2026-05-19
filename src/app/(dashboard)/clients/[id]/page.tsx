@@ -4,6 +4,8 @@ import Topbar from '@/components/layout/Topbar';
 import CloneBookingButton from '@/components/bookings/CloneBookingButton';
 import ClientTabs from '@/components/clients/ClientTabs';
 import ClientActivityTab from '@/components/clients/ClientActivityTab';
+import ClientStaffTab from '@/components/clients/ClientStaffTab';
+import ImportantPanel from '@/components/clients/ImportantPanel';
 import { getClient } from '@/lib/data/entities';
 import { listBookings } from '@/lib/data/bookings';
 import { PALETTE, BOOKING_STATE_LABELS, STATE_COLORS, SHOOT_TIER_LABELS, COMMUNICATION_STYLE_LABELS } from '@/lib/utils/constants';
@@ -182,26 +184,9 @@ export default async function ClientDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* Important pinned note — short, always visible. Phase C will promote
-            this into a reusable ImportantPanel component used on other detail
-            pages too (talent, crew). */}
-        {client.important_note && (
-          <section
-            className="rounded-lg border-l-4 p-3"
-            style={{
-              background: `${PALETTE.warning}10`,
-              borderLeftColor: PALETTE.warning,
-              borderTop: `1px solid ${PALETTE.border}`,
-              borderRight: `1px solid ${PALETTE.border}`,
-              borderBottom: `1px solid ${PALETTE.border}`,
-            }}
-          >
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.warning }}>
-              Important
-            </div>
-            <p className="text-sm whitespace-pre-wrap" style={{ color: PALETTE.text }}>{client.important_note}</p>
-          </section>
-        )}
+        {/* Important pinned note — extracted to a reusable component in
+            Phase C so the same panel can ship on talent/crew pages later. */}
+        <ImportantPanel note={client.important_note} />
 
         <ClientTabs
           counts={{
@@ -310,47 +295,11 @@ export default async function ClientDetailPage({ params }: Props) {
             </>
           }
           staff={
-            <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="section-title">Staff &amp; Contacts</h3>
-                <Link
-                  href={`/clients/${client.id}/edit`}
-                  className="text-[10px] font-semibold uppercase tracking-wider"
-                  style={{ color: PALETTE.accent }}
-                >
-                  Edit
-                </Link>
-              </div>
-              {contacts.length === 0 ? (
-                <p className="text-xs" style={{ color: PALETTE.muted }}>
-                  No additional contacts yet. Use Edit to add staff working at this client.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {contacts.map((c, i) => (
-                    <div key={i} className="rounded-md border p-3" style={{ borderColor: PALETTE.border }}>
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-sm font-medium" style={{ color: PALETTE.text }}>{c.name}</span>
-                        {c.role && <span className="text-[11px]" style={{ color: PALETTE.muted }}>{c.role}</span>}
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                        {c.email && <span className="text-xs" style={{ color: PALETTE.text }}>{c.email}</span>}
-                        {c.phone && <span className="text-xs" style={{ color: PALETTE.text }}>{c.phone}</span>}
-                      </div>
-                      {c.brands && c.brands.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {c.brands.map((b) => (
-                            <span key={b} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent }}>
-                              {b}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            <ClientStaffTab
+              clientId={client.id}
+              initialContacts={contacts}
+              initialPrimaryEmail={client.primary_contact_email}
+            />
           }
           notes={
             <section className="rounded-lg border p-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
