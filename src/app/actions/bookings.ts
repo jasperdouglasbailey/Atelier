@@ -316,15 +316,23 @@ const INLINE_TEXT_FIELDS = new Set([
   'post_production_ownership',
   'grade_retouch_scope',
   'tier',
-  // client_id is a UUID stored as text. Inline edit goes through the
-  // `select` variant of InlineField with the active client list as
-  // options. Empty string from the picker is normalised to null in
-  // the action, so the client can be cleared too.
+  // client_id + creative_agency_id are UUIDs stored as text. Inline
+  // edits go through the `select` variant of InlineField with the
+  // active client list as options. Empty string from the picker is
+  // normalised to null in the action, so the relationship can be
+  // cleared too.
   'client_id',
+  'creative_agency_id',
+  // Invoice-critical text fields. Surfaced on JobFacts primary row.
+  'po_number',
+  'job_number',
 ] as const);
 
 const INLINE_NUMERIC_FIELDS = new Set([
   'deliverables_count',
+  // Budget indication — populated by the LLM brief parser, editable
+  // post-parse via JobFacts. AUD by default (budget_currency stays).
+  'budget_indication',
 ] as const);
 
 const INLINE_DATE_FIELDS = new Set([

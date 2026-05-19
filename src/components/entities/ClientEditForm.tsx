@@ -151,7 +151,10 @@ export default function ClientEditForm({ client, allTags = [] }: Props) {
             style={inputStyle}
           >
             <option value="false">Direct Client</option>
-            <option value="true">Creative Agency</option>
+            {/* Renamed 2026-05-19 — production agencies use this flag too,
+                not just creative shops. Column name (`is_creative_agency`)
+                stays for backward compat. */}
+            <option value="true">Agency</option>
           </select>
         </div>
 

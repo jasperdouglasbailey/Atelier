@@ -133,13 +133,14 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   if (!detail) notFound();
   const roster = rosterMap.get(id) ?? null;
 
-  // Surface only id/name/company for the JobFacts picker — keeps the
-  // client payload small and avoids leaking full client records to the
-  // page if not needed elsewhere.
+  // Surface only id/name/company/is_creative_agency for the JobFacts
+  // pickers (client + agency). Keeps the client payload small and avoids
+  // leaking full client records to the page if not needed elsewhere.
   const clientOptions = allClients.map((c) => ({
     id: c.id,
     name: c.name,
     company: c.company ?? null,
+    is_creative_agency: c.is_creative_agency,
   }));
 
   const {

@@ -313,7 +313,7 @@ export default function BookingFormFields({
 
       {mode === 'create' && (
         <div>
-          <label className={labelClass} style={labelStyle}>Creative Agency (if different from billing client)</label>
+          <label className={labelClass} style={labelStyle}>Agency (if different from billing client)</label>
           <select name="creative_agency_id" className={inputClass} style={inputStyle}>
             <option value="">— None —</option>
             {clients.filter((c) => c.is_creative_agency).map((c) => (
