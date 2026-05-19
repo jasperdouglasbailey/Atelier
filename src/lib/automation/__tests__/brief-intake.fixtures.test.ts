@@ -64,11 +64,12 @@ describe('brief-intake fixtures — extracted-fields baseline', () => {
     'venroy-loose': { min: 5 },        // dates + duration + count + type
     'inaura-brooke': { min: 3 },        // duration + type + talent_count
     'coronation-caleb': { min: 4 },    // dates + duration + count + type
-    // Testino fixtures cover the new call/wrap extraction (PR #194 era).
-    // Heuristic doesn't pick up "on 25 May to shoot" (no declarative
-    // marker), so dates fall to LLM — baselines exclude them.
-    'testino-resort': { min: 5 },       // location + count + type + call + wrap
-    'testino-resort-loose': { min: 5 }, // location + count + type + call + wrap
+    // Testino fixtures cover call/wrap extraction (PR #194 era), producer
+    // extraction (PR 5 of pure-weaving-piglet plan), and the "on <date>"
+    // shoot-date trigger added 2026-05-19. Baseline bumped to reflect
+    // the wider heuristic coverage.
+    'testino-resort': { min: 8 },       // location + count + type + call + wrap + producer_name + producer_phone + shoot_date_start
+    'testino-resort-loose': { min: 5 }, // location + count + type + call + wrap (this variant has no producer line)
   };
 
   for (const [name, baseline] of Object.entries(BASELINES)) {

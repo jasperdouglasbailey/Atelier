@@ -760,6 +760,10 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
 
   const textFields = [
     'title', 'shoot_location', 'shoot_date_notes', 'deliverables_type',
+    // Producer fields — surfaced by both heuristic + LLM tiers (PR 5,
+    // 2026-05-19). Apply only when the parser is confident; the operator
+    // can still edit inline on JobFacts afterwards.
+    'producer_name', 'producer_phone', 'producer_email',
   ] as const;
   for (const f of textFields) {
     const val = formData.get(f);
@@ -772,6 +776,14 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
   const postProd = formData.get('post_production_ownership') as string | null;
   if (postProd && POST_PROD_VALUES.has(postProd)) {
     updates.post_production_ownership = postProd;
+  }
+
+  // grade_retouch_scope — captures the split case (artist grades, client
+  // retouches) when the LLM also sets post_production_ownership=us_via_artist.
+  const SCOPE_VALUES = new Set(['grade_and_retouch', 'grade_only']);
+  const scope = formData.get('grade_retouch_scope') as string | null;
+  if (scope && SCOPE_VALUES.has(scope)) {
+    updates.grade_retouch_scope = scope;
   }
 
   const numFields = ['deliverables_count', 'budget_indication'] as const;

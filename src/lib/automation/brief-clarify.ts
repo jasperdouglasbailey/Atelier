@@ -59,6 +59,16 @@ const FIELD_QUESTIONS: Record<keyof BriefIntakeResult & string, string> = {
   // brief either gives them or it doesn't; no clarifying question).
   title_suggestion: '',
   post_production_ownership: '',
+  // Grade scope (added 2026-05-19) — set alongside
+  // post_production_ownership when the brief implies a split. Not
+  // a stand-alone clarifying question.
+  grade_retouch_scope: '',
+  // Producer contact (added 2026-05-19) — the brief almost always names
+  // a producer; if it doesn't, we'd rather ask the client directly on
+  // the next email than chase it in a clarifier.
+  producer_name: '',
+  producer_phone: '',
+  producer_email: '',
   // Call/wrap times — only ask if the brief has none. "What's the
   // planned shoot day — start and finish times?" covers both in one
   // question; both keys point at the same string so we don't ask twice.

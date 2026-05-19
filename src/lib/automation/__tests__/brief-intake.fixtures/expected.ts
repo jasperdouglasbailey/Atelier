@@ -180,20 +180,28 @@ export const FIXTURES: Record<string, FixtureExpectation> = {
       shoot_location: 'Salt Studio in Brookvale',
       deliverables_type: 'Stills',
       deliverables_count: 2,
-      // Critical: call/wrap from "8am start and a 1pm finish".
+      // Call/wrap from "8am start and a 1pm finish".
       call_time: '08:00',
       wrap_time: '13:00',
+      // Producer extraction added 2026-05-19 — "The producer will be
+      // Cat Rose, and her number is 0441114441" → name + phone.
+      producer_name: 'Cat Rose',
+      producer_phone: '0441114441',
+      // "on 25 May to shoot" — the new "on <date>" trigger added 2026-05-19
+      // catches the bare-date phrasing. Year inferred from TODAY.
+      // (Bare-month fixtures assume tests run with TODAY in May 2026.)
     },
     idealLlm: {
       shoot_location: 'Salt Studio, Brookvale',
       deliverables_type: 'Stills',
       talent_spec: 'Oliver Begg',
-      // First-person rule: "retouched by us" = client_in_house.
-      // Grading by Oly (us_via_artist) and retouching by client (in_house)
-      // both stated — we resolve to retouching attribution.
       project_name: 'Testino Resort 2026',
+      // Split case — grade by artist, retouch by client. LLM should set
+      // post_production_ownership='us_via_artist' AND
+      // grade_retouch_scope='grade_only'. (Not asserted in CI — see
+      // brief-intake.fixtures.test.ts.)
     },
-    notes: 'Testino-style brief — natural prose, no labels. Verifies (a) "Xam start and Ypm finish" → call/wrap, (b) first-person "by us" maps to client_in_house, (c) "graded by Oly + retouched by us" doesn\'t flip ownership the wrong way.',
+    notes: 'Testino-style brief — natural prose, no labels. Verifies (a) "Xam start and Ypm finish" → call/wrap, (b) producer extraction from "The producer will be X, and her number is …", (c) bare "on 25 May" date trigger, (d) LLM-side grade/retouch split.',
   },
 
   'testino-resort-loose': {

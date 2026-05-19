@@ -35,6 +35,15 @@ const FIELD_LABELS = {
   deliverables_type: 'Deliverables Type',
   deliverables_count: 'Deliverables Count',
   post_production_ownership: 'Retouching',
+  // Grade/retouch scope (added 2026-05-19) — captures the split case
+  // where the brief assigns grading to the artist but retouching to
+  // the client (or vice versa). Surfaced as a checkbox so the operator
+  // can opt out per-brief.
+  grade_retouch_scope: 'Grade Scope',
+  // Producer fields — surfaced by both heuristic + LLM tiers.
+  producer_name: 'Producer Name',
+  producer_phone: 'Producer Phone',
+  producer_email: 'Producer Email',
   // Usage fields surfaced 2026-05-18 — LLM was extracting these but
   // they had no checkboxes so they never reached the booking record.
   usage_duration_months: 'Usage Duration',
@@ -48,6 +57,11 @@ const POST_PROD_LABELS: Record<string, string> = {
   us_via_post_team: 'Us — via post team',
   client_in_house: 'Client (in-house)',
   client_outsourced: 'Client (outsourced)',
+};
+
+const SCOPE_LABELS: Record<string, string> = {
+  grade_and_retouch: 'Grade & Retouch',
+  grade_only: 'Grade only',
 };
 
 /**
@@ -90,6 +104,9 @@ function formatSuggestionValue(key: FieldKey, value: unknown): string {
   }
   if (key === 'post_production_ownership' && typeof value === 'string') {
     return POST_PROD_LABELS[value] ?? value;
+  }
+  if (key === 'grade_retouch_scope' && typeof value === 'string') {
+    return SCOPE_LABELS[value] ?? value;
   }
   if (key === 'usage_duration_months' && typeof value === 'number') {
     if (value >= 999) return 'In perpetuity';

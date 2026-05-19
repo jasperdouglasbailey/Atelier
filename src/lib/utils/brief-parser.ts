@@ -36,6 +36,15 @@ export type ParsedBrief = {
   call_time: string | null;
   /** HH:MM 24-hour shoot finish (wrap time). */
   wrap_time: string | null;
+  /**
+   * Production contact at the client/agency for this shoot. The heuristic
+   * recognises common variant phrasings — "The producer will be X", "X
+   * will be on production", "Production will be done by X", "X is
+   * producing", "X (Producer)", etc. The LLM handles the long tail.
+   */
+  producer_name: string | null;
+  producer_phone: string | null;
+  producer_email: string | null;
 };
 
 // ============================================================
@@ -203,6 +212,12 @@ const SHOOT_DATE_TRIGGERS = [
   /\bschedule[d]?\s+for\b/i,
   /\bset\s+for\b/i,
   /\bavailable\s+(?:on|for)\b/i,
+  // "If X is around on 25 May" / "on 25 May to shoot" — the bare "on
+  // <date>" trigger. Gated by live-date check in extractShootDates so
+  // this won't match "on 25 May the campaign launches". Targets briefs
+  // that phrase the shoot date conversationally ("wondering if Oliver
+  // is around on 25 May to shoot…").
+  new RegExp(`\\bon\\s+\\d{1,2}${ORD_SUFFIX}\\s+(?:${MONTH_RE})\\b`, 'i'),
 ];
 
 /**
@@ -418,6 +433,122 @@ function extractShootTimes(text: string): { call: string | null; wrap: string | 
 }
 
 // ============================================================
+// Producer contact extractor
+// ============================================================
+
+/**
+ * Extract the production contact (name + phone + email) named in the brief.
+ *
+ * Variant phrasings recognised (case-insensitive):
+ *   - "The producer will be Cat Rose"
+ *   - "Cat Rose will be the producer"
+ *   - "Cat Rose will be on production" / "on production: Cat Rose"
+ *   - "Production will be done/handled by Cat Rose"
+ *   - "Cat Rose is producing" / "Cat heading up production"
+ *   - "On set producer: Cat Rose"
+ *   - "Producer: Cat Rose" / "Producer / Cat Rose" / "Cat Rose (Producer)"
+ *
+ * Anti-pattern: do NOT confuse the email signature block with the
+ * producer. Signature blocks usually follow "Kind regards," / "Cheers,"
+ * — we cap producer extraction to a window BEFORE the first sign-off.
+ *
+ * Phone formats accepted: "0441114441", "0441 114 441", "+61 441 114 441",
+ * "(02) 9999 9999". Stored as captured (digits + spaces / + / parens).
+ * Email: standard RFC-ish — any `local@host.tld` token within a 60-char
+ * window of the producer mention.
+ */
+function extractProducer(text: string): {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+} {
+  if (!text) return { name: null, phone: null, email: null };
+
+  // Cap the search window at the first email-style sign-off so the
+  // SENDER (signed off as "Kind regards, X") isn't mis-attributed as
+  // the on-shoot producer.
+  const SIGNOFF = /\n\s*(?:kind\s+regards|kindest\s+regards|cheers|thanks|thank\s+you|best|regards|sincerely|warmly)\s*[,!.\n]/i;
+  const cap = text.match(SIGNOFF);
+  const haystack = cap ? text.slice(0, cap.index) : text;
+
+  // Two pattern classes:
+  //   A) name FOLLOWS a producer keyword:  "Producer: Cat Rose",
+  //      "The producer will be Cat Rose", "On set producer: Cat Rose"
+  //   B) name PRECEDES a producer keyword: "Cat Rose will be the producer",
+  //      "Cat Rose is producing", "Cat Rose heading up production"
+  //
+  // Name shape: One or two capitalised words. Avoids capturing trailing
+  // punctuation or job-title noise.
+  const NAME = `([A-Z][a-zA-Z'\\-]+(?:\\s+[A-Z][a-zA-Z'\\-]+){0,2})`;
+  const FOLLOWS_PATTERNS: RegExp[] = [
+    new RegExp(`\\b(?:on\\s+set\\s+)?producer\\s*(?:will\\s+be|is|:)\\s+${NAME}`, 'i'),
+    new RegExp(`\\bthe\\s+producer\\s+(?:will\\s+be|is)\\s+${NAME}`, 'i'),
+    new RegExp(`\\bproject\\s+lead\\s*:\\s*${NAME}`, 'i'),
+    new RegExp(`\\bproduction\\s+(?:will\\s+be\\s+)?(?:done|handled|run|led)\\s+by\\s+${NAME}`, 'i'),
+  ];
+  const PRECEDES_PATTERNS: RegExp[] = [
+    new RegExp(`\\b${NAME}\\s+(?:will\\s+be\\s+)?(?:the\\s+)?producer\\b`, 'i'),
+    new RegExp(`\\b${NAME}\\s+(?:will\\s+be\\s+)?(?:on|handling|leading|running)\\s+(?:the\\s+)?production\\b`, 'i'),
+    new RegExp(`\\b${NAME}\\s+(?:is|will\\s+be)\\s+producing\\b`, 'i'),
+    new RegExp(`\\b${NAME}\\s+(?:is\\s+)?heading(?:\\s+up)?\\s+production\\b`, 'i'),
+    new RegExp(`\\b${NAME}\\s*\\(\\s*producer\\s*\\)`, 'i'),
+  ];
+
+  let name: string | null = null;
+  let matchIndex = -1;
+  for (const pat of FOLLOWS_PATTERNS) {
+    const m = haystack.match(pat);
+    if (m && m[1]) {
+      name = m[1].trim();
+      matchIndex = m.index ?? -1;
+      break;
+    }
+  }
+  if (!name) {
+    for (const pat of PRECEDES_PATTERNS) {
+      const m = haystack.match(pat);
+      if (m && m[1]) {
+        name = m[1].trim();
+        matchIndex = m.index ?? -1;
+        break;
+      }
+    }
+  }
+
+  // Phone — anywhere in the haystack. AU mobiles (04xx), landlines
+  // (02/03/07/08), or international format +61. We require at least
+  // 8 digits total so random numeric runs ("2 x stills") don't match.
+  let phone: string | null = null;
+  const phoneMatch = haystack.match(/(?:\+?61\s*\d|\(\s*0\d\s*\)|0\d)[\d\s()-]{6,}\d/);
+  if (phoneMatch) {
+    const candidate = phoneMatch[0].trim();
+    // Reject when digit-count is too low (false positive on date refs etc.)
+    const digits = candidate.replace(/\D/g, '');
+    if (digits.length >= 8 && digits.length <= 13) phone = candidate;
+  }
+
+  // Email — RFC-ish, conservative on TLD length. Same anti-signature
+  // window. If multiple emails appear, prefer one within 60 chars of
+  // the producer name match; fall back to the first.
+  let email: string | null = null;
+  const emailRe = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+  const emails = haystack.match(emailRe) ?? [];
+  if (emails.length > 0) {
+    if (name && matchIndex >= 0) {
+      const near = emails.find((addr) => {
+        const idx = haystack.indexOf(addr);
+        return idx >= 0 && Math.abs(idx - matchIndex) <= 120;
+      });
+      email = near ?? emails[0] ?? null;
+    } else {
+      email = emails[0] ?? null;
+    }
+  }
+
+  return { name, phone, email };
+}
+
+// ============================================================
 // Main parser
 // ============================================================
 
@@ -430,6 +561,7 @@ export function parseBrief(text: string): ParsedBrief {
       usage_duration_months: null, usage_territory_raw: null,
       usage_media_raw: null, budget_indication: null,
       call_time: null, wrap_time: null,
+      producer_name: null, producer_phone: null, producer_email: null,
     };
   }
 
@@ -532,6 +664,9 @@ export function parseBrief(text: string): ParsedBrief {
   // ---- Call / wrap times ----
   const { call: callTime, wrap: wrapTime } = extractShootTimes(text);
 
+  // ---- Producer contact ----
+  const producer = extractProducer(text);
+
   return {
     shoot_location: location,
     shoot_date_start: dateStart,
@@ -547,6 +682,9 @@ export function parseBrief(text: string): ParsedBrief {
     budget_indication: budget,
     call_time: callTime,
     wrap_time: wrapTime,
+    producer_name: producer.name,
+    producer_phone: producer.phone,
+    producer_email: producer.email,
   };
 }
 
