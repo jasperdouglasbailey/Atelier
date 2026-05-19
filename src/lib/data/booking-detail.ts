@@ -16,7 +16,7 @@ import {
 import { listUsageLicences } from '@/lib/data/usage-licences';
 import { withTiming } from '@/lib/utils/perf-trace';
 import { getCachedActiveTalent, getCachedActiveCrew } from '@/lib/data/entities-cache';
-import { listPreferredCrewIds } from '@/lib/data/talent-preferred-crew';
+import { listPreferredCrewIdsForTalents } from '@/lib/data/talent-preferred-crew';
 import { getCrewBookedOnRange } from '@/lib/data/crew-bookings';
 import { getCrewUnavailabilityForRange, getTalentUnavailabilityForRange } from '@/lib/data/portal';
 import { listBookingSchedules } from '@/lib/data/booking-schedules';
@@ -99,11 +99,18 @@ export async function getBookingDetail(id: string): Promise<BookingDetailData | 
     withTiming('booking-detail.listBookingSchedules', () => listBookingSchedules(id)),
   ]);
 
-  // Talent-dependent: fire once we know the primary artist.
+  // Talent-dependent. Multi-artist support (2026-05-19) — preferred-crew
+  // union covers EVERY artist on the team, not just the first row. Rate
+  // precedents stay scoped to the first artist by created_at for now —
+  // template defaults (photographer day rate, etc.) need a single anchor
+  // and the operator can edit per-line anyway.
+  const allTalentIds = bookingTalent
+    .map((bt) => bt.talent_id)
+    .filter((x): x is string => Boolean(x));
   const primaryTalentId = bookingTalent[0]?.talent_id ?? null;
   const [preferredCrewIds, ratePrecedents] = await Promise.all([
-    primaryTalentId
-      ? withTiming('booking-detail.listPreferredCrewIds', () => listPreferredCrewIds(primaryTalentId))
+    allTalentIds.length > 0
+      ? withTiming('booking-detail.listPreferredCrewIdsForTalents', () => listPreferredCrewIdsForTalents(allTalentIds))
       : Promise.resolve([]),
     primaryTalentId
       ? withTiming('booking-detail.getTalentRatePrecedents', () => getTalentRatePrecedents(primaryTalentId, id))

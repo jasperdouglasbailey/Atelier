@@ -45,6 +45,38 @@ export async function listPreferredCrewIds(talentId: string): Promise<string[]> 
   return (data as { crew_id: string }[]).map((r) => r.crew_id);
 }
 
+/**
+ * Multi-talent variant — returns the UNION of preferred crew IDs across
+ * a set of talents, deduped. Used when a booking has multiple artists
+ * attached and we want to surface "preferred by anyone on the team"
+ * at the top of the BookingTeam crew picker.
+ *
+ * Returns IDs only (not full rows) — keeps the payload small for the
+ * common case (just "is this crew member someone's favourite?").
+ * Empty input → empty result.
+ */
+export async function listPreferredCrewIdsForTalents(
+  talentIds: string[],
+): Promise<string[]> {
+  if (talentIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('atelier_talent_preferred_crew')
+    .select('crew_id')
+    .in('talent_id', talentIds);
+  if (error || !data) return [];
+  // De-dupe — crew member X could be preferred by multiple artists on
+  // the same booking. Insert order preserved for deterministic UI.
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of data as { crew_id: string }[]) {
+    if (seen.has(r.crew_id)) continue;
+    seen.add(r.crew_id);
+    out.push(r.crew_id);
+  }
+  return out;
+}
+
 export async function addPreferredCrew(input: {
   talentId: string;
   crewId: string;

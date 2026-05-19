@@ -12,7 +12,12 @@ import { dateRangeToInputs } from '@/lib/utils/daterange';
 
 type Props = {
   booking: BookingDetailRow;
-  primaryTalent: (BookingTalent & { talent?: { working_name?: string; name?: string } | null }) | null;
+  /**
+   * All artists attached to the booking — multi-artist support means
+   * the header lists every name, not just `[0]`. Empty array renders
+   * as "—". Ordered by `bookingTalent` insertion order (created_at).
+   */
+  bookingTalent: Array<BookingTalent & { talent?: { working_name?: string; name?: string } | null }>;
   roster: BookingRoster | null;
   /**
    * Distinct agents (owner/partner display names) whose talent is on
@@ -23,11 +28,21 @@ type Props = {
   coManagingAgents?: string[];
 };
 
-export default function BookingPageHeader({ booking, primaryTalent, roster, coManagingAgents = [] }: Props) {
+export default function BookingPageHeader({ booking, bookingTalent, roster, coManagingAgents = [] }: Props) {
   const clientName = booking.client?.company || booking.client?.name || null;
-  const talentName = (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.working_name
-    ?? (primaryTalent?.talent as { working_name?: string; name?: string } | null)?.name
-    ?? null;
+  // Multi-artist: join all working_names with " + ". Falls back to
+  // legacy `name` field when working_name isn't set on the joined row.
+  const talentNames = bookingTalent
+    .map((bt) => {
+      const t = bt.talent as { working_name?: string; name?: string } | null;
+      return t?.working_name ?? t?.name ?? null;
+    })
+    .filter((n): n is string => Boolean(n));
+  const talentName = talentNames.length === 0
+    ? null
+    : talentNames.length === 1
+      ? talentNames[0]
+      : talentNames.join(' + ');
 
   const { start, end } = dateRangeToInputs(booking.shoot_dates);
   const dateStr = start

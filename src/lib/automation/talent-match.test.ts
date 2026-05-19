@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchTalentInBrief } from './talent-match';
+import { matchTalentInBrief, matchTalentsInBrief } from './talent-match';
 import type { Talent } from '@/lib/types/database';
 
 // Minimal Talent shape — the matcher only uses these fields.
@@ -128,5 +128,56 @@ describe('matchTalentInBrief', () => {
     }];
     const m = matchTalentInBrief('Confirmed DAngelo Russell for the shoot', null, apostrophe);
     expect(m?.talent_id).toBe('tal-y');
+  });
+});
+
+describe('matchTalentsInBrief (multi-match)', () => {
+  it('returns an empty array when no talents match', () => {
+    expect(matchTalentsInBrief('No artists referenced here', null, ROSTER)).toEqual([]);
+  });
+
+  it('returns a single-element array when one talent matches', () => {
+    const m = matchTalentsInBrief('Oliver Begg for the campaign', null, ROSTER);
+    expect(m).toHaveLength(1);
+    expect(m[0].talent_id).toBe('tal-oliver');
+  });
+
+  it('returns BOTH talents when the brief names two', () => {
+    // Oliver gets a full working-name hit; Michael gets a nickname hit.
+    const m = matchTalentsInBrief(
+      'We want Oliver Begg shooting and Mike doing post',
+      null,
+      ROSTER,
+    );
+    expect(m.map((x) => x.talent_id).sort()).toEqual(['tal-michael', 'tal-oliver']);
+  });
+
+  it('orders by descending confidence — full working-name beats nickname', () => {
+    const m = matchTalentsInBrief(
+      'Bringing Oliver Begg and Mike on the job',
+      null,
+      ROSTER,
+    );
+    // Oliver (1.0) before Michael (0.9) — full phrase beats nickname.
+    expect(m[0].talent_id).toBe('tal-oliver');
+    expect(m[1].talent_id).toBe('tal-michael');
+    expect(m[0].confidence).toBeGreaterThan(m[1].confidence);
+  });
+
+  it('still respects the 0.75 threshold per talent', () => {
+    const shortRoster: T[] = [{
+      id: 'tal-x', working_name: 'Bo', legal_name: 'Bo', nicknames: [],
+      assigned_agent_user_id: null,
+    }];
+    // "Bo" is below the 3-char min-token threshold — no match for that talent.
+    expect(matchTalentsInBrief('Bo is around', null, shortRoster)).toEqual([]);
+  });
+
+  it('aggregates per-talent best — multiple hits for one talent collapse to one match', () => {
+    // Mentions Oliver twice (full name + nickname). Should still return one entry.
+    const m = matchTalentsInBrief('Oliver Begg confirmed, talked to Oly', null, ROSTER);
+    expect(m).toHaveLength(1);
+    expect(m[0].talent_id).toBe('tal-oliver');
+    expect(m[0].confidence).toBe(1.0); // takes the better of the two hits
   });
 });

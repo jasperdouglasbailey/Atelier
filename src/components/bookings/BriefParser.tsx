@@ -128,8 +128,12 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
   const [applying, setApplying] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [suggestions, setSuggestions] = useState<BriefIntakeResult | null>(null);
-  const [proposedTalent, setProposedTalent] = useState<ProposedTalent | null>(null);
-  const [includeProposedTalent, setIncludeProposedTalent] = useState(true);
+  // Multi-artist support: the parser returns an array of matches. UI
+  // renders one checkbox per match; operator picks which ones to attach.
+  // Legacy single-`proposed_talent` payloads are normalised to a
+  // one-element array on receive.
+  const [proposedTalents, setProposedTalents] = useState<ProposedTalent[]>([]);
+  const [includedTalentIds, setIncludedTalentIds] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<FieldKey>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -140,7 +144,7 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
     setParsing(true);
     setError(null);
     setSuggestions(null);
-    setProposedTalent(null);
+    setProposedTalents([]);
     setSuccess(false);
 
     const result = await parseBriefAction(bookingId);
@@ -151,11 +155,20 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
       return;
     }
 
-    const ok = result as { ok: true; suggestions: BriefIntakeResult; proposed_talent: ProposedTalent | null };
+    // The action returns `proposed_talents: TalentMatch[]` (new) plus
+    // the legacy `proposed_talent: TalentMatch | null` for back-compat.
+    // Prefer the array; fall back to wrapping the singular in an array.
+    const ok = result as {
+      ok: true;
+      suggestions: BriefIntakeResult;
+      proposed_talent: ProposedTalent | null;
+      proposed_talents?: ProposedTalent[];
+    };
     const s = ok.suggestions;
     setSuggestions(s);
-    setProposedTalent(ok.proposed_talent ?? null);
-    setIncludeProposedTalent(!!ok.proposed_talent);
+    const matches = ok.proposed_talents ?? (ok.proposed_talent ? [ok.proposed_talent] : []);
+    setProposedTalents(matches);
+    setIncludedTalentIds(new Set(matches.map((m) => m.talent_id)));
 
     // Auto-select non-null fields from the displayed allowlist only.
     // Denylist filtering bit us before: new BriefIntakeResult fields (e.g.
@@ -200,11 +213,19 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
       fd.set('usage_territory_iso', suggestions.usage_territory_iso.join(','));
     }
 
-    // Proposed talent attach — only when the brief named a known artist
-    // AND the operator left the checkbox ticked. Server treats already-
-    // attached talent as a silent no-op, so accidental double-apply is safe.
-    if (proposedTalent && includeProposedTalent) {
-      fd.set('proposed_talent_id', proposedTalent.talent_id);
+    // Proposed talent attach — multi-match. Apply every checkbox the
+    // operator left ticked. Server-side action treats already-attached
+    // talent as a silent no-op, so accidental double-apply is safe.
+    // Payload shape: a JSON-array hidden field (new) plus the legacy
+    // single-id field for back-compat (first ticked id only).
+    const idsToAttach = proposedTalents
+      .filter((t) => includedTalentIds.has(t.talent_id))
+      .map((t) => t.talent_id);
+    if (idsToAttach.length > 0) {
+      fd.set('proposed_talent_ids', JSON.stringify(idsToAttach));
+      // Legacy field — kept for any consumer still reading the single
+      // shape; new server action prefers the array.
+      fd.set('proposed_talent_id', idsToAttach[0]);
       fd.set('proposed_talent_role', 'Primary artist');
     }
 
@@ -352,26 +373,43 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
 
       {suggestions && !success && (
         <>
-          {/* Proposed talent — the brief named someone on our roster.
-              Operator can untick to skip the attach; defaults on. */}
-          {proposedTalent && (
-            <div
-              className="rounded px-3 py-2 text-xs flex items-center gap-2"
-              style={{ background: `${PALETTE.ok}11`, borderLeft: `2px solid ${PALETTE.ok}` }}
-            >
-              <input
-                type="checkbox"
-                id="proposed-talent-toggle"
-                checked={includeProposedTalent}
-                onChange={(e) => setIncludeProposedTalent(e.target.checked)}
-                style={{ accentColor: PALETTE.ok }}
-              />
-              <label htmlFor="proposed-talent-toggle" className="flex-1 cursor-pointer" style={{ color: PALETTE.text }}>
-                Attach <strong>{proposedTalent.working_name}</strong> as primary artist —
-                <span style={{ color: PALETTE.muted }}>
-                  {' '}matched via {proposedTalent.matched_via.replace(/_/g, ' ')} (&quot;{proposedTalent.matched_token}&quot;)
-                </span>
-              </label>
+          {/* Proposed talent — the brief named one or more artists on our
+              roster. One checkbox per match (default on); operator unticks
+              to skip individual attachments. */}
+          {proposedTalents.length > 0 && (
+            <div className="space-y-1.5">
+              {proposedTalents.map((pt) => {
+                const id = `proposed-talent-toggle-${pt.talent_id}`;
+                const checked = includedTalentIds.has(pt.talent_id);
+                return (
+                  <div
+                    key={pt.talent_id}
+                    className="rounded px-3 py-2 text-xs flex items-center gap-2"
+                    style={{ background: `${PALETTE.ok}11`, borderLeft: `2px solid ${PALETTE.ok}` }}
+                  >
+                    <input
+                      type="checkbox"
+                      id={id}
+                      checked={checked}
+                      onChange={(e) => {
+                        setIncludedTalentIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(pt.talent_id);
+                          else next.delete(pt.talent_id);
+                          return next;
+                        });
+                      }}
+                      style={{ accentColor: PALETTE.ok }}
+                    />
+                    <label htmlFor={id} className="flex-1 cursor-pointer" style={{ color: PALETTE.text }}>
+                      Attach <strong>{pt.working_name}</strong> as artist —
+                      <span style={{ color: PALETTE.muted }}>
+                        {' '}matched via {pt.matched_via.replace(/_/g, ' ')} (&quot;{pt.matched_token}&quot;)
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           )}
 

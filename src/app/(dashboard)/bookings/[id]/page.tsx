@@ -202,7 +202,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
       {/* Page-level header: breadcrumb, serif title, stage pills, metadata strip */}
       <BookingPageHeader
         booking={booking}
-        primaryTalent={bookingTalent[0] ?? null}
+        bookingTalent={bookingTalent}
         roster={roster}
         coManagingAgents={coManagingAgents}
       />

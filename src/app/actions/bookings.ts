@@ -8,7 +8,7 @@ import { TEMPLATE_LINES_MAP } from '@/lib/utils/quote-templates';
 import { proposeHoldRequests } from '@/lib/automation/hold-requests';
 import { checkKillSwitch } from '@/lib/utils/kill-switch';
 import { extractBriefFields } from '@/lib/automation/brief-intake';
-import { matchTalentInBrief, type TalentMatch } from '@/lib/automation/talent-match';
+import { matchTalentInBrief, matchTalentsInBrief, type TalentMatch } from '@/lib/automation/talent-match';
 import { getCachedActiveTalent } from '@/lib/data/entities-cache';
 import { autoQueueBriefClarifyIfNeeded } from '@/lib/automation/brief-clarify';
 import { buildDateRange } from '@/lib/utils/daterange';
@@ -121,32 +121,61 @@ export async function createBookingAction(formData: FormData) {
     return { error: 'Failed to create booking' };
   }
 
-  // Link the primary artist immediately so the booking shows the artist on creation.
-  // Role defaults to the artist's discipline (e.g. "photographer").
-  const primaryTalentId = (formData.get('primary_talent_id') as string) || null;
+  // Link all attached artists immediately so the booking shows the team
+  // on creation. Multi-artist support (2026-05-19): the form posts a
+  // JSON array `primary_talent_ids`. Legacy single-id payload still
+  // accepted for any caller that hasn't been updated. Role defaults to
+  // each artist's discipline (e.g. "photographer").
+  //
+  // Lead-artist (first id) drives template auto-select + day-rate
+  // pre-fill on quote v1.
+  const idsRaw = (formData.get('primary_talent_ids') as string) || '';
+  let talentIds: string[] = [];
+  if (idsRaw) {
+    try {
+      const parsed = JSON.parse(idsRaw);
+      if (Array.isArray(parsed)) talentIds = parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+    } catch { /* fall through to legacy single-id */ }
+  }
+  if (talentIds.length === 0) {
+    const legacy = (formData.get('primary_talent_id') as string) || null;
+    if (legacy) talentIds = [legacy];
+  }
   const discipline = (formData.get('primary_talent_discipline') as string) || '';
 
-  if (primaryTalentId) {
+  if (talentIds.length > 0) {
     const supabase = await createSupabaseServer();
 
-    // Get talent's default day rate to pre-fill the shoot fee
-    const { data: talentRow } = await supabase
+    // Fetch all attached artists' default day rates in one round-trip.
+    const { data: talentRows } = await supabase
       .from('atelier_talent')
-      .select('default_day_rate')
-      .eq('id', primaryTalentId)
-      .single();
+      .select('id, default_day_rate, discipline')
+      .in('id', talentIds);
+    const byId = new Map((talentRows ?? []).map((r) => [r.id as string, r as { id: string; default_day_rate: number | null; discipline: string }]));
 
-    await supabase.from('atelier_booking_talent').insert({
-      booking_id: booking.id,
-      talent_id: primaryTalentId,
-      role_on_booking: discipline || 'photographer',
-      day_rate: talentRow?.default_day_rate ?? null,
-      confirmed: false,
+    // Insert one booking_talent row per artist, preserving order.
+    const insertRows = talentIds.map((id) => {
+      const t = byId.get(id);
+      return {
+        booking_id: booking.id,
+        talent_id: id,
+        role_on_booking: (t?.discipline as string | undefined) || discipline || 'photographer',
+        day_rate: t?.default_day_rate ?? null,
+        confirmed: false,
+      };
     });
+    if (insertRows.length > 0) {
+      await supabase.from('atelier_booking_talent').insert(insertRows);
+    }
 
-    // Auto-generate Quote V1 from the artist's discipline template.
-    if (discipline === 'photographer' || discipline === 'videographer') {
-      await generateQuoteV1FromTemplate(booking.id, discipline, talentRow?.default_day_rate ?? null);
+    // Auto-generate Quote V1 from the LEAD artist's discipline template.
+    // Multi-artist bookings still get a single template seeded from the
+    // first attached artist — operator edits per-line from there.
+    const leadId = talentIds[0];
+    const leadRow = byId.get(leadId);
+    const leadDiscipline = (leadRow?.discipline as string | undefined) || discipline;
+    if (leadDiscipline === 'photographer' || leadDiscipline === 'videographer') {
+      await generateQuoteV1FromTemplate(booking.id, leadDiscipline, leadRow?.default_day_rate ?? null);
     }
   }
 
@@ -589,16 +618,26 @@ export async function transitionBookingAction(
             .select('crew:atelier_crew(name, email)')
             .eq('booking_id', id),
         ]);
+        // Collect talent names separately so the calendar description can
+        // list ALL artists, not just the first attendee. Multi-artist
+        // support (2026-05-19).
+        const talentNames: string[] = [];
         for (const row of (btRows ?? []) as Array<{ talent: { working_name?: string; email?: string } | null }>) {
           const t = row.talent;
           if (t?.email) attendees.push({ email: t.email, displayName: t.working_name ?? t.email });
+          const name = t?.working_name ?? t?.email ?? null;
+          if (name) talentNames.push(name);
         }
+        let crewCount = 0;
         for (const row of (bcRows ?? []) as Array<{ crew: { name?: string; email?: string } | null }>) {
           const c = row.crew;
           if (c?.email) attendees.push({ email: c.email, displayName: c.name ?? c.email });
+          crewCount += 1;
         }
 
-        const primaryArtistName = attendees.find(() => true)?.displayName ?? null;
+        const artistsLine = talentNames.length === 0
+          ? ''
+          : `Artist${talentNames.length === 1 ? '' : 's'}: ${talentNames.join(' + ')}`;
         const callWrap = booking.call_time ? `Call: ${booking.call_time}${booking.wrap_time ? ` · Wrap: ${booking.wrap_time}` : ''}` : null;
         createCalendarEvent({
           subject,
@@ -606,8 +645,8 @@ export async function transitionBookingAction(
           endDate: end || start,
           location: booking.shoot_location ?? undefined,
           description: [
-            primaryArtistName ? `Artist: ${primaryArtistName}` : '',
-            attendees.length > 1 ? `+${attendees.length - 1} crew` : '',
+            artistsLine,
+            crewCount > 0 ? `+${crewCount} crew` : '',
             callWrap ?? '',
           ].filter(Boolean).join('\n'),
           bookingRef: booking.booking_ref ?? undefined,
@@ -692,22 +731,24 @@ export async function parseBriefAction(id: string) {
     console.error('[parseBriefAction] auto-queue clarify failed', err);
   });
 
-  // Match the brief against the active talent roster — if it names a
-  // specific artist (full name, head word, or known nickname), surface
-  // them so the operator can attach them with one click. See
-  // src/lib/automation/talent-match.ts for the scoring model.
-  let proposed_talent: TalentMatch | null = null;
+  // Match the brief against the active talent roster — multi-match
+  // (2026-05-19) surfaces every named artist with a 0.75+ confidence.
+  // The UI renders one checkbox per match. We also return the legacy
+  // single-match payload (`proposed_talent` = the top hit) for any
+  // consumer still on the old contract.
+  let proposed_talents: TalentMatch[] = [];
   try {
     const roster = await getCachedActiveTalent();
-    proposed_talent = matchTalentInBrief(booking.brief_raw_text, suggestions.talent_spec, roster);
+    proposed_talents = matchTalentsInBrief(booking.brief_raw_text, suggestions.talent_spec, roster);
   } catch (err) {
     // Roster fetch should never fail in a way that blocks brief parse —
     // surface no match and move on. The operator can still link talent
     // manually via the existing picker.
     console.error('[parseBriefAction] talent match failed', err);
   }
+  const proposed_talent: TalentMatch | null = proposed_talents[0] ?? null;
 
-  return { ok: true, suggestions, proposed_talent };
+  return { ok: true, suggestions, proposed_talent, proposed_talents };
 }
 
 /**
@@ -799,19 +840,35 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
   const result = await updateBooking(id, updates);
   if (!result) return { error: 'Failed to apply suggestions' };
 
-  // Proposed-talent attach: when the BriefParser surfaces a matched
-  // artist and the operator ticks the checkbox, the form posts
-  // `proposed_talent_id`. We add them to the booking team only if
-  // they're not already attached — idempotent re-applies are safe.
-  const proposedTalentId = formData.get('proposed_talent_id');
-  if (typeof proposedTalentId === 'string' && proposedTalentId.length > 0) {
+  // Proposed-talent attach: when BriefParser surfaces matches and the
+  // operator ticks one or more checkboxes, the form posts a JSON-array
+  // `proposed_talent_ids` (multi-match) plus the legacy single-id field
+  // for back-compat. We attach every ticked artist that isn't already
+  // on the team — idempotent re-applies are safe.
+  const idsRaw = formData.get('proposed_talent_ids');
+  let proposedIds: string[] = [];
+  if (typeof idsRaw === 'string' && idsRaw.length > 0) {
+    try {
+      const parsed = JSON.parse(idsRaw);
+      if (Array.isArray(parsed)) {
+        proposedIds = parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+      }
+    } catch { /* fall through to legacy single-id */ }
+  }
+  if (proposedIds.length === 0) {
+    const legacy = formData.get('proposed_talent_id');
+    if (typeof legacy === 'string' && legacy.length > 0) proposedIds = [legacy];
+  }
+
+  if (proposedIds.length > 0) {
     const existingTeam = await listBookingTalent(id);
-    const alreadyAttached = existingTeam.some((bt) => bt.talent_id === proposedTalentId);
-    if (!alreadyAttached) {
-      const proposedRole = (formData.get('proposed_talent_role') as string | null) || 'Primary artist';
+    const attachedSet = new Set(existingTeam.map((bt) => bt.talent_id));
+    const proposedRole = (formData.get('proposed_talent_role') as string | null) || 'Primary artist';
+    for (const tid of proposedIds) {
+      if (attachedSet.has(tid)) continue;
       const added = await addBookingTalent({
         booking_id: id,
-        talent_id: proposedTalentId,
+        talent_id: tid,
         role_on_booking: proposedRole,
       });
       if (added) {
@@ -820,7 +877,7 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
           action: 'add_booking_talent',
           tableName: 'atelier_booking_talent',
           recordId: id,
-          newValue: { talent_id: proposedTalentId, role: proposedRole, source: 'brief_match' } as never,
+          newValue: { talent_id: tid, role: proposedRole, source: 'brief_match' } as never,
         }).catch(() => { /* non-fatal */ });
       }
     }
