@@ -119,6 +119,35 @@ export async function updateClientAction(id: string, formData: FormData) {
 }
 
 /**
+ * Dedicated update for the `important_note` field. Used by the inline-
+ * edit affordance on `ImportantPanel` so updating the pinned reminder
+ * doesn't require navigating to the full /edit form.
+ *
+ * Phase C polish — same kind-via-payload pattern as `updateClientStaffAction`.
+ */
+export async function updateClientImportantNoteAction(
+  id: string,
+  note: string,
+) {
+  const authError = await requireOwnerOrPartner();
+  if (authError) return authError;
+  const trimmed = note.trim();
+  const result = await updateClient(id, {
+    important_note: trimmed || null,
+  } as Partial<import('@/lib/types/database').Client>);
+  if (!result) return { error: 'Failed to update note' };
+  await auditEntityMutation({
+    table: 'atelier_clients',
+    recordId: id,
+    action: 'update',
+    payload: { kind: 'important_note_update', length: trimmed.length },
+  });
+  revalidatePath('/clients'); revalidateTag('entities', {});
+  revalidatePath(`/clients/${id}`);
+  return { ok: true };
+}
+
+/**
  * Dedicated update for the client Staff tab. Accepts only the
  * `contacts` jsonb and the `primary_contact_email` pointer. Kept separate
  * from `updateClientAction` so the Staff tab doesn't have to re-submit
