@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { parseBriefAction, applyBriefSuggestionsAction, draftClarifyingEmailAction } from '@/app/actions/bookings';
 import { PALETTE } from '@/lib/utils/constants';
+import UsageSummary from '@/components/bookings/UsageSummary';
 import type { BriefIntakeResult } from '@/lib/automation/brief-intake';
 
 type Props = {
@@ -44,11 +45,11 @@ const FIELD_LABELS = {
   producer_name: 'Producer Name',
   producer_phone: 'Producer Phone',
   producer_email: 'Producer Email',
-  // Usage fields surfaced 2026-05-18 — LLM was extracting these but
-  // they had no checkboxes so they never reached the booking record.
-  usage_duration_months: 'Usage Duration',
-  usage_territory_raw: 'Usage Territory',
-  usage_media_raw: 'Usage Media',
+  // Usage Duration / Territory / Media were zombie checkboxes (extracted
+  // by the LLM but no longer persisted after migration 0071 dropped the
+  // legacy free-text columns). Removed 2026-05-19 — the structured
+  // taxonomy (market / realm / categories / channels / iso) is the
+  // canonical source and is rendered separately via <UsageSummary />.
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
@@ -107,14 +108,6 @@ function formatSuggestionValue(key: FieldKey, value: unknown): string {
   }
   if (key === 'grade_retouch_scope' && typeof value === 'string') {
     return SCOPE_LABELS[value] ?? value;
-  }
-  if (key === 'usage_duration_months' && typeof value === 'number') {
-    if (value >= 999) return 'In perpetuity';
-    if (value === 12) return '1 year';
-    if (value === 24) return '2 years';
-    if (value === 36) return '3 years';
-    if (value % 12 === 0) return `${value / 12} years`;
-    return `${value} month${value === 1 ? '' : 's'}`;
   }
   if (typeof value === 'object') {
     // Defensive: should never happen given the allowlist, but if it does
@@ -492,48 +485,29 @@ export default function BriefParser({ bookingId, hasBriefText, currentState, aut
                   ))}
               </div>
 
-              {/* Structured usage taxonomy preview — LLM-only fields. Shown
-                  as read-only chips. Applied automatically with the rest. */}
+              {/* Structured usage taxonomy preview — rendered via the
+                  same UsageSummary component used on JobFacts + the
+                  talent portal so all three surfaces read identically.
+                  Replaced the ugly chip-tag block on 2026-05-19. */}
               {(suggestions.usage_market || suggestions.usage_realm ||
                 suggestions.usage_media_categories?.length ||
                 suggestions.usage_specific_channels?.length ||
                 suggestions.usage_territory_iso?.length) && (
-                <div className="rounded border px-3 py-2 space-y-1.5" style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}>
+                <div
+                  className="rounded border px-3 py-2.5 space-y-1.5"
+                  style={{ borderColor: PALETTE.border, background: `${PALETTE.accent}08` }}
+                >
                   <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>
-                    Detected usage taxonomy
+                    Usage
                   </div>
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    {suggestions.usage_market && (
-                      <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                        {suggestions.usage_market}
-                      </span>
-                    )}
-                    {suggestions.usage_realm && (
-                      <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                        {suggestions.usage_realm}
-                      </span>
-                    )}
-                    {suggestions.usage_media_categories?.map((c) => (
-                      <span key={c} className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}>
-                        {c}
-                      </span>
-                    ))}
-                    {suggestions.usage_territory_iso?.map((t) => (
-                      <span key={t} className="rounded px-2 py-0.5 text-[11px] font-mono" style={{ background: `${PALETTE.success}22`, color: PALETTE.success }}>
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                  {suggestions.usage_specific_channels && suggestions.usage_specific_channels.length > 0 && (
-                    <div className="flex flex-wrap gap-1 items-center pt-0.5">
-                      <span className="text-[10px]" style={{ color: PALETTE.muted }}>Channels:</span>
-                      {suggestions.usage_specific_channels.map((c) => (
-                        <span key={c} className="text-[10px] font-mono" style={{ color: PALETTE.muted }}>
-                          {c}
-                        </span>
-                      )).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} style={{ color: PALETTE.muted }}>·</span>, el], [])}
-                    </div>
-                  )}
+                  <UsageSummary
+                    market={suggestions.usage_market}
+                    realm={suggestions.usage_realm}
+                    mediaCategories={suggestions.usage_media_categories}
+                    specificChannels={suggestions.usage_specific_channels}
+                    territoryIso={suggestions.usage_territory_iso}
+                    layout="block"
+                  />
                 </div>
               )}
 
