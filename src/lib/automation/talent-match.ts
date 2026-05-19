@@ -28,6 +28,14 @@ export type TalentMatch = {
   matched_token: string;
   /** 0–1 score; higher is more confident. */
   confidence: number;
+  /**
+   * The talent's assigned agent (user_id) when present. Used by the
+   * brief-apply flow to default booking ownership to this agent so a
+   * brief mentioning "Oliver" routes itself to Gary (Oliver's agent)
+   * without manual triage. Null when the talent is unassigned.
+   * Migration 0069 / Phase 1 multi-agent rollout.
+   */
+  assigned_agent_user_id: string | null;
 };
 
 /**
@@ -89,7 +97,7 @@ function tokenAppearsAsWord(text: string, token: string): boolean {
 export function matchTalentInBrief(
   rawText: string,
   talentSpec: string | null | undefined,
-  talents: Pick<Talent, 'id' | 'working_name' | 'legal_name' | 'nicknames'>[],
+  talents: Pick<Talent, 'id' | 'working_name' | 'legal_name' | 'nicknames' | 'assigned_agent_user_id'>[],
 ): TalentMatch | null {
   if (talents.length === 0) return null;
 
@@ -132,6 +140,7 @@ export function matchTalentInBrief(
             matched_via: cand.source,
             matched_token: token,
             confidence: score,
+            assigned_agent_user_id: t.assigned_agent_user_id ?? null,
           };
         }
       }

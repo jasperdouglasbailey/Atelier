@@ -6,9 +6,11 @@ import BookingsBoard from '@/components/bookings/BookingsBoard';
 import BookingsCalendar from '@/components/bookings/BookingsCalendar';
 import BookingsViewToggle from '@/components/bookings/BookingsViewToggle';
 import BookingHoverCard from '@/components/bookings/BookingHoverCard';
+import ScopePill from '@/components/layout/ScopePill';
 import { listBookings } from '@/lib/data/bookings';
 import { getCalendarShoots } from '@/lib/data/crew-bookings';
 import { getBookingsRoster } from '@/lib/data/booking-roster';
+import { getCurrentAppUser } from '@/lib/data/app-users';
 import { BOOKING_STATE_LABELS, SHOOT_TIER_LABELS, STATE_COLORS, PALETTE } from '@/lib/utils/constants';
 import { formatBookingTitle } from '@/lib/utils/booking-title';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -21,6 +23,13 @@ type SearchParams = Promise<{
   search?: string;
   page?: string;
   view?: string;
+  /**
+   * Roster scope filter — "mine" (default) narrows to bookings where any
+   * talent on the team is assigned to the current user. "all" returns
+   * everything in the agency. Cookie-persisted via `bookings_scope_pref`.
+   * Migration 0069 / Phase 1 multi-agent rollout.
+   */
+  scope?: string;
 }>;
 
 export default async function BookingsPage({ searchParams }: { searchParams: SearchParams }) {
@@ -44,6 +53,24 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
   const group = params.group || 'active';
   const showArchived = group === 'archived';
 
+  // Scope resolution: URL > cookie > default 'mine'. Same pattern as the
+  // view toggle. Only meaningful for owners/partners — talent/crew users
+  // hit a different layout entirely.
+  const scopeCookie = cookieStore.get('bookings_scope_pref')?.value;
+  const scope: 'mine' | 'all' =
+    params.scope === 'all' ? 'all'
+      : params.scope === 'mine' ? 'mine'
+      : scopeCookie === 'all' ? 'all'
+      : 'mine';
+  const currentUser = await getCurrentAppUser();
+  // Default to "mine" but only filter if the user has a user_id (which
+  // every authenticated owner/partner will). Falls back to "all" silently
+  // if for some reason the user isn't resolved — better to show data than
+  // to render a blank page.
+  const assignedAgentId = scope === 'mine' && currentUser?.user_id
+    ? currentUser.user_id
+    : undefined;
+
   // Calendar uses its own data source (one row per booking with attached crew + dates).
   // Board fetches all active bookings (no pagination needed — small N).
   // The bookings calendar is now ALWAYS agency-wide; per-talent and
@@ -65,6 +92,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
         page: view === 'board' ? 1 : page,
         pageSize: view === 'board' ? 200 : 20,
         archivedOnly: showArchived,
+        assignedAgentId,
       });
 
   // Roster lookup for hover card. Pulled in one batched query for the
@@ -98,6 +126,19 @@ export default async function BookingsPage({ searchParams }: { searchParams: Sea
             </Link>
           ))}
           <div className="flex-1" />
+          {/* Roster scope — "My artists" by default; "All" for sick cover
+              and cross-agent coordination. Only matters when there's more
+              than one active agent — hidden otherwise. Cookie-persisted. */}
+          <ScopePill
+            current={scope}
+            cookieKey="bookings_scope_pref"
+            pathname="/bookings"
+            preserveParams={{
+              ...(params.view ? { view: params.view } : {}),
+              ...(group ? { group } : {}),
+              ...(params.tier ? { tier: params.tier } : {}),
+            }}
+          />
           {/* View toggle — Calendar → Board → List, persists choice to cookie */}
           <BookingsViewToggle
             current={view}

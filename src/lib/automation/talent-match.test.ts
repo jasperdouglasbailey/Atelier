@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { matchTalentInBrief } from './talent-match';
 import type { Talent } from '@/lib/types/database';
 
-// Minimal Talent shape — the matcher only uses these four fields.
-type T = Pick<Talent, 'id' | 'working_name' | 'legal_name' | 'nicknames'>;
+// Minimal Talent shape — the matcher only uses these fields.
+type T = Pick<Talent, 'id' | 'working_name' | 'legal_name' | 'nicknames' | 'assigned_agent_user_id'>;
 
 const OLIVER: T = {
   id: 'tal-oliver',
   working_name: 'Oliver Begg',
   legal_name: 'Oliver James Begg',
   nicknames: ['Oly', 'Olls'],
+  assigned_agent_user_id: 'agent-gary',  // Phase 1: brief mentioning Oliver routes to Gary
 };
 
 const MICHAEL: T = {
@@ -17,6 +18,7 @@ const MICHAEL: T = {
   working_name: 'Michael Comninus',
   legal_name: 'Michael Comninus',
   nicknames: ['Mike'],
+  assigned_agent_user_id: null,
 };
 
 const ROSTER: T[] = [OLIVER, MICHAEL];
@@ -98,14 +100,31 @@ describe('matchTalentInBrief', () => {
     // Hypothetical talent with a 2-letter nickname ("Bo") shouldn't match — too short.
     const shortRoster: T[] = [{
       id: 'tal-x', working_name: 'Bo', legal_name: 'Bo', nicknames: [],
+      assigned_agent_user_id: null,
     }];
     // "Bo" is below the 3-char min-token threshold so no match.
     expect(matchTalentInBrief('Bo is around', null, shortRoster)).toBeNull();
   });
 
+  it('carries through the matched talent\'s assigned agent for routing', () => {
+    // Phase 1 multi-agent: brief mentioning Oliver should propose Gary
+    // (Oliver's agent) as the booking owner. The matcher just returns
+    // the assigned_agent_user_id; the applying action does the routing.
+    const m = matchTalentInBrief('Oliver Begg for the campaign', null, ROSTER);
+    expect(m?.talent_id).toBe('tal-oliver');
+    expect(m?.assigned_agent_user_id).toBe('agent-gary');
+  });
+
+  it('returns null assigned_agent when the matched talent is unassigned', () => {
+    const m = matchTalentInBrief('Mike on this one', null, ROSTER);
+    expect(m?.talent_id).toBe('tal-michael');
+    expect(m?.assigned_agent_user_id).toBeNull();
+  });
+
   it('apostrophes and punctuation in names don\'t block the match', () => {
     const apostrophe: T[] = [{
       id: 'tal-y', working_name: "D'Angelo Russell", legal_name: "D'Angelo Russell", nicknames: [],
+      assigned_agent_user_id: null,
     }];
     const m = matchTalentInBrief('Confirmed DAngelo Russell for the shoot', null, apostrophe);
     expect(m?.talent_id).toBe('tal-y');

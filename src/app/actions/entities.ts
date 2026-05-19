@@ -601,6 +601,13 @@ export async function updateTalentAction(id: string, formData: FormData) {
   if (formData.get('bank_setup_in_xero') !== null) {
     updates.bank_setup_in_xero = formData.get('bank_setup_in_xero') === 'true';
   }
+  // Assigned agent (migration 0069). Empty string = unassigned. FK to
+  // atelier_app_users enforces that the value is a real provisioned
+  // account; UI restricts the dropdown to owner/partner role.
+  if (formData.get('assigned_agent_user_id') !== null) {
+    const v = (formData.get('assigned_agent_user_id') as string) || '';
+    updates.assigned_agent_user_id = v || null;
+  }
   // Nicknames: comma-separated text → text[]. Trim each, drop empties +
   // duplicates so an empty input or "  ,  ," doesn't write junk.
   if (formData.get('nicknames') !== null) {

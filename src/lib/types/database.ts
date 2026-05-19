@@ -217,6 +217,13 @@ export interface Talent {
   /** Auto-created Drive folder for portfolio + non-PII material. */
   drive_folder_id: string | null;
   drive_folder_link: string | null;
+  /**
+   * The human agent at the agency who owns this artist's relationship by
+   * default. Drives the "my artists" UI filter and the default booking
+   * owner when this talent is added to a team. NULL = unassigned
+   * (visible to everyone in agency). Migration 0069.
+   */
+  assigned_agent_user_id: string | null;
 }
 
 export interface Crew {

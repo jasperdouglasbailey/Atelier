@@ -1199,6 +1199,39 @@ export type Database = {
         }
         Relationships: []
       }
+      atelier_error_log: {
+        Row: {
+          context: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          occurred_at: string
+          source: string
+          stack: string | null
+          user_id: string | null
+        }
+        Insert: {
+          context?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          occurred_at?: string
+          source: string
+          stack?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          context?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          occurred_at?: string
+          source?: string
+          stack?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       atelier_events: {
         Row: {
           actor: string | null
@@ -1691,6 +1724,7 @@ export type Database = {
       atelier_talent: {
         Row: {
           abn: string | null
+          assigned_agent_user_id: string | null
           bank_account_name: string | null
           bank_account_number: string | null
           bank_bsb: string | null
@@ -1744,6 +1778,7 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
+          assigned_agent_user_id?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_bsb?: string | null
@@ -1797,6 +1832,7 @@ export type Database = {
         }
         Update: {
           abn?: string | null
+          assigned_agent_user_id?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_bsb?: string | null
@@ -1848,7 +1884,15 @@ export type Database = {
           wwcc_number?: string | null
           xero_contact_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "atelier_talent_assigned_agent_user_id_fkey"
+            columns: ["assigned_agent_user_id"]
+            isOneToOne: false
+            referencedRelation: "atelier_app_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       atelier_talent_preferred_crew: {
         Row: {
@@ -2903,6 +2947,10 @@ export type Database = {
         }[]
       }
       is_owner_or_partner: { Args: never; Returns: boolean }
+      is_signin_email_allowed: {
+        Args: { email_input: string }
+        Returns: boolean
+      }
     }
     Enums: {
       atelier_agent_name:
