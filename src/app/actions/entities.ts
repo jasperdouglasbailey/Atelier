@@ -100,6 +100,14 @@ export async function updateClientAction(id: string, formData: FormData) {
     else if (key === 'contacts') {
       try { updates.contacts = JSON.parse(val as string); } catch { updates.contacts = []; }
     }
+    else if (key === 'tags') {
+      // Comma-separated string from the input → trimmed, non-empty array.
+      // Empty input clears tags to null (rather than empty array) for parity
+      // with how locations.tags treats absence.
+      const raw = ((val as string) ?? '').trim();
+      if (!raw) updates.tags = null;
+      else updates.tags = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    }
     else updates[key] = (val as string) || null;
   }
   const result = await updateClient(id, updates);
