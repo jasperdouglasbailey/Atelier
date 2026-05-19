@@ -235,65 +235,14 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
 
                   <BookingJobFacts booking={booking} schedules={schedules} clients={clientOptions} />
 
-                  {/* Usage Licences — surface its own section here. Previously
-                      this was nested inside BookingDetail's Brief panel which
-                      is hidden when suppressHeader is set (always, on this
-                      page), so the usage panel was effectively orphaned. */}
-                  <section
-                    className="rounded-lg border p-4 space-y-3"
-                    style={{ background: PALETTE.surface, borderColor: PALETTE.border }}
-                  >
-                    {/* Structured taxonomy strip — read-only chips of the
-                        market / realm / media categories / territories
-                        extracted by the brief-intake LLM (PR #169) and
-                        persisted via migration 0059. Hidden when nothing has
-                        been extracted yet. */}
-                    {(booking.usage_market || booking.usage_realm ||
-                      (booking.usage_media_categories?.length ?? 0) > 0 ||
-                      (booking.usage_specific_channels?.length ?? 0) > 0 ||
-                      (booking.usage_territory_iso?.length ?? 0) > 0) && (
-                      <div className="pb-2 border-b" style={{ borderColor: PALETTE.border }}>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: PALETTE.muted }}>
-                          Usage taxonomy
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 items-center">
-                          {booking.usage_market && (
-                            <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                              {booking.usage_market}
-                            </span>
-                          )}
-                          {booking.usage_realm && (
-                            <span className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.accent}22`, color: PALETTE.accent }}>
-                              {booking.usage_realm}
-                            </span>
-                          )}
-                          {booking.usage_media_categories?.map((c) => (
-                            <span key={c} className="rounded px-2 py-0.5 text-[11px]" style={{ background: `${PALETTE.warning}22`, color: PALETTE.warning }}>
-                              {c}
-                            </span>
-                          ))}
-                          {booking.usage_territory_iso?.map((t) => (
-                            <span key={t} className="rounded px-2 py-0.5 text-[11px] font-mono" style={{ background: `${PALETTE.success}22`, color: PALETTE.success }}>
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                        {(booking.usage_specific_channels?.length ?? 0) > 0 && (
-                          <div className="flex flex-wrap gap-x-2 items-center mt-1">
-                            <span className="text-[10px]" style={{ color: PALETTE.muted }}>Channels:</span>
-                            <span className="text-[10px] font-mono" style={{ color: PALETTE.muted }}>
-                              {booking.usage_specific_channels?.join(' · ')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* UsageLicenceBuilder retired 2026-05-19 — usage is now
-                        captured booking-level via the structured taxonomy
-                        strip above (PR#170 fields). The per-talent
-                        atelier_usage_licences table stays for backward compat
-                        but isn't surfaced in the UI. */}
-                  </section>
+                  {/* Standalone Usage Taxonomy chip block retired 2026-05-19 —
+                      duplicate of the readable Usage row now rendered inside
+                      JobFacts via <UsageSummary />. The five structured
+                      taxonomy columns (market / realm / media_categories /
+                      specific_channels / territory_iso) are still persisted
+                      and surfaced in one place. UsageLicenceBuilder also
+                      retired (per-talent atelier_usage_licences table stays
+                      for backward compat but isn't surfaced in the UI). */}
 
                   {booking.brief_raw_text && ['brief_received', 'brief_parsed'].includes(booking.state) && (
                     <BriefParser
