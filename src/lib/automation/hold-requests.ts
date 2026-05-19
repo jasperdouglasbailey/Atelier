@@ -16,7 +16,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createApproval } from '@/lib/data/approvals';
 import { logAudit } from '@/lib/utils/audit';
 import { emitEvent } from '@/lib/utils/events';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatDate } from '@/lib/utils/format';
+import { getAgencyConfig } from '@/lib/utils/agency-config';
+import { composeCrewEmail } from '@/lib/utils/crew-email';
 
 const HOURS_48 = 48 * 60 * 60 * 1000;
 
@@ -40,8 +42,44 @@ type BookingForHold = {
   state: string;
   shoot_dates: string | null;
   shoot_location: string | null;
+  call_time: string | null;
+  wrap_time: string | null;
   client?: { company: string | null; name: string } | null;
 };
+
+/**
+ * Format "8:00am" / "6:00pm" from a Postgres TIME string like "08:00:00".
+ * Returns null for invalid / empty input. AU-conventional lowercase am/pm.
+ */
+function formatTimeOfDay(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const m = input.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h24 = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (isNaN(h24) || isNaN(min) || h24 > 23 || min > 59) return null;
+  const period = h24 >= 12 ? 'pm' : 'am';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${min.toString().padStart(2, '0')}${period}`;
+}
+
+function formatTiming(call: string | null | undefined, wrap: string | null | undefined): string | null {
+  const c = formatTimeOfDay(call);
+  const w = formatTimeOfDay(wrap);
+  if (c && w) return `${c} – ${w}`;
+  if (c) return `${c} – TBC`;
+  if (w) return `TBC – ${w}`;
+  return null;
+}
+
+function humaniseRole(role: string | null | undefined): string | null {
+  if (!role) return null;
+  const cleaned = role.replace(/_/g, ' ').trim();
+  if (!cleaned) return null;
+  // Sentence case: capitalise first letter only. Most roles are
+  // "digital operator", "hmua" (we'll leave acronyms alone).
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
 
 function parseRangeStart(input: string | null | undefined): Date | null {
   if (!input) return null;
@@ -69,34 +107,43 @@ function formatShootDates(input: string | null | undefined): string {
 
 function buildEmail(args: {
   crewName: string;
-  bookingRef: string | null;
-  client: string;
-  dates: string;
+  client: string | null;
+  dates: string | null;
+  artists: string[];
   role: string | null;
   dayRate: number | null;
+  timing: string | null;
   location: string | null;
 }): { subject: string; body: string } {
   const firstName = args.crewName.split(' ')[0] || 'there';
-  const subject = `Pencil hold — ${args.bookingRef ?? args.client} ${args.dates}`;
-  const role = args.role ? args.role.replace(/_/g, ' ') : 'crew';
-  const rate = args.dayRate ? `${formatCurrency(args.dayRate, 'AUD')}/day` : 'rate TBD';
-  const location = args.location ?? 'location TBC';
+  const agency = getAgencyConfig();
 
-  const body = [
-    `Hi ${firstName},`,
-    '',
-    `Putting this on your radar — pencil hold for ${args.bookingRef ?? args.client} (${args.client}) on ${args.dates}.`,
-    '',
-    `Role: ${role}`,
-    `Day rate: ${rate}`,
-    `Location: ${location}`,
-    '',
-    `Let me know if those dates work or if there's anything pencilled in we need to work around. No commitment yet — this is just a soft hold.`,
-    '',
-    '— Jasper',
-  ].join('\n');
+  // When there's actually no client on the booking, pass null so the
+  // emoji-row builder skips the row entirely — better than papering over
+  // missing data with the agency name as a placeholder.
+  const clientLabel = args.client && args.client.trim().length > 0 ? args.client : null;
 
-  return { subject, body };
+  return composeCrewEmail({
+    mode: 'hold',
+    recipientFirstName: firstName,
+    artists: args.artists,
+    clientLabel,
+    role: humaniseRole(args.role),
+    rates: {
+      dayFee: args.dayRate,
+      // Crew labour is super-bearing by doctrine. When the comms agent
+      // eventually drafts holds for non-super-bearing roles, this flag
+      // will be conditional — for now, hold-requests only fires on
+      // crew_labour-style rows.
+      dayFeeSuperBearing: true,
+      travel: null,    // pre-hold: travel not yet pre-loaded
+      overtime: null,  // pre-hold: OT not yet pre-loaded
+    },
+    dates: args.dates,
+    timing: args.timing,
+    location: args.location,
+    agencyOwnerName: agency.ownerName.split(' ')[0] || agency.ownerName,
+  });
 }
 
 /**
@@ -111,12 +158,29 @@ export async function buildHoldRequestProposals(bookingId: string): Promise<{
 
   const { data: bookingRow } = await supabase
     .from('atelier_bookings')
-    .select('id, booking_ref, title, state, shoot_dates, shoot_location, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
+    .select('id, booking_ref, title, state, shoot_dates, shoot_location, call_time, wrap_time, client:atelier_clients!atelier_bookings_client_id_fkey(name, company)')
     .eq('id', bookingId)
     .maybeSingle();
 
   if (!bookingRow) return { booking: null, proposals: [] };
   const booking = bookingRow as unknown as BookingForHold;
+
+  // Pull artist names so the email's "🎤 Assisting:" row can name who the
+  // crew member would be working with. Joined separately from the booking
+  // query because PostgREST handles the M2M cleaner this way.
+  const { data: talentRows } = await supabase
+    .from('atelier_booking_talent')
+    .select('talent:atelier_talent!atelier_booking_talent_talent_id_fkey(working_name, created_at)')
+    .eq('booking_id', bookingId)
+    .order('created_at', { ascending: true });
+
+  type TalentRow = { talent: { working_name: string | null } | { working_name: string | null }[] | null };
+  const artists = ((talentRows ?? []) as TalentRow[])
+    .map((row) => {
+      const t = Array.isArray(row.talent) ? row.talent[0] : row.talent;
+      return t?.working_name ?? null;
+    })
+    .filter((n): n is string => !!n && n.trim().length > 0);
 
   const { data: crewRows } = await supabase
     .from('atelier_booking_crew')
@@ -132,7 +196,11 @@ export async function buildHoldRequestProposals(bookingId: string): Promise<{
   const now = Date.now();
   const moreThan48h = shootStart ? shootStart.getTime() - now > HOURS_48 : false;
   const dates = formatShootDates(booking.shoot_dates);
-  const clientLabel = booking.client?.company || booking.client?.name || 'Saunders & Co';
+  // Client display: company preferred, falls back to contact name. Null
+  // when there's no client linked — the email composer skips the row
+  // rather than show a misleading agency-name stand-in.
+  const clientLabel = booking.client?.company || booking.client?.name || null;
+  const timing = formatTiming(booking.call_time, booking.wrap_time);
 
   return {
     booking,
@@ -154,11 +222,12 @@ export async function buildHoldRequestProposals(bookingId: string): Promise<{
 
       const email = buildEmail({
         crewName,
-        bookingRef: booking.booking_ref,
         client: clientLabel,
-        dates,
+        dates: dates === 'TBD' ? null : dates,
+        artists,
         role,
         dayRate,
+        timing,
         location: booking.shoot_location,
       });
 
