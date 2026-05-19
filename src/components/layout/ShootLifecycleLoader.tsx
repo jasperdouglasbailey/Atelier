@@ -12,7 +12,8 @@
  * the brand mono (DM Mono) so it reads as part of the UI, not a hack.
  *
  * Animation:
- *   - Each step is shown for 650ms.
+ *   - Each step is shown for 870ms (~1/3 slower than the original
+ *     650ms — Jasper said it felt rushed).
  *   - On step change, the new line fades in and shifts up 4px.
  *   - After the last step, we loop back to step 0.
  *   - CSS keyframes only — no React state per frame, no rAF, just an
@@ -75,7 +76,7 @@ function pickNarrative(): Narrative {
   return NARRATIVES[Math.floor(Math.random() * NARRATIVES.length)];
 }
 
-const STEP_MS = 650;
+const STEP_MS = 870;
 
 export default function ShootLifecycleLoader({ subtitle }: { subtitle?: string }) {
   // Pick once per mount. eslint-disable for exhaustive-deps because we

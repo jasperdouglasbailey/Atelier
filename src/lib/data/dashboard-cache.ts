@@ -17,6 +17,7 @@
 import { unstable_cache } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/service';
 import { ACTIVE_STATES } from '@/lib/utils/constants';
+import { currentFiscalYear } from '@/lib/utils/fiscal-year';
 import type { ReportSummary } from './reports';
 
 const CACHE_OPTIONS = { revalidate: 60, tags: ['bookings'] as string[] };
@@ -63,6 +64,7 @@ export const getCachedReportSummary: () => Promise<ReportSummary> =
     async (): Promise<ReportSummary> => {
       const supabase = createServiceClient();
       const now = new Date();
+      const fy = currentFiscalYear(now);
 
       const CONFIRMED_OR_LATER_STATES = [
         'quote_confirmed', 'pre_production', 'shoot_live',
@@ -70,19 +72,30 @@ export const getCachedReportSummary: () => Promise<ReportSummary> =
         'invoice_issued', 'paid',
       ];
 
-      const [aggResult, weekResult] = await Promise.all([
+      const [aggResult, weekResult, fyResult] = await Promise.all([
         supabase.rpc('get_report_summary_agg'),
         supabase
           .from('atelier_bookings')
           .select('grand_total, shoot_dates')
           .in('state', CONFIRMED_OR_LATER_STATES),
+        // AU FY revenue — mirrors the uncached path in reports.ts.
+        supabase
+          .from('atelier_bookings')
+          .select('grand_total')
+          .gte('created_at', fy.startISO)
+          .lt('created_at', fy.endExclusiveISO)
+          .neq('state', 'written_off'),
       ]);
 
       const ZERO: ReportSummary = {
         totalActiveBookings: 0, totalRevenueAllTime: 0,
-        revenueThisYear: 0, revenueThisMonth: 0, revenueLastMonth: 0,
+        revenueThisFY: 0, currentFYLabel: fy.label,
+        revenueThisMonth: 0, revenueLastMonth: 0,
         revenueThisWeek: 0, avgBookingValue: 0,
       };
+
+      const fyRows = (fyResult.data ?? []) as { grand_total: number | null }[];
+      const revenueThisFY = fyRows.reduce((s, r) => s + (r.grand_total ?? 0), 0);
 
       let agg = aggResult.data?.[0] as {
         total_active: number; revenue_all_time: number;
@@ -134,7 +147,8 @@ export const getCachedReportSummary: () => Promise<ReportSummary> =
       return {
         totalActiveBookings: Number(agg.total_active),
         totalRevenueAllTime: Number(agg.revenue_all_time),
-        revenueThisYear: Number(agg.revenue_this_year),
+        revenueThisFY: Number(revenueThisFY),
+        currentFYLabel: fy.label,
         revenueThisMonth: Number(agg.revenue_this_month),
         revenueLastMonth: Number(agg.revenue_last_month),
         revenueThisWeek,

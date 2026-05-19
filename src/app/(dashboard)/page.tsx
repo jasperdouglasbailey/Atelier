@@ -368,7 +368,8 @@ export default async function DashboardPage() {
               revenueThisWeek={summary.revenueThisWeek}
               revenueThisMonth={summary.revenueThisMonth}
               revenueLastMonth={summary.revenueLastMonth}
-              revenueThisYear={summary.revenueThisYear}
+              revenueThisFY={summary.revenueThisFY}
+              currentFYLabel={summary.currentFYLabel}
               avgBookingValue={summary.avgBookingValue}
               overdueTotal={overdueTotal}
               overdueCount={overdueInvoices.length}

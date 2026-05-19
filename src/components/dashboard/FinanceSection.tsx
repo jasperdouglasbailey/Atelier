@@ -14,7 +14,8 @@ export default function FinanceSection({
   revenueThisWeek,
   revenueThisMonth,
   revenueLastMonth,
-  revenueThisYear,
+  revenueThisFY,
+  currentFYLabel,
   avgBookingValue,
   overdueTotal,
   overdueCount,
@@ -23,7 +24,10 @@ export default function FinanceSection({
   revenueThisWeek: number;
   revenueThisMonth: number;
   revenueLastMonth: number;
-  revenueThisYear: number;
+  /** AU fiscal-year revenue (Jul–Jun). Replaces the prior calendar-year value 2026-05-19. */
+  revenueThisFY: number;
+  /** "FY 25/26"-style label for the tile heading. */
+  currentFYLabel: string;
   avgBookingValue: number;
   overdueTotal: number;
   overdueCount: number;
@@ -60,9 +64,9 @@ export default function FinanceSection({
           accent
         />
         <Metric
-          label="Year to date"
-          value={formatCurrency(revenueThisYear)}
-          sub={`avg ${formatCurrency(avgBookingValue)}/booking`}
+          label={currentFYLabel}
+          value={formatCurrency(revenueThisFY)}
+          sub={`AU fiscal year · avg ${formatCurrency(avgBookingValue)}/booking`}
         />
         {overdueCount > 0 ? (
           <Link
