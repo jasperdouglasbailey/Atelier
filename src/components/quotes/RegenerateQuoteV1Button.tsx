@@ -6,7 +6,9 @@ import { PALETTE } from '@/lib/utils/constants';
 
 type Props = {
   bookingId: string;
-  /** Optional discipline label for button text ("photographer" / "videographer"). */
+  /** Optional discipline label for button text. Photographer is the only
+   * supported template right now; non-photographer values render without
+   * the label suffix. */
   discipline?: string | null;
   /** Optional day-rate to display in the button label. */
   dayRate?: number | null;
@@ -33,9 +35,7 @@ export default function RegenerateQuoteV1Button({ bookingId, discipline, dayRate
   }
 
   const dayRateLabel = dayRate ? ` ($${dayRate.toLocaleString()} day rate)` : '';
-  const disciplineLabel = discipline === 'photographer' || discipline === 'videographer'
-    ? ` (${discipline})`
-    : '';
+  const disciplineLabel = discipline === 'photographer' ? ` (${discipline})` : '';
 
   return (
     <div className="space-y-1.5">

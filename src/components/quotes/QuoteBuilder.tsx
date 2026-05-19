@@ -48,7 +48,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
 
   // Template generation state
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | 'videographer' | 'stylist' | 'hmu' | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<'photographer' | null>(null);
   // Pre-fill shoot fee from first talent's confirmed day rate, fallback to template default
   const primaryTalentDayRate = bookingTalent[0]?.day_rate ?? null;
   // Detected discipline from the attached primary artist (for template auto-select)
@@ -226,13 +226,12 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     setBusy(false);
   }
 
-  function openTemplate(t: 'photographer' | 'videographer' | 'stylist' | 'hmu') {
+  function openTemplate(t: 'photographer') {
     setSelectedTemplate(t);
-    // Pre-fill shoot fee from talent rate (fallback to template default)
-    const defaultFees: Record<typeof t, number> = {
-      photographer: 4000, videographer: 3000, stylist: 1800, hmu: 1400,
-    };
-    setShootFeeInput(String(primaryTalentDayRate ?? defaultFees[t]));
+    // Pre-fill shoot fee from talent rate (fallback to template default).
+    // Only one template active right now (videographer / stylist / HMU
+    // retired 2026-05-20). If those come back, restore the Record<…> form.
+    setShootFeeInput(String(primaryTalentDayRate ?? 4000));
     setShowTemplatePanel(true);
   }
 
@@ -424,9 +423,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
           )}
           <p className="text-[10px]" style={{ color: PALETTE.muted }}>
             {selectedTemplate === 'photographer' && 'Creates: shoot fee · digital operator ($600) · assistant ($600). Agency commission + crew fringes auto-computed.'}
-            {selectedTemplate === 'videographer' && 'Creates: shoot fee · 1AC labour ($900) · 1AC kit ($400) · lighting tech ($750). Agency commission + crew fringes auto-computed.'}
-            {selectedTemplate === 'stylist' && 'Creates: shoot day rate · pre-pro days · kit fee · wardrobe pull · travel. Lines with no preset rate start at $0 — fill them in after.'}
-            {selectedTemplate === 'hmu' && 'Creates: shoot day rate · pre-pro / test day · kit fee · travel. Lines with no preset rate start at $0 — fill them in after.'}
           </p>
           <div className="flex gap-2">
             <button
@@ -449,31 +445,21 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
       )}
 
       {!latestVersion && !showTemplatePanel && (() => {
-        // Map artist discipline → suggested template
-        const disciplineToTemplate: Record<string, 'photographer' | 'videographer' | 'stylist' | 'hmu' | null> = {
-          photographer: 'photographer',
-          videographer: 'videographer',
-          wardrobe_stylist: 'stylist',
-          hair: 'hmu',
-          makeup: 'hmu',
-          hair_and_makeup: 'hmu',
-          manicurist: 'hmu',
-        };
-        const suggested = primaryDiscipline ? disciplineToTemplate[primaryDiscipline] ?? null : null;
-        const templateLabel = (t: 'photographer' | 'videographer' | 'stylist' | 'hmu') => ({
-          photographer: 'Photographer template',
-          videographer: 'Videographer template',
-          stylist: 'Stylist template',
-          hmu: 'Hair & Makeup template',
-        }[t]);
+        // Only photographer templates exist for now (videographer / stylist /
+        // HMU retired 2026-05-20). When others come back the disciplineToTemplate
+        // map + label fn return here.
+        const suggested = primaryDiscipline === 'photographer' ? 'photographer' as const : null;
+        const templateLabel = (_t: 'photographer') => 'Photographer template';
         return (
         <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: PALETTE.border }}>
           <p className="text-xs font-medium" style={{ color: PALETTE.text }}>Start this quote:</p>
-          {/* One-click auto-generate when artist + discipline are known (legacy bookings) */}
-          {(primaryDiscipline === 'photographer' || primaryDiscipline === 'videographer') && (
+          {/* One-click auto-generate when artist + discipline are known (legacy bookings).
+              Only photographer is supported right now — other disciplines fall
+              through to the "Blank quote" button below. */}
+          {primaryDiscipline === 'photographer' && (
             <div className="rounded border p-3 space-y-2" style={{ borderColor: `${PALETTE.accent}44`, background: `${PALETTE.accent}08` }}>
               <p className="text-xs" style={{ color: PALETTE.accent }}>
-                Primary artist is a {primaryDiscipline}. One-click generate or use a template:
+                Primary artist is a photographer. One-click generate or use a template:
               </p>
               <RegenerateQuoteV1Button
                 bookingId={bookingId}
@@ -483,7 +469,8 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            {(['photographer', 'videographer', 'stylist', 'hmu'] as const).map((t) => {
+            {(() => {
+              const t = 'photographer' as const;
               const isSuggested = suggested === t;
               return (
                 <button
@@ -500,7 +487,7 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
                   {templateLabel(t)}
                 </button>
               );
-            })}
+            })()}
             <button
               onClick={handleCreateVersion}
               disabled={busy}

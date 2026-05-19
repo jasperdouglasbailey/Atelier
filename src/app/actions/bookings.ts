@@ -40,7 +40,7 @@ import type { BookingState } from '@/lib/types/database';
  */
 async function generateQuoteV1FromTemplate(
   bookingId: string,
-  discipline: 'photographer' | 'videographer',
+  discipline: 'photographer',
   defaultDayRate: number | null,
 ): Promise<string | null> {
   const qv = await createQuoteVersion(bookingId);
@@ -174,8 +174,11 @@ export async function createBookingAction(formData: FormData) {
     const leadId = talentIds[0];
     const leadRow = byId.get(leadId);
     const leadDiscipline = (leadRow?.discipline as string | undefined) || discipline;
-    if (leadDiscipline === 'photographer' || leadDiscipline === 'videographer') {
-      await generateQuoteV1FromTemplate(booking.id, leadDiscipline, leadRow?.default_day_rate ?? null);
+    // Only photographer templates exist for now (videographer / stylist /
+    // HMU retired 2026-05-20). Other disciplines still create the booking,
+    // just without an auto-generated quote — the operator builds it manually.
+    if (leadDiscipline === 'photographer') {
+      await generateQuoteV1FromTemplate(booking.id, 'photographer', leadRow?.default_day_rate ?? null);
     }
   }
 
@@ -1397,13 +1400,13 @@ export async function regenerateQuoteV1Action(bookingId: string) {
   }
 
   const discipline = primary.talent.discipline;
-  if (discipline !== 'photographer' && discipline !== 'videographer') {
-    return { error: `No template for ${discipline}. Templates exist for photographer and videographer only.` };
+  if (discipline !== 'photographer') {
+    return { error: `No template for ${discipline}. Only the photographer template is available right now.` };
   }
 
   const qvId = await generateQuoteV1FromTemplate(
     bookingId,
-    discipline,
+    'photographer',
     primary.talent.default_day_rate ?? primary.day_rate ?? null,
   );
   if (!qvId) return { error: 'Quote generation failed.' };
@@ -1491,8 +1494,8 @@ export async function cloneBookingAction(sourceId: string) {
     if (primary) {
       const tw = primary as typeof primary & { talent?: { default_day_rate: number | null; discipline: string } | null };
       const discipline = tw.talent?.discipline ?? '';
-      if (discipline === 'photographer' || discipline === 'videographer') {
-        await generateQuoteV1FromTemplate(newBooking.id, discipline, tw.talent?.default_day_rate ?? null);
+      if (discipline === 'photographer') {
+        await generateQuoteV1FromTemplate(newBooking.id, 'photographer', tw.talent?.default_day_rate ?? null);
       }
     }
   }
