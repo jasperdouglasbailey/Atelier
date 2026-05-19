@@ -32,8 +32,14 @@ type Props = {
   locations: Location[];
   /** Submit handler — wires to createBookingAction or updateBookingAction. */
   onSubmit: (formData: FormData) => Promise<{ ok: true; id?: string } | { error: string }>;
-  /** Where to redirect on success. Receives the booking id from server action result. */
-  onSuccessRedirect: (id: string | undefined) => void;
+  /**
+   * Where to redirect on success. Receives the booking id from server
+   * action result. `opts.hasBriefText` is true when the brief textarea
+   * had content — the redirect target appends `?action=parse#brief-parser`
+   * so the auto-parser fires on the detail page (saves the operator from
+   * the manual "Parse brief" click).
+   */
+  onSuccessRedirect: (id: string | undefined, opts?: { hasBriefText?: boolean }) => void;
 };
 
 const inputClass = 'w-full rounded-md border bg-transparent px-3 py-2 text-sm';
@@ -118,6 +124,20 @@ export default function BookingFormFields({
   // Location library pick
   const [locationPickId, setLocationPickId] = useState('');
   const [shootLocationText, setShootLocationText] = useState<string>(initial?.shoot_location ?? '');
+
+  // Brief textarea — controlled in create mode so we can route the
+  // post-create redirect to ?action=parse#brief-parser when there's
+  // anything pasted. In edit mode the textarea is uncontrolled to
+  // match the rest of the edit form.
+  const [briefText, setBriefText] = useState<string>(initial?.brief_raw_text ?? '');
+
+  // Create-mode "Or fill details manually" expander. The form used to
+  // dump every optional field on a long scroll. With JobFacts now
+  // inline-editing all of them post-create, the expander stays
+  // collapsed by default and ~95% of operators just don't open it.
+  // Edit mode always shows everything (the whole form is the edit
+  // surface for fields not yet on JobFacts).
+  const [showManualDetails, setShowManualDetails] = useState(mode === 'edit');
 
   function handleLocationPick(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
@@ -206,7 +226,12 @@ export default function BookingFormFields({
     if ('error' in result) {
       setError(result.error ?? 'Unknown error');
     } else {
-      onSuccessRedirect(result.id);
+      // Route brief-bearing creates straight into the auto-parser so
+      // the operator doesn't have to manually click "Parse brief" on
+      // the detail page after pasting an email here. Edit mode never
+      // auto-parses (the brief textarea on edit is for adjustments).
+      const hasBriefText = mode === 'create' && briefText.trim().length > 0;
+      onSuccessRedirect(result.id, { hasBriefText });
     }
   }
 
@@ -441,6 +466,53 @@ export default function BookingFormFields({
         </div>
       )}
 
+      {/* ── Brief / Email — PROMINENT in create mode ──────────────
+          Most bookings start from an email. Pasting it here means the
+          LLM brief parser auto-runs after create (?action=parse on the
+          redirect URL) and fills location / dates / call+wrap /
+          deliverables / producer / post-prod / usage with no extra
+          clicks. Save 12 form fields' worth of typing. */}
+      {mode === 'create' && (
+        <div className="rounded-lg border-l-4 p-4" style={{ background: `${PALETTE.accent}08`, borderLeftColor: PALETTE.accent, borderTop: `1px solid ${PALETTE.border}`, borderRight: `1px solid ${PALETTE.border}`, borderBottom: `1px solid ${PALETTE.border}` }}>
+          <label className={labelClass} style={{ ...labelStyle, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            Brief / Email
+          </label>
+          <p className="text-[11px] mb-2" style={{ color: PALETTE.muted }}>
+            Paste the client&rsquo;s email here and the AI will fill the rest — location, dates,
+            call/wrap, deliverables, producer contact, usage, post-production scope.
+            Skip this and use &ldquo;Or fill manually&rdquo; below if you don&rsquo;t have a brief yet.
+          </p>
+          <textarea
+            name="brief_raw_text"
+            value={briefText}
+            onChange={(e) => setBriefText(e.target.value)}
+            rows={6}
+            className={inputClass}
+            style={inputStyle}
+            placeholder="Hi there, we&apos;re putting together a shoot for…"
+          />
+        </div>
+      )}
+
+      {/* ── Optional details — collapsed in create mode by default,
+            always open in edit mode. JobFacts now inline-edits every
+            one of these post-create, so the operator typically doesn't
+            need to touch this section on a new booking. */}
+      {mode === 'create' && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowManualDetails((v) => !v)}
+            className="text-[11px] font-medium underline-offset-2 hover:underline"
+            style={{ color: PALETTE.muted, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            {showManualDetails ? '− Hide manual fields' : '+ Or fill details manually (location, dates, producer, post-prod, PO, notes…)'}
+          </button>
+        </div>
+      )}
+
+      {showManualDetails && (
+      <>
       {/* ── Location & Dates ───────────────────────────────────── */}
       <div>
         <label className={labelClass} style={labelStyle}>Shoot Location</label>
@@ -582,15 +654,29 @@ export default function BookingFormFields({
         <textarea name="agency_notes" rows={2} defaultValue={initial?.agency_notes ?? ''} className={inputClass} style={inputStyle} />
       </div>
 
-      <div>
-        <label className={labelClass} style={labelStyle}>
-          Raw Brief / Email
-          <span className="ml-2 font-normal normal-case" style={{ color: PALETTE.muted }}>
-            — source text for the Brief Parser (extracts dates, deliverables, usage automatically)
-          </span>
-        </label>
-        <textarea name="brief_raw_text" rows={mode === 'edit' ? 6 : 4} defaultValue={initial?.brief_raw_text ?? ''} className={inputClass} style={inputStyle} />
-      </div>
+      {/* Edit mode keeps the brief textarea at the bottom (the
+          prominent create-mode brief block above is create-only). */}
+      {mode === 'edit' && (
+        <div>
+          <label className={labelClass} style={labelStyle}>
+            Raw Brief / Email
+            <span className="ml-2 font-normal normal-case" style={{ color: PALETTE.muted }}>
+              — source text for the Brief Parser (extracts dates, deliverables, usage automatically)
+            </span>
+          </label>
+          <textarea
+            name="brief_raw_text"
+            value={briefText}
+            onChange={(e) => setBriefText(e.target.value)}
+            rows={6}
+            className={inputClass}
+            style={inputStyle}
+          />
+        </div>
+      )}
+
+      </>
+      )}
 
       <div className="flex gap-3">
         <button
@@ -601,7 +687,11 @@ export default function BookingFormFields({
         >
           {submitting
             ? (mode === 'create' ? 'Creating…' : 'Saving…')
-            : (mode === 'create' ? 'Create Booking' : 'Save Changes')}
+            : mode === 'edit'
+              ? 'Save Changes'
+              : briefText.trim().length > 0
+                ? 'Create + parse brief'
+                : 'Create Booking'}
         </button>
         {mode === 'edit' && (
           <button
