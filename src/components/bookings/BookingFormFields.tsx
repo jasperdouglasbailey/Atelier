@@ -300,7 +300,14 @@ export default function BookingFormFields({
                   payment_terms_days: null, notes: null,
                   avg_doi_days: null, preferred_comms: null,
                   communication_style: null,
-                  address: null, contacts: [],
+                  address: null,
+                  address_physical: null,
+                  postal_address: null,
+                  tags: null,
+                  xero_contact_id: null,
+                  important_note: null,
+                  primary_contact_email: null,
+                  contacts: [],
                   drive_folder_id: null, drive_folder_link: null,
                 };
                 setClients((prev) => [...prev, newClient]);

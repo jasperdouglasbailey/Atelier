@@ -123,10 +123,51 @@ export default function ClientEditForm({ client }: Props) {
           </select>
         </div>
 
-        <div>
-          <label style={labelStyle}>Address</label>
-          <input name="address" defaultValue={client.address ?? ''} style={inputStyle} placeholder="e.g. Level 5, 100 Harris St, Pyrmont NSW 2009" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Physical Address</label>
+            <input
+              name="address_physical"
+              defaultValue={client.address_physical ?? client.address ?? ''}
+              style={inputStyle}
+              placeholder="e.g. Level 5, 100 Harris St, Pyrmont NSW 2009"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Postal Address</label>
+            <input
+              name="postal_address"
+              defaultValue={client.postal_address ?? ''}
+              style={inputStyle}
+              placeholder="If different from physical (PO Box, locked bag, etc.)"
+            />
+          </div>
         </div>
+
+        <div>
+          <label style={labelStyle}>Tags</label>
+          <input
+            name="tags"
+            defaultValue={(client.tags ?? []).join(', ')}
+            style={inputStyle}
+            placeholder="e.g. magazine, agency, fashion (comma-separated)"
+          />
+        </div>
+      </section>
+
+      {/* Important pinned note — short, always visible on the detail page. */}
+      <section className="rounded-lg border p-4 space-y-2" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Important Note</h3>
+        <p className="text-[11px]" style={{ color: PALETTE.muted }}>
+          Short, always-visible reminder (e.g. &ldquo;Always CC accounts@…&rdquo;). Distinct from the long-form Notes below.
+        </p>
+        <textarea
+          name="important_note"
+          defaultValue={client.important_note ?? ''}
+          rows={2}
+          style={{ ...inputStyle, resize: 'vertical' }}
+          placeholder="Short pinned reminder…"
+        />
       </section>
 
       {/* Primary contact */}
@@ -265,21 +306,36 @@ export default function ClientEditForm({ client }: Props) {
         ))}
       </section>
 
-      {/* Finance */}
+      {/* Finance — banking lives in Xero ONLY (CLAUDE.md doctrine). We capture
+          payment terms here and link out to the Xero contact for the rest. */}
       <section className="rounded-lg border p-4 space-y-4" style={{ background: PALETTE.surface, borderColor: PALETTE.border }}>
         <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: PALETTE.muted }}>Finance</h3>
 
-        <div>
-          <label style={labelStyle}>Payment Terms (days)</label>
-          <input
-            name="payment_terms_days"
-            type="number"
-            min={0}
-            max={180}
-            defaultValue={client.payment_terms_days ?? ''}
-            style={{ ...inputStyle, width: 120 }}
-            placeholder="30"
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label style={labelStyle}>Payment Terms (days)</label>
+            <input
+              name="payment_terms_days"
+              type="number"
+              min={0}
+              max={180}
+              defaultValue={client.payment_terms_days ?? ''}
+              style={{ ...inputStyle, width: 120 }}
+              placeholder="30"
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Xero Contact ID</label>
+            <input
+              name="xero_contact_id"
+              defaultValue={client.xero_contact_id ?? ''}
+              style={inputStyle}
+              placeholder="UUID from go.xero.com → contact URL"
+            />
+            <p className="text-[10px] mt-1" style={{ color: PALETTE.muted }}>
+              Enables a one-click deep-link to the Xero contact. Banking details stay in Xero.
+            </p>
+          </div>
         </div>
       </section>
 

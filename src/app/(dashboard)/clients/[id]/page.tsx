@@ -134,6 +134,17 @@ export default async function ClientDetailPage({ params }: Props) {
                 {COMMUNICATION_STYLE_LABELS[client.communication_style as CommunicationStyle] ?? client.communication_style} tone
               </span>
             )}
+            {/* User-defined tags. Phase C adds an index-page filter chip row.
+                For now we just surface them so editing lands somewhere visible. */}
+            {(client.tags ?? []).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                style={{ background: `${PALETTE.accent}15`, color: PALETTE.accent, border: `1px solid ${PALETTE.accent}33` }}
+              >
+                #{tag}
+              </span>
+            ))}
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: PALETTE.border }}>
@@ -155,8 +166,42 @@ export default async function ClientDetailPage({ params }: Props) {
                 Drive ↗
               </a>
             )}
+            {/* Xero contact deep-link — Xero owns banking/billing per CLAUDE.md
+                doctrine, so we link out rather than mirror their data. */}
+            {client.xero_contact_id && (
+              <a
+                href={`https://go.xero.com/Contacts/View/${client.xero_contact_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-3 py-1 text-xs font-medium"
+                style={{ background: `${PALETTE.muted}18`, color: PALETTE.muted, border: `1px solid ${PALETTE.border}` }}
+              >
+                Xero ↗
+              </a>
+            )}
           </div>
         </section>
+
+        {/* Important pinned note — short, always visible. Phase C will promote
+            this into a reusable ImportantPanel component used on other detail
+            pages too (talent, crew). */}
+        {client.important_note && (
+          <section
+            className="rounded-lg border-l-4 p-3"
+            style={{
+              background: `${PALETTE.warning}10`,
+              borderLeftColor: PALETTE.warning,
+              borderTop: `1px solid ${PALETTE.border}`,
+              borderRight: `1px solid ${PALETTE.border}`,
+              borderBottom: `1px solid ${PALETTE.border}`,
+            }}
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: PALETTE.warning }}>
+              Important
+            </div>
+            <p className="text-sm whitespace-pre-wrap" style={{ color: PALETTE.text }}>{client.important_note}</p>
+          </section>
+        )}
 
         <ClientTabs
           counts={{
@@ -226,7 +271,9 @@ export default async function ClientDetailPage({ params }: Props) {
                   <Field label="Email" value={client.email} />
                   <Field label="Phone" value={client.phone} />
                   <Field label="ABN" value={client.abn} />
-                  <Field label="Address" value={client.address} />
+                  {/* Physical address — falls back to legacy `address` until that column is dropped (PR#209 / migration 0070). */}
+                  <Field label="Physical Address" value={client.address_physical ?? client.address} />
+                  <Field label="Postal Address" value={client.postal_address} />
                   <Field label="Preferred Comms" value={client.preferred_comms ?? null} />
                   <Field label="Payment Terms" value={client.payment_terms_days ? `${client.payment_terms_days} days` : null} />
                   {client.communication_style && (

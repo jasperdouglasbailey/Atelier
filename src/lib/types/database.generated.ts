@@ -854,6 +854,7 @@ export type Database = {
         Row: {
           abn: string | null
           address: string | null
+          address_physical: string | null
           avg_doi_days: number | null
           communication_style: string | null
           company: string | null
@@ -863,18 +864,24 @@ export type Database = {
           drive_folder_link: string | null
           email: string | null
           id: string
+          important_note: string | null
           is_creative_agency: boolean
           name: string
           notes: string | null
           parent_company_id: string | null
           payment_terms_days: number | null
           phone: string | null
+          postal_address: string | null
           preferred_comms: string | null
+          primary_contact_email: string | null
+          tags: string[] | null
           updated_at: string
+          xero_contact_id: string | null
         }
         Insert: {
           abn?: string | null
           address?: string | null
+          address_physical?: string | null
           avg_doi_days?: number | null
           communication_style?: string | null
           company?: string | null
@@ -884,18 +891,24 @@ export type Database = {
           drive_folder_link?: string | null
           email?: string | null
           id?: string
+          important_note?: string | null
           is_creative_agency?: boolean
           name: string
           notes?: string | null
           parent_company_id?: string | null
           payment_terms_days?: number | null
           phone?: string | null
+          postal_address?: string | null
           preferred_comms?: string | null
+          primary_contact_email?: string | null
+          tags?: string[] | null
           updated_at?: string
+          xero_contact_id?: string | null
         }
         Update: {
           abn?: string | null
           address?: string | null
+          address_physical?: string | null
           avg_doi_days?: number | null
           communication_style?: string | null
           company?: string | null
@@ -905,14 +918,19 @@ export type Database = {
           drive_folder_link?: string | null
           email?: string | null
           id?: string
+          important_note?: string | null
           is_creative_agency?: boolean
           name?: string
           notes?: string | null
           parent_company_id?: string | null
           payment_terms_days?: number | null
           phone?: string | null
+          postal_address?: string | null
           preferred_comms?: string | null
+          primary_contact_email?: string | null
+          tags?: string[] | null
           updated_at?: string
+          xero_contact_id?: string | null
         }
         Relationships: [
           {

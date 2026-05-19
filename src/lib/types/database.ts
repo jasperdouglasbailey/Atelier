@@ -129,8 +129,24 @@ export interface Client {
   preferred_comms: string | null;
   /** Tone / register to use in outbound emails. null = casual (Jasper's base voice). */
   communication_style: CommunicationStyle | null;
-  /** Physical/mailing address. */
+  /**
+   * Legacy single-address field. Use `address_physical` going forward — this
+   * column is kept for one release as a read-only fallback for old rows
+   * that haven't been backfilled. See migration 0070.
+   */
   address: string | null;
+  /** Canonical physical address (replaces legacy `address`). Migration 0070. */
+  address_physical: string | null;
+  /** Optional mailing/postal address when different from physical. Migration 0070. */
+  postal_address: string | null;
+  /** Free-form labels for filtering on the index. Migration 0070. */
+  tags: string[] | null;
+  /** Pointer to the matched Xero contact record. Migration 0070. */
+  xero_contact_id: string | null;
+  /** Short pinned note shown on every tab of the detail page. Distinct from long-form `notes`. Migration 0070. */
+  important_note: string | null;
+  /** Optional pointer into `contacts` jsonb identifying the day-to-day primary contact. Migration 0070. */
+  primary_contact_email: string | null;
   /** Additional contacts at this client (in-house producers, brand managers, etc.). */
   contacts: ClientContact[];
   /** Auto-created Drive folder for client material (signed letters, invoices). */
