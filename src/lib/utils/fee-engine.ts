@@ -83,18 +83,26 @@ export function effectiveCost(line: Partial<FeeLine>): number {
  * in migration 0060 were exactly this class).
  */
 export function isReimbursement(line: Partial<FeeLine>): boolean {
+  // Reimbursement = a cost the artist/crew paid up front that we on-bill to
+  // the client at cost. Only `expense` lines qualify. crew_labour is also
+  // non-commissionable + crew-linked but it's a SERVICE payment, not a
+  // reimbursement — counting it here double-booked the line in JobPnL +
+  // accounting (once in the crew bucket, once in the reimb bucket).
+  if (line.line_type !== 'expense') return false;
   if (line.is_commissionable) return false;
   return line.talent_id != null || line.crew_id != null;
 }
 
 /** Narrower helper: artist reimbursement specifically. */
 export function isArtistReimbursement(line: Partial<FeeLine>): boolean {
+  if (line.line_type !== 'expense') return false;
   if (line.is_commissionable) return false;
   return line.talent_id != null;
 }
 
 /** Narrower helper: crew reimbursement specifically. */
 export function isCrewReimbursement(line: Partial<FeeLine>): boolean {
+  if (line.line_type !== 'expense') return false;
   if (line.is_commissionable) return false;
   return line.crew_id != null && line.talent_id == null;
 }

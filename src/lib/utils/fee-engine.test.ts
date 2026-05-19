@@ -667,6 +667,31 @@ describe('isReimbursement / isArtistReimbursement / isCrewReimbursement', () => 
     expect(isArtistReimbursement(line)).toBe(true);
     expect(isCrewReimbursement(line)).toBe(false);
   });
+
+  it('crew_labour line is NOT a reimbursement, even though crew-linked + non-commissionable', () => {
+    // Regression: before the tightening, this returned true because the
+    // helper only checked is_commissionable + person link. Crew labour is
+    // non-commissionable by doctrine and always crew-linked, so it was
+    // wrongly counted as a reimbursement — double-booking the line in
+    // JobPnL's "Paid out" total (once via crew bucket, once via reimb).
+    const line: Partial<FeeLine> = {
+      line_type: 'crew_labour', is_commissionable: false,
+      talent_id: null, crew_id: 'crew-patrick',
+    };
+    expect(isReimbursement(line)).toBe(false);
+    expect(isArtistReimbursement(line)).toBe(false);
+    expect(isCrewReimbursement(line)).toBe(false);
+  });
+
+  it('artist_fee line is NOT a reimbursement, even with is_commissionable=false (operator typo)', () => {
+    // Defensive: if an operator accidentally untoggles commission on an
+    // artist_fee line, we shouldn't suddenly treat it as a reimbursement.
+    const line: Partial<FeeLine> = {
+      line_type: 'artist_fee', is_commissionable: false,
+      talent_id: 'tal-oliver', crew_id: null,
+    };
+    expect(isReimbursement(line)).toBe(false);
+  });
 });
 
 describe('computeGstPassthrough — reimbursement pass-through', () => {

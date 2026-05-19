@@ -12,7 +12,12 @@ type Props = {
   bookingCrew?: BookingCrew[];
 };
 
-const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['crew_overtime', 'artist_overtime', 'expense']);
+// Only overtime is reliably "post-shoot." After PR#175 consolidated equipment,
+// studio hire, props, wardrobe, etc. into a single `expense` type, treating
+// all expenses as post-shoot wrongly flagged every original-quote expense
+// line as Revenue Drift. If we ever need a true "added after quote sent"
+// signal, use the quote_versions diff — not the line type.
+const POST_SHOOT_TYPES = new Set<FeeLine['line_type']>(['crew_overtime', 'artist_overtime']);
 const ARTIST_LINE_TYPES = new Set<FeeLine['line_type']>([
   'artist_fee', 'usage_licence', 'file_management', 'post_production', 'artist_overtime', 'artist_travel',
 ]);
