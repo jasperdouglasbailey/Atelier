@@ -314,15 +314,52 @@ export default function BookingJobFacts({ booking, schedules, clients }: Props) 
             placeholder="natarsha@..."
             layout="horizontal"
           />
+          {/* Grading: directly edits post_production_ownership — that field
+              is semantically "who handles the grade-side of post". */}
           <InlineField
             bookingId={booking.id}
             field="post_production_ownership"
-            label="Retouching"
+            label="Grading"
             value={booking.post_production_ownership}
             variant="select"
             options={POST_PROD_OPTIONS}
             layout="horizontal"
           />
+          {/* Retouching: read-only derived display from ownership + scope.
+              - scope='grade_only' AND ownership=us_* → "Client" (split case:
+                we only grade, client retouches)
+              - everything else → same as Grading (both ends together)
+              To toggle the split case, edit the "Grade scope" row below. */}
+          {(() => {
+            const ownership = booking.post_production_ownership;
+            const scope = booking.grade_retouch_scope;
+            let retouchLabel: string;
+            if (!ownership) {
+              retouchLabel = '—';
+            } else if (scope === 'grade_only' && (ownership === 'us_via_artist' || ownership === 'us_via_post_team')) {
+              retouchLabel = 'Client';
+            } else {
+              const opt = POST_PROD_OPTIONS.find((o) => o.value === ownership);
+              retouchLabel = opt?.label ?? ownership;
+            }
+            return (
+              <div className="px-2.5 py-1.5 flex items-start gap-3">
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-wider flex-none"
+                  style={{ color: PALETTE.muted, width: 130 }}
+                >
+                  Retouching
+                </span>
+                <span
+                  className="flex-1 min-w-0 text-[12px]"
+                  style={{ color: retouchLabel === '—' ? PALETTE.muted : PALETTE.text }}
+                  title="Derived from Grading + Grade scope. Edit those to change."
+                >
+                  {retouchLabel}
+                </span>
+              </div>
+            );
+          })()}
           <InlineField
             bookingId={booking.id}
             field="grade_retouch_scope"
