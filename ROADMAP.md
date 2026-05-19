@@ -36,6 +36,8 @@ These are real product capability not yet live, gated on env vars Jasper needs t
 
 ## Shipped — captured here so they don't re-appear in planning
 
+- ~~Clients section overhaul (Syngency-style tabs + schema)~~ — shipped PR#209/#210/#211 (2026-05-19). Tabbed detail page, migration 0070 (addresses split, tags, Xero pointer, important note, primary contact), Staff CRUD tab, tag-filter chip row on index, expanded Activity feed. Banking still in Xero only.
+- ~~Multi-agent agency foundation (Phase 0 + 1)~~ — shipped PR#207/#208. DB-driven sign-in allowlist (`is_signin_email_allowed` RPC, closes Gary's bug), `talent.assigned_agent_user_id` + "My artists" / "All" ScopePill + co-managing display + brief-apply ownership routing. Bulk-reassignment UI deliberately deferred per YAGNI — build when triggered.
 - ~~Quote template expansion~~ — stylist + HMU shipped PR#28. Further expansion (manicurist, prop stylist, set design) only if Jasper books those disciplines often enough.
 - ~~Comms agent expansion~~ — quote-chase PR#33, brief-clarify PR#34, tone variants PR#36, gallery-share PR#37. All shipped.
 - ~~Insurance / BAS reminders dashboard~~ — shipped PR#34 at `/settings/business-renewals`.
