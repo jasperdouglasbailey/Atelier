@@ -326,6 +326,184 @@ export function computeGstPassthrough(args: {
 }
 
 // ============================================================
+// GST destinations — per-line, per-person passthrough breakdown
+// ============================================================
+// `computeGstPassthrough` (above) returns aggregate input-credit totals
+// suitable for the BAS line on the agency P&L. The summary UI wants a
+// finer slice: WHICH person each chunk of GST passes through to, so the
+// breakdown can read "GST passed to Oliver · photographer · $425" rather
+// than a single "Input credits" line.
+//
+// Doctrine for the split (matches the existing engine, restated per-line):
+//   - Line with NO person linked → its GST belongs to the agency,
+//     remitted to ATO at BAS time.
+//   - Line WITH a person linked AND the person is GST-registered → the
+//     GST on what the person actually invoices (line.cost_subtotal ?? line.subtotal,
+//     i.e. effectiveCost) passes through to that person. The
+//     agency-side spread ((billed − cost) + ASF) stays with the agency
+//     and is owed to ATO.
+//   - Line WITH a person linked BUT person is NOT GST-registered → the
+//     person doesn't charge GST, so the whole line GST stays with the
+//     agency and goes to ATO.
+//   - Agency commission on artist labour earns its own GST (collected
+//     from the client by inflating the artist's line) — owed to ATO.
+
+export interface GstDestinationParty {
+  party: 'talent' | 'crew';
+  id: string;
+  /** Display name (talent.working_name or crew.name). */
+  name: string;
+  /** Discipline (talent) or primary_role (crew). null when not loaded. */
+  roleLabel: string | null;
+  /** Total GST passing through to this person on this booking. */
+  amount: number;
+}
+
+export interface GstDestinations {
+  /** What the agency actually owes the ATO on this booking. */
+  netToAto: number;
+  /** Component: GST on lines where no person is linked. */
+  atoFromAgencyLines: number;
+  /** Component: GST on lines where the linked person is NOT GST-registered. */
+  atoFromNonRegisteredPersonLines: number;
+  /** Component: agency-side spread + ASF portion of person-linked lines (when person IS registered). */
+  atoFromAgencySpreadOnPersonLines: number;
+  /** Component: GST owed on the agency's commission income. */
+  atoFromCommission: number;
+  /** GST passing through to each GST-registered person (talent or crew). */
+  passthroughs: GstDestinationParty[];
+  /** Sum of `passthroughs[].amount`. */
+  totalPassthrough: number;
+  /** Sum of GST collected from the client (line GST + commission GST). */
+  collectedTotal: number;
+}
+
+type PartyLookup = {
+  /** Optional roster of attached talent for name lookup. */
+  bookingTalent: Array<{ talent_id: string; talent?: { working_name?: string | null; discipline?: string | null; gst_registered?: boolean | null } | null }>;
+  /** Optional roster of attached crew for name lookup. */
+  bookingCrew: Array<{ crew_id: string; crew?: { name?: string | null; primary_role?: string | null; gst_registered?: boolean | null } | null }>;
+};
+
+/**
+ * Compute per-person GST passthroughs and the residual ATO net liability.
+ *
+ * Inputs:
+ *   - `lines`: raw fee-line records (we re-compute per-line to avoid
+ *     coupling to ComputedFeeLine ordering).
+ *   - `totals`: pre-computed totals (we use `totalCommissionGst`).
+ *   - `parties`: talent + crew roster so we can attach a name/role to
+ *     each passthrough.
+ *
+ * Reconciles to: `netToAto + totalPassthrough === collectedTotal`. The
+ * test in fee-engine.test.ts asserts this for the canonical AJE example.
+ */
+export function computeGstDestinations(args: {
+  lines: Partial<FeeLine>[];
+  totals: QuoteTotals;
+  parties: PartyLookup;
+}): GstDestinations {
+  const { lines, totals, parties } = args;
+  const { bookingTalent, bookingCrew } = parties;
+
+  // Per-person accumulators. Use Map keyed by `talent:<id>` or `crew:<id>`
+  // so we can lift them out into the passthroughs array preserving party kind.
+  const perPerson = new Map<string, { party: 'talent' | 'crew'; id: string; amount: number }>();
+
+  let atoFromAgencyLines = 0;
+  let atoFromNonRegisteredPersonLines = 0;
+  let atoFromAgencySpreadOnPersonLines = 0;
+
+  for (const line of lines) {
+    if (line.is_gst_exempt) continue;
+    const computed = computeFeeLine(line);
+    if (computed.gstAmount === 0) continue;
+
+    const talentId = line.talent_id ?? null;
+    const crewId = line.crew_id ?? null;
+
+    // Mutually-exclusive person link: prefer talent if both somehow set.
+    if (!talentId && !crewId) {
+      // No person linked — full line GST is agency's, owed to ATO.
+      atoFromAgencyLines = r2(atoFromAgencyLines + computed.gstAmount);
+      continue;
+    }
+
+    const isTalent = !!talentId;
+    const partyKey = isTalent ? `talent:${talentId}` : `crew:${crewId}`;
+    const partyId = (isTalent ? talentId : crewId) as string;
+
+    const personGstRegistered = isTalent
+      ? (bookingTalent.find((bt) => bt.talent_id === partyId)?.talent?.gst_registered ?? false)
+      : (bookingCrew.find((bc) => bc.crew_id === partyId)?.crew?.gst_registered ?? false);
+
+    if (!personGstRegistered) {
+      // Person doesn't charge GST → agency keeps the line GST → ATO.
+      atoFromNonRegisteredPersonLines = r2(atoFromNonRegisteredPersonLines + computed.gstAmount);
+      continue;
+    }
+
+    // Person IS GST-registered. They invoice the agency for the COST
+    // portion + 10% on that cost. The agency-side spread + ASF stays with
+    // the agency and is owed to ATO.
+    const passToPerson = r2(computed.costSubtotal * GST_RATE);
+    const stayWithAgency = r2(Math.max(0, computed.gstAmount - passToPerson));
+
+    atoFromAgencySpreadOnPersonLines = r2(atoFromAgencySpreadOnPersonLines + stayWithAgency);
+    const existing = perPerson.get(partyKey);
+    if (existing) {
+      existing.amount = r2(existing.amount + passToPerson);
+    } else {
+      perPerson.set(partyKey, { party: isTalent ? 'talent' : 'crew', id: partyId, amount: passToPerson });
+    }
+  }
+
+  const atoFromCommission = totals.totalCommissionGst;
+
+  // Resolve display names off the rosters.
+  const passthroughs: GstDestinationParty[] = Array.from(perPerson.values()).map((p) => {
+    if (p.party === 'talent') {
+      const row = bookingTalent.find((bt) => bt.talent_id === p.id);
+      return {
+        party: 'talent',
+        id: p.id,
+        name: row?.talent?.working_name ?? 'Talent',
+        roleLabel: row?.talent?.discipline ?? null,
+        amount: p.amount,
+      };
+    }
+    const row = bookingCrew.find((bc) => bc.crew_id === p.id);
+    return {
+      party: 'crew',
+      id: p.id,
+      name: row?.crew?.name ?? 'Crew',
+      roleLabel: row?.crew?.primary_role ?? null,
+      amount: p.amount,
+    };
+  });
+
+  const totalPassthrough = r2(passthroughs.reduce((s, p) => s + p.amount, 0));
+  const netToAto = r2(
+    atoFromAgencyLines
+    + atoFromNonRegisteredPersonLines
+    + atoFromAgencySpreadOnPersonLines
+    + atoFromCommission,
+  );
+  const collectedTotal = r2(totals.totalGst + totals.totalCommissionGst);
+
+  return {
+    netToAto,
+    atoFromAgencyLines,
+    atoFromNonRegisteredPersonLines,
+    atoFromAgencySpreadOnPersonLines,
+    atoFromCommission,
+    passthroughs,
+    totalPassthrough,
+    collectedTotal,
+  };
+}
+
+// ============================================================
 // Artist net payment calculator
 // ============================================================
 
