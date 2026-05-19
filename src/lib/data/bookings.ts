@@ -791,15 +791,20 @@ export async function deleteBookingWithCorpus(bookingId: string): Promise<{ ok: 
     ? b.shoot_dates.replace(/^\[/, '').slice(0, 7) // '[2026-05-15,...' → '2026-05'
     : null;
 
+  // Migration 0071 dropped the legacy free-text usage fields off the
+  // bookings table. The corpus table still has nullable columns for them
+  // (legacy archived rows keep their data); we just stop populating them.
+  // Structured-taxonomy fields aren't mirrored into the corpus yet — if
+  // that becomes useful we'd add columns and start writing them here.
   const corpusRow = {
     client_hash: clientHash,
     talent_hash: talentHash,
     tier: b.tier,
     day_rate: null as number | null,          // day rate lives on booking_talent; skip for now
     deliverable_count: b.deliverables_count,
-    usage_media: (b.usage_media ?? []) as string[],
-    usage_territory: (b.usage_territory ?? []) as string[],
-    usage_duration_months: b.usage_duration_months,
+    usage_media: null,
+    usage_territory: null,
+    usage_duration_months: null,
     grand_total: b.grand_total,
     shoot_year_month: shootYearMonth,
     outcome,

@@ -185,8 +185,7 @@ export default async function BookingConfirmationPage({ params }: Props) {
       {/* Usage — booking-level (replaces the per-talent UsageLicenceBuilder
           retired 2026-05-19). Single-row summary covering media, territory,
           duration. Per-line usage fees still live in the Fee Schedule below. */}
-      {(booking.usage_duration_months != null ||
-        (booking.usage_media_categories?.length ?? 0) > 0 ||
+      {((booking.usage_media_categories?.length ?? 0) > 0 ||
         (booking.usage_specific_channels?.length ?? 0) > 0 ||
         (booking.usage_territory_iso?.length ?? 0) > 0) && (
         <div style={{ marginBottom: 24 }}>
@@ -207,9 +206,6 @@ export default async function BookingConfirmationPage({ params }: Props) {
             )}
             {(booking.usage_territory_iso?.length ?? 0) > 0 && (
               <Row label="Territory" value={(booking.usage_territory_iso ?? []).join(', ')} />
-            )}
-            {booking.usage_duration_months != null && (
-              <Row label="Duration" value={`${booking.usage_duration_months} months`} />
             )}
             {booking.usage_market && <Row label="Market" value={booking.usage_market} />}
             {booking.usage_realm && <Row label="Realm" value={booking.usage_realm} />}

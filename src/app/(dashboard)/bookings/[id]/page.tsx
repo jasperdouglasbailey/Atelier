@@ -285,11 +285,6 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                             </span>
                           </div>
                         )}
-                        {booking.usage_duration_months != null && (
-                          <div className="mt-1 text-[11px]" style={{ color: PALETTE.muted }}>
-                            Duration: <span style={{ color: PALETTE.text }}>{booking.usage_duration_months} months</span>
-                          </div>
-                        )}
                       </div>
                     )}
                     {/* UsageLicenceBuilder retired 2026-05-19 — usage is now

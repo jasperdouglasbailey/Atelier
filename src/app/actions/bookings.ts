@@ -11,7 +11,6 @@ import { extractBriefFields } from '@/lib/automation/brief-intake';
 import { matchTalentInBrief, type TalentMatch } from '@/lib/automation/talent-match';
 import { getCachedActiveTalent } from '@/lib/data/entities-cache';
 import { autoQueueBriefClarifyIfNeeded } from '@/lib/automation/brief-clarify';
-import { mapTerritoryRaw, mapMediaRaw } from '@/lib/utils/brief-parser';
 import { buildDateRange } from '@/lib/utils/daterange';
 import { createBookingFolders, createSharedLink } from '@/lib/integrations/drive';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/lib/integrations/calendar';
@@ -83,35 +82,27 @@ export async function createBookingAction(formData: FormData) {
   const shootStart = (formData.get('shoot_date_start') as string) || null;
   const shootEnd = (formData.get('shoot_date_end') as string) || null;
 
-  // Parse usage arrays from JSON (serialised by BookingForm)
-  let usageMedia: string[] | null = null;
-  let usageTerritory: string[] | null = null;
-  const mediaRaw = formData.get('usage_media');
-  if (mediaRaw) { try { usageMedia = JSON.parse(mediaRaw as string); } catch { usageMedia = []; } }
-  const territoryRaw = formData.get('usage_territory');
-  if (territoryRaw) { try { usageTerritory = JSON.parse(territoryRaw as string); } catch { usageTerritory = []; } }
+  // The legacy free-text usage_media / usage_territory / usage_duration_months /
+  // usage_notes columns were dropped in migration 0071. Usage now lives in
+  // the structured taxonomy (usage_market / usage_realm / usage_media_categories /
+  // usage_specific_channels / usage_territory_iso) written by the LLM
+  // brief parser or set by the operator via the booking detail page.
 
   const input: CreateBookingInput = {
     title: formData.get('title') as string,
     tier: formData.get('tier') as CreateBookingInput['tier'],
     client_id: (formData.get('client_id') as string) || null,
-    brand_id: (formData.get('brand_id') as string) || null,
     creative_agency_id: (formData.get('creative_agency_id') as string) || null,
     shoot_location: (formData.get('shoot_location') as string) || null,
     shoot_date_notes: (formData.get('shoot_date_notes') as string) || null,
     shoot_dates: buildDateRange(shootStart, shootEnd),
     call_time: (formData.get('call_time') as string) || null,
     wrap_time: (formData.get('wrap_time') as string) || null,
-    talent_count: formData.get('talent_count') ? Number(formData.get('talent_count')) : null,
     deliverables_type: (formData.get('deliverables_type') as string) || null,
     deliverables_count: formData.get('deliverables_count') ? Number(formData.get('deliverables_count')) : null,
-    usage_duration_months: formData.get('usage_duration_months') ? Number(formData.get('usage_duration_months')) : null,
-    usage_notes: (formData.get('usage_notes') as string) || null,
     post_production_ownership: (formData.get('post_production_ownership') as string) || null,
     agency_notes: (formData.get('agency_notes') as string) || null,
     brief_raw_text: (formData.get('brief_raw_text') as string) || null,
-    usage_media: usageMedia,
-    usage_territory: usageTerritory,
     producer_name: (formData.get('producer_name') as string) || null,
     producer_email: (formData.get('producer_email') as string) || null,
     producer_phone: (formData.get('producer_phone') as string) || null,
@@ -186,25 +177,20 @@ export async function updateBookingAction(id: string, formData: FormData) {
   if (shootStart !== null || shootEnd !== null) {
     updates.shoot_dates = buildDateRange(shootStart || null, shootEnd || null);
   }
-  const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication'];
+  const numFields = ['deliverables_count', 'budget_indication'];
   for (const f of numFields) {
     const val = formData.get(f);
     if (val !== null) updates[f] = val ? Number(val) : null;
   }
   if (formData.get('tier')) updates.tier = formData.get('tier');
   if (formData.get('client_id')) updates.client_id = formData.get('client_id') || null;
-  if (formData.get('brand_id')) updates.brand_id = formData.get('brand_id') || null;
   if (formData.get('post_production_ownership') !== null) updates.post_production_ownership = formData.get('post_production_ownership') || null;
 
-  // Array fields arrive as JSON strings from the edit form
-  const mediaRaw = formData.get('usage_media');
-  if (mediaRaw !== null) {
-    try { updates.usage_media = JSON.parse(mediaRaw as string); } catch { updates.usage_media = []; }
-  }
-  const territoryRaw = formData.get('usage_territory');
-  if (territoryRaw !== null) {
-    try { updates.usage_territory = JSON.parse(territoryRaw as string); } catch { updates.usage_territory = []; }
-  }
+  // Legacy free-text usage_media / usage_territory / usage_duration_months /
+  // usage_notes inputs were dropped with migration 0071. Structured-taxonomy
+  // fields (usage_market / usage_realm / usage_media_categories /
+  // usage_specific_channels / usage_territory_iso) are written by the LLM
+  // brief parser and via the booking detail page UsageLicenceBuilder.
 
   const result = await updateBooking(id, updates);
   if (!result) {
@@ -724,7 +710,7 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
   const updates: Record<string, unknown> = {};
 
   const textFields = [
-    'title', 'shoot_location', 'shoot_date_notes', 'talent_spec', 'deliverables_type',
+    'title', 'shoot_location', 'shoot_date_notes', 'deliverables_type',
   ] as const;
   for (const f of textFields) {
     const val = formData.get(f);
@@ -739,7 +725,7 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     updates.post_production_ownership = postProd;
   }
 
-  const numFields = ['talent_count', 'deliverables_count', 'usage_duration_months', 'budget_indication'] as const;
+  const numFields = ['deliverables_count', 'budget_indication'] as const;
   for (const f of numFields) {
     const val = formData.get(f);
     if (val !== null && val !== '') updates[f] = Number(val);
@@ -760,30 +746,12 @@ export async function applyBriefSuggestionsAction(id: string, formData: FormData
     updates.shoot_dates = buildDateRange(shootStart, shootEnd ?? shootStart);
   }
 
-  // Media and territory: try to map to structured enum values first.
-  // Anything that maps confidently sets the enum array directly.
-  // Anything left over (unrecognised tokens) falls into usage_notes as a hint
-  // for Jasper, but we never overwrite existing notes.
-  const mediaRaw = formData.get('usage_media_raw') as string | null;
-  const territoryRaw = formData.get('usage_territory_raw') as string | null;
-  if (mediaRaw || territoryRaw) {
-    const territoryMap = mapTerritoryRaw(territoryRaw);
-    const mediaMap = mapMediaRaw(mediaRaw);
-
-    if (territoryMap.matched.length > 0) updates.usage_territory = territoryMap.matched;
-    if (mediaMap.matched.length > 0) updates.usage_media = mediaMap.matched;
-
-    // Only the tokens we couldn't map become notes — keeps the field readable.
-    const residue: string[] = [];
-    if (territoryMap.unmatched.length > 0) residue.push(`Territory (unmapped): ${territoryMap.unmatched.join(', ')}`);
-    if (mediaMap.unmatched.length > 0) residue.push(`Media (unmapped): ${mediaMap.unmatched.join(', ')}`);
-
-    if (residue.length > 0) {
-      const existing = await getBooking(id);
-      const existingNotes = existing?.usage_notes ?? null;
-      updates.usage_notes = existingNotes ? `${existingNotes}\n${residue.join('\n')}` : residue.join('\n');
-    }
-  }
+  // The legacy free-text usage_media / usage_territory / usage_notes columns
+  // were dropped in migration 0071. The brief-parser apply path now only
+  // writes the structured-taxonomy fields below — `usage_media_raw` and
+  // `usage_territory_raw` are still posted by the parser but they map
+  // directly into `usage_media_categories` + `usage_territory_iso` rather
+  // than a separate free-text column.
 
   // ─── Structured usage taxonomy (migration 0059) ───────────────────
   // Persist the LLM-extracted enum + array fields directly. Validated
@@ -1052,10 +1020,11 @@ export async function sendQuoteEmailAction(
 const CLARIFYING_QUESTIONS: Record<string, string> = {
   shoot_location: 'the shoot location (studio, outdoor venue, suburb)',
   shoot_dates: 'the preferred shoot date(s)',
-  talent_spec: 'the talent spec (number of models, look, gender, age range)',
   deliverables_type: 'the deliverables required (e.g. stills, video, BTS)',
   deliverables_count: 'the number of final images/selects you need',
-  usage_duration_months: 'the intended usage period (in months or years)',
+  // talent_spec and usage_duration_months questions retired with
+  // migration 0071 — usage now flows through the structured taxonomy
+  // (market / realm / categories / channels / ISO territories).
 };
 
 /**
@@ -1392,22 +1361,15 @@ export async function cloneBookingAction(sourceId: string) {
     title: `${source.title} (Copy)`,
     tier: source.tier,
     client_id: source.client_id,
-    brand_id: source.brand_id,
     creative_agency_id: source.creative_agency_id,
     shoot_location: source.shoot_location,
     shoot_date_notes: null, // Don't copy "TBD pending client" — fresh booking
     shoot_dates: newDates,
-    talent_count: source.talent_count,
-    talent_spec: source.talent_spec,
     deliverables_type: source.deliverables_type,
     deliverables_count: source.deliverables_count,
-    usage_duration_months: source.usage_duration_months,
-    usage_notes: source.usage_notes,
     post_production_ownership: source.post_production_ownership,
     agency_notes: null,
     brief_raw_text: null, // Fresh brief expected
-    usage_media: source.usage_media,
-    usage_territory: source.usage_territory,
   };
 
   const newBooking = await createBooking(cloneInput);
@@ -1468,64 +1430,13 @@ export async function cloneBookingAction(sourceId: string) {
   return { id: newBooking.id, ref: newBooking.booking_ref };
 }
 
-// ============================================================
-// Client usage defaults — autofill on new booking
-// ============================================================
-//
-// Returns the most-frequently-used media, territory, and duration values
-// from the client's last 3 bookings. Used by BookingFormFields to pre-tick
-// checkboxes when a client is selected on the new-booking form.
-//
-// A value must appear in at least ceil(n/2) of the n recent bookings to be
-// included (majority threshold). Duration uses the modal value; ties go to
-// the most recent booking.
-
-export async function getClientDefaultsAction(clientId: string): Promise<{
-  media: string[];
-  territories: string[];
-  durationMonths: number | null;
-}> {
-  const supabase = await createSupabaseServer();
-  const { data } = await supabase
-    .from('atelier_bookings')
-    .select('usage_media, usage_territory, usage_duration_months')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-    .limit(3);
-
-  if (!data || data.length === 0) return { media: [], territories: [], durationMonths: null };
-
-  const n = data.length;
-  const threshold = Math.ceil(n / 2);
-
-  const mediaCounts: Record<string, number> = {};
-  const territoryCounts: Record<string, number> = {};
-  const durations: number[] = [];
-
-  for (const b of data) {
-    for (const m of (b.usage_media ?? [])) mediaCounts[m] = (mediaCounts[m] ?? 0) + 1;
-    for (const t of (b.usage_territory ?? [])) territoryCounts[t] = (territoryCounts[t] ?? 0) + 1;
-    if (b.usage_duration_months != null) durations.push(b.usage_duration_months);
-  }
-
-  const media = Object.entries(mediaCounts)
-    .filter(([, count]) => count >= threshold)
-    .map(([key]) => key);
-
-  const territories = Object.entries(territoryCounts)
-    .filter(([, count]) => count >= threshold)
-    .map(([key]) => key);
-
-  let durationMonths: number | null = null;
-  if (durations.length > 0) {
-    const durationCounts: Record<number, number> = {};
-    for (const d of durations) durationCounts[d] = (durationCounts[d] ?? 0) + 1;
-    durationMonths = durations.reduce((best, d) =>
-      (durationCounts[d] > durationCounts[best]) ? d : best, durations[0]);
-  }
-
-  return { media, territories, durationMonths };
-}
+// `getClientDefaultsAction` retired with migration 0071 — it read the
+// legacy free-text usage_media / usage_territory / usage_duration_months
+// columns to pre-tick checkboxes on the new-booking form. Those columns
+// no longer exist; the structured-taxonomy fields take their place but
+// the equivalent autofill (pre-select common categories / channels /
+// territories from a client's recent bookings) was never wired into the
+// UI, so dropping the dead export. ROADMAP item if Jasper wants it back.
 
 // ============================================================
 // Hard delete (terminal bookings only)
@@ -1691,22 +1602,15 @@ export async function convertEmailToBookingAction(opts: {
       title,
       tier: 'content',
       client_id: null,
-      brand_id: null,
       creative_agency_id: null,
       shoot_location: null,
       shoot_date_notes: null,
       shoot_dates: null,
-      talent_count: null,
-      talent_spec: null,
       deliverables_type: null,
       deliverables_count: null,
-      usage_duration_months: null,
-      usage_notes: null,
       post_production_ownership: null,
       agency_notes: `Auto-imported from email (${opts.fromHeader}).`,
       brief_raw_text: body,
-      usage_media: null,
-      usage_territory: null,
       // Enables the "Undo conversion" affordance on the booking detail page
       // and excludes this message from future Potential Briefs scans.
       source_gmail_message_id: opts.messageId,

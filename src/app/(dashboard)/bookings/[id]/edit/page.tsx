@@ -3,9 +3,11 @@ import Link from 'next/link';
 import Topbar from '@/components/layout/Topbar';
 import BookingEditForm from '@/components/bookings/BookingEditForm';
 import { getBooking } from '@/lib/data/bookings';
-import { listBrands } from '@/lib/data/entities';
-import { getCachedActiveClients, getCachedActiveTalent } from '@/lib/data/entities-cache';
-import { listLocations } from '@/lib/data/locations';
+import {
+  getCachedActiveClients,
+  getCachedActiveTalent,
+  getCachedActiveLocations,
+} from '@/lib/data/entities-cache';
 import { listBookingTalent } from '@/lib/data/quotes';
 import { PALETTE, ARTIST_DISCIPLINE_LABELS } from '@/lib/utils/constants';
 
@@ -13,12 +15,14 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function BookingEditPage({ params }: Props) {
   const { id } = await params;
-  const [booking, clients, brands, talent, locations, bookingTalent] = await Promise.all([
+  // End Brand was dropped with migration 0071 — no brands fetch needed.
+  // Locations + clients + talent all flow through the entities cache for
+  // parity with /bookings/new.
+  const [booking, clients, talent, locations, bookingTalent] = await Promise.all([
     getBooking(id),
     getCachedActiveClients(),
-    listBrands(),
     getCachedActiveTalent(),
-    listLocations({ active_only: true }),
+    getCachedActiveLocations(),
     listBookingTalent(id),
   ]);
 
@@ -67,7 +71,6 @@ export default async function BookingEditPage({ params }: Props) {
           <BookingEditForm
             booking={booking}
             clients={clients}
-            brands={brands}
             talent={talent}
             locations={locations}
             primaryTalentId={primaryTalentId}

@@ -436,7 +436,6 @@ export type Database = {
           agency_notes: string | null
           archived_at: string | null
           booking_ref: string | null
-          brand_id: string | null
           brief_raw_text: string | null
           budget_currency: string | null
           budget_indication: number | null
@@ -464,7 +463,6 @@ export type Database = {
           invoice_issued_at: string | null
           is_archived: boolean
           job_number: string | null
-          looks_per_talent: number | null
           ot_expenses_locked: boolean | null
           ot_expenses_window_end: string | null
           paid_at: string | null
@@ -481,7 +479,6 @@ export type Database = {
           quote_validity_days: number | null
           release_reason: string | null
           released_to: string | null
-          retouch_note_format: string | null
           selects_cadence: string | null
           shoot_date_notes: string | null
           shoot_dates: unknown
@@ -490,35 +487,22 @@ export type Database = {
           split_invoicing: Json | null
           state: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal: number | null
-          talent_count: number | null
-          talent_spec: string | null
           tier: Database["public"]["Enums"]["atelier_shoot_tier"]
           title: string
           total_asf: number | null
           total_gst: number | null
           updated_at: string
-          usage_duration_months: number | null
           usage_market: string | null
-          usage_media:
-            | Database["public"]["Enums"]["atelier_usage_media"][]
-            | null
           usage_media_categories: string[] | null
-          usage_notes: string | null
           usage_realm: string | null
           usage_specific_channels: string[] | null
-          usage_territory:
-            | Database["public"]["Enums"]["atelier_usage_territory"][]
-            | null
           usage_territory_iso: string[] | null
-          video_references: string | null
-          wardrobe_responsibility: string | null
           wrap_time: string | null
         }
         Insert: {
           agency_notes?: string | null
           archived_at?: string | null
           booking_ref?: string | null
-          brand_id?: string | null
           brief_raw_text?: string | null
           budget_currency?: string | null
           budget_indication?: number | null
@@ -546,7 +530,6 @@ export type Database = {
           invoice_issued_at?: string | null
           is_archived?: boolean
           job_number?: string | null
-          looks_per_talent?: number | null
           ot_expenses_locked?: boolean | null
           ot_expenses_window_end?: string | null
           paid_at?: string | null
@@ -563,7 +546,6 @@ export type Database = {
           quote_validity_days?: number | null
           release_reason?: string | null
           released_to?: string | null
-          retouch_note_format?: string | null
           selects_cadence?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
@@ -572,35 +554,22 @@ export type Database = {
           split_invoicing?: Json | null
           state?: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal?: number | null
-          talent_count?: number | null
-          talent_spec?: string | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"]
           title: string
           total_asf?: number | null
           total_gst?: number | null
           updated_at?: string
-          usage_duration_months?: number | null
           usage_market?: string | null
-          usage_media?:
-            | Database["public"]["Enums"]["atelier_usage_media"][]
-            | null
           usage_media_categories?: string[] | null
-          usage_notes?: string | null
           usage_realm?: string | null
           usage_specific_channels?: string[] | null
-          usage_territory?:
-            | Database["public"]["Enums"]["atelier_usage_territory"][]
-            | null
           usage_territory_iso?: string[] | null
-          video_references?: string | null
-          wardrobe_responsibility?: string | null
           wrap_time?: string | null
         }
         Update: {
           agency_notes?: string | null
           archived_at?: string | null
           booking_ref?: string | null
-          brand_id?: string | null
           brief_raw_text?: string | null
           budget_currency?: string | null
           budget_indication?: number | null
@@ -628,7 +597,6 @@ export type Database = {
           invoice_issued_at?: string | null
           is_archived?: boolean
           job_number?: string | null
-          looks_per_talent?: number | null
           ot_expenses_locked?: boolean | null
           ot_expenses_window_end?: string | null
           paid_at?: string | null
@@ -645,7 +613,6 @@ export type Database = {
           quote_validity_days?: number | null
           release_reason?: string | null
           released_to?: string | null
-          retouch_note_format?: string | null
           selects_cadence?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
@@ -654,38 +621,19 @@ export type Database = {
           split_invoicing?: Json | null
           state?: Database["public"]["Enums"]["atelier_booking_state"]
           subtotal?: number | null
-          talent_count?: number | null
-          talent_spec?: string | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"]
           title?: string
           total_asf?: number | null
           total_gst?: number | null
           updated_at?: string
-          usage_duration_months?: number | null
           usage_market?: string | null
-          usage_media?:
-            | Database["public"]["Enums"]["atelier_usage_media"][]
-            | null
           usage_media_categories?: string[] | null
-          usage_notes?: string | null
           usage_realm?: string | null
           usage_specific_channels?: string[] | null
-          usage_territory?:
-            | Database["public"]["Enums"]["atelier_usage_territory"][]
-            | null
           usage_territory_iso?: string[] | null
-          video_references?: string | null
-          wardrobe_responsibility?: string | null
           wrap_time?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "atelier_bookings_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "atelier_brands"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "atelier_bookings_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -2881,57 +2829,45 @@ export type Database = {
           deliverables_count: number | null
           deliverables_type: string | null
           id: string | null
-          looks_per_talent: number | null
           post_production_ownership:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
-          retouch_note_format: string | null
           shoot_date_notes: string | null
           shoot_dates: unknown
           shoot_location: string | null
           state: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title: string | null
-          video_references: string | null
-          wardrobe_responsibility: string | null
         }
         Insert: {
           booking_ref?: string | null
           deliverables_count?: number | null
           deliverables_type?: string | null
           id?: string | null
-          looks_per_talent?: number | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
-          retouch_note_format?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
           state?: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title?: string | null
-          video_references?: string | null
-          wardrobe_responsibility?: string | null
         }
         Update: {
           booking_ref?: string | null
           deliverables_count?: number | null
           deliverables_type?: string | null
           id?: string | null
-          looks_per_talent?: number | null
           post_production_ownership?:
             | Database["public"]["Enums"]["atelier_post_production_ownership"]
             | null
-          retouch_note_format?: string | null
           shoot_date_notes?: string | null
           shoot_dates?: unknown
           shoot_location?: string | null
           state?: Database["public"]["Enums"]["atelier_booking_state"] | null
           tier?: Database["public"]["Enums"]["atelier_shoot_tier"] | null
           title?: string | null
-          video_references?: string | null
-          wardrobe_responsibility?: string | null
         }
         Relationships: []
       }
