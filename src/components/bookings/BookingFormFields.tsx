@@ -109,7 +109,11 @@ export default function BookingFormFields({
   // carry a brand_id. Brands live on the campaigns surface.
 
   // Tier
-  const [tier, setTier] = useState<string>(initial?.tier ?? 'content');
+  // Default tier is BLANK on new bookings (2026-05-19). The operator
+  // explicitly picks. Auto-suggestion fires when an artist is chosen
+  // (see addTalent + handleTalentChangeEdit) — videographers → fashion_film,
+  // photographers → content. Edit mode preserves the existing tier.
+  const [tier, setTier] = useState<string>(initial?.tier ?? '');
 
   // Location library pick
   const [locationPickId, setLocationPickId] = useState('');
@@ -135,7 +139,7 @@ export default function BookingFormFields({
     if (id) {
       const artist = talent.find((t) => t.id === id);
       if (artist) {
-        setTier((prev) => (prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
+        setTier((prev) => (prev === '' || prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
       }
     }
   }
@@ -150,7 +154,7 @@ export default function BookingFormFields({
     if (isFirst) {
       const artist = talent.find((t) => t.id === id);
       if (artist) {
-        setTier((prev) => (prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
+        setTier((prev) => (prev === '' || prev === 'content' || prev === 'fashion_film') ? suggestTier(artist.discipline) : prev);
       }
     }
   }
@@ -362,7 +366,14 @@ export default function BookingFormFields({
             </span>
           )}
         </label>
-        <select value={tier} onChange={(e) => setTier(e.target.value)} className={inputClass} style={inputStyle}>
+        <select
+          value={tier}
+          onChange={(e) => setTier(e.target.value)}
+          className={inputClass}
+          style={inputStyle}
+          required={mode === 'create'}
+        >
+          <option value="">— Select tier —</option>
           {SHOOT_TIERS.map((t) => (
             <option key={t} value={t}>{SHOOT_TIER_LABELS[t]}</option>
           ))}
@@ -584,7 +595,7 @@ export default function BookingFormFields({
       <div className="flex gap-3">
         <button
           type="submit"
-          disabled={submitting || (mode === 'create' && selectedTalentIds.length === 0)}
+          disabled={submitting || (mode === 'create' && (selectedTalentIds.length === 0 || tier === ''))}
           className="rounded-md px-6 py-2.5 text-sm font-medium disabled:opacity-50"
           style={{ background: PALETTE.accent, color: PALETTE.bg }}
         >
