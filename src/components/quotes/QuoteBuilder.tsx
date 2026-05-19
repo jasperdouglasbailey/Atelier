@@ -10,10 +10,9 @@ import { isReimbursement } from '@/lib/utils/fee-engine';
 import FinanceSummary from '@/components/bookings/FinanceSummary';
 import { FEE_LINE_TYPE_LABELS, PALETTE, DEFAULT_ASF_RATE } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
-import UndoToast from '@/components/ui/UndoToast';
 import {
   createQuoteVersionAction,
-  addFeeLineAction, removeFeeLineAction, updateFeeLineAction, restoreFeeLineAction,
+  addFeeLineAction, removeFeeLineAction, updateFeeLineAction,
   getFeeLinesByVersionAction, generateQuoteFromTemplateAction,
   reorderFeeLinesAction,
 } from '@/app/actions/quotes';
@@ -61,9 +60,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(latestVersion?.id ?? null);
   const [feeLines, setFeeLines] = useState<FeeLine[]>(initialFeeLines);
   const [loadingVersion, setLoadingVersion] = useState(false);
-  // Last deleted fee line — feeds the 8s undo toast. The full row is cached
-  // so restoreFeeLineAction can recreate it with identical fields.
-  const [deletedFeeLine, setDeletedFeeLine] = useState<FeeLine | null>(null);
 
   const selectedVersion = quoteVersions.find((v) => v.id === selectedVersionId) ?? latestVersion;
   const isLatestVersion = selectedVersionId === latestVersion?.id || selectedVersionId === null;
@@ -254,10 +250,10 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
   }
 
   async function handleRemoveLine(lineId: string) {
-    // Confirm dialog removed — the 8s toast undo is the new safety net.
-    // Capture the row before removing so the toast can restore via
-    // restoreFeeLineAction if the user clicks Undo.
-    const removed = feeLines.find((l) => l.id === lineId);
+    // Confirm dialog removed deliberately — the optimistic UI snaps back on
+    // server failure, and Jasper asked for the undo toast to go (annoying on
+    // every line edit). If you ever need to restore deleted lines, fall back
+    // to the audit log + restoreFeeLineAction in src/app/actions/quotes.ts.
     const snapshot = feeLines;
     setFeeLines((prev) => prev.filter((l) => l.id !== lineId));
 
@@ -265,34 +261,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
     if (!result.ok) {
       setError(result.error ?? 'Failed');
       setFeeLines(snapshot); // revert optimistic remove
-      return;
-    }
-    if (removed) setDeletedFeeLine(removed);
-    router.refresh();
-  }
-
-  async function handleUndoRemoveLine() {
-    if (!deletedFeeLine) return;
-    const line = deletedFeeLine;
-    setDeletedFeeLine(null);
-
-    const result = await restoreFeeLineAction({
-      quote_version_id: line.quote_version_id,
-      booking_id: bookingId,
-      line_type: line.line_type,
-      description: line.description,
-      talent_id: line.talent_id,
-      crew_id: line.crew_id,
-      quantity: line.quantity,
-      unit_price: line.unit_price,
-      asf_rate: line.asf_rate,
-      is_gst_exempt: line.is_gst_exempt,
-      notes: line.notes,
-      sort_order: line.sort_order,
-    });
-
-    if (!result.ok) {
-      setError(result.error || 'Failed to restore fee line');
       return;
     }
     router.refresh();
@@ -393,17 +361,6 @@ export default function QuoteBuilder({ bookingId, quoteVersions, feeLines: initi
         <div className="rounded px-3 py-1.5 text-xs" style={{ background: `${PALETTE.danger}22`, color: PALETTE.danger }}>
           {error}
         </div>
-      )}
-
-      {/* Undo toast — 8s window after deleting a fee line. */}
-      {deletedFeeLine && (
-        <UndoToast
-          message={
-            <>Removed <strong>{deletedFeeLine.description}</strong> — undo within 8s to restore the line.</>
-          }
-          onUndo={handleUndoRemoveLine}
-          onDismiss={() => setDeletedFeeLine(null)}
-        />
       )}
 
       {/* Template panel — shown when generating from template */}
