@@ -158,7 +158,12 @@ export async function getBooking(id: string): Promise<BookingDetailRow | null> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      // Migration 0071 dropped atelier_bookings.brand_id — the brand
+// join here referenced a non-existent FK and made PostgREST
+// throw on every detail load. Brand display references in the
+// printable/quote/invoice/call-sheet templates short-circuit
+// when `booking.brand` is undefined; safe to remove the join.
+'*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days)',
     )
     .eq('id', id)
     .maybeSingle();
@@ -181,7 +186,12 @@ export async function getBookingByQuoteToken(token: string): Promise<BookingDeta
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      '*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days), brand:atelier_brands!atelier_bookings_brand_id_fkey(id, name)',
+      // Migration 0071 dropped atelier_bookings.brand_id — the brand
+// join here referenced a non-existent FK and made PostgREST
+// throw on every detail load. Brand display references in the
+// printable/quote/invoice/call-sheet templates short-circuit
+// when `booking.brand` is undefined; safe to remove the join.
+'*, client:atelier_clients!atelier_bookings_client_id_fkey(id, name, company, email, abn, payment_terms_days)',
     )
     .eq('quote_token', token)
     .maybeSingle();
