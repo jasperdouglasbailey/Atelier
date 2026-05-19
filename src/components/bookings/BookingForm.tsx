@@ -3,11 +3,10 @@
 import { useRouter } from 'next/navigation';
 import BookingFormFields from './BookingFormFields';
 import { createBookingAction } from '@/app/actions/bookings';
-import type { Client, Brand, Talent, Location } from '@/lib/types/database';
+import type { Client, Talent, Location } from '@/lib/types/database';
 
 type Props = {
   clients: Client[];
-  brands: Brand[];
   talent: Talent[];
   locations: Location[];
 };
@@ -15,6 +14,9 @@ type Props = {
 /**
  * Thin wrapper around BookingFormFields for new-booking creation.
  * All field UI lives in BookingFormFields; this wires the create action.
+ *
+ * End-brand prop dropped 2026-05-19 (migration 0071) — bookings no
+ * longer carry a brand_id. Brands stay on the campaigns surface.
  */
 export default function BookingForm(props: Props) {
   const router = useRouter();

@@ -329,7 +329,6 @@ export interface Booking {
   state: BookingState;
   campaign_id: string | null;
   client_id: string | null;
-  brand_id: string | null;
   creative_agency_id: string | null;
   contacts: BriefContact[];
   title: string;
@@ -340,19 +339,8 @@ export interface Booking {
   call_time: string | null;
   /** Planned crew finish time on shoot day (HH:MM, local agency TZ). */
   wrap_time: string | null;
-  talent_count: number | null;
-  /** @deprecated UI removed 2026-05-12; column kept for brief parser write target. */
-  talent_spec: string | null;
   deliverables_type: string | null;
   deliverables_count: number | null;
-  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
-  usage_media: UsageMedia[] | null;
-  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
-  usage_territory: UsageTerritory[] | null;
-  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
-  usage_duration_months: number | null;
-  /** @deprecated UI removed; UsageLicenceBuilder is the canonical usage source. */
-  usage_notes: string | null;
   // ─── Structured usage taxonomy (migration 0059 / PR C) ────────────
   // Populated by the brief-intake LLM. Heuristic doesn't write these.
   // Displayed in the booking detail's Usage panel; persisted so future
@@ -368,13 +356,6 @@ export interface Booking {
   grade_retouch_scope: 'grade_and_retouch' | 'grade_only' | null;
   budget_indication: number | null;
   budget_currency: string;
-  /** @deprecated UI removed 2026-05-12. */
-  retouch_note_format: string | null;
-  /** @deprecated UI removed 2026-05-12. */
-  video_references: string | null;
-  /** @deprecated UI removed 2026-05-12. */
-  wardrobe_responsibility: string | null;
-  looks_per_talent: number | null;
   subtotal: number;
   total_gst: number;
   total_asf: number;

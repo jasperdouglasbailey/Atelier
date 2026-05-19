@@ -4,12 +4,11 @@ import { useRouter } from 'next/navigation';
 import BookingFormFields from './BookingFormFields';
 import { updateBookingAction } from '@/app/actions/bookings';
 import type { BookingDetailRow } from '@/lib/data/bookings';
-import type { Client, Brand, Talent, Location } from '@/lib/types/database';
+import type { Client, Talent, Location } from '@/lib/types/database';
 
 type Props = {
   booking: BookingDetailRow;
   clients: Client[];
-  brands: Brand[];
   talent: Talent[];
   locations: Location[];
   /** Current primary artist's talent_id, from the first booking_talent row. */
@@ -19,11 +18,12 @@ type Props = {
 /**
  * Thin wrapper around BookingFormFields for editing existing bookings.
  * Handles the update action + post-save redirect.
+ *
+ * End-brand prop dropped 2026-05-19 (migration 0071).
  */
 export default function BookingEditForm({
   booking,
   clients,
-  brands,
   talent,
   locations,
   primaryTalentId,
@@ -35,7 +35,6 @@ export default function BookingEditForm({
       initial={booking}
       initialPrimaryTalentId={primaryTalentId}
       clients={clients}
-      brands={brands}
       talent={talent}
       locations={locations}
       onSubmit={async (formData) => {

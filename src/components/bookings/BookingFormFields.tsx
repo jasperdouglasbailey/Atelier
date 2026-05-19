@@ -18,7 +18,7 @@ import { dateRangeToInputs } from '@/lib/utils/daterange';
 import { SHOOT_TIERS, SHOOT_TIER_LABELS, PALETTE } from '@/lib/utils/constants';
 import QuickCreateForm from '@/components/bookings/QuickCreateForm';
 import type {
-  Booking, Client, Brand, Talent, Location, ArtistDiscipline,
+  Booking, Client, Talent, Location, ArtistDiscipline,
 } from '@/lib/types/database';
 
 type Props = {
@@ -28,7 +28,6 @@ type Props = {
   /** Current primary artist's talent_id when editing. */
   initialPrimaryTalentId?: string | null;
   clients: Client[];
-  brands: Brand[];
   talent: Talent[];
   locations: Location[];
   /** Submit handler — wires to createBookingAction or updateBookingAction. */
@@ -78,7 +77,6 @@ export default function BookingFormFields({
   initial,
   initialPrimaryTalentId = null,
   clients: initialClients,
-  brands: initialBrands,
   talent,
   locations,
   onSubmit,
@@ -96,9 +94,8 @@ export default function BookingFormFields({
   const [selectedClientId, setSelectedClientId] = useState<string>(initial?.client_id ?? '');
   const [showNewClient, setShowNewClient] = useState(false);
 
-  const [brands, setBrands] = useState(initialBrands);
-  const [selectedBrandId, setSelectedBrandId] = useState<string>(initial?.brand_id ?? '');
-  const [showNewBrand, setShowNewBrand] = useState(false);
+  // End-brand picker retired with migration 0071 — bookings no longer
+  // carry a brand_id. Brands live on the campaigns surface.
 
   // Tier
   const [tier, setTier] = useState<string>(initial?.tier ?? 'content');
@@ -140,11 +137,6 @@ export default function BookingFormFields({
     }
   }
 
-  function handleBrandChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    if (e.target.value === QUICK_CREATE_VALUE) { setShowNewBrand(true); setSelectedBrandId(''); }
-    else { setShowNewBrand(false); setSelectedBrandId(e.target.value); }
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
@@ -159,7 +151,6 @@ export default function BookingFormFields({
       formData.set('primary_talent_changed', changed ? '1' : '0');
     }
     if (selectedClientId) formData.set('client_id', selectedClientId);
-    if (selectedBrandId) formData.set('brand_id', selectedBrandId);
     formData.set('tier', tier);
 
     const result = await onSubmit(formData);
@@ -315,33 +306,6 @@ export default function BookingFormFields({
                 setShowNewClient(false);
               }}
               onCancel={() => { setShowNewClient(false); setSelectedClientId(''); }}
-            />
-          )}
-        </div>
-        <div>
-          <label className={labelClass} style={labelStyle}>End Brand</label>
-          <select
-            value={showNewBrand ? QUICK_CREATE_VALUE : selectedBrandId}
-            onChange={handleBrandChange}
-            className={inputClass}
-            style={inputStyle}
-          >
-            <option value="">— Select —</option>
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-            <option value={QUICK_CREATE_VALUE}>+ New brand…</option>
-          </select>
-          {showNewBrand && (
-            <QuickCreateForm
-              type="brand"
-              onCreated={(id, name) => {
-                const newBrand: Brand = { id, name, created_at: new Date().toISOString(), industry: null, notes: null };
-                setBrands((prev) => [...prev, newBrand]);
-                setSelectedBrandId(id);
-                setShowNewBrand(false);
-              }}
-              onCancel={() => { setShowNewBrand(false); setSelectedBrandId(''); }}
             />
           )}
         </div>

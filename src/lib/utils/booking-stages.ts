@@ -188,12 +188,13 @@ function quoteChecklist(input: ChecklistInput): StageChecklist {
         ? 'optional'
         : bookingCrew.every((c) => c.status === 'sent' || c.status === 'confirmed') ? 'done' : 'pending' },
     { label: 'Usage captured',
-      // Was per-talent licence count; consolidated 2026-05-19 to read
-      // from booking-level usage fields. Any of duration / media /
-      // territory counts as "captured" — the LLM brief intake fills
-      // these from the brief automatically.
-      status: (booking.usage_duration_months != null ||
-               (booking.usage_media_categories?.length ?? 0) > 0 ||
+      // Was per-talent licence count; consolidated to read from the
+      // booking-level structured taxonomy fields (migration 0059) +
+      // any per-talent licence rows. The LLM brief intake fills these
+      // from the brief automatically. Legacy usage_duration_months
+      // dropped in migration 0071.
+      status: ((booking.usage_media_categories?.length ?? 0) > 0 ||
+               (booking.usage_specific_channels?.length ?? 0) > 0 ||
                (booking.usage_territory_iso?.length ?? 0) > 0 ||
                usageLicences.length > 0)
         ? 'done' : 'optional',
